@@ -49,7 +49,7 @@ import com.rork.vitahero.ui.theme.HeroGreen
 
 @Composable
 fun AuthScreen(
-    onContinue: (phone: String) -> Unit
+    onContinue: (phone: String, name: String) -> Unit
 ) {
     var isLogin by remember { mutableStateOf(true) }
     var phone by remember { mutableStateOf("") }
@@ -135,8 +135,8 @@ fun AuthScreen(
         Spacer(Modifier.height(24.dp))
         PrimaryGradientButton(
             text = "Send OTP",
-            enabled = phone.length == 10,
-            onClick = { onContinue(phone) },
+            enabled = phone.length == 10 && (isLogin || name.isNotBlank()),
+            onClick = { onContinue(phone, name.trim()) },
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -148,8 +148,8 @@ fun AuthScreen(
         }
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            SocialButton("Google", Modifier.weight(1f)) { onContinue("9876543210") }
-            SocialButton("Apple", Modifier.weight(1f)) { onContinue("9876543210") }
+            SocialButton("Google", Modifier.weight(1f)) { onContinue("9876543210", "Priya") }
+            SocialButton("Apple", Modifier.weight(1f)) { onContinue("9876543210", "Priya") }
         }
 
         Spacer(Modifier.weight(1f))

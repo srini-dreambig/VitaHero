@@ -21,6 +21,7 @@ import com.rork.vitahero.data.AppViewModel
 import com.rork.vitahero.ui.screens.AddKidScreen
 import com.rork.vitahero.ui.screens.AuthScreen
 import com.rork.vitahero.ui.screens.BookingScreen
+import com.rork.vitahero.ui.screens.ConsentScreen
 import com.rork.vitahero.ui.screens.DietScreen
 import com.rork.vitahero.ui.screens.KidDetailScreen
 import com.rork.vitahero.ui.screens.MainScaffold
@@ -29,9 +30,10 @@ import com.rork.vitahero.ui.screens.OnboardingScreen
 import com.rork.vitahero.ui.screens.OtpScreen
 
 object Routes {
+    const val CONSENT = "consent"
     const val ONBOARDING = "onboarding"
     const val AUTH = "auth"
-    const val OTP = "otp/{phone}"
+    const val OTP = "otp/{phone}/{name}"
     const val MAIN = "main"
     const val KID_DETAIL = "kid/{kidId}"
     const val DIET = "diet/{kidId}"
@@ -51,15 +53,17 @@ val OnboardingImages = listOf(
 fun AppNavigation() {
     val navController = rememberNavController()
     val appViewModel: AppViewModel = viewModel()
+    val state by appViewModel.uiState.collectAsState()
     val onboardingComplete by appViewModel.onboardingComplete.collectAsState()
     val isLoggedIn by appViewModel.isLoggedIn.collectAsState()
     var phone by rememberSaveable { mutableStateOf("") }
+    var pendingName by rememberSaveable { mutableStateOf("") }
 
     // Determine start destination based on persisted auth state
     val startDest = when {
         isLoggedIn -> Routes.MAIN
         onboardingComplete -> Routes.AUTH
-        else -> Routes.ONBOARDING
+        else -> Routes.CONSENT
     }
 
     NavHost(
@@ -70,6 +74,23 @@ fun AppNavigation() {
         popEnterTransition = { fadeIn(tween(220)) },
         popExitTransition = { fadeOut(tween(180)) }
     ) {
+        composable(Routes.CONSENT) {
+            ConsentScreen(
+                onAccept = {
+                    appViewModel.acceptConsent()
+                    navController.navigate(Routes.ONBOARDING) {
+                        popUpTo(Routes.CONSENT) { inclusive = true }
+                    }
+                },
+                onDecline = {
+                    // In production would exit; for demo, go to onboarding
+                    navController.navigate(Routes.ONBOARDING) {
+                        popUpTo(Routes.CONSENT) { inclusive = true }
+                    }
+                }
+            )
+        }
+
         composable(Routes.ONBOARDING) {
             OnboardingScreen(
                 images = OnboardingImages,
@@ -84,23 +105,29 @@ fun AppNavigation() {
 
         composable(Routes.AUTH) {
             AuthScreen(
-                onContinue = { p ->
+                onContinue = { p, n ->
                     phone = p
-                    navController.navigate("otp/$p")
+                    pendingName = n
+                    navController.navigate("otp/$p/${n.ifBlank { "Priya" }}")
                 }
             )
         }
 
         composable(
             Routes.OTP,
-            arguments = listOf(navArgument("phone") { type = NavType.StringType })
+            arguments = listOf(
+                navArgument("phone") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType }
+            )
         ) { backStack ->
             val p = backStack.arguments?.getString("phone").orEmpty()
+            val n = backStack.arguments?.getString("name").orEmpty()
             OtpScreen(
                 phone = p,
+                parentName = n,
                 onBack = { navController.popBackStack() },
                 onVerified = {
-                    appViewModel.login(p)
+                    appViewModel.login(p, n)
                     navController.navigate(Routes.MAIN) {
                         popUpTo(Routes.AUTH) { inclusive = true }
                     }
@@ -109,7 +136,6 @@ fun AppNavigation() {
         }
 
         composable(Routes.MAIN) {
-            val state by appViewModel.uiState.collectAsState()
             MainScaffold(
                 appViewModel = appViewModel,
                 phone = state.phone,
@@ -120,7 +146,7 @@ fun AppNavigation() {
                 onAddKid = { navController.navigate(Routes.ADD_KID) },
                 onLogout = {
                     appViewModel.logout()
-                    navController.navigate(Routes.ONBOARDING) {
+                    navController.navigate(Routes.CONSENT) {
                         popUpTo(Routes.MAIN) { inclusive = true }
                     }
                 }
@@ -136,7 +162,10 @@ fun AppNavigation() {
                 KidDetailScreen(
                     kid = kid,
                     onBack = { navController.popBackStack() },
-                    onOpenDiet = { navController.navigate("diet/${kid.id}") }
+                    onOpenDiet = { navController.navigate("diet/${kid.id}") },
+                    onAddGrowth = { height, weight, label ->
+                        appViewModel.addGrowthPoint(kid.id, height, weight, label)
+                    }
                 )
             }
         }
@@ -148,12 +177,16 @@ fun AppNavigation() {
             val kidId = backStack.arguments?.getString("kidId").orEmpty()
             val kid = appViewModel.kidById(kidId)
             val meals by appViewModel.meals.collectAsState()
+            val aiContent by appViewModel.aiContent.collectAsState()
             if (kid != null) {
                 DietScreen(
                     kidName = kid.name,
+                    kidId = kidId,
                     meals = meals[kidId].orEmpty(),
+                    aiContent = aiContent[kidId],
                     onBack = { navController.popBackStack() },
-                    onToggleMeal = { appViewModel.toggleMeal(kidId, it) }
+                    onToggleMeal = { appViewModel.toggleMeal(kidId, it) },
+                    onGenerateAI = { appViewModel.generateAIContent(kidId) }
                 )
             }
         }
@@ -163,10 +196,12 @@ fun AppNavigation() {
             BookingScreen(
                 doctors = state.doctors,
                 kids = state.kids,
+                appointments = state.appointments,
                 onBack = { navController.popBackStack() },
                 onConfirm = { doctor, kidName, date, time ->
                     appViewModel.bookAppointment(doctor, kidName, date, time)
-                }
+                },
+                onCancel = { appViewModel.cancelAppointment(it) }
             )
         }
 

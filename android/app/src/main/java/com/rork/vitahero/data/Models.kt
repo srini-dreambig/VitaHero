@@ -102,7 +102,9 @@ data class Badge(
     val description: String,
     val earned: Boolean,
     val progress: Float, // 0..1
-    val accent: Long
+    val accent: Long,
+    val targetCount: Int = 7,
+    val currentCount: Int = 0
 )
 
 data class LeaderEntry(
@@ -110,6 +112,19 @@ data class LeaderEntry(
     val name: String,
     val points: Int,
     val isYou: Boolean
+)
+
+data class StreakInfo(
+    val currentStreak: Int = 0,
+    val bestStreak: Int = 0,
+    val lastLogDate: String = ""
+)
+
+data class PersonalizedDietTip(
+    val greeting: String,
+    val insight: String,
+    val suggestion: String,
+    val funFact: String
 )
 
 data class AppNotification(
@@ -195,4 +210,16 @@ fun SerializableMealItem.toMealItem(): MealItem = MealItem(
     detail = detail,
     kcal = kcal,
     eaten = eaten,
+)
+
+fun StreakInfo.toSerializable(): SerializableStreakInfo = SerializableStreakInfo(
+    currentStreak = currentStreak,
+    bestStreak = bestStreak,
+    lastLogDate = lastLogDate,
+)
+
+fun SerializableStreakInfo.toStreakInfo(): StreakInfo = StreakInfo(
+    currentStreak = currentStreak,
+    bestStreak = bestStreak,
+    lastLogDate = lastLogDate,
 )

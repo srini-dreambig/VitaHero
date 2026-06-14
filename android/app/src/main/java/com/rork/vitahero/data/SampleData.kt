@@ -107,6 +107,50 @@ object SampleData {
         MealItem("m5", "Dinner", "Roti + Paneer Bhurji", "2 phulka, paneer bhurji & a bowl of salad", 420, false),
     )
 
+    fun personalizedMeals(kid: Kid): List<MealItem> {
+        val name = kid.name
+        val isYoung = kid.age <= 6
+        val needsIron = kid.nutrition == HealthFlag.WATCH
+        val needsWeight = kid.bmi < 14f
+
+        val breakfast = if (isYoung)
+            MealItem("m1", "Breakfast", "Ragi Porridge + Milk", "Ragi cooked in milk with jaggery — calcium boost!", 290, true)
+        else if (needsIron)
+            MealItem("m1", "Breakfast", "Methi Thepla + Curd", "Iron-rich fenugreek flatbread with fresh curd", 340, false)
+        else
+            MealItem("m1", "Breakfast", "Veg Poha + Milk", "Flattened rice with peas, peanuts & milk", 320, true)
+
+        val midMorning = if (isYoung)
+            MealItem("m2", "Mid-morning", "Mashed Apple + Suji Halwa", "Easy to digest, energy-boosting combo", 160, true)
+        else if (needsWeight)
+            MealItem("m2", "Mid-morning", "Banana Shake + Almonds", "Calorie-dense shake with 6 soaked almonds", 220, false)
+        else
+            MealItem("m2", "Mid-morning", "Banana + Almonds", "1 banana with 5 soaked almonds", 150, false)
+
+        val lunch = if (needsIron)
+            MealItem("m3", "Lunch", "Dal Palak + Rice + Salad", "Spinach dal with rice, lemon & cucumber salad", 460, false)
+        else if (needsWeight)
+            MealItem("m3", "Lunch", "Khichdi + Ghee + Curd", "Moong dal khichdi with ghee, curd & pickle", 520, false)
+        else
+            MealItem("m3", "Lunch", "Dal, Rice & Sabzi", "Toor dal, steamed rice, mixed veg & curd", 480, false)
+
+        val evening = if (isYoung)
+            MealItem("m4", "Evening", "Fruit Custard", "Milk custard with seasonal fruits & nuts", 190, false)
+        else if (needsIron)
+            MealItem("m4", "Evening", "Dates & Nuts Ladoo", "Dates, almonds, sesame — iron powerhouse", 200, false)
+        else
+            MealItem("m4", "Evening", "Sprouts Chaat", "Moong sprouts with tomato, onion & lemon", 180, false)
+
+        val dinner = if (needsIron)
+            MealItem("m5", "Dinner", "Roti + Egg Curry + Salad", "1 boiled egg in gravy with 2 roti & salad", 430, false)
+        else if (isYoung)
+            MealItem("m5", "Dinner", "Soft Khichdi + Veggies", "Mild moong-rice khichdi with mashed veg", 350, false)
+        else
+            MealItem("m5", "Dinner", "Roti + Paneer Bhurji", "2 phulka, paneer bhurji & a bowl of salad", 420, false)
+
+        return listOf(breakfast, midMorning, lunch, evening, dinner)
+    }
+
     fun badgesFor(kidName: String): List<Badge> = listOf(
         Badge("b1", "Super Eater", "Logged all meals for 7 days", true, 1f, 0xFF10B981),
         Badge("b2", "Growth Champion", "Height on track 3 camps in a row", true, 1f, 0xFF2563EB),

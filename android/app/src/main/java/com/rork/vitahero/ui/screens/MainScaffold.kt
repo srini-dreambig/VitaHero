@@ -110,7 +110,10 @@ fun MainScaffold(
                     camps = state.camps,
                     onBookFollowUp = onOpenBooking
                 )
-                Tab.REWARDS -> RewardsScreen(kidName = state.kids.firstOrNull()?.name ?: "Hero")
+                Tab.REWARDS -> RewardsScreen(
+                    kids = state.kids,
+                    badgeData = { appViewModel.badgeProgressForKid(it) }
+                )
                 Tab.PROFILE -> ProfileScreen(
                     parentName = state.parentName,
                     phone = phone,

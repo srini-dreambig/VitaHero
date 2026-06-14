@@ -1,6 +1,11 @@
 package com.rork.vitahero.ui.screens
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -21,12 +26,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.SmartDisplay
+import androidx.compose.material.icons.outlined.TipsAndUpdates
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -42,6 +52,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.AIDietContent
 import com.rork.vitahero.data.MealItem
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.ProgressRing
@@ -54,9 +65,12 @@ import com.rork.vitahero.ui.theme.HeroYellow
 @Composable
 fun DietScreen(
     kidName: String,
+    kidId: String,
     meals: List<MealItem>,
+    aiContent: AIDietContent?,
     onBack: () -> Unit,
-    onToggleMeal: (String) -> Unit
+    onToggleMeal: (String) -> Unit,
+    onGenerateAI: () -> Unit
 ) {
     val eatenCount = meals.count { it.eaten }
     val totalKcal = meals.filter { it.eaten }.sumOf { it.kcal }
@@ -100,7 +114,8 @@ fun DietScreen(
                             )
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                "Log all meals to earn the Super Eater badge",
+                                if (progress >= 1f) "All meals logged — Super Eater streak continues!"
+                                else "Log all meals to earn the Super Eater badge",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = HeroGreen,
                                 fontWeight = FontWeight.SemiBold
@@ -111,9 +126,15 @@ fun DietScreen(
                 Spacer(Modifier.height(16.dp))
             }
 
-            // AI video card
+            // AI Content section
             item {
-                AiVideoCard()
+                if (aiContent != null && aiContent.isGenerating) {
+                    GeneratingCard(kidName)
+                } else if (aiContent != null && aiContent.greeting.isNotEmpty()) {
+                    AIContentCard(content = aiContent, onRegenerate = onGenerateAI)
+                } else {
+                    AiPromptCard(onGenerate = onGenerateAI)
+                }
                 Spacer(Modifier.height(24.dp))
                 Text("Today's meals", style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(12.dp))
@@ -128,12 +149,13 @@ fun DietScreen(
 }
 
 @Composable
-private fun AiVideoCard() {
+private fun AiPromptCard(onGenerate: () -> Unit) {
     Box(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(Brush.linearGradient(listOf(HeroPurple, HeroBlue)))
+            .clickable(onClick = onGenerate)
             .padding(20.dp)
     ) {
         Column {
@@ -145,43 +167,168 @@ private fun AiVideoCard() {
                         .background(Color.White.copy(alpha = 0.2f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.SmartDisplay, contentDescription = null, tint = Color.White)
+                    Icon(Icons.Outlined.Psychology, contentDescription = null, tint = Color.White)
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("AI Diet Video", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Personalised, fun & easy to follow", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodySmall)
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.15f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    Modifier
-                        .size(56.dp)
-                        .clip(CircleShape)
-                        .background(Color.White),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.PlayArrow, contentDescription = "Play", tint = HeroPurple, modifier = Modifier.size(30.dp))
+                    Text("AI Diet Coach", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Personalised tips powered by AI", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodySmall)
                 }
             }
             Spacer(Modifier.height(14.dp))
             Box(
                 Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
                     .background(Color.White)
-                    .clickable { }
-                    .padding(horizontal = 18.dp, vertical = 12.dp)
+                    .padding(horizontal = 18.dp, vertical = 13.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Text("Generate AI Video", color = HeroPurple, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = HeroPurple, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Generate Personalised Diet Tips", color = HeroPurple, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun GeneratingCard(kidName: String) {
+    val infinite = rememberInfiniteTransition(label = "shimmer")
+    val alpha by infinite.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.8f,
+        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
+        label = "pulse"
+    )
+
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(Brush.linearGradient(listOf(HeroPurple, HeroBlue)))
+            .padding(20.dp)
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Psychology, contentDescription = null, tint = Color.White)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text("Analysing $kidName's data…", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Crafting personalised recommendations", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            LinearProgressIndicator(
+                progress = { alpha },
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.2f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AIContentCard(content: AIDietContent, onRegenerate: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(24.dp))
+            .background(HeroPurple.copy(alpha = 0.06f))
+            .animateContentSize()
+    ) {
+        // Header
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(Brush.linearGradient(listOf(HeroGreen, HeroBlue)))
+                .padding(20.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = Color.White)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text("AI Diet Coach", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(content.generatedAt, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelSmall)
+            }
+        }
+
+        Column(Modifier.padding(20.dp)) {
+            // Greeting
+            Text(content.greeting, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+
+            Spacer(Modifier.height(14.dp))
+
+            // Insight
+            AITipRow(Icons.Outlined.Lightbulb, HeroYellow, "Why this matters", content.insight)
+            Spacer(Modifier.height(12.dp))
+
+            // Suggestion
+            AITipRow(Icons.Outlined.TipsAndUpdates, HeroGreen, "Try this today", content.suggestion)
+            Spacer(Modifier.height(12.dp))
+
+            // Fun fact
+            AITipRow(Icons.Outlined.Psychology, HeroBlue, "Fun fact", content.funFact)
+
+            Spacer(Modifier.height(16.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .clickable(onClick = onRegenerate)
+                    .padding(vertical = 13.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = HeroPurple, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Refresh tips", color = HeroPurple, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AITipRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color, label: String, text: String) {
+    Row(Modifier.fillMaxWidth()) {
+        Box(
+            Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = tint, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(2.dp))
+            Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }

@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -23,6 +25,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,9 +38,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Badge
+import com.rork.vitahero.data.BadgeProgress
+import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.LeaderEntry
-import com.rork.vitahero.data.SampleData
 import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.ProgressRing
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.theme.HeroBlue
@@ -42,10 +50,17 @@ import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroYellow
 
 @Composable
-fun RewardsScreen(kidName: String = "Rahul") {
-    val badges = SampleData.badgesFor(kidName)
+fun RewardsScreen(
+    kids: List<Kid>,
+    badgeData: (String) -> BadgeProgress,
+) {
+    var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
+    val active = kids.firstOrNull { it.id == selectedKidId }
+    val progress = badgeData(selectedKidId)
+    val badges = progress.badges
     val earned = badges.count { it.earned }
-    val leaderboard = SampleData.leaderboard
+    val leaderboard = progress.leaderboard
+    val kidName = active?.name ?: "Hero"
 
     LazyColumn(
         modifier = Modifier
@@ -62,6 +77,37 @@ fun RewardsScreen(kidName: String = "Rahul") {
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+
+        // Kid selector
+        if (kids.size > 1) {
+            item {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(kids, key = { it.id }) { kid ->
+                        val selected = selectedKidId == kid.id
+                        Row(
+                            Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(if (selected) HeroGreen.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
+                                .padding(end = 16.dp, top = 6.dp, bottom = 6.dp, start = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            KidAvatar(kid.name, kid.avatarColor, size = 30.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                kid.name,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = if (selected) HeroGreen else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.padding(
+                                    top = 4.dp, bottom = 4.dp, end = 4.dp
+                                )
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
             }
         }
 
@@ -91,7 +137,7 @@ fun RewardsScreen(kidName: String = "Rahul") {
                 }
             }
             Spacer(Modifier.height(24.dp))
-            Text("Your badges", style = MaterialTheme.typography.headlineSmall)
+            Text("$kidName's badges", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
         }
 
@@ -206,7 +252,7 @@ private fun BadgeCard(badge: Badge, modifier: Modifier = Modifier) {
                     )
                 }
                 Spacer(Modifier.height(4.dp))
-                Text("${(badge.progress * 100).toInt()}% there", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("${badge.currentCount}/${badge.targetCount}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

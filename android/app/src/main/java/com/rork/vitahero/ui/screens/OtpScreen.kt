@@ -54,6 +54,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun OtpScreen(
     phone: String,
+    parentName: String,
     onBack: () -> Unit,
     onVerified: () -> Unit
 ) {

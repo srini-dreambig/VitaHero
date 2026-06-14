@@ -18,12 +18,19 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.RemoveRedEye
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -41,6 +48,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.GrowthPoint
 import com.rork.vitahero.data.HealthFlag
@@ -49,6 +57,7 @@ import com.rork.vitahero.ui.components.FlagChip
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
+import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.SectionHeader
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
@@ -61,9 +70,11 @@ private enum class DetailTab(val label: String) {
 fun KidDetailScreen(
     kid: Kid,
     onBack: () -> Unit,
-    onOpenDiet: () -> Unit
+    onOpenDiet: () -> Unit,
+    onAddGrowth: (heightCm: Float, weightKg: Float, label: String) -> Unit
 ) {
     var tab by remember { mutableStateOf(DetailTab.GROWTH) }
+    var showGrowthEntry by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -122,6 +133,38 @@ fun KidDetailScreen(
             }
         }
 
+        // Add growth data entry
+        item {
+            Spacer(Modifier.height(12.dp))
+            if (showGrowthEntry) {
+                GrowthEntryCard(
+                    kid = kid,
+                    onSave = { h, w, label ->
+                        onAddGrowth(h, w, label)
+                        showGrowthEntry = false
+                    },
+                    onDismiss = { showGrowthEntry = false }
+                )
+            } else {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(HeroGreen.copy(alpha = 0.07f))
+                        .clickable { showGrowthEntry = true }
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Add, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Log new measurements", color = HeroGreen, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
         // Tabs
         item {
             Spacer(Modifier.height(16.dp))
@@ -171,6 +214,91 @@ fun KidDetailScreen(
                 )
                 DetailTab.NUTRITION -> NutritionTab(kid, onOpenDiet)
             }
+        }
+    }
+}
+
+@Composable
+private fun GrowthEntryCard(
+    kid: Kid,
+    onSave: (heightCm: Float, weightKg: Float, label: String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var height by remember { mutableStateOf(kid.heightCm.toString()) }
+    var weight by remember { mutableStateOf(kid.weightKg.toString()) }
+    val canSave = height.toFloatOrNull() != null && weight.toFloatOrNull() != null
+
+    HeroCard(Modifier.padding(horizontal = 20.dp), background = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.TrendingUp, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("New measurement", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Box(
+                    Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Height (cm)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = height,
+                        onValueChange = { height = it.filter { c -> c.isDigit() || c == '.' } },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = HeroGreen,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Weight (kg)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = weight,
+                        onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = HeroGreen,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            PrimaryGradientButton(
+                text = "Save measurements",
+                enabled = canSave,
+                onClick = {
+                    val h = height.toFloatOrNull() ?: return@PrimaryGradientButton
+                    val w = weight.toFloatOrNull() ?: return@PrimaryGradientButton
+                    val label = java.time.LocalDate.now().let { d ->
+                        val fmt = java.time.format.DateTimeFormatter.ofPattern("dd MMM")
+                        d.format(fmt)
+                    }
+                    onSave(h, w, label)
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }

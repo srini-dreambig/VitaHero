@@ -20,7 +20,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -41,12 +44,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.Appointment
 import com.rork.vitahero.data.Doctor
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroPurple
 import com.rork.vitahero.ui.theme.HeroYellow
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,13 +61,22 @@ import com.rork.vitahero.ui.theme.HeroYellow
 fun BookingScreen(
     doctors: List<Doctor>,
     kids: List<Kid>,
+    appointments: List<Appointment>,
     onBack: () -> Unit,
-    onConfirm: (Doctor, kidName: String, date: String, time: String) -> Unit
+    onConfirm: (Doctor, kidName: String, date: String, time: String) -> Unit,
+    onCancel: (String) -> Unit
 ) {
     var selectedDoctor by remember { mutableStateOf<Doctor?>(null) }
     var selectedKid by remember { mutableStateOf(kids.firstOrNull()?.name ?: "") }
     var selectedSlot by remember { mutableStateOf<String?>(null) }
     var booked by remember { mutableStateOf(false) }
+    var filterSpecialty by remember { mutableStateOf<String?>(null) }
+    var showExisting by remember { mutableStateOf(true) }
+
+    val allSpecialties = doctors.map { it.specialty }.distinct()
+    val filteredDoctors = if (filterSpecialty != null)
+        doctors.filter { it.specialty == filterSpecialty }
+    else doctors
 
     val slots = listOf("Today, 4:30 PM", "Tomorrow, 11:00 AM", "Wed, 5:15 PM", "Thu, 10:00 AM")
 
@@ -116,8 +132,37 @@ fun BookingScreen(
                 .padding(pad),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)
         ) {
+            // Existing appointments
+            if (appointments.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(4.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Upcoming", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text(
+                            if (showExisting) "Hide" else "Show",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { showExisting = !showExisting }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+                if (showExisting) {
+                    items(appointments, key = { it.id }) { appt ->
+                        ExistingAppointmentCard(appt, onCancel = { onCancel(appt.id) })
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
+                item { Spacer(Modifier.height(8.dp)) }
+            }
+
             item {
-                Spacer(Modifier.height(4.dp))
                 Text("Select a child", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -137,14 +182,69 @@ fun BookingScreen(
                         }
                     }
                 }
-                Spacer(Modifier.height(24.dp))
-                Text("Choose a doctor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(20.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Choose a doctor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    if (filterSpecialty != null) {
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.1f))
+                                .clickable { filterSpecialty = null }
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Clear", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                                Spacer(Modifier.width(4.dp))
+                                Icon(Icons.Outlined.Close, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                // Specialty filter chips
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(allSpecialties) { spec ->
+                        val active = filterSpecialty == spec
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(if (active) HeroBlue.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { filterSpecialty = if (active) null else spec }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                spec,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (active) HeroBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
             }
 
-            items(doctors, key = { it.id }) { doctor ->
+            items(filteredDoctors, key = { it.id }) { doctor ->
                 DoctorCard(doctor, selectedDoctor?.id == doctor.id) { selectedDoctor = doctor }
                 Spacer(Modifier.height(10.dp))
+            }
+
+            if (filteredDoctors.isEmpty() && filterSpecialty != null) {
+                item {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No doctors found for $filterSpecialty",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             if (selectedDoctor != null) {
@@ -191,6 +291,31 @@ fun BookingScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ExistingAppointmentCard(appt: Appointment, onCancel: () -> Unit) {
+    HeroCard(Modifier.fillMaxWidth(), background = HeroBlue.copy(alpha = 0.04f)) {
+        Row(
+            Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconBubble(Icons.Outlined.CalendarMonth, HeroBlue)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(appt.doctorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "${appt.specialty} · for ${appt.kidName}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text("${appt.date} · ${appt.time}", style = MaterialTheme.typography.labelSmall, color = HeroBlue, fontWeight = FontWeight.SemiBold)
+            }
+            IconButton(onClick = onCancel) {
+                Icon(Icons.Outlined.Cancel, contentDescription = "Cancel appointment", tint = MaterialTheme.colorScheme.error)
             }
         }
     }
