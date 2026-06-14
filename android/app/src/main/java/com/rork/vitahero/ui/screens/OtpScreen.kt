@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.MarkEmailRead
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,6 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -47,18 +49,23 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
-import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroGreen
 import kotlinx.coroutines.delay
 
+/**
+ * OTP verification screen for Supabase Auth phone OTP.
+ * Calls supabase.auth.verifyPhoneOtp() with the entered code.
+ */
 @Composable
 fun OtpScreen(
     phone: String,
     parentName: String,
     onBack: () -> Unit,
-    onVerified: () -> Unit
+    onVerified: (code: String) -> Unit,
+    onResend: (() -> Unit)? = null,
+    isVerifying: Boolean = false,
+    error: String? = null
 ) {
     var code by remember { mutableStateOf("") }
     var seconds by remember { mutableIntStateOf(30) }
@@ -97,16 +104,36 @@ fun OtpScreen(
             Icon(Icons.Outlined.MarkEmailRead, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text(t(S.verifyNumber), style = MaterialTheme.typography.headlineLarge)
+        Text("Verify your number", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            t(S.otpSubtitle) + " +91 ${phone.ifEmpty { "98765 43210" }}",
+            "Enter the 6-digit code sent to +91 ${phone.ifEmpty { "98765 43210" }}",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(Modifier.height(32.dp))
 
+        // Error message
+        if (error != null) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFFEE2E2))
+                    .padding(12.dp)
+            ) {
+                Text(
+                    error,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color(0xFFDC2626)
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // OTP input
         Box {
+            // Invisible text field for keyboard
             BasicTextField(
                 value = code,
                 onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
@@ -118,6 +145,7 @@ fun OtpScreen(
                 textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground)
             ) {}
 
+            // Visible digit boxes
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -138,7 +166,15 @@ fun OtpScreen(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(char, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        if (isVerifying && code.length == 6 && i == 5) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = HeroGreen
+                            )
+                        } else {
+                            Text(char, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -147,7 +183,7 @@ fun OtpScreen(
         Spacer(Modifier.height(20.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                t(S.didntGetCode),
+                "Didn't receive the code?",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -159,7 +195,10 @@ fun OtpScreen(
                     fontWeight = FontWeight.SemiBold
                 )
             } else {
-                TextButton(onClick = { seconds = 30 }) {
+                TextButton(onClick = {
+                    seconds = 30
+                    onResend?.invoke()
+                }) {
                     Text("Resend", color = HeroGreen, fontWeight = FontWeight.SemiBold)
                 }
             }
@@ -167,9 +206,9 @@ fun OtpScreen(
 
         Spacer(Modifier.weight(1f))
         PrimaryGradientButton(
-            text = "Verify",
-            enabled = code.length == 6,
-            onClick = onVerified,
+            text = if (isVerifying) "Verifying..." else "Verify",
+            enabled = code.length == 6 && !isVerifying,
+            onClick = { onVerified(code) },
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(bottom = 32.dp)

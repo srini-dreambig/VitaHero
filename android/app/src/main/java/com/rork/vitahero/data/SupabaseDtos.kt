@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ProfileDto(
     val id: String,
+    @SerialName("user_id") val userId: String? = null,
     val phone: String? = null,
     val name: String = "",
     @SerialName("onboarding_complete") val onboardingComplete: Boolean = false,

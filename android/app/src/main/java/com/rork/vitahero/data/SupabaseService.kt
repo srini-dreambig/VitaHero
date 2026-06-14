@@ -25,6 +25,6 @@ object SupabaseService {
         }
     }
 
-    val baseUrl: String get() = Config.EXPO_PUBLIC_SUPABASE_URL
-    val anonKey: String get() = Config.EXPO_PUBLIC_SUPABASE_ANON_KEY
+    val baseUrl: String get() = Config.allValues["EXPO_PUBLIC_SUPABASE_URL"] ?: ""
+    val anonKey: String get() = Config.allValues["EXPO_PUBLIC_SUPABASE_ANON_KEY"] ?: ""
 }

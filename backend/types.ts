@@ -27,6 +27,7 @@ export type Database = {
           profile_id: string
           specialty: string
           time: string
+          user_id: string | null
         }
         Insert: {
           date: string
@@ -36,6 +37,7 @@ export type Database = {
           profile_id: string
           specialty: string
           time: string
+          user_id?: string | null
         }
         Update: {
           date?: string
@@ -45,6 +47,7 @@ export type Database = {
           profile_id?: string
           specialty?: string
           time?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -67,6 +70,7 @@ export type Database = {
           status: string
           time: string
           title: string
+          user_id: string | null
         }
         Insert: {
           checks?: Json
@@ -78,6 +82,7 @@ export type Database = {
           status?: string
           time: string
           title: string
+          user_id?: string | null
         }
         Update: {
           checks?: Json
@@ -89,6 +94,7 @@ export type Database = {
           status?: string
           time?: string
           title?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -107,6 +113,7 @@ export type Database = {
           name: string
           profile_id: string
           relation: string
+          user_id: string | null
         }
         Insert: {
           id: string
@@ -114,6 +121,7 @@ export type Database = {
           name: string
           profile_id: string
           relation: string
+          user_id?: string | null
         }
         Update: {
           id?: string
@@ -121,6 +129,7 @@ export type Database = {
           name?: string
           profile_id?: string
           relation?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -139,6 +148,7 @@ export type Database = {
           kid_id: string
           label: string
           recorded_at: string
+          user_id: string | null
           weight: number
         }
         Insert: {
@@ -147,6 +157,7 @@ export type Database = {
           kid_id: string
           label: string
           recorded_at?: string
+          user_id?: string | null
           weight?: number
         }
         Update: {
@@ -155,6 +166,7 @@ export type Database = {
           kid_id?: string
           label?: string
           recorded_at?: string
+          user_id?: string | null
           weight?: number
         }
         Relationships: [
@@ -185,6 +197,7 @@ export type Database = {
           profile_id: string
           school: string
           updated_at: string
+          user_id: string | null
           weight_kg: number
         }
         Insert: {
@@ -204,6 +217,7 @@ export type Database = {
           profile_id: string
           school?: string
           updated_at?: string
+          user_id?: string | null
           weight_kg?: number
         }
         Update: {
@@ -223,6 +237,7 @@ export type Database = {
           profile_id?: string
           school?: string
           updated_at?: string
+          user_id?: string | null
           weight_kg?: number
         }
         Relationships: [
@@ -245,6 +260,7 @@ export type Database = {
           name: string
           profile_id: string
           time_slot: string
+          user_id: string | null
         }
         Insert: {
           detail?: string
@@ -255,6 +271,7 @@ export type Database = {
           name: string
           profile_id: string
           time_slot: string
+          user_id?: string | null
         }
         Update: {
           detail?: string
@@ -265,6 +282,7 @@ export type Database = {
           name?: string
           profile_id?: string
           time_slot?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -299,6 +317,7 @@ export type Database = {
           onboarding_complete: boolean
           phone: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           camp_reminders_enabled?: boolean
@@ -315,6 +334,7 @@ export type Database = {
           onboarding_complete?: boolean
           phone?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           camp_reminders_enabled?: boolean
@@ -331,6 +351,7 @@ export type Database = {
           onboarding_complete?: boolean
           phone?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -341,6 +362,7 @@ export type Database = {
           kid_id: string
           last_log_date: string
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           best_streak?: number
@@ -348,6 +370,7 @@ export type Database = {
           kid_id: string
           last_log_date?: string
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           best_streak?: number
@@ -355,6 +378,7 @@ export type Database = {
           kid_id?: string
           last_log_date?: string
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {

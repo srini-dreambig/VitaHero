@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -22,6 +23,7 @@ import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.ui.screens.AddKidScreen
 import com.rork.vitahero.ui.screens.AuthScreen
 import com.rork.vitahero.ui.screens.BookingScreen
+import com.rork.vitahero.ui.screens.CampsScreen
 import com.rork.vitahero.ui.screens.ConsentScreen
 import com.rork.vitahero.ui.screens.DietScreen
 import com.rork.vitahero.ui.screens.FamilySharingScreen
@@ -61,6 +63,9 @@ fun AppNavigation() {
     val state by appViewModel.uiState.collectAsState()
     val onboardingComplete by appViewModel.onboardingComplete.collectAsState()
     val isLoggedIn by appViewModel.isLoggedIn.collectAsState()
+    val authLoading by appViewModel.authLoading.collectAsState()
+    val authError by appViewModel.authError.collectAsState()
+
     var phone by rememberSaveable { mutableStateOf("") }
     var pendingName by rememberSaveable { mutableStateOf("") }
 
@@ -107,11 +112,24 @@ fun AppNavigation() {
         }
 
         composable(Routes.AUTH) {
+            // Clear previous auth errors when entering auth screen
+            LaunchedEffect(Unit) { appViewModel.clearAuthError() }
+
             AuthScreen(
-                onContinue = { p, n ->
+                isLoading = authLoading,
+                authError = authError,
+                onContinueWithPhone = { p ->
                     phone = p
-                    pendingName = n
-                    navController.navigate("otp/$p/${n.ifBlank { "Priya" }}")
+                    pendingName = "Parent"
+                    appViewModel.sendPhoneOtp(p)
+                    navController.navigate("otp/$p/${pendingName}")
+                },
+                onContinueWithEmail = { email, password, name, isSignUp ->
+                    if (isSignUp) {
+                        appViewModel.signUpWithEmail(email, password, name)
+                    } else {
+                        appViewModel.signInWithEmail(email, password)
+                    }
                 }
             )
         }
@@ -125,16 +143,26 @@ fun AppNavigation() {
         ) { backStack ->
             val p = backStack.arguments?.getString("phone").orEmpty()
             val n = backStack.arguments?.getString("name").orEmpty()
+
+            LaunchedEffect(Unit) { appViewModel.clearAuthError() }
+
+            val otpError by appViewModel.authError.collectAsState()
+            val otpVerifying by appViewModel.authLoading.collectAsState()
+
             OtpScreen(
                 phone = p,
                 parentName = n,
-                onBack = { navController.popBackStack() },
-                onVerified = {
-                    appViewModel.login(p, n)
-                    navController.navigate(Routes.MAIN) {
-                        popUpTo(Routes.AUTH) { inclusive = true }
-                    }
-                }
+                onBack = {
+                    appViewModel.clearAuthError()
+                    appViewModel.clearAuthLoading()
+                    navController.popBackStack()
+                },
+                onVerified = { code ->
+                    appViewModel.verifyPhoneOtp(p, code)
+                },
+                onResend = { appViewModel.sendPhoneOtp(p) },
+                isVerifying = otpVerifying,
+                error = otpError
             )
         }
 

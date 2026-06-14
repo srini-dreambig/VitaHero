@@ -33,6 +33,8 @@ import java.util.UUID
 data class AppUiState(
     val parentName: String = "Priya",
     val phone: String = "",
+    val email: String = "",
+    val userId: String = "",
     val kids: List<Kid> = SampleData.kids,
     val camps: List<Camp> = SampleData.camps,
     val doctors: List<Doctor> = SampleData.doctors,
@@ -90,11 +92,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _isLoggedIn = MutableStateFlow(false)
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
+    // Auth error state (shown on AuthScreen/OtpScreen)
+    private val _authError = MutableStateFlow<String?>(null)
+    val authError: StateFlow<String?> = _authError.asStateFlow()
+
+    private val _authLoading = MutableStateFlow(false)
+    val authLoading: StateFlow<Boolean> = _authLoading.asStateFlow()
+
     init {
         loadFromStorage()
     }
 
     private fun profileId(): String {
+        val userId = _uiState.value.userId
+        if (userId.isNotBlank()) return userId.take(12)
         val phone = _uiState.value.phone
         if (phone.isNotBlank()) return "ph_${phone.replace("+", "").takeLast(10)}"
         return "local_${_uiState.value.parentName.lowercase().replace(" ", "_")}"
@@ -106,7 +117,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val state = _uiState.value
                 supabase.upsertProfile(ProfileDto(
                     id = profileId(),
-                    phone = state.phone,
+                    phone = state.phone.ifBlank { null },
                     name = state.parentName,
                     onboardingComplete = _onboardingComplete.value,
                     isLoggedIn = _isLoggedIn.value,
@@ -373,6 +384,164 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         persistState()
     }
 
+    // ─── Supabase Auth methods (REST API) ─────────────────
+
+    /** Access token from last successful auth. Used for authenticated Supabase calls. */
+    private val _accessToken = MutableStateFlow<String?>(null)
+    val accessToken: StateFlow<String?> = _accessToken.asStateFlow()
+
+    /** Sign in with email + password via Supabase Auth REST API. */
+    fun signInWithEmail(email: String, password: String) {
+        _authLoading.value = true
+        _authError.value = null
+        viewModelScope.launch {
+            val result = SupabaseAuth.signInWithEmail(email, password)
+            result.fold(
+                onSuccess = { resp ->
+                    _accessToken.value = resp.access_token
+                    val user = resp.user
+                    if (user != null) {
+                        onSupabaseLogin(
+                            userId = user.id,
+                            email = user.email,
+                            phone = user.phone ?: "",
+                            name = user.user_metadata?.get("name") ?: email.substringBefore('@')
+                        )
+                    }
+                    _authLoading.value = false
+                },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Sign in failed"
+                    _authLoading.value = false
+                }
+            )
+        }
+    }
+
+    /** Sign up with email + password + name via Supabase Auth REST API. */
+    fun signUpWithEmail(email: String, password: String, name: String) {
+        _authLoading.value = true
+        _authError.value = null
+        viewModelScope.launch {
+            val result = SupabaseAuth.signUpWithEmail(email, password, name)
+            result.fold(
+                onSuccess = { resp ->
+                    _accessToken.value = resp.access_token
+                    val user = resp.user
+                    if (user != null) {
+                        onSupabaseLogin(
+                            userId = user.id,
+                            email = user.email,
+                            phone = user.phone ?: "",
+                            name = name
+                        )
+                    }
+                    _authLoading.value = false
+                },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Sign up failed"
+                    _authLoading.value = false
+                }
+            )
+        }
+    }
+
+    /** Send phone OTP via Supabase Auth REST API. */
+    fun sendPhoneOtp(phone: String) {
+        _authLoading.value = true
+        _authError.value = null
+        viewModelScope.launch {
+            val result = SupabaseAuth.sendPhoneOtp("+91$phone")
+            result.fold(
+                onSuccess = { _authLoading.value = false },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Failed to send OTP"
+                    _authLoading.value = false
+                }
+            )
+        }
+    }
+
+    /** Verify phone OTP via Supabase Auth REST API. */
+    fun verifyPhoneOtp(phone: String, token: String) {
+        _authLoading.value = true
+        _authError.value = null
+        viewModelScope.launch {
+            val result = SupabaseAuth.verifyPhoneOtp("+91$phone", token)
+            result.fold(
+                onSuccess = { resp ->
+                    _accessToken.value = resp.access_token
+                    val user = resp.user
+                    if (user != null) {
+                        onSupabaseLogin(
+                            userId = user.id,
+                            email = user.email,
+                            phone = user.phone ?: phone,
+                            name = user.user_metadata?.get("name") ?: "Parent"
+                        )
+                    }
+                    _authLoading.value = false
+                },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Invalid code"
+                    _authLoading.value = false
+                }
+            )
+        }
+    }
+
+    fun clearAuthError() {
+        _authError.value = null
+    }
+
+    fun clearAuthLoading() {
+        _authLoading.value = false
+    }
+
+    // ─── Legacy login (kept for offline/demo mode) ─────────
+
+    /** Called after successful Supabase Auth (email or phone). */
+    fun onSupabaseLogin(userId: String, email: String, phone: String, name: String) {
+        _isLoggedIn.value = true
+        // Wire the access token for authenticated API calls
+        supabase.accessToken = _accessToken.value
+        _uiState.update {
+            it.copy(
+                userId = userId,
+                email = email,
+                phone = phone,
+                parentName = name.ifBlank { it.parentName },
+                consentAccepted = true,
+            )
+        }
+        persistState()
+        // Sync profile to Supabase with user_id
+        viewModelScope.launch {
+            try {
+                val state = _uiState.value
+                supabase.upsertProfile(ProfileDto(
+                    id = profileId(),
+                    phone = state.phone.ifBlank { null },
+                    name = state.parentName,
+                    onboardingComplete = _onboardingComplete.value,
+                    isLoggedIn = true,
+                    darkTheme = state.darkTheme,
+                    localeCode = state.locale.code,
+                    familyCode = state.familyCode,
+                    notificationsEnabled = state.notificationsEnabled,
+                    campRemindersEnabled = state.campRemindersEnabled,
+                    consentAccepted = true,
+                    consentDeclined = false,
+                ))
+                syncKidsToSupabase()
+                syncAppointmentsToSupabase()
+                _meals.value.keys.forEach { syncMealsToSupabase(it) }
+                _streaks.value.keys.forEach { syncStreakToSupabase(it) }
+            } catch (_: Exception) { }
+        }
+        scheduleAllNotifications()
+    }
+
     fun login(phone: String, name: String = "") {
         _isLoggedIn.value = true
         _uiState.update {
@@ -421,6 +590,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _onboardingComplete.value = false
         val currentFamilyCode = _uiState.value.familyCode
         storage.clear()
+        // Sign out from Supabase and clear token
+        viewModelScope.launch {
+            val token = _accessToken.value
+            _accessToken.value = null
+            supabase.accessToken = null
+            if (token != null) {
+                try { SupabaseAuth.signOut(token) } catch (_: Exception) { }
+            }
+        }
         _uiState.value = _uiState.value.copy(
             kids = SampleData.kids,
             camps = SampleData.camps,

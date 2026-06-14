@@ -41,6 +41,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             val appViewModel: AppViewModel = viewModel()
             val state by appViewModel.uiState.collectAsState()
+
             androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides state.locale) {
                 AppTheme(darkTheme = state.darkTheme) {
                     AppNavigation()
