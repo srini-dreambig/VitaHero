@@ -122,14 +122,14 @@ fun AuthScreen(
                 .padding(4.dp)
         ) {
             AuthMethodChip(
-                label = "Email",
+                label = t(S.emailTab),
                 icon = Icons.Outlined.Email,
                 selected = authMethod == AuthMethod.EMAIL,
                 modifier = Modifier.weight(1f),
                 onClick = { authMethod = AuthMethod.EMAIL }
             )
             AuthMethodChip(
-                label = "Phone",
+                label = t(S.phoneTab),
                 icon = Icons.Outlined.Phone,
                 selected = authMethod == AuthMethod.PHONE,
                 modifier = Modifier.weight(1f),
@@ -198,7 +198,7 @@ fun AuthScreen(
         }
 
         PrimaryGradientButton(
-            text = if (isLoading) "Please wait..." else if (authMethod == AuthMethod.PHONE) "Send OTP" else if (isLogin) t(S.loginTab) else t(S.signupTab),
+            text = if (isLoading) t(S.pleaseWait) else if (authMethod == AuthMethod.PHONE) t(S.sendOtp) else if (isLogin) t(S.loginTab) else t(S.signupTab),
             enabled = canSubmit && !isLoading,
             onClick = {
                 when (authMethod) {
@@ -240,14 +240,14 @@ fun AuthScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             SocialButton(
-                text = if (authMethod == AuthMethod.PHONE) "Use Email" else "Use Phone",
+                text = if (authMethod == AuthMethod.PHONE) t(S.useEmail) else t(S.usePhone),
                 modifier = Modifier.weight(1f),
                 onClick = {
                     authMethod = if (authMethod == AuthMethod.PHONE) AuthMethod.EMAIL else AuthMethod.PHONE
                 }
             )
             SocialButton(
-                text = if (isLogin) "New? Sign Up" else "Have account?",
+                text = if (isLogin) t(S.signUpHint) else t(S.loginHint),
                 modifier = Modifier.weight(1f),
                 onClick = { isLogin = !isLogin }
             )
@@ -287,12 +287,12 @@ private fun EmailAuthFields(
     onTogglePassword: () -> Unit
 ) {
     if (!isLogin) {
-        FieldLabel("Your Name")
-        HeroTextField(value = name, onValueChange = onNameChange, placeholder = "e.g. Priya Sharma")
+        FieldLabel(t(S.yourName))
+        HeroTextField(value = name, onValueChange = onNameChange, placeholder = t(S.namePlaceholderAuth).take(25))
         Spacer(Modifier.height(16.dp))
     }
 
-    FieldLabel("Email")
+    FieldLabel(t(S.emailLabel))
     HeroTextField(
         value = email,
         onValueChange = onEmailChange,
@@ -301,11 +301,11 @@ private fun EmailAuthFields(
     )
     Spacer(Modifier.height(16.dp))
 
-    FieldLabel("Password")
+    FieldLabel(t(S.passwordLabel))
     OutlinedTextField(
         value = password,
         onValueChange = onPasswordChange,
-        placeholder = { Text("Min 6 characters", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+        placeholder = { Text(t(S.passwordPlaceholder).take(20), color = MaterialTheme.colorScheme.onSurfaceVariant) },
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -330,7 +330,7 @@ private fun EmailAuthFields(
     if (!isLogin) {
         Spacer(Modifier.height(8.dp))
         Text(
-            "We'll send a confirmation to your email",
+            t(S.emailConfirmNote),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -342,7 +342,7 @@ private fun PhoneAuthFields(
     phone: String,
     onPhoneChange: (String) -> Unit
 ) {
-    FieldLabel("Phone Number")
+    FieldLabel(t(S.phoneLabel))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier
@@ -366,7 +366,7 @@ private fun PhoneAuthFields(
 
     Spacer(Modifier.height(8.dp))
     Text(
-        "We'll send a 6-digit code via SMS",
+        t(S.smsNote),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )

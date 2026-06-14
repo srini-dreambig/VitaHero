@@ -49,7 +49,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.HeroGreen
 import kotlinx.coroutines.delay
 
@@ -104,10 +107,10 @@ fun OtpScreen(
             Icon(Icons.Outlined.MarkEmailRead, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("Verify your number", style = MaterialTheme.typography.headlineLarge)
+        Text(t(S.verifyNumber), style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Enter the 6-digit code sent to +91 ${phone.ifEmpty { "98765 43210" }}",
+            "${t(S.otpSubtitle)} +91 ${phone.ifEmpty { "98765 43210" }}",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -183,13 +186,13 @@ fun OtpScreen(
         Spacer(Modifier.height(20.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Didn't receive the code?",
+                t(S.didntGetCode),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             if (seconds > 0) {
                 Text(
-                    " Resend in ${seconds}s",
+                    tf(S.resendIn, seconds.toString()),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.SemiBold
@@ -199,14 +202,14 @@ fun OtpScreen(
                     seconds = 30
                     onResend?.invoke()
                 }) {
-                    Text("Resend", color = HeroGreen, fontWeight = FontWeight.SemiBold)
+                    Text(t(S.resend).take(10), color = HeroGreen, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
 
         Spacer(Modifier.weight(1f))
         PrimaryGradientButton(
-            text = if (isVerifying) "Verifying..." else "Verify",
+            text = if (isVerifying) t(S.pleaseWait) else t(S.verify),
             enabled = code.length == 6 && !isVerifying,
             onClick = { onVerified(code) },
             modifier = Modifier

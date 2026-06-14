@@ -129,8 +129,8 @@ async function handleSendOtp(req: Request, payload: Record<string, unknown>) {
     });
   }
 
-  let sid = Deno.env.get("TWILIO_ACCOUNT_SID") || req.headers.get("x-twilio-account-sid") || "";
-  let tok = Deno.env.get("TWILIO_AUTH_TOKEN") || req.headers.get("x-twilio-auth-token") || "";
+  let sid = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
+  let tok = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
   if (!sid || !tok) {
     return new Response(JSON.stringify({ error: "SMS provider not configured" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
