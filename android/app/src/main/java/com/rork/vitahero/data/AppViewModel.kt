@@ -69,6 +69,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val storage = StorageService(application)
     private val db = VitaHeroDatabase.getInstance(application)
+    private val supabase = SupabaseRepository()
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
@@ -91,6 +92,112 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         loadFromStorage()
+    }
+
+    private fun profileId(): String {
+        val phone = _uiState.value.phone
+        if (phone.isNotBlank()) return "ph_${phone.replace("+", "").takeLast(10)}"
+        return "local_${_uiState.value.parentName.lowercase().replace(" ", "_")}"
+    }
+
+    private fun syncProfileToSupabase() {
+        viewModelScope.launch {
+            try {
+                val state = _uiState.value
+                supabase.upsertProfile(ProfileDto(
+                    id = profileId(),
+                    phone = state.phone,
+                    name = state.parentName,
+                    onboardingComplete = _onboardingComplete.value,
+                    isLoggedIn = _isLoggedIn.value,
+                    darkTheme = state.darkTheme,
+                    localeCode = state.locale.code,
+                    familyCode = state.familyCode,
+                    notificationsEnabled = state.notificationsEnabled,
+                    campRemindersEnabled = state.campRemindersEnabled,
+                    consentAccepted = state.consentAccepted,
+                    consentDeclined = state.consentDeclined,
+                ))
+            } catch (_: Exception) { /* Supabase sync is best-effort */ }
+        }
+    }
+
+    private fun syncKidsToSupabase() {
+        viewModelScope.launch {
+            try {
+                val state = _uiState.value
+                val pid = profileId()
+                supabase.upsertKids(state.kids.map { kid ->
+                    KidDto(
+                        id = kid.id, profileId = pid, name = kid.name,
+                        age = kid.age, gender = kid.gender, school = kid.school,
+                        grade = kid.grade, heightCm = kid.heightCm.toDouble(),
+                        weightKg = kid.weightKg.toDouble(), avatarColor = kid.avatarColor,
+                        overallScore = kid.overallScore,
+                        dental = kid.dental.name, eyesight = kid.eyesight.name,
+                        nutrition = kid.nutrition.name, lastCheckup = kid.lastCheckup,
+                    )
+                })
+                // Also sync growth points
+                state.kids.forEach { kid ->
+                    kid.growth.forEach { gp ->
+                        supabase.upsertGrowthPoint(GrowthPointDto(
+                            id = "${kid.id}_gp_${gp.label.replace(" ", "_")}",
+                            kidId = kid.id,
+                            label = gp.label,
+                            height = gp.height.toDouble(),
+                            weight = gp.weight.toDouble(),
+                        ))
+                    }
+                }
+            } catch (_: Exception) { /* Supabase sync is best-effort */ }
+        }
+    }
+
+    private fun syncAppointmentsToSupabase() {
+        viewModelScope.launch {
+            try {
+                val state = _uiState.value
+                val pid = profileId()
+                state.appointments.forEach { appt ->
+                    supabase.upsertAppointment(AppointmentDto(
+                        id = appt.id, profileId = pid, doctorName = appt.doctorName,
+                        specialty = appt.specialty, kidName = appt.kidName,
+                        date = appt.date, time = appt.time,
+                    ))
+                }
+            } catch (_: Exception) { /* Supabase sync is best-effort */ }
+        }
+    }
+
+    private fun syncMealsToSupabase(kidId: String) {
+        viewModelScope.launch {
+            try {
+                val pid = profileId()
+                val mealList = _meals.value[kidId].orEmpty()
+                supabase.upsertMeals(mealList.map { meal ->
+                    MealItemDto(
+                        id = meal.id, profileId = pid, kidId = kidId,
+                        timeSlot = meal.time, name = meal.name,
+                        detail = meal.detail, kcal = meal.kcal, eaten = meal.eaten,
+                    )
+                })
+            } catch (_: Exception) { /* Supabase sync is best-effort */ }
+        }
+    }
+
+    private fun syncStreakToSupabase(kidId: String) {
+        viewModelScope.launch {
+            try {
+                val streak = _streaks.value[kidId] ?: return@launch
+                supabase.upsertStreak(StreakDto(
+                    kidId = kidId,
+                    currentStreak = streak.currentStreak,
+                    bestStreak = streak.bestStreak,
+                    lastLogDate = streak.lastLogDate,
+                ))
+            } catch (_: Exception) { /* Supabase sync is best-effort */ }
+        }
     }
 
     private fun loadFromStorage() {
@@ -276,6 +383,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         persistState()
+        syncProfileToSupabase()
+        syncKidsToSupabase()
+        syncAppointmentsToSupabase()
+        // Sync all meals
+        _meals.value.keys.forEach { syncMealsToSupabase(it) }
+        _streaks.value.keys.forEach { syncStreakToSupabase(it) }
     }
 
     fun scheduleAllNotifications() {
@@ -329,6 +442,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun toggleDarkTheme() {
         _uiState.update { it.copy(darkTheme = !it.darkTheme) }
         persistState()
+        syncProfileToSupabase()
     }
 
     // --- Notification toggles ---
@@ -403,6 +517,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setLocale(locale: AppLocale) {
         _uiState.update { it.copy(locale = locale) }
         persistState()
+        syncProfileToSupabase()
     }
 
     // --- Family sharing ---
@@ -411,6 +526,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val code = (1..6).map { chars.random() }.joinToString("")
         _uiState.update { it.copy(familyCode = code) }
         persistState()
+        syncProfileToSupabase()
     }
 
     fun joinFamily(code: String) {
@@ -425,6 +541,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             )
         }
         persistState()
+        // Sync co-parent to Supabase
+        viewModelScope.launch {
+            try {
+                val cp = _uiState.value.coParents.last()
+                supabase.upsertCoParent(CoParentDto(
+                    id = cp.id, profileId = profileId(),
+                    name = cp.name, relation = cp.relation,
+                    joinedDate = cp.joinedDate,
+                ))
+            } catch (_: Exception) { }
+        }
     }
 
     // --- Wearable data ---
@@ -467,6 +594,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ))
         }
         persistState()
+        syncMealsToSupabase(kidId)
+        syncStreakToSupabase(kidId)
     }
 
     fun badgeProgressForKid(kidId: String): BadgeProgress {
@@ -581,6 +710,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             ))
         }
         persistState()
+        syncMealsToSupabase(kidId)
+        syncStreakToSupabase(kidId)
     }
 
     fun addKid(
@@ -613,6 +744,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _meals.update { it + (newKid.id to SampleData.personalizedMeals(newKid)) }
         _streaks.update { it + (newKid.id to StreakInfo()) }
         persistState()
+        // Sync to Supabase
+        syncKidsToSupabase()
+        syncMealsToSupabase(newKid.id)
     }
 
     fun addGrowthPoint(kidId: String, heightCm: Float, weightKg: Float, label: String) {
@@ -633,6 +767,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             })
         }
         persistState()
+        // Sync growth point to Supabase
+        viewModelScope.launch {
+            try {
+                supabase.upsertGrowthPoint(GrowthPointDto(
+                    id = "${kidId}_gp_${label.replace(" ", "_")}",
+                    kidId = kidId,
+                    label = label,
+                    height = heightCm.toDouble(),
+                    weight = weightKg.toDouble(),
+                ))
+                syncKidsToSupabase()
+            } catch (_: Exception) { }
+        }
     }
 
     private fun computeScore(growth: List<GrowthPoint>): Int {
@@ -666,6 +813,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val app = getApplication<Application>()
         NotificationScheduler.scheduleCheckupReminder(app, doctor.name, kidName, date, time)
         persistState()
+        // Sync to Supabase
+        viewModelScope.launch {
+            try {
+                supabase.upsertAppointment(AppointmentDto(
+                    id = appt.id, profileId = profileId(), doctorName = appt.doctorName,
+                    specialty = appt.specialty, kidName = appt.kidName,
+                    date = appt.date, time = appt.time,
+                ))
+            } catch (_: Exception) { }
+        }
     }
 
     fun cancelAppointment(appointmentId: String) {
