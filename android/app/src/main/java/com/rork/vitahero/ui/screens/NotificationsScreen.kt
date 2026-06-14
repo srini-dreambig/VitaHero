@@ -78,8 +78,8 @@ fun NotificationsScreen(
                 item {
                     EmptyState(
                         icon = Icons.Outlined.Notifications,
-                        title = "All caught up",
-                        subtitle = "You'll see camp updates, checkup reminders and reward alerts here."
+                        title = t(S.allCaughtUp),
+                        subtitle = t(S.allCaughtUpSub)
                     )
                 }
             } else {

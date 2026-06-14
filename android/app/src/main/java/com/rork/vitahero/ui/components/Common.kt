@@ -300,6 +300,11 @@ fun t(key: String): String = tr(key, LocalAppLocale.current)
 @Composable
 fun tf(key: String, arg: String): String = tr(key, LocalAppLocale.current).replace("%s", arg)
 
+/** Resolve a translated format string (supports two %s replacements). */
+@Composable
+fun tf2(key: String, arg1: String, arg2: String): String =
+    tr(key, LocalAppLocale.current).replace("%s1", arg1).replace("%s2", arg2)
+
 /** Full-screen loading placeholder with a subtle shimmer. */
 @Composable
 fun LoadingPlaceholder(

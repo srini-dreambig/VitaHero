@@ -58,9 +58,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.rork.vitahero.data.MealItem
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.components.tf
+import com.rork.vitahero.ui.components.tf2
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -173,7 +177,7 @@ fun FoodRecognitionScreen(
         ) {
             item {
                 Text(
-                    "Take a photo of ${kidName}'s meal to log it instantly",
+                    tf(S.takePhotoOf, kidName),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -202,17 +206,17 @@ fun FoodRecognitionScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
                             Spacer(Modifier.height(14.dp))
-                            Text("Capture Meal", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(t(S.captureMeal), color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                             Spacer(Modifier.height(4.dp))
-                            Text("Point camera at your child's plate", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                            Text(t(S.pointCamera), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
                         }
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Outlined.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(48.dp))
                             Spacer(Modifier.height(10.dp))
-                            Text("Detected ${detectedItems.size} items", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(tf(S.detectedItems, detectedItems.size.toString()), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Spacer(Modifier.height(4.dp))
-                            Text("Tap to capture again", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                            Text(t(S.tapAgain), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -222,7 +226,7 @@ fun FoodRecognitionScreen(
             // Detected items
             if (detectedItems.isNotEmpty()) {
                 item {
-                    Text("Detected Food Items", style = MaterialTheme.typography.headlineSmall)
+                    Text(t(S.detectedFoodTitle), style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(12.dp))
                 }
                 items(detectedItems) { item ->
@@ -247,7 +251,7 @@ fun FoodRecognitionScreen(
                             Column(Modifier.weight(1f)) {
                                 Text(item.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    "~${item.estimatedKcal} kcal · ${(item.confidence * 100).toInt()}% match",
+                                    tf2(S.percentMatch, item.estimatedKcal.toString(), (item.confidence * 100).toInt().toString()),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -273,7 +277,7 @@ fun FoodRecognitionScreen(
             item {
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    "Food recognition works best with clear, well-lit photos of individual meals. Results are for informational purposes.",
+                    t(S.foodRecTip),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -293,9 +297,9 @@ private fun AnalyzingContent() {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(Icons.Outlined.Search, contentDescription = null, tint = Color.White.copy(alpha = alpha), modifier = Modifier.size(56.dp))
         Spacer(Modifier.height(14.dp))
-        Text("Analyzing your photo…", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+        Text(t(S.analyzingPhoto), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(2.dp))
-        Text("Identifying food items with AI", color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+        Text(t(S.identifyingFood), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(14.dp))
         LinearProgressIndicator(
             modifier = Modifier

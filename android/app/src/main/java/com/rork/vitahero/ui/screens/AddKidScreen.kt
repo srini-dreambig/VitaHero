@@ -100,7 +100,7 @@ fun AddKidScreen(
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                "Add a photo (optional)",
+                t(S.addPhotoOptional),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),

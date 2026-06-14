@@ -505,8 +505,8 @@ private fun NutritionTab(kid: Kid, onOpenDiet: () -> Unit) {
                     IconBubble(Icons.Outlined.Restaurant, HeroGreen)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Diet status", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("Personalised by our dietician", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(t(S.dietStatus), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.dietSubtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     FlagChip(kid.nutrition)
                 }

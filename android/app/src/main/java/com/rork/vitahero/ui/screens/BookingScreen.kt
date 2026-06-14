@@ -115,7 +115,7 @@ fun BookingScreen(
                     Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(54.dp))
                 }
                 Spacer(Modifier.height(24.dp))
-                Text("Appointment confirmed!", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text(t(S.apptConfirmed), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "${selectedDoctor?.name} · $selectedSlot\nfor $selectedKid",
@@ -123,7 +123,7 @@ fun BookingScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.height(32.dp))
-                PrimaryGradientButton(text = "Done", onClick = onBack, modifier = Modifier.fillMaxWidth())
+                PrimaryGradientButton(text = t(S.done), onClick = onBack, modifier = Modifier.fillMaxWidth())
             }
             return@Scaffold
         }
@@ -142,7 +142,7 @@ fun BookingScreen(
                         Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Upcoming", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text(t(S.upcomingAppts), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                         Text(
                             if (showExisting) "Hide" else "Show",
                             style = MaterialTheme.typography.labelLarge,
@@ -241,7 +241,7 @@ fun BookingScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            "No doctors found for $filterSpecialty",
+                            t(S.noDoctorsFound) + " for $filterSpecialty",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

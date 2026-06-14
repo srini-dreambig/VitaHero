@@ -187,6 +187,75 @@ object S {
     const val stepsToday = "steps_today"
     const val activeMinutes = "active_minutes"
     const val syncedFrom = "synced_from"
+
+    // ---- Extra UI strings ----
+    const val verifyNumber = "verify_number"
+    const val didntGetCode = "didnt_get_code"
+    const val resendIn = "resend_in"
+    const val orContinue = "or_continue"
+    const val weWillSendCode = "we_will_send_code"
+    const val appSubtitle = "app_subtitle"
+    const val addPhotoOptional = "add_photo_optional"
+    const val addAnotherChild = "add_another_child"
+    const val trackAllKids = "track_all_kids"
+    const val childrenTracked = "children_tracked"
+    const val childTracked = "child_tracked"
+    const val schoolScreenings = "school_screenings"
+    const val noCampsYet = "no_camps_yet"
+    const val noCampsSub = "no_camps_sub"
+    const val pastCamps = "past_camps"
+    const val addToReminders = "add_to_reminders"
+    const val appearance = "appearance"
+    const val inviteCoParent = "invite_co_parent"
+    const val linkedHospitalsValue = "linked_hospitals_value"
+    const val coParentsSection = "co_parents_section"
+    const val askForCode = "ask_for_code"
+    const val familyInfo = "family_info"
+    const val growthTabLabel = "growth_tab_label"
+    const val dentalTabLabel = "dental_tab_label"
+    const val eyeTabLabel = "eye_tab_label"
+    const val nutritionTabLabel = "nutrition_tab_label"
+    const val dietStatus = "diet_status"
+    const val dietSubtitle = "diet_subtitle"
+    const val balancedDietMsg = "balanced_diet_msg"
+    const val ironLowMsg = "iron_low_msg"
+    const val activityData = "activity_data"
+    const val notConnected = "not_connected"
+    const val stepsMin = "steps_min"
+    const val consentSubtitle = "consent_subtitle"
+    const val consentItem1Title = "consent_item_1_title"
+    const val consentItem1Desc = "consent_item_1_desc"
+    const val consentItem2Title = "consent_item_2_title"
+    const val consentItem2Desc = "consent_item_2_desc"
+    const val consentItem3Title = "consent_item_3_title"
+    const val consentItem3Desc = "consent_item_3_desc"
+    const val learnPrivacy = "learn_privacy"
+    const val apptConfirmed = "appt_confirmed"
+    const val done = "done"
+    const val noDoctorsFound = "no_doctors_found"
+    const val heroBadgesTitle = "hero_badges_title"
+    const val heroBadgesSub = "hero_badges_sub"
+    const val risingHero = "rising_hero"
+    const val kidBadges = "kid_badges"
+    const val classLeaderboard = "class_leaderboard"
+    const val anonymized = "anonymized"
+    const val captureMeal = "capture_meal"
+    const val pointCamera = "point_camera"
+    const val detectedItems = "detected_items"
+    const val tapAgain = "tap_again"
+    const val detectedFoodTitle = "detected_food_title"
+    const val foodRecTip = "food_rec_tip"
+    const val analyzingPhoto = "analyzing_photo"
+    const val identifyingFood = "identifying_food"
+    const val takePhotoOf = "take_photo_of"
+    const val logBtn = "log_btn"
+    const val percentMatch = "percent_match"
+    const val foodSubtitleLong = "food_subtitle_long"
+    const val allCaughtUp = "all_caught_up"
+    const val allCaughtUpSub = "all_caught_up_sub"
+    const val noKidsYet = "no_kids_yet"
+    const val noKidsSub = "no_kids_sub"
+    const val addFirstChild = "add_first_child"
 }
 
 private val en = mapOf(
@@ -333,6 +402,72 @@ private val en = mapOf(
     S.stepsToday to "Steps today",
     S.activeMinutes to "Active minutes",
     S.syncedFrom to "Synced from device",
+    S.verifyNumber to "Verify your number",
+    S.didntGetCode to "Didn't get the code?",
+    S.resendIn to "Resend in %ss",
+    S.orContinue to "or continue with",
+    S.weWillSendCode to "We'll send a 6-digit verification code to this number.",
+    S.appSubtitle to "Your child's health, in heroic hands",
+    S.addPhotoOptional to "Add a photo (optional)",
+    S.addAnotherChild to "Add another child",
+    S.trackAllKids to "Track all your kids in one place",
+    S.childrenTracked to "%d children tracked",
+    S.childTracked to "%d child tracked",
+    S.schoolScreenings to "School screening camps & follow-ups",
+    S.noCampsYet to "No camps yet",
+    S.noCampsSub to "When your school schedules a health camp, it will appear here.",
+    S.pastCamps to "Past camps",
+    S.addToReminders to "Add to reminders",
+    S.appearance to "Appearance",
+    S.inviteCoParent to "Invite co-parent or guardian",
+    S.linkedHospitalsValue to "Rainbow, LV Prasad, Apollo Cradle",
+    S.coParentsSection to "Co-parents",
+    S.askForCode to "Ask your co-parent to share their code",
+    S.familyInfo to "All family members can view and manage kid profiles, health records, and appointments.",
+    S.growthTabLabel to "Growth",
+    S.dentalTabLabel to "Dental",
+    S.eyeTabLabel to "Eyesight",
+    S.nutritionTabLabel to "Nutrition",
+    S.dietStatus to "Diet status",
+    S.dietSubtitle to "Personalised by our dietician",
+    S.balancedDietMsg to "Balanced diet with good protein and iron intake. Keep it up!",
+    S.ironLowMsg to "Iron and protein intake is a little low. Add more dal, leafy greens and nuts.",
+    S.activityData to "Activity data",
+    S.notConnected to "Not connected",
+    S.stepsMin to "%d steps · %d min active",
+    S.consentSubtitle to "We follow strict data protection rules (DPDP Act 2023 compliant) to keep your family's health info private.",
+    S.consentItem1Title to "Parental consent first",
+    S.consentItem1Desc to "Only you can create and manage your child's profile.",
+    S.consentItem2Title to "Encrypted & secure",
+    S.consentItem2Desc to "All health records are stored with bank-level encryption.",
+    S.consentItem3Title to "Anonymized insights",
+    S.consentItem3Desc to "School leaderboards use anonymous IDs only.",
+    S.learnPrivacy to "Learn more about privacy",
+    S.apptConfirmed to "Appointment confirmed!",
+    S.done to "Done",
+    S.noDoctorsFound to "No doctors found",
+    S.heroBadgesTitle to "Celebrate healthy habits & progress",
+    S.heroBadgesSub to "%s is a rising hero! Keep going to unlock more.",
+    S.kidBadges to "%s — Hero Badges",
+    S.classLeaderboard to "Class leaderboard",
+    S.anonymized to "Anonymized",
+    S.captureMeal to "Capture Meal",
+    S.pointCamera to "Point camera at your child's plate",
+    S.detectedItems to "Detected %s items",
+    S.tapAgain to "Tap to capture again",
+    S.detectedFoodTitle to "Detected Food Items",
+    S.foodRecTip to "Food recognition works best with clear, well-lit photos.",
+    S.analyzingPhoto to "Analyzing your photo…",
+    S.identifyingFood to "Identifying food items with AI",
+    S.takePhotoOf to "Take a photo of %s's meal to log it instantly",
+    S.logBtn to "Log",
+    S.percentMatch to "~%s1 kcal · %s2%% match",
+    S.foodSubtitleLong to "Food recognition works best with clear, well-lit photos.",
+    S.allCaughtUp to "All caught up",
+    S.allCaughtUpSub to "You'll see camp updates, checkup reminders, and reward alerts here.",
+    S.noKidsYet to "No children yet",
+    S.noKidsSub to "Add your first child to start tracking their health & growth.",
+    S.addFirstChild to "Add a child",
 )
 
 private val hi = mapOf(

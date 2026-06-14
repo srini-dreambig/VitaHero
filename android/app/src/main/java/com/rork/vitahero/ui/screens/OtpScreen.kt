@@ -97,7 +97,7 @@ fun OtpScreen(
             Icon(Icons.Outlined.MarkEmailRead, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(20.dp))
-        Text("Verify your number", style = MaterialTheme.typography.headlineLarge)
+        Text(t(S.verifyNumber), style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(8.dp))
         Text(
             t(S.otpSubtitle) + " +91 ${phone.ifEmpty { "98765 43210" }}",
@@ -147,7 +147,7 @@ fun OtpScreen(
         Spacer(Modifier.height(20.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Didn't get the code?",
+                t(S.didntGetCode),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

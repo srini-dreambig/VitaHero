@@ -78,7 +78,7 @@ fun AuthScreen(
         Spacer(Modifier.height(16.dp))
         Text("VitaHero", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Text(
-            "Your child's health, in heroic hands",
+            t(S.appSubtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -129,7 +129,7 @@ fun AuthScreen(
 
         Spacer(Modifier.height(8.dp))
         Text(
-            "We'll send a 6-digit verification code to this number.",
+            t(S.weWillSendCode),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -145,7 +145,7 @@ fun AuthScreen(
         Spacer(Modifier.height(20.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outline))
-            Text("  or continue with  ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("  ${t(S.orContinue)}  ", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Box(Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outline))
         }
         Spacer(Modifier.height(16.dp))

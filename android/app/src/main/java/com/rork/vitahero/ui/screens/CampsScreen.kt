@@ -95,7 +95,7 @@ fun CampsScreen(
 
         item {
             Spacer(Modifier.height(8.dp))
-            Text("Past camps", style = MaterialTheme.typography.headlineSmall)
+            Text(t(S.pastCamps), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
         }
         items(past, key = { it.id }) { camp ->

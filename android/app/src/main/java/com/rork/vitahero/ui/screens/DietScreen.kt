@@ -152,15 +152,15 @@ fun DietScreen(
                         .fillMaxWidth()
                         .padding(vertical = 4.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(HeroYellow.copy(alpha = 0.08f))
+                        .background(MaterialTheme.colorScheme.tertiaryContainer)
                         .clickable(onClick = onOpenFoodRecognition)
                         .padding(14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Color(0xFFB45309), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(t(S.recognizeFood), color = Color(0xFFB45309), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.recognizeFood), color = MaterialTheme.colorScheme.onTertiaryContainer, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -374,10 +374,10 @@ private fun MealCard(meal: MealItem, onToggle: () -> Unit) {
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(HeroYellow.copy(alpha = 0.2f))
+                            .background(MaterialTheme.colorScheme.tertiaryContainer)
                             .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
-                        Text(meal.time, style = MaterialTheme.typography.labelSmall, color = Color(0xFFB45309), fontWeight = FontWeight.SemiBold)
+                        Text(meal.time, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onTertiaryContainer, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.width(8.dp))
                     Text("${meal.kcal} kcal", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

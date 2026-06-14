@@ -72,9 +72,9 @@ fun KidsScreen(
             item {
                 EmptyState(
                     icon = Icons.Outlined.Add,
-                    title = "No children yet",
-                    subtitle = "Add your first child to start tracking their health & growth.",
-                    actionLabel = "Add a child",
+                    title = t(S.noKidsYet),
+                    subtitle = t(S.noKidsSub),
+                    actionLabel = t(S.addChild),
                     onAction = onAddKid
                 )
             }
@@ -163,8 +163,8 @@ private fun AddKidCard(modifier: Modifier = Modifier, onClick: () -> Unit) {
             }
             Spacer(Modifier.width(14.dp))
             Column {
-                Text("Add another child", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text("Track all your kids in one place", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
+                Text(t(S.addAnotherChild), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(t(S.trackAllKids), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
             }
         }
     }

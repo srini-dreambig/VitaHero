@@ -178,7 +178,7 @@ fun FamilySharingScreen(
             // Co-parents list
             if (coParents.isNotEmpty()) {
                 item {
-                    Text("Co-parents", style = MaterialTheme.typography.headlineSmall)
+                    Text(t(S.coParentsSection), style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(12.dp))
                 }
                 coParents.forEach { co ->
@@ -228,7 +228,7 @@ fun FamilySharingScreen(
                     HeroCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp)) {
                             Text(t(S.enterFamilyCode), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text("Ask your co-parent to share their code", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(t(S.askForCode), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(12.dp))
                             OutlinedTextField(
                                 value = joinCode,
@@ -264,7 +264,7 @@ fun FamilySharingScreen(
             item {
                 Spacer(Modifier.height(24.dp))
                 Text(
-                    "All family members can view and manage kid profiles, health records, and appointments.",
+                    t(S.familyInfo),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

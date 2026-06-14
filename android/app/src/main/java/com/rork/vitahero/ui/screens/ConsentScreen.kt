@@ -74,7 +74,7 @@ fun ConsentScreen(
         )
         Spacer(Modifier.height(10.dp))
         Text(
-            "We follow strict data protection rules (DPDP Act 2023 compliant) to keep your family's health information private and secure.",
+            t(S.consentSubtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -84,22 +84,22 @@ fun ConsentScreen(
 
         ConsentItem(
             icon = Icons.Outlined.Lock,
-            title = "Parental consent first",
-            description = "Only you can create and manage your child's profile. No data is shared without your explicit permission.",
+            title = t(S.consentItem1Title),
+            description = t(S.consentItem1Desc),
             tint = HeroGreen
         )
         Spacer(Modifier.height(16.dp))
         ConsentItem(
             icon = Icons.Outlined.Security,
-            title = "Encrypted & secure",
-            description = "All health records are stored with bank-level encryption. Your family's data stays private.",
+            title = t(S.consentItem2Title),
+            description = t(S.consentItem2Desc),
             tint = HeroBlue
         )
         Spacer(Modifier.height(16.dp))
         ConsentItem(
             icon = Icons.Outlined.PrivacyTip,
-            title = "Anonymized insights",
-            description = "School leaderboards and community stats use anonymous IDs only. Your child's identity is never revealed.",
+            title = t(S.consentItem3Title),
+            description = t(S.consentItem3Desc),
             tint = Color(0xFF8B5CF6)
         )
 
@@ -129,7 +129,7 @@ fun ConsentScreen(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                "Learn more about privacy",
+                t(S.learnPrivacy),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.Medium

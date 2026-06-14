@@ -57,26 +57,26 @@ fun OnboardingScreen(
     val slides = listOf(
         Slide(
             images.getOrElse(0) { "" },
-            "Track Your Kid's\nGrowth Heroically!",
-            "School camps, diet plans, doctor support & rewards — all in one friendly place.",
+            t(S.onboardingTitle1),
+            t(S.onboardingSub1),
             HeroGreen
         ),
         Slide(
             images.getOrElse(1) { "" },
-            "Free School\nHealth Camps",
-            "Identify growth, dental and eye issues early with trusted partner doctors.",
+            t(S.onboardingTitle2),
+            t(S.onboardingSub2),
             HeroBlue
         ),
         Slide(
             images.getOrElse(2) { "" },
-            "All Your Kids\nin One Place",
-            "Personalised diet, progress tracking and hero badges for every child.",
+            t(S.onboardingTitle3),
+            t(S.onboardingSub3),
             Color(0xFF8B5CF6)
         ),
         Slide(
             images.getOrElse(3) { "" },
-            "Rewards That\nKeep Them Going",
-            "AI diet videos, easy appointments and fun hero badges to celebrate progress.",
+            t(S.onboardingTitle4),
+            t(S.onboardingSub4),
             Color(0xFFF59E0B)
         ),
     )

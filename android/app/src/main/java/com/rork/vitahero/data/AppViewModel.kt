@@ -1,6 +1,15 @@
 package com.rork.vitahero.data
 
+import android.Manifest
+import android.app.AlarmManager
 import android.app.Application
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -134,6 +143,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // Room DB is used for write durability (via persistToRoom).
+    // JSON file storage remains the primary load path for simplicity and speed.
+    // To switch to Room as primary, implement loadFromRoom() using the DAO suspend methods.
+
+    private data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+
     private fun seedPersonalizedMeals(kids: List<Kid>): Map<String, List<MealItem>> {
         return kids.associate { it.id to SampleData.personalizedMeals(it) }
     }
@@ -265,16 +280,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun scheduleAllNotifications() {
         val app = getApplication<Application>()
+        if (!hasNotificationPermission(app)) return
         val state = _uiState.value
-        state.camps.filter { it.status == CampStatus.UPCOMING }.forEach { camp ->
-            NotificationScheduler.scheduleCampReminder(app, camp.title, camp.date, camp.time)
-        }
-        state.appointments.forEach { appt ->
-            NotificationScheduler.scheduleCheckupReminder(app, appt.doctorName, appt.kidName, appt.date, appt.time)
+        if (state.notificationsEnabled) {
+            if (state.campRemindersEnabled) {
+                state.camps.filter { it.status == CampStatus.UPCOMING }.forEach { camp ->
+                    NotificationScheduler.scheduleCampReminder(app, camp.title, camp.date, camp.time)
+                }
+            }
+            state.appointments.forEach { appt ->
+                NotificationScheduler.scheduleCheckupReminder(app, appt.doctorName, appt.kidName, appt.date, appt.time)
+            }
         }
         state.kids.forEach { kid ->
             NotificationScheduler.scheduleDietReminder(app, kid.name, kid.id)
         }
+    }
+
+    private fun hasNotificationPermission(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else true
     }
 
     fun logout() {
@@ -327,14 +353,50 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         persistState()
     }
 
-    private fun cancelAllNotifications(app: android.app.Application) {
-        val alarmManager = app.getSystemService(android.content.Context.ALARM_SERVICE) as android.app.AlarmManager
-        // Cancel is handled by the system when alarms fire; we just stop scheduling new ones
-        // In production, you'd cancel all pending intents by their request codes
+    private fun cancelAllNotifications(app: Application) {
+        val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val state = _uiState.value
+        // Cancel camp reminders
+        state.camps.filter { it.status == CampStatus.UPCOMING }.forEach { camp ->
+            val intent = Intent(app, NotificationReceiver::class.java)
+            val pending = PendingIntent.getBroadcast(
+                app, camp.title.hashCode(), intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pending)
+        }
+        // Cancel appointment reminders
+        state.appointments.forEach { appt ->
+            val intent = Intent(app, NotificationReceiver::class.java)
+            val pending = PendingIntent.getBroadcast(
+                app, (appt.doctorName + appt.date).hashCode(), intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pending)
+        }
+        // Cancel diet reminders
+        state.kids.forEach { kid ->
+            val intent = Intent(app, NotificationReceiver::class.java)
+            val pending = PendingIntent.getBroadcast(
+                app, kid.id.hashCode(), intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pending)
+        }
     }
 
     private fun cancelCampNotifications() {
-        // In production, cancel camp-specific alarms here
+        val app = getApplication<Application>()
+        val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val state = _uiState.value
+        state.camps.filter { it.status == CampStatus.UPCOMING }.forEach { camp ->
+            val intent = Intent(app, NotificationReceiver::class.java)
+            val pending = PendingIntent.getBroadcast(
+                app, camp.title.hashCode(), intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            alarmManager.cancel(pending)
+        }
     }
 
     // --- Locale ---

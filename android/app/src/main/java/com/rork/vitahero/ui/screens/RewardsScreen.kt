@@ -73,9 +73,9 @@ fun RewardsScreen(
         item {
             StatusBarSpacer()
             Column(Modifier.padding(vertical = 12.dp)) {
-                Text("Hero Badges", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                Text(t(S.heroBadges), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "Celebrate healthy habits & progress",
+                    t(S.heroBadgesTitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -162,14 +162,14 @@ fun RewardsScreen(
         // Leaderboard
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Class leaderboard", style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
+                Text(t(S.classLeaderboard), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(50))
                         .background(MaterialTheme.colorScheme.secondaryContainer)
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
-                    Text("Anonymized", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.SemiBold)
+                    Text(t(S.anonymized), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSecondaryContainer, fontWeight = FontWeight.SemiBold)
                 }
             }
             Spacer(Modifier.height(12.dp))
