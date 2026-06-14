@@ -47,6 +47,7 @@ import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.ProgressRing
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroYellow
@@ -134,7 +135,7 @@ fun RewardsScreen(
                     Spacer(Modifier.width(18.dp))
                     Column {
                         Text("$earned / ${badges.size} ${t(S.earned)}", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text("$kidName is a rising hero! Keep going to unlock more.", color = Color.White.copy(alpha = 0.95f), style = MaterialTheme.typography.bodyMedium)
+                        Text(tf(S.risingHero, kidName), color = Color.White.copy(alpha = 0.95f), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
@@ -235,7 +236,7 @@ private fun BadgeCard(badge: Badge, modifier: Modifier = Modifier) {
                         .background(accent.copy(alpha = 0.14f))
                         .padding(horizontal = 12.dp, vertical = 4.dp)
                 ) {
-                    Text("Earned", style = MaterialTheme.typography.labelSmall, color = accent, fontWeight = FontWeight.Bold)
+                    Text(t(S.earned), style = MaterialTheme.typography.labelSmall, color = accent, fontWeight = FontWeight.Bold)
                 }
             } else {
                 Box(
@@ -292,6 +293,6 @@ private fun LeaderRow(entry: LeaderEntry) {
             color = if (entry.isYou) HeroGreen else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
-        Text("${entry.points} pts", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+        Text("${entry.points} ${t(S.points)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
     }
 }

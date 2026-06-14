@@ -64,7 +64,7 @@ fun CampsScreen(
             Column(Modifier.padding(vertical = 12.dp)) {
                 Text(t(S.schoolCamps), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "School screening camps & follow-ups",
+                    t(S.schoolScreenings),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -84,7 +84,7 @@ fun CampsScreen(
 
         if (upcoming.isNotEmpty()) {
             item {
-                Text("Upcoming", style = MaterialTheme.typography.headlineSmall)
+                Text(t(S.upcoming), style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(12.dp))
             }
             items(upcoming, key = { it.id }) { camp ->
@@ -133,7 +133,7 @@ private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit) {
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        if (upcoming) "Upcoming" else "Done",
+                        if (upcoming) t(S.upcoming) else t(S.completed),
                         style = MaterialTheme.typography.labelSmall,
                         color = accent,
                         fontWeight = FontWeight.SemiBold
@@ -183,7 +183,7 @@ private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    if (upcoming) "Add to reminders" else "Book follow-up",
+                    if (upcoming) t(S.addToReminders) else t(S.bookFollowUp),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = if (upcoming) MaterialTheme.colorScheme.onSurface else Color.White

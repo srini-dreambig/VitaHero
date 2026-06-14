@@ -74,8 +74,8 @@ import com.rork.vitahero.ui.theme.HeroYellow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-private enum class DetailTab(val label: String) {
-    GROWTH("Growth"), DENTAL("Dental"), EYE("Eyesight"), NUTRITION("Nutrition")
+private enum class DetailTab(val labelKey: String) {
+    GROWTH(S.growthTabLabel), DENTAL(S.dentalTabLabel), EYE(S.eyeTabLabel), NUTRITION(S.nutritionTabLabel)
 }
 
 @Composable
@@ -229,7 +229,7 @@ fun KidDetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            t.label,
+                            t(t.labelKey),
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
                             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -251,9 +251,9 @@ fun KidDetailScreen(
                         IconBubble(Icons.Outlined.Watch, HeroYellow)
                         Spacer(Modifier.width(14.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("Activity data", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(t(S.activityData), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                             Text(
-                                if (wearableData.isConnected) "${wearableData.stepsToday} steps · ${wearableData.activeMinutes} min active" else "Not connected",
+                                if (wearableData.isConnected) "${wearableData.stepsToday} steps · ${wearableData.activeMinutes} min active" else t(S.notConnected),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -269,14 +269,14 @@ fun KidDetailScreen(
             when (tab) {
                 DetailTab.GROWTH -> GrowthTab(kid)
                 DetailTab.DENTAL -> FlagTab(
-                    "Dental health", kid.dental,
-                    if (kid.dental == HealthFlag.GOOD) "No cavities found at last check. Keep brushing twice a day."
-                    else "Mild plaque noticed. A dental follow-up is recommended within 2 weeks."
+                    t(S.dentalTabLabel), kid.dental,
+                    if (kid.dental == HealthFlag.GOOD) t(S.dentalGoodMsg)
+                    else t(S.dentalWatchMsg)
                 )
                 DetailTab.EYE -> FlagTab(
-                    "Eyesight", kid.eyesight,
-                    if (kid.eyesight == HealthFlag.GOOD) "Vision is sharp (6/6). No correction needed."
-                    else "Mild vision strain detected. Consider an eye specialist follow-up."
+                    t(S.eyeTabLabel), kid.eyesight,
+                    if (kid.eyesight == HealthFlag.GOOD) t(S.eyeGoodMsg)
+                    else t(S.eyeWatchMsg)
                 )
                 DetailTab.NUTRITION -> NutritionTab(kid, onOpenDiet)
             }
@@ -417,7 +417,7 @@ private fun GrowthTab(kid: Kid) {
             }
         }
         Spacer(Modifier.height(14.dp))
-        InfoNote("Charts are for informational purposes. Always consult your doctor for medical decisions.")
+        InfoNote(t(S.disclaimerChart))
     }
 }
 
@@ -492,7 +492,7 @@ private fun FlagTab(title: String, flag: HealthFlag, description: String) {
             }
         }
         Spacer(Modifier.height(14.dp))
-        InfoNote("For informational purposes only. Please consult a doctor for diagnosis.")
+        InfoNote(t(S.disclaimerShort))
     }
 }
 
@@ -512,8 +512,8 @@ private fun NutritionTab(kid: Kid, onOpenDiet: () -> Unit) {
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    if (kid.nutrition == HealthFlag.GOOD) "Balanced diet with good protein and iron intake. Keep it up!"
-                    else "Iron and protein intake is a little low. Add more dal, leafy greens and nuts.",
+                    if (kid.nutrition == HealthFlag.GOOD) t(S.balancedDietMsg)
+                    else t(S.ironLowMsg),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

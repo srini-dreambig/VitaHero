@@ -26,6 +26,7 @@ data class ProfileDto(
 data class KidDto(
     val id: String,
     @SerialName("profile_id") val profileId: String,
+    @SerialName("user_id") val userId: String? = null,
     val name: String,
     val age: Int,
     val gender: String,
@@ -45,6 +46,7 @@ data class KidDto(
 data class CampDto(
     val id: String,
     @SerialName("profile_id") val profileId: String,
+    @SerialName("user_id") val userId: String? = null,
     val title: String,
     val school: String,
     val date: String,
@@ -58,6 +60,7 @@ data class CampDto(
 data class AppointmentDto(
     val id: String,
     @SerialName("profile_id") val profileId: String,
+    @SerialName("user_id") val userId: String? = null,
     @SerialName("doctor_name") val doctorName: String,
     val specialty: String,
     @SerialName("kid_name") val kidName: String,
@@ -69,6 +72,7 @@ data class AppointmentDto(
 data class MealItemDto(
     val id: String,
     @SerialName("profile_id") val profileId: String,
+    @SerialName("user_id") val userId: String? = null,
     @SerialName("kid_id") val kidId: String,
     @SerialName("time_slot") val timeSlot: String,
     val name: String,
@@ -81,6 +85,7 @@ data class MealItemDto(
 data class GrowthPointDto(
     val id: String,
     @SerialName("kid_id") val kidId: String,
+    @SerialName("user_id") val userId: String? = null,
     val label: String,
     val height: Double = 0.0,
     val weight: Double = 0.0,
@@ -89,6 +94,7 @@ data class GrowthPointDto(
 @Serializable
 data class StreakDto(
     @SerialName("kid_id") val kidId: String,
+    @SerialName("user_id") val userId: String? = null,
     @SerialName("current_streak") val currentStreak: Int = 0,
     @SerialName("best_streak") val bestStreak: Int = 0,
     @SerialName("last_log_date") val lastLogDate: String = "",
@@ -98,6 +104,7 @@ data class StreakDto(
 data class CoParentDto(
     val id: String,
     @SerialName("profile_id") val profileId: String,
+    @SerialName("user_id") val userId: String? = null,
     val name: String,
     val relation: String,
     @SerialName("joined_date") val joinedDate: String = "",

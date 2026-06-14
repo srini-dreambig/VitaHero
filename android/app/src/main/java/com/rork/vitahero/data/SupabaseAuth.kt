@@ -1,6 +1,5 @@
 package com.rork.vitahero.data
 
-import com.rork.vitahero.BuildConfig
 import io.ktor.client.call.body
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -28,16 +27,10 @@ object SupabaseAuth {
     private val http get() = SupabaseService.http
     private val baseUrl get() = SupabaseService.baseUrl
     private val anonKey get() = SupabaseService.anonKey
-    private val edgeFnUrl: String by lazy {
-        try { BuildConfig.SUPABASE_SEND_SMS_URL } catch (_: Exception) { "" }
-            .ifBlank { "https://klmgvvsikkhzgfxfujua.supabase.co/functions/v1/send-sms" }
+    private val edgeFnUrl: String get() {
+        val base = SupabaseService.baseUrl
+        return if (base.isNotBlank()) "$base/functions/v1/send-sms" else ""
     }
-
-    private fun twilioSid(): String =
-        try { BuildConfig.TWILIO_ACCOUNT_SID } catch (_: Exception) { "" }
-
-    private fun twilioToken(): String =
-        try { BuildConfig.TWILIO_AUTH_TOKEN } catch (_: Exception) { "" }
 
     private fun authHeaders() = mapOf(
         "apikey" to anonKey,
@@ -155,11 +148,6 @@ object SupabaseAuth {
             }
             http.post(edgeFnUrl) {
                 header("Content-Type", "application/json")
-                // Pass Twilio credentials so the Edge Function can send SMS
-                val sid = twilioSid()
-                val token = twilioToken()
-                if (sid.isNotBlank()) header("x-twilio-account-sid", sid)
-                if (token.isNotBlank()) header("x-twilio-auth-token", token)
                 contentType(ContentType.Application.Json)
                 setBody(body.toString())
             }

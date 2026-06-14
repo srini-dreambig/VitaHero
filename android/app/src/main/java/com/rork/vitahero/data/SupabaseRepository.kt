@@ -31,14 +31,14 @@ class SupabaseRepository {
      */
     var accessToken: String? = null
 
-    /** Returns the access token if user is signed in, otherwise the anon key. */
+    /** Returns authenticated headers. When logged in, includes Bearer token for RLS. */
     private fun authHeaders(): Map<String, String> {
-        val bearer = accessToken ?: anonKey
-        return mapOf(
+        val headers = mutableMapOf(
             "apikey" to anonKey,
-            "Authorization" to "Bearer $bearer",
-            "Prefer" to "return=minimal"
+            "Content-Type" to "application/json"
         )
+        accessToken?.let { headers["Authorization"] = "Bearer $it" }
+        return headers
     }
 
     // ─── Profiles ──────────────────────────────────────────────

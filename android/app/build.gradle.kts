@@ -17,12 +17,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // Supabase Edge Function URL for phone auth SMS delivery
-        buildConfigField("String", "SUPABASE_SEND_SMS_URL", "\"${System.getenv("SUPABASE_SEND_SMS_URL") ?: "https://klmgvvsikkhzgfxfujua.supabase.co/functions/v1/send-sms"}\"")
-
-        // Twilio credentials for phone auth (injected from Rork private env vars)
-        buildConfigField("String", "TWILIO_ACCOUNT_SID", "\"${System.getenv("TWILIO_ACCOUNT_SID") ?: System.getenv("twilio_account_sid") ?: ""}\"")
-        buildConfigField("String", "TWILIO_AUTH_TOKEN", "\"${System.getenv("TWILIO_AUTH_TOKEN") ?: System.getenv("twilio_auth_token") ?: ""}\"")
+        // Supabase configuration is loaded at runtime from Rork public env vars
     }
 
     buildTypes {

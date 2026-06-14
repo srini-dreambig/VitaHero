@@ -117,6 +117,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val state = _uiState.value
                 supabase.upsertProfile(ProfileDto(
                     id = profileId(),
+                    userId = state.userId.ifBlank { null },
                     phone = state.phone.ifBlank { null },
                     name = state.parentName,
                     onboardingComplete = _onboardingComplete.value,
@@ -140,7 +141,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val pid = profileId()
                 supabase.upsertKids(state.kids.map { kid ->
                     KidDto(
-                        id = kid.id, profileId = pid, name = kid.name,
+                        id = kid.id, profileId = pid,
+                        userId = state.userId.ifBlank { null },
+                        name = kid.name,
                         age = kid.age, gender = kid.gender, school = kid.school,
                         grade = kid.grade, heightCm = kid.heightCm.toDouble(),
                         weightKg = kid.weightKg.toDouble(), avatarColor = kid.avatarColor,
@@ -155,6 +158,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         supabase.upsertGrowthPoint(GrowthPointDto(
                             id = "${kid.id}_gp_${gp.label.replace(" ", "_")}",
                             kidId = kid.id,
+                            userId = state.userId.ifBlank { null },
                             label = gp.label,
                             height = gp.height.toDouble(),
                             weight = gp.weight.toDouble(),
@@ -172,7 +176,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val pid = profileId()
                 state.appointments.forEach { appt ->
                     supabase.upsertAppointment(AppointmentDto(
-                        id = appt.id, profileId = pid, doctorName = appt.doctorName,
+                        id = appt.id, profileId = pid,
+                        userId = state.userId.ifBlank { null },
+                        doctorName = appt.doctorName,
                         specialty = appt.specialty, kidName = appt.kidName,
                         date = appt.date, time = appt.time,
                     ))
@@ -188,7 +194,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val mealList = _meals.value[kidId].orEmpty()
                 supabase.upsertMeals(mealList.map { meal ->
                     MealItemDto(
-                        id = meal.id, profileId = pid, kidId = kidId,
+                        id = meal.id, profileId = pid,
+                        userId = _uiState.value.userId.ifBlank { null },
+                        kidId = kidId,
                         timeSlot = meal.time, name = meal.name,
                         detail = meal.detail, kcal = meal.kcal, eaten = meal.eaten,
                     )
@@ -203,6 +211,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val streak = _streaks.value[kidId] ?: return@launch
                 supabase.upsertStreak(StreakDto(
                     kidId = kidId,
+                    userId = _uiState.value.userId.ifBlank { null },
                     currentStreak = streak.currentStreak,
                     bestStreak = streak.bestStreak,
                     lastLogDate = streak.lastLogDate,
@@ -521,6 +530,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val state = _uiState.value
                 supabase.upsertProfile(ProfileDto(
                     id = profileId(),
+                    userId = userId.ifBlank { null },
                     phone = state.phone.ifBlank { null },
                     name = state.parentName,
                     onboardingComplete = _onboardingComplete.value,
@@ -725,6 +735,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 val cp = _uiState.value.coParents.last()
                 supabase.upsertCoParent(CoParentDto(
                     id = cp.id, profileId = profileId(),
+                    userId = _uiState.value.userId.ifBlank { null },
                     name = cp.name, relation = cp.relation,
                     joinedDate = cp.joinedDate,
                 ))
@@ -951,6 +962,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 supabase.upsertGrowthPoint(GrowthPointDto(
                     id = "${kidId}_gp_${label.replace(" ", "_")}",
                     kidId = kidId,
+                    userId = _uiState.value.userId.ifBlank { null },
                     label = label,
                     height = heightCm.toDouble(),
                     weight = weightKg.toDouble(),
@@ -995,7 +1007,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             try {
                 supabase.upsertAppointment(AppointmentDto(
-                    id = appt.id, profileId = profileId(), doctorName = appt.doctorName,
+                    id = appt.id, profileId = profileId(),
+                    userId = _uiState.value.userId.ifBlank { null },
+                    doctorName = appt.doctorName,
                     specialty = appt.specialty, kidName = appt.kidName,
                     date = appt.date, time = appt.time,
                 ))

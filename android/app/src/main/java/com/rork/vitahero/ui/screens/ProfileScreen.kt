@@ -130,7 +130,7 @@ fun ProfileScreen(
             Spacer(Modifier.height(20.dp))
 
             // Appearance section
-            Text("Appearance", style = MaterialTheme.typography.headlineSmall)
+            Text(t(S.appearance), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
             HeroCard(Modifier.fillMaxWidth()) {
                 Column {
@@ -195,7 +195,7 @@ fun ProfileScreen(
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(t(S.familySharing), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Text("Invite co-parent or guardian", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(t(S.inviteCoParent), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Icon(Icons.AutoMirrored.Outlined.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                         }
