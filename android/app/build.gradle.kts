@@ -6,11 +6,11 @@ plugins {
 }
 
 android {
-    namespace = "com.rork.kidhero"
+    namespace = "com.rork.vitahero"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.rork.kidhero"
+        applicationId = "com.rork.vitahero"
         minSdk = 24
         targetSdk = 36
         versionCode = 1

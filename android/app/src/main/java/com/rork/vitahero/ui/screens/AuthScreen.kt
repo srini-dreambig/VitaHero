@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -43,9 +43,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.rork.kidhero.ui.components.PrimaryGradientButton
-import com.rork.kidhero.ui.theme.HeroBlue
-import com.rork.kidhero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.theme.HeroBlue
+import com.rork.vitahero.ui.theme.HeroGreen
 
 @Composable
 fun AuthScreen(
@@ -74,7 +74,7 @@ fun AuthScreen(
             Icon(Icons.Outlined.Shield, contentDescription = null, tint = Color.White, modifier = Modifier.size(38.dp))
         }
         Spacer(Modifier.height(16.dp))
-        Text("KidHero", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+        Text("VitaHero", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
         Text(
             "Your child's health, in heroic hands",
             style = MaterialTheme.typography.bodyMedium,

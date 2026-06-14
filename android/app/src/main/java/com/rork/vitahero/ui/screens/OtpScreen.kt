@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,8 +47,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.rork.kidhero.ui.components.PrimaryGradientButton
-import com.rork.kidhero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.theme.HeroGreen
 import kotlinx.coroutines.delay
 
 @Composable

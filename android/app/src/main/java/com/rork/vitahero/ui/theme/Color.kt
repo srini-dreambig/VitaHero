@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.theme
+package com.rork.vitahero.ui.theme
 
 import androidx.compose.ui.graphics.Color
 

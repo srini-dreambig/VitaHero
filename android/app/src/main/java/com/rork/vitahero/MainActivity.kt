@@ -1,11 +1,11 @@
-package com.rork.kidhero
+package com.rork.vitahero
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.rork.kidhero.ui.navigation.AppNavigation
-import com.rork.kidhero.ui.theme.AppTheme
+import com.rork.vitahero.ui.navigation.AppNavigation
+import com.rork.vitahero.ui.theme.AppTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

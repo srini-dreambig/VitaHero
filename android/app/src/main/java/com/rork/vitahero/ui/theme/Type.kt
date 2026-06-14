@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.theme
+package com.rork.vitahero.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
@@ -6,7 +6,7 @@ import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import com.rork.kidhero.R
+import com.rork.vitahero.R
 
 val HostGrotesk = FontFamily(
     Font(R.font.host_grotesk_regular, FontWeight.Normal),

@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -37,21 +37,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.rork.kidhero.data.Appointment
-import com.rork.kidhero.data.Camp
-import com.rork.kidhero.data.CampStatus
-import com.rork.kidhero.data.Kid
-import com.rork.kidhero.ui.components.FlagChip
-import com.rork.kidhero.ui.components.HeroCard
-import com.rork.kidhero.ui.components.IconBubble
-import com.rork.kidhero.ui.components.KidAvatar
-import com.rork.kidhero.ui.components.ProgressRing
-import com.rork.kidhero.ui.components.SectionHeader
-import com.rork.kidhero.ui.components.StatusBarSpacer
-import com.rork.kidhero.ui.theme.HeroBlue
-import com.rork.kidhero.ui.theme.HeroGreen
-import com.rork.kidhero.ui.theme.HeroPurple
-import com.rork.kidhero.ui.theme.HeroYellow
+import com.rork.vitahero.data.Appointment
+import com.rork.vitahero.data.Camp
+import com.rork.vitahero.data.CampStatus
+import com.rork.vitahero.data.Kid
+import com.rork.vitahero.ui.components.FlagChip
+import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.IconBubble
+import com.rork.vitahero.ui.components.KidAvatar
+import com.rork.vitahero.ui.components.ProgressRing
+import com.rork.vitahero.ui.components.SectionHeader
+import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.theme.HeroBlue
+import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroPurple
+import com.rork.vitahero.ui.theme.HeroYellow
 
 @Composable
 fun HomeScreen(

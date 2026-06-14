@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.navigation
+package com.rork.vitahero.ui.navigation
 
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
@@ -17,16 +17,16 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.rork.kidhero.data.AppViewModel
-import com.rork.kidhero.ui.screens.AddKidScreen
-import com.rork.kidhero.ui.screens.AuthScreen
-import com.rork.kidhero.ui.screens.BookingScreen
-import com.rork.kidhero.ui.screens.DietScreen
-import com.rork.kidhero.ui.screens.KidDetailScreen
-import com.rork.kidhero.ui.screens.MainScaffold
-import com.rork.kidhero.ui.screens.NotificationsScreen
-import com.rork.kidhero.ui.screens.OnboardingScreen
-import com.rork.kidhero.ui.screens.OtpScreen
+import com.rork.vitahero.data.AppViewModel
+import com.rork.vitahero.ui.screens.AddKidScreen
+import com.rork.vitahero.ui.screens.AuthScreen
+import com.rork.vitahero.ui.screens.BookingScreen
+import com.rork.vitahero.ui.screens.DietScreen
+import com.rork.vitahero.ui.screens.KidDetailScreen
+import com.rork.vitahero.ui.screens.MainScaffold
+import com.rork.vitahero.ui.screens.NotificationsScreen
+import com.rork.vitahero.ui.screens.OnboardingScreen
+import com.rork.vitahero.ui.screens.OtpScreen
 
 object Routes {
     const val ONBOARDING = "onboarding"

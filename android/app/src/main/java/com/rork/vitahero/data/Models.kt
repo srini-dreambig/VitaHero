@@ -1,9 +1,9 @@
-package com.rork.kidhero.data
+package com.rork.vitahero.data
 
 import androidx.compose.ui.graphics.Color
-import com.rork.kidhero.ui.theme.FlagAlert
-import com.rork.kidhero.ui.theme.FlagGood
-import com.rork.kidhero.ui.theme.FlagWatch
+import com.rork.vitahero.ui.theme.FlagAlert
+import com.rork.vitahero.ui.theme.FlagGood
+import com.rork.vitahero.ui.theme.FlagWatch
 
 enum class HealthFlag(val label: String, val color: Color) {
     GOOD("On track", FlagGood),

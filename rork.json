@@ -1,7 +1,7 @@
 {
   "apps": [
     {
-      "name": "KidHero",
+      "name": "VitaHero",
       "path": "android",
       "framework": "kotlin"
     }

@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,12 +27,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.rork.kidhero.data.HealthFlag
-import com.rork.kidhero.data.Kid
-import com.rork.kidhero.ui.components.FlagChip
-import com.rork.kidhero.ui.components.HeroCard
-import com.rork.kidhero.ui.components.KidAvatar
-import com.rork.kidhero.ui.components.StatusBarSpacer
+import com.rork.vitahero.data.HealthFlag
+import com.rork.vitahero.data.Kid
+import com.rork.vitahero.ui.components.FlagChip
+import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.KidAvatar
+import com.rork.vitahero.ui.components.StatusBarSpacer
 
 @Composable
 fun KidsScreen(

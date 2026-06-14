@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -42,16 +42,16 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.rork.kidhero.data.GrowthPoint
-import com.rork.kidhero.data.HealthFlag
-import com.rork.kidhero.data.Kid
-import com.rork.kidhero.ui.components.FlagChip
-import com.rork.kidhero.ui.components.HeroCard
-import com.rork.kidhero.ui.components.IconBubble
-import com.rork.kidhero.ui.components.KidAvatar
-import com.rork.kidhero.ui.components.SectionHeader
-import com.rork.kidhero.ui.theme.HeroBlue
-import com.rork.kidhero.ui.theme.HeroGreen
+import com.rork.vitahero.data.GrowthPoint
+import com.rork.vitahero.data.HealthFlag
+import com.rork.vitahero.data.Kid
+import com.rork.vitahero.ui.components.FlagChip
+import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.IconBubble
+import com.rork.vitahero.ui.components.KidAvatar
+import com.rork.vitahero.ui.components.SectionHeader
+import com.rork.vitahero.ui.theme.HeroBlue
+import com.rork.vitahero.ui.theme.HeroGreen
 
 private enum class DetailTab(val label: String) {
     GROWTH("Growth"), DENTAL("Dental"), EYE("Eyesight"), NUTRITION("Nutrition")

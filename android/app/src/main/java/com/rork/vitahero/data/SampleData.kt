@@ -1,4 +1,4 @@
-package com.rork.kidhero.data
+package com.rork.vitahero.data
 
 object SampleData {
 

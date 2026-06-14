@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -35,9 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import com.rork.kidhero.ui.components.PrimaryGradientButton
-import com.rork.kidhero.ui.theme.HeroBlue
-import com.rork.kidhero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.theme.HeroBlue
+import com.rork.vitahero.ui.theme.HeroGreen
 import kotlinx.coroutines.launch
 
 private data class Slide(

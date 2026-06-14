@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -51,7 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.rork.kidhero.data.AppViewModel
+import com.rork.vitahero.data.AppViewModel
 
 private enum class Tab(val label: String, val filled: ImageVector, val outlined: ImageVector) {
     HOME("Home", Icons.Filled.Home, Icons.Outlined.Home),

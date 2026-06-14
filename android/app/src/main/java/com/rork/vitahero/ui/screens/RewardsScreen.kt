@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -33,15 +33,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.rork.kidhero.data.Badge
-import com.rork.kidhero.data.LeaderEntry
-import com.rork.kidhero.data.SampleData
-import com.rork.kidhero.ui.components.HeroCard
-import com.rork.kidhero.ui.components.ProgressRing
-import com.rork.kidhero.ui.components.StatusBarSpacer
-import com.rork.kidhero.ui.theme.HeroBlue
-import com.rork.kidhero.ui.theme.HeroGreen
-import com.rork.kidhero.ui.theme.HeroYellow
+import com.rork.vitahero.data.Badge
+import com.rork.vitahero.data.LeaderEntry
+import com.rork.vitahero.data.SampleData
+import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.ProgressRing
+import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.theme.HeroBlue
+import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroYellow
 
 @Composable
 fun RewardsScreen() {

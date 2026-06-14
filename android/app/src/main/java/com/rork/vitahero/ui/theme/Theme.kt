@@ -1,10 +1,10 @@
-package com.rork.kidhero.ui.theme
+package com.rork.vitahero.ui.theme
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
-private val KidHeroColors = lightColorScheme(
+private val VitaHeroColors = lightColorScheme(
     primary = HeroGreen,
     onPrimary = SurfaceWhite,
     primaryContainer = HeroGreenSoft,
@@ -34,7 +34,7 @@ fun AppTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = KidHeroColors,
+        colorScheme = VitaHeroColors,
         typography = AppTypography,
         content = content
     )

@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,14 +43,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.rork.kidhero.data.Kid
-import com.rork.kidhero.ui.components.HeroCard
-import com.rork.kidhero.ui.components.IconBubble
-import com.rork.kidhero.ui.components.KidAvatar
-import com.rork.kidhero.ui.components.StatusBarSpacer
-import com.rork.kidhero.ui.theme.HeroBlue
-import com.rork.kidhero.ui.theme.HeroGreen
-import com.rork.kidhero.ui.theme.HeroPurple
+import com.rork.vitahero.data.Kid
+import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.IconBubble
+import com.rork.vitahero.ui.components.KidAvatar
+import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.theme.HeroBlue
+import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroPurple
 
 @Composable
 fun ProfileScreen(
@@ -151,7 +151,7 @@ fun ProfileScreen(
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                "KidHero v1.0 · For informational purposes only.\nAlways consult a doctor for medical advice.",
+                "VitaHero v1.0 · For informational purposes only.\nAlways consult a doctor for medical advice.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),

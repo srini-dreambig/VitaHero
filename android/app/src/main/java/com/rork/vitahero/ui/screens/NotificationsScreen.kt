@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.screens
+package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -35,14 +35,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.rork.kidhero.data.AppNotification
-import com.rork.kidhero.data.NotificationType
-import com.rork.kidhero.ui.components.HeroCard
-import com.rork.kidhero.ui.components.IconBubble
-import com.rork.kidhero.ui.theme.HeroBlue
-import com.rork.kidhero.ui.theme.HeroGreen
-import com.rork.kidhero.ui.theme.HeroPurple
-import com.rork.kidhero.ui.theme.HeroYellow
+import com.rork.vitahero.data.AppNotification
+import com.rork.vitahero.data.NotificationType
+import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.IconBubble
+import com.rork.vitahero.ui.theme.HeroBlue
+import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroPurple
+import com.rork.vitahero.ui.theme.HeroYellow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

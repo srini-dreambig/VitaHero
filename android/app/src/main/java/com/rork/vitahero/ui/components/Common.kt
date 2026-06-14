@@ -1,4 +1,4 @@
-package com.rork.kidhero.ui.components
+package com.rork.vitahero.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -37,7 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.rork.kidhero.data.HealthFlag
+import com.rork.vitahero.data.HealthFlag
 
 @Composable
 fun StatusBarSpacer() {
