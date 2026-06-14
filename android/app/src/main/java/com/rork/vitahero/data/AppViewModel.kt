@@ -1,13 +1,19 @@
 package com.rork.vitahero.data
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class AppUiState(
     val parentName: String = "Priya",
+    val phone: String = "",
     val kids: List<Kid> = SampleData.kids,
     val camps: List<Camp> = SampleData.camps,
     val doctors: List<Doctor> = SampleData.doctors,
@@ -15,16 +21,105 @@ data class AppUiState(
     val notifications: List<AppNotification> = SampleData.notifications,
 )
 
-class AppViewModel : ViewModel() {
+private val palette = listOf(0xFF10B981, 0xFF2563EB, 0xFF8B5CF6, 0xFFFB7185, 0xFFF59E0B)
+
+class AppViewModel(application: Application) : AndroidViewModel(application) {
+
+    private val storage = StorageService(application)
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
 
-    // Per-kid meal logs, keyed by kid id
-    private val _meals = MutableStateFlow(
-        SampleData.kids.associate { it.id to SampleData.mealsFor(it.name) }
-    )
+    private val _meals = MutableStateFlow<Map<String, List<MealItem>>>(emptyMap())
     val meals: StateFlow<Map<String, List<MealItem>>> = _meals.asStateFlow()
+
+    // Auth state for navigation — persisted
+    private val _onboardingComplete = MutableStateFlow(false)
+    val onboardingComplete: StateFlow<Boolean> = _onboardingComplete.asStateFlow()
+
+    private val _isLoggedIn = MutableStateFlow(false)
+    val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
+
+    init {
+        loadFromStorage()
+    }
+
+    private fun loadFromStorage() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val saved = storage.load()
+                val savedKids = saved.kids.map { it.toKid() }
+                val savedAppointments = saved.appointments.map { it.toAppointment() }
+                val savedMeals = saved.meals.mapValues { (_, list) -> list.map { it.toMealItem() } }
+
+                withContext(Dispatchers.Main) {
+                    _onboardingComplete.value = saved.onboardingComplete
+                    _isLoggedIn.value = saved.isLoggedIn
+                    _uiState.value = AppUiState(
+                        parentName = saved.parentName.ifBlank { "Priya" },
+                        phone = saved.phone,
+                        kids = savedKids.ifEmpty { SampleData.kids },
+                        camps = SampleData.camps,
+                        doctors = SampleData.doctors,
+                        appointments = savedAppointments.ifEmpty { SampleData.appointments },
+                        notifications = SampleData.notifications,
+                    )
+                    _meals.value = savedMeals.ifEmpty {
+                        SampleData.kids.associate { it.id to SampleData.mealsFor(it.name) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun persistState() {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                val state = _uiState.value
+                val saved = PersistentState(
+                    onboardingComplete = _onboardingComplete.value,
+                    isLoggedIn = _isLoggedIn.value,
+                    parentName = state.parentName,
+                    phone = state.phone,
+                    kids = state.kids.map { it.toSerializable() },
+                    appointments = state.appointments.map { it.toSerializable() },
+                    meals = _meals.value.mapValues { (_, list) -> list.map { it.toSerializable() } },
+                )
+                storage.save(saved)
+            }
+        }
+    }
+
+    fun completeOnboarding() {
+        _onboardingComplete.value = true
+        persistState()
+    }
+
+    fun login(phone: String, name: String = "") {
+        _isLoggedIn.value = true
+        _uiState.update {
+            it.copy(
+                phone = phone,
+                parentName = name.ifBlank { it.parentName }
+            )
+        }
+        persistState()
+    }
+
+    fun logout() {
+        _isLoggedIn.value = false
+        _onboardingComplete.value = false
+        storage.clear()
+        _uiState.value = AppUiState(
+            kids = SampleData.kids,
+            camps = SampleData.camps,
+            doctors = SampleData.doctors,
+            appointments = SampleData.appointments,
+            notifications = SampleData.notifications,
+        )
+        _meals.value = SampleData.kids.associate { it.id to SampleData.mealsFor(it.name) }
+        persistState()
+    }
 
     fun kidById(id: String?): Kid? = _uiState.value.kids.firstOrNull { it.id == id }
 
@@ -37,6 +132,7 @@ class AppViewModel : ViewModel() {
             }
             current + (kidId to list)
         }
+        persistState()
     }
 
     fun addKid(
@@ -48,7 +144,6 @@ class AppViewModel : ViewModel() {
         heightCm: Float,
         weightKg: Float
     ) {
-        val palette = listOf(0xFF10B981, 0xFF2563EB, 0xFF8B5CF6, 0xFFFB7185, 0xFFF59E0B)
         val newKid = Kid(
             id = "k${System.currentTimeMillis()}",
             name = name,
@@ -68,6 +163,7 @@ class AppViewModel : ViewModel() {
         )
         _uiState.update { it.copy(kids = it.kids + newKid) }
         _meals.update { it + (newKid.id to SampleData.mealsFor(name)) }
+        persistState()
     }
 
     fun bookAppointment(doctor: Doctor, kidName: String, date: String, time: String) {
@@ -80,6 +176,7 @@ class AppViewModel : ViewModel() {
             time = time
         )
         _uiState.update { it.copy(appointments = it.appointments + appt) }
+        persistState()
     }
 
     fun markAllNotificationsRead() {
@@ -87,4 +184,7 @@ class AppViewModel : ViewModel() {
             state.copy(notifications = state.notifications.map { it.copy(unread = false) })
         }
     }
+
+    val defaultKidId: String
+        get() = _uiState.value.kids.firstOrNull()?.id.orEmpty()
 }

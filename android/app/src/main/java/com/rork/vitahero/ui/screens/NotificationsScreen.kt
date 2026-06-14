@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.MedicalServices
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.WorkspacePremium
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppNotification
 import com.rork.vitahero.data.NotificationType
+import com.rork.vitahero.ui.components.EmptyState
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.theme.HeroBlue
@@ -70,9 +72,19 @@ fun NotificationsScreen(
                 .padding(pad),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp)
         ) {
-            items(notifications, key = { it.id }) { n ->
-                NotificationRow(n)
-                Spacer(Modifier.height(10.dp))
+            if (notifications.isEmpty()) {
+                item {
+                    EmptyState(
+                        icon = Icons.Outlined.Notifications,
+                        title = "All caught up",
+                        subtitle = "You'll see camp updates, checkup reminders and reward alerts here."
+                    )
+                }
+            } else {
+                items(notifications, key = { it.id }) { n ->
+                    NotificationRow(n)
+                    Spacer(Modifier.height(10.dp))
+                }
             }
         }
     }

@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Camp
 import com.rork.vitahero.data.CampStatus
+import com.rork.vitahero.ui.components.EmptyState
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.StatusBarSpacer
@@ -66,6 +67,17 @@ fun CampsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+        }
+
+        if (camps.isEmpty()) {
+            item {
+                EmptyState(
+                    icon = Icons.Outlined.CalendarMonth,
+                    title = "No camps yet",
+                    subtitle = "When your school schedules a health camp, it will appear here."
+                )
+            }
+            return@LazyColumn
         }
 
         if (upcoming.isNotEmpty()) {

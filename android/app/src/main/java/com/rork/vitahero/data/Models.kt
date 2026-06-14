@@ -122,3 +122,77 @@ data class AppNotification(
 )
 
 enum class NotificationType { CAMP, CHECKUP, DIET, REWARD }
+
+// --- Serialization helpers ---
+
+fun Kid.toSerializable(): SerializableKid = SerializableKid(
+    id = id,
+    name = name,
+    age = age,
+    gender = gender,
+    school = school,
+    grade = grade,
+    heightCm = heightCm,
+    weightKg = weightKg,
+    avatarColor = avatarColor,
+    overallScore = overallScore,
+    growth = growth.map { SerializableGrowthPoint(it.label, it.height, it.weight) },
+    dental = dental.name,
+    eyesight = eyesight.name,
+    nutrition = nutrition.name,
+    lastCheckup = lastCheckup,
+)
+
+fun SerializableKid.toKid(): Kid = Kid(
+    id = id,
+    name = name,
+    age = age,
+    gender = gender,
+    school = school,
+    grade = grade,
+    heightCm = heightCm,
+    weightKg = weightKg,
+    avatarColor = avatarColor,
+    overallScore = overallScore,
+    growth = growth.map { GrowthPoint(it.label, it.height, it.weight) },
+    dental = try { HealthFlag.valueOf(dental) } catch (_: Exception) { HealthFlag.GOOD },
+    eyesight = try { HealthFlag.valueOf(eyesight) } catch (_: Exception) { HealthFlag.GOOD },
+    nutrition = try { HealthFlag.valueOf(nutrition) } catch (_: Exception) { HealthFlag.GOOD },
+    lastCheckup = lastCheckup,
+)
+
+fun Appointment.toSerializable(): SerializableAppointment = SerializableAppointment(
+    id = id,
+    doctorName = doctorName,
+    specialty = specialty,
+    kidName = kidName,
+    date = date,
+    time = time,
+)
+
+fun SerializableAppointment.toAppointment(): Appointment = Appointment(
+    id = id,
+    doctorName = doctorName,
+    specialty = specialty,
+    kidName = kidName,
+    date = date,
+    time = time,
+)
+
+fun MealItem.toSerializable(): SerializableMealItem = SerializableMealItem(
+    id = id,
+    time = time,
+    name = name,
+    detail = detail,
+    kcal = kcal,
+    eaten = eaten,
+)
+
+fun SerializableMealItem.toMealItem(): MealItem = MealItem(
+    id = id,
+    time = time,
+    name = name,
+    detail = detail,
+    kcal = kcal,
+    eaten = eaten,
+)

@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -44,8 +42,8 @@ import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroYellow
 
 @Composable
-fun RewardsScreen() {
-    val badges = SampleData.badgesFor("Rahul")
+fun RewardsScreen(kidName: String = "Rahul") {
+    val badges = SampleData.badgesFor(kidName)
     val earned = badges.count { it.earned }
     val leaderboard = SampleData.leaderboard
 
@@ -78,7 +76,7 @@ fun RewardsScreen() {
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     ProgressRing(
-                        progress = earned / badges.size.toFloat(),
+                        progress = if (badges.isEmpty()) 0f else earned / badges.size.toFloat(),
                         size = 76.dp,
                         color = Color.White,
                         track = Color.White.copy(alpha = 0.3f)
@@ -88,7 +86,7 @@ fun RewardsScreen() {
                     Spacer(Modifier.width(18.dp))
                     Column {
                         Text("$earned of ${badges.size} earned", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text("Rahul is a rising hero! Keep going to unlock more.", color = Color.White.copy(alpha = 0.95f), style = MaterialTheme.typography.bodyMedium)
+                        Text("$kidName is a rising hero! Keep going to unlock more.", color = Color.White.copy(alpha = 0.95f), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }

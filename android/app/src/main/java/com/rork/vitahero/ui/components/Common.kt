@@ -243,3 +243,72 @@ fun PrimaryGradientButton(
         }
     }
 }
+
+/** Centered empty state with icon, title, subtitle and optional action. */
+@Composable
+fun EmptyState(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null
+) {
+    Column(
+        modifier = modifier.padding(40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            Modifier
+                .size(80.dp)
+                .clip(CircleShape)
+                .background(tint.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(40.dp))
+        }
+        Spacer(Modifier.height(20.dp))
+        Text(
+            title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (actionLabel != null && onAction != null) {
+            Spacer(Modifier.height(24.dp))
+            PrimaryGradientButton(text = actionLabel, onClick = onAction, modifier = Modifier.fillMaxWidth(0.6f))
+        }
+    }
+}
+
+/** Full-screen loading placeholder with a subtle shimmer. */
+@Composable
+fun LoadingPlaceholder(
+    modifier: Modifier = Modifier,
+    message: String = "Loading…"
+) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            ProgressRing(progress = 1f, size = 52.dp, stroke = 5.dp)
+            Spacer(Modifier.height(16.dp))
+            Text(
+                message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}

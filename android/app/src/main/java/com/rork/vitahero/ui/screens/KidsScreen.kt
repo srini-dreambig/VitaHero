@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.ui.components.EmptyState
 import com.rork.vitahero.ui.components.FlagChip
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.KidAvatar
@@ -64,9 +65,23 @@ fun KidsScreen(
                 }
             }
         }
-        items(kids, key = { it.id }) { kid ->
-            KidCard(kid, Modifier.padding(horizontal = 20.dp, vertical = 7.dp)) { onOpenKid(kid.id) }
+
+        if (kids.isEmpty()) {
+            item {
+                EmptyState(
+                    icon = Icons.Outlined.Add,
+                    title = "No children yet",
+                    subtitle = "Add your first child to start tracking their health & growth.",
+                    actionLabel = "Add a child",
+                    onAction = onAddKid
+                )
+            }
+        } else {
+            items(kids, key = { it.id }) { kid ->
+                KidCard(kid, Modifier.padding(horizontal = 20.dp, vertical = 7.dp)) { onOpenKid(kid.id) }
+            }
         }
+
         item {
             Spacer(Modifier.height(8.dp))
             AddKidCard(Modifier.padding(horizontal = 20.dp), onAddKid)

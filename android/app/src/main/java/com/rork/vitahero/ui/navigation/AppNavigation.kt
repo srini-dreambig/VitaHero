@@ -8,9 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -51,11 +51,20 @@ val OnboardingImages = listOf(
 fun AppNavigation() {
     val navController = rememberNavController()
     val appViewModel: AppViewModel = viewModel()
+    val onboardingComplete by appViewModel.onboardingComplete.collectAsState()
+    val isLoggedIn by appViewModel.isLoggedIn.collectAsState()
     var phone by rememberSaveable { mutableStateOf("") }
+
+    // Determine start destination based on persisted auth state
+    val startDest = when {
+        isLoggedIn -> Routes.MAIN
+        onboardingComplete -> Routes.AUTH
+        else -> Routes.ONBOARDING
+    }
 
     NavHost(
         navController = navController,
-        startDestination = Routes.ONBOARDING,
+        startDestination = startDest,
         enterTransition = { fadeIn(tween(220)) },
         exitTransition = { fadeOut(tween(180)) },
         popEnterTransition = { fadeIn(tween(220)) },
@@ -64,7 +73,12 @@ fun AppNavigation() {
         composable(Routes.ONBOARDING) {
             OnboardingScreen(
                 images = OnboardingImages,
-                onFinish = { navController.navigate(Routes.AUTH) }
+                onFinish = {
+                    appViewModel.completeOnboarding()
+                    navController.navigate(Routes.AUTH) {
+                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                    }
+                }
             )
         }
 
@@ -86,23 +100,26 @@ fun AppNavigation() {
                 phone = p,
                 onBack = { navController.popBackStack() },
                 onVerified = {
+                    appViewModel.login(p)
                     navController.navigate(Routes.MAIN) {
-                        popUpTo(Routes.ONBOARDING) { inclusive = true }
+                        popUpTo(Routes.AUTH) { inclusive = true }
                     }
                 }
             )
         }
 
         composable(Routes.MAIN) {
+            val state by appViewModel.uiState.collectAsState()
             MainScaffold(
                 appViewModel = appViewModel,
-                phone = phone,
+                phone = state.phone,
                 onOpenKid = { navController.navigate("kid/$it") },
                 onOpenDiet = { navController.navigate("diet/$it") },
                 onOpenBooking = { navController.navigate(Routes.BOOKING) },
                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                 onAddKid = { navController.navigate(Routes.ADD_KID) },
                 onLogout = {
+                    appViewModel.logout()
                     navController.navigate(Routes.ONBOARDING) {
                         popUpTo(Routes.MAIN) { inclusive = true }
                     }
