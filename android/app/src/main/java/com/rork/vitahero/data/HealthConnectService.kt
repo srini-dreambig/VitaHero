@@ -64,3 +64,21 @@ object HealthConnectService {
         )
     }
 }
+
+fun HealthConnectService.WearableData.toSerializable(): SerializableWearableData = SerializableWearableData(
+    stepsToday = stepsToday,
+    activeMinutes = activeMinutes,
+    caloriesBurned = caloriesBurned,
+    lastSyncTime = lastSyncTime,
+    sourceDevice = sourceDevice,
+    isConnected = isConnected,
+)
+
+fun SerializableWearableData.toWearableData(): HealthConnectService.WearableData = HealthConnectService.WearableData(
+    stepsToday = stepsToday,
+    activeMinutes = activeMinutes,
+    caloriesBurned = caloriesBurned,
+    lastSyncTime = lastSyncTime,
+    sourceDevice = sourceDevice,
+    isConnected = isConnected,
+)

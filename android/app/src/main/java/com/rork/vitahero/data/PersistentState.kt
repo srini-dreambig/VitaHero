@@ -16,6 +16,8 @@ data class PersistentState(
     val localeCode: String = "en",
     val familyCode: String = "",
     val coParents: List<SerializableCoParent> = emptyList(),
+    val wearableData: Map<String, SerializableWearableData> = emptyMap(),
+    val camps: List<SerializableCamp> = emptyList(),
 )
 
 @Serializable
@@ -77,4 +79,26 @@ data class SerializableCoParent(
     val name: String,
     val relation: String,
     val joinedDate: String = "",
+)
+
+@Serializable
+data class SerializableWearableData(
+    val stepsToday: Int = 0,
+    val activeMinutes: Int = 0,
+    val caloriesBurned: Int = 0,
+    val lastSyncTime: String = "",
+    val sourceDevice: String = "",
+    val isConnected: Boolean = false,
+)
+
+@Serializable
+data class SerializableCamp(
+    val id: String,
+    val title: String,
+    val school: String,
+    val date: String,
+    val time: String,
+    val status: String, // "UPCOMING" or "COMPLETED"
+    val checks: List<String>,
+    val resultSummary: String?,
 )

@@ -273,10 +273,13 @@ fun AppNavigation() {
                 kidId = kidId,
                 onBack = { navController.popBackStack() },
                 onLogDetectedFood = { id, name, kcal ->
-                    val mealId = "fr${System.currentTimeMillis()}"
-                    // For now, we can't easily add a detected food as a meal item to the ViewModel
-                    // So we just track it locally - in production this would add a MealItem
-                    appViewModel.toggleMeal(id, "m3") // fallback: mark lunch as eaten
+                    appViewModel.addMealItem(
+                        kidId = id,
+                        name = name,
+                        detail = "Detected via food recognition",
+                        kcal = kcal,
+                        timeSlot = "Snack"
+                    )
                 }
             )
         }

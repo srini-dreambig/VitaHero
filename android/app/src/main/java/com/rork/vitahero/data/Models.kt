@@ -212,6 +212,28 @@ fun SerializableMealItem.toMealItem(): MealItem = MealItem(
     eaten = eaten,
 )
 
+fun Camp.toSerializableCamp(): SerializableCamp = SerializableCamp(
+    id = id,
+    title = title,
+    school = school,
+    date = date,
+    time = time,
+    status = status.name,
+    checks = checks,
+    resultSummary = resultSummary,
+)
+
+fun SerializableCamp.toCamp(): Camp = Camp(
+    id = id,
+    title = title,
+    school = school,
+    date = date,
+    time = time,
+    status = try { CampStatus.valueOf(status) } catch (_: Exception) { CampStatus.UPCOMING },
+    checks = checks,
+    resultSummary = resultSummary,
+)
+
 fun StreakInfo.toSerializable(): SerializableStreakInfo = SerializableStreakInfo(
     currentStreak = currentStreak,
     bestStreak = bestStreak,

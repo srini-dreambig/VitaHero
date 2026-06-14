@@ -13,6 +13,7 @@ import kotlinx.coroutines.withContext
 import com.rork.vitahero.ui.screens.CoParent
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.util.UUID
 
 data class AppUiState(
     val parentName: String = "Priya",
@@ -90,7 +91,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         parentName = saved.parentName.ifBlank { "Priya" },
                         phone = saved.phone,
                         kids = savedKids.ifEmpty { SampleData.kids },
-                        camps = SampleData.camps,
+                        camps = saved.camps.map { it.toCamp() }.ifEmpty { SampleData.camps },
                         doctors = SampleData.doctors,
                         appointments = savedAppointments.ifEmpty { SampleData.appointments },
                         notifications = SampleData.notifications,
@@ -101,13 +102,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         coParents = saved.coParents.map { cp ->
                             CoParent(cp.id, cp.name, cp.relation, cp.joinedDate)
                         },
-                        wearableData = SampleData.kids.associate { it.id to HealthConnectService.getDemoData(it.name) },
+                        wearableData = saved.wearableData.mapValues { (_, v) -> v.toWearableData() }.ifEmpty {
+                            SampleData.kids.associate { it.id to HealthConnectService.getDemoData(it.name) }
+                        },
                     )
                     _meals.value = savedMeals.ifEmpty {
                         seedPersonalizedMeals(savedKids.ifEmpty { SampleData.kids })
                     }
                     _streaks.value = savedStreaks.ifEmpty {
                         savedKids.associate { it.id to StreakInfo() }
+                    }
+                    // Schedule all notifications after loading
+                    if (saved.isLoggedIn) {
+                        scheduleAllNotifications()
                     }
                 }
             }
@@ -137,6 +144,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     coParents = state.coParents.map { cp ->
                         SerializableCoParent(cp.id, cp.name, cp.relation, cp.joinedDate)
                     },
+                    wearableData = state.wearableData.mapValues { (_, v) -> v.toSerializable() },
+                    camps = state.camps.map { it.toSerializableCamp() },
                 )
                 storage.save(saved)
             }
@@ -172,12 +181,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         persistState()
     }
 
+    fun scheduleAllNotifications() {
+        val app = getApplication<Application>()
+        val state = _uiState.value
+        state.camps.filter { it.status == CampStatus.UPCOMING }.forEach { camp ->
+            NotificationScheduler.scheduleCampReminder(app, camp.title, camp.date, camp.time)
+        }
+        state.appointments.forEach { appt ->
+            NotificationScheduler.scheduleCheckupReminder(app, appt.doctorName, appt.kidName, appt.date, appt.time)
+        }
+        state.kids.forEach { kid ->
+            NotificationScheduler.scheduleDietReminder(app, kid.name, kid.id)
+        }
+    }
+
     fun logout() {
         _isLoggedIn.value = false
         _onboardingComplete.value = false
         val currentFamilyCode = _uiState.value.familyCode
         storage.clear()
-        _uiState.value = AppUiState(
+        _uiState.value = _uiState.value.copy(
             kids = SampleData.kids,
             camps = SampleData.camps,
             doctors = SampleData.doctors,
@@ -348,6 +371,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // --- Kid management ---
+
+    fun addMealItem(kidId: String, name: String, detail: String, kcal: Int, timeSlot: String = "Snack") {
+        val newMeal = MealItem(
+            id = "m${UUID.randomUUID().toString().take(8)}",
+            time = timeSlot,
+            name = name,
+            detail = detail,
+            kcal = kcal,
+            eaten = true
+        )
+        _meals.update { current ->
+            val list = (current[kidId].orEmpty() + newMeal).sortedBy { m ->
+                when (m.time) {
+                    "Breakfast" -> 0; "Mid-morning" -> 1; "Lunch" -> 2
+                    "Evening" -> 3; "Dinner" -> 4; else -> 5
+                }
+            }
+            current + (kidId to list)
+        }
+        // Auto-update streak for logging a meal
+        val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        _streaks.update { s ->
+            val prev = s[kidId] ?: StreakInfo()
+            val currentStreak = if (prev.lastLogDate == today) prev.currentStreak
+            else if (prev.lastLogDate == LocalDate.now().minusDays(1).format(DateTimeFormatter.ISO_LOCAL_DATE))
+                prev.currentStreak + 1
+            else 1
+            s + (kidId to StreakInfo(
+                currentStreak = currentStreak,
+                bestStreak = maxOf(prev.bestStreak, currentStreak),
+                lastLogDate = today,
+            ))
+        }
+        persistState()
+    }
 
     fun addKid(
         name: String,
