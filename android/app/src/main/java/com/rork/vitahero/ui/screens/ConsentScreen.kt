@@ -34,7 +34,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 
@@ -65,7 +67,7 @@ fun ConsentScreen(
 
         Spacer(Modifier.height(20.dp))
         Text(
-            "Your Child's Data\nIs Safe With Us",
+            t(S.consentTitle),
             style = MaterialTheme.typography.headlineLarge,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -112,7 +114,7 @@ fun ConsentScreen(
 
         Spacer(Modifier.height(24.dp))
         PrimaryGradientButton(
-            text = "I Understand & Agree",
+            text = t(S.consentAccept),
             onClick = onAccept,
             modifier = Modifier.fillMaxWidth()
         )

@@ -43,7 +43,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 
@@ -91,19 +93,19 @@ fun AuthScreen(
                 .background(MaterialTheme.colorScheme.surfaceVariant)
                 .padding(4.dp)
         ) {
-            AuthTab("Login", isLogin, Modifier.weight(1f)) { isLogin = true }
-            AuthTab("Sign Up", !isLogin, Modifier.weight(1f)) { isLogin = false }
+            AuthTab(t(S.loginTab), isLogin, Modifier.weight(1f)) { isLogin = true }
+            AuthTab(t(S.signupTab), !isLogin, Modifier.weight(1f)) { isLogin = false }
         }
 
         Spacer(Modifier.height(24.dp))
 
         if (!isLogin) {
-            FieldLabel("Parent name")
+            FieldLabel(t(S.yourName))
             HeroTextField(value = name, onValueChange = { name = it }, placeholder = "e.g. Priya Sharma")
             Spacer(Modifier.height(16.dp))
         }
 
-        FieldLabel("Phone number")
+        FieldLabel(t(S.phoneLabel))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
@@ -134,7 +136,7 @@ fun AuthScreen(
 
         Spacer(Modifier.height(24.dp))
         PrimaryGradientButton(
-            text = "Send OTP",
+            text = t(S.continueBtn),
             enabled = phone.length == 10 && (isLogin || name.isNotBlank()),
             onClick = { onContinue(phone, name.trim()) },
             modifier = Modifier.fillMaxWidth()
@@ -160,7 +162,7 @@ fun AuthScreen(
         ) {
             Icon(Icons.Outlined.Lock, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(16.dp))
             Text(
-                "Secure & private · Compliant with kids' data rules",
+                t(S.trustBadge),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center

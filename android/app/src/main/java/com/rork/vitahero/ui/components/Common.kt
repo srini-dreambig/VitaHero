@@ -37,7 +37,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.HealthFlag
+import com.rork.vitahero.data.LocalAppLocale
+import com.rork.vitahero.data.tr
 
 @Composable
 fun StatusBarSpacer() {
@@ -288,6 +291,14 @@ fun EmptyState(
         }
     }
 }
+
+/** Resolve a translated string for the current locale. */
+@Composable
+fun t(key: String): String = tr(key, LocalAppLocale.current)
+
+/** Resolve a translated format string (supports one %s replacement). */
+@Composable
+fun tf(key: String, arg: String): String = tr(key, LocalAppLocale.current).replace("%s", arg)
 
 /** Full-screen loading placeholder with a subtle shimmer. */
 @Composable

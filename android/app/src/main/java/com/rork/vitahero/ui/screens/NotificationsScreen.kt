@@ -38,9 +38,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppNotification
 import com.rork.vitahero.data.NotificationType
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.EmptyState
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -56,7 +58,7 @@ fun NotificationsScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Notifications", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(t(S.notifCenter), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")

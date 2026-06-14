@@ -47,10 +47,12 @@ import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Appointment
 import com.rork.vitahero.data.Doctor
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -84,7 +86,7 @@ fun BookingScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(if (booked) "Booked" else "Book Appointment", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(t(S.bookAppt), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
@@ -163,7 +165,7 @@ fun BookingScreen(
             }
 
             item {
-                Text("Select a child", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.selectKid), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     items(kids, key = { it.id }) { kid ->
@@ -184,7 +186,7 @@ fun BookingScreen(
                 }
                 Spacer(Modifier.height(20.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Choose a doctor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(t(S.selectDoctor), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     if (filterSpecialty != null) {
                         Box(
                             Modifier
@@ -250,7 +252,7 @@ fun BookingScreen(
             if (selectedDoctor != null) {
                 item {
                     Spacer(Modifier.height(14.dp))
-                    Text("Pick a slot", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(t(S.selectTime), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(12.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         slots.chunked(2).forEach { row ->
@@ -279,7 +281,7 @@ fun BookingScreen(
                     }
                     Spacer(Modifier.height(24.dp))
                     PrimaryGradientButton(
-                        text = "Confirm Booking",
+                        text = t(S.confirmBooking),
                         enabled = selectedSlot != null,
                         onClick = {
                             val doc = selectedDoctor ?: return@PrimaryGradientButton

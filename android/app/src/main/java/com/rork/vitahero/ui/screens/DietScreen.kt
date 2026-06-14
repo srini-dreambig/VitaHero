@@ -55,8 +55,11 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AIDietContent
 import com.rork.vitahero.data.MealItem
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.ProgressRing
+import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -83,7 +86,7 @@ fun DietScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("$kidName's Diet", style = MaterialTheme.typography.titleLarge) },
+                title = { Text("$kidName — ${t(S.todaysPlan)}", style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
@@ -108,16 +111,16 @@ fun DietScreen(
                         }
                         Spacer(Modifier.width(18.dp))
                         Column {
-                            Text("Today's plan", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(t(S.todaysPlan), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Text(
-                                "$totalKcal of $targetKcal kcal logged",
+                                "$totalKcal / $targetKcal kcal",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                if (progress >= 1f) "All meals logged — Super Eater streak continues!"
-                                else "Log all meals to earn the Super Eater badge",
+                                if (progress >= 1f) t(S.allMealsLogged)
+                                else t(S.logAllMealsHint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = HeroGreen,
                                 fontWeight = FontWeight.SemiBold
@@ -138,7 +141,7 @@ fun DietScreen(
                     AiPromptCard(onGenerate = onGenerateAI)
                 }
                 Spacer(Modifier.height(24.dp))
-                Text("Today's meals", style = MaterialTheme.typography.headlineSmall)
+                Text(t(S.todaysMeals), style = MaterialTheme.typography.headlineSmall)
                 Spacer(Modifier.height(12.dp))
             }
 
@@ -157,7 +160,7 @@ fun DietScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Color(0xFFB45309), modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Recognize food with camera", color = Color(0xFFB45309), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.recognizeFood), color = Color(0xFFB45309), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -194,8 +197,8 @@ private fun AiPromptCard(onGenerate: () -> Unit) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("AI Diet Coach", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Personalised tips powered by AI", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodySmall)
+                    Text(t(S.aiDietCoach), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(t(S.aiSubtitle), color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodySmall)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -210,7 +213,7 @@ private fun AiPromptCard(onGenerate: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = HeroPurple, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Generate Personalised Diet Tips", color = HeroPurple, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Text(t(S.generateTips), color = HeroPurple, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -247,8 +250,8 @@ private fun GeneratingCard(kidName: String) {
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text("Analysing $kidName's data…", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Crafting personalised recommendations", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodySmall)
+                    Text(tf(S.analyzing, kidName), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(t(S.craftingTips), color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodySmall)
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -293,7 +296,7 @@ private fun AIContentCard(content: AIDietContent, onRegenerate: () -> Unit) {
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("AI Diet Coach", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(t(S.aiDietCoach), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(content.generatedAt, color = Color.White.copy(alpha = 0.85f), style = MaterialTheme.typography.labelSmall)
             }
         }
@@ -305,15 +308,15 @@ private fun AIContentCard(content: AIDietContent, onRegenerate: () -> Unit) {
             Spacer(Modifier.height(14.dp))
 
             // Insight
-            AITipRow(Icons.Outlined.Lightbulb, HeroYellow, "Why this matters", content.insight)
+            AITipRow(Icons.Outlined.Lightbulb, HeroYellow, t(S.whyMatters), content.insight)
             Spacer(Modifier.height(12.dp))
 
             // Suggestion
-            AITipRow(Icons.Outlined.TipsAndUpdates, HeroGreen, "Try this today", content.suggestion)
+            AITipRow(Icons.Outlined.TipsAndUpdates, HeroGreen, t(S.tryToday), content.suggestion)
             Spacer(Modifier.height(12.dp))
 
             // Fun fact
-            AITipRow(Icons.Outlined.Psychology, HeroBlue, "Fun fact", content.funFact)
+            AITipRow(Icons.Outlined.Psychology, HeroBlue, t(S.funFact), content.funFact)
 
             Spacer(Modifier.height(16.dp))
             Box(
@@ -328,7 +331,7 @@ private fun AIContentCard(content: AIDietContent, onRegenerate: () -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.AutoAwesome, contentDescription = null, tint = HeroPurple, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Refresh tips", color = HeroPurple, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Text(t(S.refreshTips), color = HeroPurple, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

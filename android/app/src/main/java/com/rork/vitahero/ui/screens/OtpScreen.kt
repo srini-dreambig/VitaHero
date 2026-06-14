@@ -47,7 +47,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroGreen
 import kotlinx.coroutines.delay
 
@@ -98,7 +100,7 @@ fun OtpScreen(
         Text("Verify your number", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            "Enter the 6-digit code sent to +91 ${phone.ifEmpty { "98765 43210" }}",
+            t(S.otpSubtitle) + " +91 ${phone.ifEmpty { "98765 43210" }}",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

@@ -29,11 +29,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.EmptyState
 import com.rork.vitahero.ui.components.FlagChip
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.t
 
 @Composable
 fun KidsScreen(
@@ -56,7 +58,7 @@ fun KidsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("My Kids", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Text(t(S.myKids), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                     Text(
                         "${kids.size} ${if (kids.size == 1) "child" else "children"} tracked",
                         style = MaterialTheme.typography.bodyMedium,

@@ -41,10 +41,12 @@ import com.rork.vitahero.data.Badge
 import com.rork.vitahero.data.BadgeProgress
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.LeaderEntry
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.ProgressRing
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroYellow
@@ -131,13 +133,13 @@ fun RewardsScreen(
                     }
                     Spacer(Modifier.width(18.dp))
                     Column {
-                        Text("$earned of ${badges.size} earned", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("$earned / ${badges.size} ${t(S.earned)}", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                         Text("$kidName is a rising hero! Keep going to unlock more.", color = Color.White.copy(alpha = 0.95f), style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
-            Text("$kidName's badges", style = MaterialTheme.typography.headlineSmall)
+            Text("$kidName — ${t(S.heroBadges)}", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
         }
 

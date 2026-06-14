@@ -52,9 +52,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -83,7 +85,7 @@ fun FamilySharingScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Family Sharing", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(t(S.familyTitle), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
@@ -101,7 +103,7 @@ fun FamilySharingScreen(
         ) {
             item {
                 Text(
-                    "Invite a co-parent or guardian to track your kids together",
+                    t(S.familySubtitle),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -120,7 +122,7 @@ fun FamilySharingScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         IconBubble(Icons.Outlined.Groups, Color.White, size = 56.dp, bg = Color.White.copy(alpha = 0.2f))
                         Spacer(Modifier.height(14.dp))
-                        Text("Your Family Code", color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.yourFamilyCode), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -143,7 +145,7 @@ fun FamilySharingScreen(
                         }
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            "Share this code with your co-parent to link accounts",
+                            t(S.shareYourCode),
                             color = Color.White.copy(alpha = 0.85f),
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -165,7 +167,7 @@ fun FamilySharingScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.Share, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Share code via WhatsApp", color = HeroGreen, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                Text(t(S.shareYourCode).take(25) + "…", color = HeroGreen, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -219,19 +221,19 @@ fun FamilySharingScreen(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Outlined.GroupAdd, contentDescription = null, tint = HeroBlue, modifier = Modifier.size(22.dp))
                             Spacer(Modifier.width(10.dp))
-                            Text("Join an existing family", color = HeroBlue, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(t(S.enterFamilyCode), color = HeroBlue, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 } else {
                     HeroCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(18.dp)) {
-                            Text("Enter family code", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(t(S.enterFamilyCode), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                             Text("Ask your co-parent to share their code", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(12.dp))
                             OutlinedTextField(
                                 value = joinCode,
                                 onValueChange = { joinCode = it.take(6) },
-                                placeholder = { Text("e.g. ABC123", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                placeholder = { Text(t(S.familyCodePlaceholder).take(10) + "…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                                 singleLine = true,
                                 shape = RoundedCornerShape(14.dp),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -245,7 +247,7 @@ fun FamilySharingScreen(
                             )
                             Spacer(Modifier.height(14.dp))
                             PrimaryGradientButton(
-                                text = "Join Family",
+                                text = t(S.joinFamily),
                                 enabled = joinCode.length >= 4,
                                 onClick = {
                                     onJoinFamily(joinCode)

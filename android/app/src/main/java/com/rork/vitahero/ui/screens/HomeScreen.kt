@@ -41,6 +41,7 @@ import com.rork.vitahero.data.Appointment
 import com.rork.vitahero.data.Camp
 import com.rork.vitahero.data.CampStatus
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.FlagChip
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
@@ -48,6 +49,8 @@ import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.ProgressRing
 import com.rork.vitahero.ui.components.SectionHeader
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -85,12 +88,12 @@ fun HomeScreen(
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        "Good morning,",
+                        t(S.goodMorning),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        "Hi $parentName 👋".replace("👋", ""),
+                        tf(S.hiName, parentName),
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -132,7 +135,7 @@ fun HomeScreen(
         item {
             Spacer(Modifier.height(4.dp))
             SectionHeader(
-                "Your kids",
+                t(S.yourKids),
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
             Spacer(Modifier.height(12.dp))
@@ -155,11 +158,11 @@ fun HomeScreen(
                     .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                QuickAction("Diet plan", Icons.Outlined.Restaurant, HeroGreen, Modifier.weight(1f)) {
+                QuickAction(t(S.dietPlan), Icons.Outlined.Restaurant, HeroGreen, Modifier.weight(1f)) {
                     kids.firstOrNull()?.let { onOpenDiet(it.id) }
                 }
-                QuickAction("Book visit", Icons.Outlined.MedicalServices, HeroBlue, Modifier.weight(1f), onClick = onBookAppointment)
-                QuickAction("Badges", Icons.Outlined.WorkspacePremium, HeroYellow, Modifier.weight(1f), onClick = onOpenRewards)
+                QuickAction(t(S.bookVisit), Icons.Outlined.MedicalServices, HeroBlue, Modifier.weight(1f), onClick = onBookAppointment)
+                QuickAction(t(S.badges), Icons.Outlined.WorkspacePremium, HeroYellow, Modifier.weight(1f), onClick = onOpenRewards)
             }
         }
 
@@ -168,9 +171,9 @@ fun HomeScreen(
             item {
                 Spacer(Modifier.height(24.dp))
                 SectionHeader(
-                    "Upcoming camp",
+                    t(S.upcomingCamp),
                     modifier = Modifier.padding(horizontal = 20.dp),
-                    actionLabel = "All camps",
+                    actionLabel = t(S.allCamps),
                     onAction = onOpenCamps
                 )
                 Spacer(Modifier.height(12.dp))
@@ -183,7 +186,7 @@ fun HomeScreen(
             item {
                 Spacer(Modifier.height(24.dp))
                 SectionHeader(
-                    "Upcoming appointments",
+                    t(S.upcomingAppts),
                     modifier = Modifier.padding(horizontal = 20.dp)
                 )
                 Spacer(Modifier.height(12.dp))
@@ -233,12 +236,12 @@ private fun KidStatCard(kid: Kid, onClick: () -> Unit) {
                 Spacer(Modifier.width(14.dp))
                 Column {
                     Text(
-                        "Health score",
+                        t(S.healthScore),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        if (kid.overallScore >= 85) "Growth on track" else "Doing well",
+                        if (kid.overallScore >= 85) t(S.growthOnTrack) else t(S.doingWell),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(kid.avatarColor)
@@ -293,7 +296,7 @@ private fun CampBanner(camp: Camp, modifier: Modifier = Modifier, onClick: () ->
                         .background(Color.White.copy(alpha = 0.2f))
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
-                    Text("NEXT CAMP", color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text(t(S.upcoming).uppercase(), color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -308,7 +311,7 @@ private fun CampBanner(camp: Camp, modifier: Modifier = Modifier, onClick: () ->
                     .padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("View details", color = HeroBlue, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Text(t(S.viewDetails), color = HeroBlue, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(6.dp))
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = HeroBlue, modifier = Modifier.size(18.dp))
             }

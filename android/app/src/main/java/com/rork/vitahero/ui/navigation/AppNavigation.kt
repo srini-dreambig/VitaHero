@@ -255,7 +255,15 @@ fun AppNavigation() {
                 coParents = state.coParents,
                 onBack = { navController.popBackStack() },
                 onJoinFamily = { appViewModel.joinFamily(it) },
-                onShareCode = {}
+                onShareCode = {
+                    val code = state.familyCode
+                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, "Join me on VitaHero! Use family code: $code")
+                        putExtra(android.content.Intent.EXTRA_SUBJECT, "VitaHero Family Sharing")
+                    }
+                    navController.context.startActivity(android.content.Intent.createChooser(intent, "Share family code"))
+                }
             )
         }
 

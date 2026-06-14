@@ -35,10 +35,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Camp
 import com.rork.vitahero.data.CampStatus
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.EmptyState
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 
@@ -60,7 +62,7 @@ fun CampsScreen(
         item {
             StatusBarSpacer()
             Column(Modifier.padding(vertical = 12.dp)) {
-                Text("Health Camps", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                Text(t(S.schoolCamps), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                 Text(
                     "School screening camps & follow-ups",
                     style = MaterialTheme.typography.bodyMedium,

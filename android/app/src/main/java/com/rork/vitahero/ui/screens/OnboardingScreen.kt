@@ -35,7 +35,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import kotlinx.coroutines.launch
@@ -97,7 +99,7 @@ fun OnboardingScreen(
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(onClick = onFinish) {
-                    Text("Skip", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(t(S.skip), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
 

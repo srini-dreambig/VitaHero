@@ -18,6 +18,9 @@ data class PersistentState(
     val coParents: List<SerializableCoParent> = emptyList(),
     val wearableData: Map<String, SerializableWearableData> = emptyMap(),
     val camps: List<SerializableCamp> = emptyList(),
+    val consentDeclined: Boolean = false,
+    val notificationsEnabled: Boolean = true,
+    val campRemindersEnabled: Boolean = true,
 )
 
 @Serializable

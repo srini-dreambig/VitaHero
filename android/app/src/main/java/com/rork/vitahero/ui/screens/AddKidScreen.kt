@@ -41,7 +41,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 
@@ -65,7 +67,7 @@ fun AddKidScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Add a Child", style = MaterialTheme.typography.titleLarge) },
+                title = { Text(t(S.addChild), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
@@ -106,47 +108,47 @@ fun AddKidScreen(
             )
             Spacer(Modifier.height(24.dp))
 
-            Label("Full name")
+            Label(t(S.kidName))
             HeroTextField(value = name, onValueChange = { name = it }, placeholder = "e.g. Rahul Sharma")
             Spacer(Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) {
-                    Label("Age")
+                    Label(t(S.kidAge))
                     HeroTextField(value = age, onValueChange = { age = it.filter(Char::isDigit).take(2) }, placeholder = "Years", keyboardType = KeyboardType.Number)
                 }
                 Column(Modifier.weight(1.4f)) {
-                    Label("Gender")
+                    Label(t(S.kidGender))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        GenderChip("Boy", gender == "Boy", Modifier.weight(1f)) { gender = "Boy" }
-                        GenderChip("Girl", gender == "Girl", Modifier.weight(1f)) { gender = "Girl" }
+                        GenderChip(t(S.boy), gender == "Boy", Modifier.weight(1f)) { gender = "Boy" }
+                        GenderChip(t(S.girl), gender == "Girl", Modifier.weight(1f)) { gender = "Girl" }
                     }
                 }
             }
             Spacer(Modifier.height(16.dp))
 
-            Label("School")
+            Label(t(S.kidSchool))
             HeroTextField(value = school, onValueChange = { school = it }, placeholder = "School name")
             Spacer(Modifier.height(16.dp))
 
-            Label("Class / Grade")
+            Label(t(S.kidGrade))
             HeroTextField(value = grade, onValueChange = { grade = it }, placeholder = "e.g. Class 4-B")
             Spacer(Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) {
-                    Label("Height (cm)")
+                    Label(t(S.kidHeight))
                     HeroTextField(value = height, onValueChange = { height = it.filter { c -> c.isDigit() || c == '.' } }, placeholder = "e.g. 132", keyboardType = KeyboardType.Number)
                 }
                 Column(Modifier.weight(1f)) {
-                    Label("Weight (kg)")
+                    Label(t(S.kidWeight))
                     HeroTextField(value = weight, onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }, placeholder = "e.g. 29", keyboardType = KeyboardType.Number)
                 }
             }
 
             Spacer(Modifier.height(32.dp))
             PrimaryGradientButton(
-                text = "Save Child",
+                text = t(S.saveKid),
                 enabled = canSave,
                 onClick = {
                     onSave(

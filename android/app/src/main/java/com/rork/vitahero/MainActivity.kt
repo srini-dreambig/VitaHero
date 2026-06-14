@@ -10,6 +10,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rork.vitahero.data.AppViewModel
 import com.rork.vitahero.data.NotificationScheduler
 import com.rork.vitahero.ui.navigation.AppNavigation
+import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.ui.theme.AppTheme
 
 class MainActivity : ComponentActivity() {
@@ -20,8 +21,10 @@ class MainActivity : ComponentActivity() {
         setContent {
             val appViewModel: AppViewModel = viewModel()
             val state by appViewModel.uiState.collectAsState()
-            AppTheme(darkTheme = state.darkTheme) {
-                AppNavigation()
+            androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides state.locale) {
+                AppTheme(darkTheme = state.darkTheme) {
+                    AppNavigation()
+                }
             }
         }
     }

@@ -59,12 +59,15 @@ import com.rork.vitahero.data.GrowthPoint
 import com.rork.vitahero.data.HealthConnectService
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.FlagChip
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.SectionHeader
+import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroYellow
@@ -197,7 +200,7 @@ fun KidDetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Add, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Log new measurements", color = HeroGreen, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.logMeasurements), color = HeroGreen, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -296,7 +299,7 @@ private fun GrowthEntryCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.TrendingUp, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("New measurement", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Text(t(S.newMeasurement), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Box(
                     Modifier
                         .size(32.dp)
@@ -311,7 +314,7 @@ private fun GrowthEntryCard(
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) {
-                    Text("Height (cm)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(t(S.kidHeight), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = height,
@@ -329,7 +332,7 @@ private fun GrowthEntryCard(
                     )
                 }
                 Column(Modifier.weight(1f)) {
-                    Text("Weight (kg)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(t(S.kidWeight), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(4.dp))
                     OutlinedTextField(
                         value = weight,
@@ -349,7 +352,7 @@ private fun GrowthEntryCard(
             }
             Spacer(Modifier.height(14.dp))
             PrimaryGradientButton(
-                text = "Save measurements",
+                text = t(S.saveMeasurements),
                 enabled = canSave,
                 onClick = {
                     val h = height.toFloatOrNull() ?: return@PrimaryGradientButton
@@ -386,7 +389,7 @@ private fun GrowthTab(kid: Kid) {
         HeroCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Height trend", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(t(S.heightTrend), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     FlagChip(HealthFlag.GOOD)
                 }
                 Spacer(Modifier.height(16.dp))
@@ -402,7 +405,7 @@ private fun GrowthTab(kid: Kid) {
         Spacer(Modifier.height(14.dp))
         HeroCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp)) {
-                Text("Weight trend", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(t(S.weightTrend), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(16.dp))
                 GrowthChart(kid.growth, HeroBlue, weight = true)
                 Spacer(Modifier.height(8.dp))
@@ -524,7 +527,7 @@ private fun NutritionTab(kid: Kid, onOpenDiet: () -> Unit) {
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("View today's diet plan", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(t(S.viewDietPlan), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

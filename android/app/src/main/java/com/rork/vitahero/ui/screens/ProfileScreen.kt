@@ -48,10 +48,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -63,14 +65,15 @@ fun ProfileScreen(
     kids: List<Kid>,
     darkTheme: Boolean,
     currentLocale: AppLocale,
+    notificationsEnabled: Boolean,
+    campRemindersEnabled: Boolean,
     onToggleDarkTheme: () -> Unit,
+    onToggleNotifications: () -> Unit,
+    onToggleCampReminders: () -> Unit,
     onSelectLocale: (AppLocale) -> Unit,
     onOpenFamilySharing: () -> Unit,
     onLogout: () -> Unit
 ) {
-    var notif by remember { mutableStateOf(true) }
-    var campReminders by remember { mutableStateOf(true) }
-    var showLocaleDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -103,7 +106,7 @@ fun ProfileScreen(
                 }
             }
             Spacer(Modifier.height(20.dp))
-            Text("Linked children", style = MaterialTheme.typography.headlineSmall)
+            Text(t(S.linkedChildren), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
             HeroCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(vertical = 6.dp)) {
@@ -133,7 +136,7 @@ fun ProfileScreen(
                 Column {
                     ToggleRow(
                         icon = Icons.Outlined.DarkMode, tint = HeroPurple,
-                        title = "Dark mode", subtitle = "Switch between light and dark theme",
+                        title = t(S.darkMode), subtitle = t(S.darkModeSub),
                         checked = darkTheme, onCheckedChange = { onToggleDarkTheme() }
                     )
                     Box(
@@ -153,7 +156,7 @@ fun ProfileScreen(
                             IconBubble(Icons.Outlined.Language, HeroBlue, size = 40.dp)
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("Language", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(t(S.language), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                                 Text(
                                     "${currentLocale.label} — Tap to change",
                                     style = MaterialTheme.typography.bodySmall,
@@ -167,20 +170,20 @@ fun ProfileScreen(
             }
 
             Spacer(Modifier.height(20.dp))
-            Text("Notifications", style = MaterialTheme.typography.headlineSmall)
+            Text(t(S.notifications), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
             HeroCard(Modifier.fillMaxWidth()) {
                 Column {
-                    ToggleRow(Icons.Outlined.Notifications, HeroBlue, "Push notifications", "Camp, checkup & diet reminders", notif) { notif = it }
-                    ToggleRow(Icons.Outlined.ChildCare, HeroGreen, "Camp reminders", "Get notified before school camps", campReminders) { campReminders = it }
+                    ToggleRow(Icons.Outlined.Notifications, HeroBlue, t(S.pushNotif), t(S.notifSubtitle), notificationsEnabled) { onToggleNotifications() }
+                    ToggleRow(Icons.Outlined.ChildCare, HeroGreen, t(S.campReminders), t(S.campReminderSub), campRemindersEnabled) { onToggleCampReminders() }
                 }
             }
             Spacer(Modifier.height(20.dp))
-            Text("More", style = MaterialTheme.typography.headlineSmall)
+            Text(t(S.more), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
             HeroCard(Modifier.fillMaxWidth()) {
                 Column {
-                    LinkRow(Icons.Outlined.LocalHospital, HeroPurple, "Linked hospitals", "Rainbow, LV Prasad, Apollo Cradle")
+                    LinkRow(Icons.Outlined.LocalHospital, HeroPurple, t(S.linkedHospitals), "Rainbow, LV Prasad, Apollo Cradle")
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -191,14 +194,14 @@ fun ProfileScreen(
                             IconBubble(Icons.Outlined.People, HeroGreen, size = 40.dp)
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("Family sharing", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(t(S.familySharing), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                                 Text("Invite co-parent or guardian", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             Icon(Icons.AutoMirrored.Outlined.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                         }
                     }
-                    LinkRow(Icons.Outlined.Lock, HeroBlue, "Privacy & data", "DPDP compliant · parental consent")
-                    LinkRow(Icons.Outlined.SupportAgent, Color(0xFFF59E0B), "Help & support", "We're here to help")
+                    LinkRow(Icons.Outlined.Lock, HeroBlue, t(S.privacyData), "DPDP compliant · parental consent")
+                    LinkRow(Icons.Outlined.SupportAgent, Color(0xFFF59E0B), t(S.helpSupport), "We're here to help")
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -214,7 +217,7 @@ fun ProfileScreen(
             ) {
                 Icon(Icons.AutoMirrored.Outlined.Logout, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Log out", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(t(S.logout), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(16.dp))
             Text(

@@ -124,7 +124,11 @@ fun MainScaffold(
                     kids = state.kids,
                     darkTheme = darkTheme,
                     currentLocale = state.locale,
+                    notificationsEnabled = state.notificationsEnabled,
+                    campRemindersEnabled = state.campRemindersEnabled,
                     onToggleDarkTheme = { appViewModel.toggleDarkTheme() },
+                    onToggleNotifications = { appViewModel.toggleNotificationsEnabled() },
+                    onToggleCampReminders = { appViewModel.toggleCampReminders() },
                     onSelectLocale = { appViewModel.setLocale(it) },
                     onOpenFamilySharing = onOpenFamilySharing,
                     onLogout = onLogout
