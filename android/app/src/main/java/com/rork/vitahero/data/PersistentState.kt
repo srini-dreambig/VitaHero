@@ -12,6 +12,10 @@ data class PersistentState(
     val appointments: List<SerializableAppointment> = emptyList(),
     val meals: Map<String, List<SerializableMealItem>> = emptyMap(),
     val streaks: Map<String, SerializableStreakInfo> = emptyMap(),
+    val darkTheme: Boolean = false,
+    val localeCode: String = "en",
+    val familyCode: String = "",
+    val coParents: List<SerializableCoParent> = emptyList(),
 )
 
 @Serializable
@@ -65,4 +69,12 @@ data class SerializableStreakInfo(
     val currentStreak: Int = 0,
     val bestStreak: Int = 0,
     val lastLogDate: String = "",
+)
+
+@Serializable
+data class SerializableCoParent(
+    val id: String,
+    val name: String,
+    val relation: String,
+    val joinedDate: String = "",
 )

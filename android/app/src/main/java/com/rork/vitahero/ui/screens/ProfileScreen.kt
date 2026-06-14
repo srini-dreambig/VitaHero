@@ -20,9 +20,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.ChildCare
+import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.LocalHospital
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material3.Icon
@@ -43,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
@@ -57,10 +61,16 @@ fun ProfileScreen(
     parentName: String,
     phone: String,
     kids: List<Kid>,
+    darkTheme: Boolean,
+    currentLocale: AppLocale,
+    onToggleDarkTheme: () -> Unit,
+    onSelectLocale: (AppLocale) -> Unit,
+    onOpenFamilySharing: () -> Unit,
     onLogout: () -> Unit
 ) {
     var notif by remember { mutableStateOf(true) }
     var campReminders by remember { mutableStateOf(true) }
+    var showLocaleDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier
@@ -115,6 +125,48 @@ fun ProfileScreen(
                 }
             }
             Spacer(Modifier.height(20.dp))
+
+            // Appearance section
+            Text("Appearance", style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(12.dp))
+            HeroCard(Modifier.fillMaxWidth()) {
+                Column {
+                    ToggleRow(
+                        icon = Icons.Outlined.DarkMode, tint = HeroPurple,
+                        title = "Dark mode", subtitle = "Switch between light and dark theme",
+                        checked = darkTheme, onCheckedChange = { onToggleDarkTheme() }
+                    )
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val next = when (currentLocale) {
+                                    AppLocale.ENGLISH -> AppLocale.HINDI
+                                    AppLocale.HINDI -> AppLocale.TELUGU
+                                    AppLocale.TELUGU -> AppLocale.ENGLISH
+                                }
+                                onSelectLocale(next)
+                            }
+                            .padding(horizontal = 16.dp, vertical = 10.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconBubble(Icons.Outlined.Language, HeroBlue, size = 40.dp)
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Language", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "${currentLocale.label} — Tap to change",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(Icons.AutoMirrored.Outlined.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
             Text("Notifications", style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
             HeroCard(Modifier.fillMaxWidth()) {
@@ -129,7 +181,22 @@ fun ProfileScreen(
             HeroCard(Modifier.fillMaxWidth()) {
                 Column {
                     LinkRow(Icons.Outlined.LocalHospital, HeroPurple, "Linked hospitals", "Rainbow, LV Prasad, Apollo Cradle")
-                    LinkRow(Icons.Outlined.Share, HeroGreen, "Family sharing", "Invite co-parent or guardian")
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = onOpenFamilySharing)
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconBubble(Icons.Outlined.People, HeroGreen, size = 40.dp)
+                            Spacer(Modifier.width(14.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Family sharing", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text("Invite co-parent or guardian", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            Icon(Icons.AutoMirrored.Outlined.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                        }
+                    }
                     LinkRow(Icons.Outlined.Lock, HeroBlue, "Privacy & data", "DPDP compliant · parental consent")
                     LinkRow(Icons.Outlined.SupportAgent, Color(0xFFF59E0B), "Help & support", "We're here to help")
                 }

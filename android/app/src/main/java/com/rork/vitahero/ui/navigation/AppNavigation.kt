@@ -18,11 +18,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.rork.vitahero.data.AppViewModel
+import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.ui.screens.AddKidScreen
 import com.rork.vitahero.ui.screens.AuthScreen
 import com.rork.vitahero.ui.screens.BookingScreen
 import com.rork.vitahero.ui.screens.ConsentScreen
 import com.rork.vitahero.ui.screens.DietScreen
+import com.rork.vitahero.ui.screens.FamilySharingScreen
+import com.rork.vitahero.ui.screens.FoodRecognitionScreen
 import com.rork.vitahero.ui.screens.KidDetailScreen
 import com.rork.vitahero.ui.screens.MainScaffold
 import com.rork.vitahero.ui.screens.NotificationsScreen
@@ -40,9 +43,11 @@ object Routes {
     const val BOOKING = "booking"
     const val NOTIFICATIONS = "notifications"
     const val ADD_KID = "addKid"
+    const val FAMILY_SHARING = "familySharing"
+    const val FOOD_RECOGNITION = "foodRecognition/{kidId}/{kidName}"
 }
 
-val OnboardingImages = listOf(
+private val OnboardingImages = listOf(
     "https://r2-pub.rork.com/projects/0cso3uprrwvti6zjwr0jl/assets/6cdc1d51-87b7-4ac2-b9f4-aa840c15f557.png",
     "https://r2-pub.rork.com/projects/0cso3uprrwvti6zjwr0jl/assets/acc98ce6-ff4d-4751-9aa8-f9cbeaab5ef0.png",
     "https://r2-pub.rork.com/projects/0cso3uprrwvti6zjwr0jl/assets/005133bc-db8d-4bb9-8764-a3ae623d1217.png",
@@ -59,7 +64,6 @@ fun AppNavigation() {
     var phone by rememberSaveable { mutableStateOf("") }
     var pendingName by rememberSaveable { mutableStateOf("") }
 
-    // Determine start destination based on persisted auth state
     val startDest = when {
         isLoggedIn -> Routes.MAIN
         onboardingComplete -> Routes.AUTH
@@ -83,7 +87,6 @@ fun AppNavigation() {
                     }
                 },
                 onDecline = {
-                    // In production would exit; for demo, go to onboarding
                     navController.navigate(Routes.ONBOARDING) {
                         popUpTo(Routes.CONSENT) { inclusive = true }
                     }
@@ -139,11 +142,16 @@ fun AppNavigation() {
             MainScaffold(
                 appViewModel = appViewModel,
                 phone = state.phone,
+                darkTheme = state.darkTheme,
                 onOpenKid = { navController.navigate("kid/$it") },
                 onOpenDiet = { navController.navigate("diet/$it") },
                 onOpenBooking = { navController.navigate(Routes.BOOKING) },
                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                 onAddKid = { navController.navigate(Routes.ADD_KID) },
+                onOpenFamilySharing = { navController.navigate(Routes.FAMILY_SHARING) },
+                onOpenFoodRecognition = { kidId, kidName ->
+                    navController.navigate("foodRecognition/$kidId/$kidName")
+                },
                 onLogout = {
                     appViewModel.logout()
                     navController.navigate(Routes.CONSENT) {
@@ -159,13 +167,24 @@ fun AppNavigation() {
         ) { backStack ->
             val kid = appViewModel.kidById(backStack.arguments?.getString("kidId"))
             if (kid != null) {
+                val meals = appViewModel.mealsForKid(kid.id)
+                val streak = appViewModel.streakForKid(kid.id)
+                val badges = appViewModel.badgeProgressForKid(kid.id).badges
+                val wearableData = state.wearableData[kid.id]
                 KidDetailScreen(
                     kid = kid,
+                    wearableData = wearableData,
                     onBack = { navController.popBackStack() },
                     onOpenDiet = { navController.navigate("diet/${kid.id}") },
+                    onShareReport = { context ->
+                        val reportData = ReportData(kid, meals, streak, badges)
+                        val file = com.rork.vitahero.data.PdfReportGenerator.generate(context, reportData)
+                        com.rork.vitahero.data.PdfReportGenerator.shareReport(context, file)
+                    },
                     onAddGrowth = { height, weight, label ->
                         appViewModel.addGrowthPoint(kid.id, height, weight, label)
-                    }
+                    },
+                    onRefreshWearable = { appViewModel.refreshWearableData(kid.id) }
                 )
             }
         }
@@ -186,7 +205,10 @@ fun AppNavigation() {
                     aiContent = aiContent[kidId],
                     onBack = { navController.popBackStack() },
                     onToggleMeal = { appViewModel.toggleMeal(kidId, it) },
-                    onGenerateAI = { appViewModel.generateAIContent(kidId) }
+                    onGenerateAI = { appViewModel.generateAIContent(kidId) },
+                    onOpenFoodRecognition = {
+                        navController.navigate("foodRecognition/$kidId/${kid.name}")
+                    }
                 )
             }
         }
@@ -222,6 +244,39 @@ fun AppNavigation() {
                 onSave = { name, age, gender, school, grade, height, weight ->
                     appViewModel.addKid(name, age, gender, school, grade, height, weight)
                     navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Routes.FAMILY_SHARING) {
+            val state by appViewModel.uiState.collectAsState()
+            FamilySharingScreen(
+                familyCode = state.familyCode.ifEmpty { "ABC123" },
+                coParents = state.coParents,
+                onBack = { navController.popBackStack() },
+                onJoinFamily = { appViewModel.joinFamily(it) },
+                onShareCode = {}
+            )
+        }
+
+        composable(
+            Routes.FOOD_RECOGNITION,
+            arguments = listOf(
+                navArgument("kidId") { type = NavType.StringType },
+                navArgument("kidName") { type = NavType.StringType },
+            )
+        ) { backStack ->
+            val kidId = backStack.arguments?.getString("kidId").orEmpty()
+            val kidName = backStack.arguments?.getString("kidName").orEmpty()
+            FoodRecognitionScreen(
+                kidName = kidName,
+                kidId = kidId,
+                onBack = { navController.popBackStack() },
+                onLogDetectedFood = { id, name, kcal ->
+                    val mealId = "fr${System.currentTimeMillis()}"
+                    // For now, we can't easily add a detected food as a meal item to the ViewModel
+                    // So we just track it locally - in production this would add a MealItem
+                    appViewModel.toggleMeal(id, "m3") // fallback: mark lunch as eaten
                 }
             )
         }

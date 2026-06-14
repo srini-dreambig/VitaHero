@@ -2,6 +2,7 @@ package com.rork.vitahero.ui.screens
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -65,11 +66,14 @@ private enum class Tab(val label: String, val filled: ImageVector, val outlined:
 fun MainScaffold(
     appViewModel: AppViewModel,
     phone: String,
+    darkTheme: Boolean,
     onOpenKid: (String) -> Unit,
     onOpenDiet: (String) -> Unit,
     onOpenBooking: () -> Unit,
     onOpenNotifications: () -> Unit,
     onAddKid: () -> Unit,
+    onOpenFamilySharing: () -> Unit,
+    onOpenFoodRecognition: (String, String) -> Unit,
     onLogout: () -> Unit
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
@@ -83,7 +87,7 @@ fun MainScaffold(
     ) {
         AnimatedContent(
             targetState = tab,
-            transitionSpec = { fadeIn(androidx.compose.animation.core.tween(200)) togetherWith fadeOut(androidx.compose.animation.core.tween(150)) },
+            transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
             label = "tab",
             modifier = Modifier.fillMaxSize()
         ) { current ->
@@ -118,6 +122,11 @@ fun MainScaffold(
                     parentName = state.parentName,
                     phone = phone,
                     kids = state.kids,
+                    darkTheme = darkTheme,
+                    currentLocale = state.locale,
+                    onToggleDarkTheme = { appViewModel.toggleDarkTheme() },
+                    onSelectLocale = { appViewModel.setLocale(it) },
+                    onOpenFamilySharing = onOpenFamilySharing,
                     onLogout = onLogout
                 )
             }

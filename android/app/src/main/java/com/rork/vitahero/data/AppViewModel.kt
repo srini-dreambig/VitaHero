@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.rork.vitahero.ui.screens.CoParent
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -22,6 +23,11 @@ data class AppUiState(
     val appointments: List<Appointment> = SampleData.appointments,
     val notifications: List<AppNotification> = SampleData.notifications,
     val consentAccepted: Boolean = false,
+    val darkTheme: Boolean = false,
+    val locale: AppLocale = AppLocale.ENGLISH,
+    val familyCode: String = "",
+    val coParents: List<CoParent> = emptyList(),
+    val wearableData: Map<String, HealthConnectService.WearableData> = emptyMap(),
 )
 
 data class BadgeProgress(
@@ -79,6 +85,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 withContext(Dispatchers.Main) {
                     _onboardingComplete.value = saved.onboardingComplete
                     _isLoggedIn.value = saved.isLoggedIn
+                    val restoredLocale = try { AppLocale.entries.firstOrNull { it.code == saved.localeCode } ?: AppLocale.ENGLISH } catch (_: Exception) { AppLocale.ENGLISH }
                     _uiState.value = AppUiState(
                         parentName = saved.parentName.ifBlank { "Priya" },
                         phone = saved.phone,
@@ -88,6 +95,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         appointments = savedAppointments.ifEmpty { SampleData.appointments },
                         notifications = SampleData.notifications,
                         consentAccepted = saved.isLoggedIn,
+                        darkTheme = saved.darkTheme,
+                        locale = restoredLocale,
+                        familyCode = saved.familyCode,
+                        coParents = saved.coParents.map { cp ->
+                            CoParent(cp.id, cp.name, cp.relation, cp.joinedDate)
+                        },
+                        wearableData = SampleData.kids.associate { it.id to HealthConnectService.getDemoData(it.name) },
                     )
                     _meals.value = savedMeals.ifEmpty {
                         seedPersonalizedMeals(savedKids.ifEmpty { SampleData.kids })
@@ -117,6 +131,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     appointments = state.appointments.map { it.toSerializable() },
                     meals = _meals.value.mapValues { (_, list) -> list.map { it.toSerializable() } },
                     streaks = _streaks.value.mapValues { (_, v) -> v.toSerializable() },
+                    darkTheme = state.darkTheme,
+                    localeCode = state.locale.code,
+                    familyCode = state.familyCode,
+                    coParents = state.coParents.map { cp ->
+                        SerializableCoParent(cp.id, cp.name, cp.relation, cp.joinedDate)
+                    },
                 )
                 storage.save(saved)
             }
@@ -124,7 +144,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun acceptConsent() {
-        _uiState.update { it.copy(consentAccepted = true) }
+        val code = generateFamilyCodeIfNeeded()
+        _uiState.update { it.copy(consentAccepted = true, familyCode = code) }
+    }
+
+    private fun generateFamilyCodeIfNeeded(): String {
+        val current = _uiState.value.familyCode
+        if (current.isNotBlank()) return current
+        val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        return (1..6).map { chars.random() }.joinToString("")
     }
 
     fun completeOnboarding() {
@@ -147,6 +175,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun logout() {
         _isLoggedIn.value = false
         _onboardingComplete.value = false
+        val currentFamilyCode = _uiState.value.familyCode
         storage.clear()
         _uiState.value = AppUiState(
             kids = SampleData.kids,
@@ -154,6 +183,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             doctors = SampleData.doctors,
             appointments = SampleData.appointments,
             notifications = SampleData.notifications,
+            familyCode = currentFamilyCode,
+            wearableData = SampleData.kids.associate { it.id to HealthConnectService.getDemoData(it.name) },
         )
         _meals.value = seedPersonalizedMeals(SampleData.kids)
         _streaks.value = SampleData.kids.associate { it.id to StreakInfo() }
@@ -162,6 +193,50 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun kidById(id: String?): Kid? = _uiState.value.kids.firstOrNull { it.id == id }
+
+    // --- Theme ---
+    fun toggleDarkTheme() {
+        _uiState.update { it.copy(darkTheme = !it.darkTheme) }
+        persistState()
+    }
+
+    // --- Locale ---
+    fun setLocale(locale: AppLocale) {
+        _uiState.update { it.copy(locale = locale) }
+        persistState()
+    }
+
+    // --- Family sharing ---
+    fun generateFamilyCode() {
+        val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        val code = (1..6).map { chars.random() }.joinToString("")
+        _uiState.update { it.copy(familyCode = code) }
+        persistState()
+    }
+
+    fun joinFamily(code: String) {
+        _uiState.update {
+            it.copy(
+                coParents = it.coParents + CoParent(
+                    id = "cp${System.currentTimeMillis()}",
+                    name = "Co-parent (via $code)",
+                    relation = "Joined via code",
+                    joinedDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"))
+                )
+            )
+        }
+        persistState()
+    }
+
+    // --- Wearable data ---
+    fun refreshWearableData(kidId: String) {
+        val kid = kidById(kidId) ?: return
+        val data = HealthConnectService.getDemoData(kid.name)
+        _uiState.update {
+            it.copy(wearableData = it.wearableData + (kidId to data))
+        }
+        persistState()
+    }
 
     fun mealsForKid(kidId: String): List<MealItem> = _meals.value[kidId].orEmpty()
 

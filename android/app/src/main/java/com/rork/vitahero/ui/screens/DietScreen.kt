@@ -27,6 +27,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.PlayArrow
@@ -70,7 +71,8 @@ fun DietScreen(
     aiContent: AIDietContent?,
     onBack: () -> Unit,
     onToggleMeal: (String) -> Unit,
-    onGenerateAI: () -> Unit
+    onGenerateAI: () -> Unit,
+    onOpenFoodRecognition: () -> Unit = {}
 ) {
     val eatenCount = meals.count { it.eaten }
     val totalKcal = meals.filter { it.eaten }.sumOf { it.kcal }
@@ -137,6 +139,27 @@ fun DietScreen(
                 }
                 Spacer(Modifier.height(24.dp))
                 Text("Today's meals", style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(12.dp))
+            }
+
+            // Food recognition button
+            item {
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(HeroYellow.copy(alpha = 0.08f))
+                        .clickable(onClick = onOpenFoodRecognition)
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Color(0xFFB45309), modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Recognize food with camera", color = Color(0xFFB45309), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 Spacer(Modifier.height(12.dp))
             }
 

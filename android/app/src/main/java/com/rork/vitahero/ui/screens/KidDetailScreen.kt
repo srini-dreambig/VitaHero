@@ -1,5 +1,7 @@
 package com.rork.vitahero.ui.screens
 
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -22,11 +24,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.DirectionsRun
 import androidx.compose.material.icons.outlined.RemoveRedEye
 import androidx.compose.material.icons.outlined.Restaurant
+import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -47,10 +51,12 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.GrowthPoint
+import com.rork.vitahero.data.HealthConnectService
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.ui.components.FlagChip
@@ -61,6 +67,9 @@ import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.SectionHeader
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroYellow
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 private enum class DetailTab(val label: String) {
     GROWTH("Growth"), DENTAL("Dental"), EYE("Eyesight"), NUTRITION("Nutrition")
@@ -69,12 +78,17 @@ private enum class DetailTab(val label: String) {
 @Composable
 fun KidDetailScreen(
     kid: Kid,
+    wearableData: HealthConnectService.WearableData? = null,
     onBack: () -> Unit,
     onOpenDiet: () -> Unit,
-    onAddGrowth: (heightCm: Float, weightKg: Float, label: String) -> Unit
+    onShareReport: (Context) -> Unit,
+    onAddGrowth: (heightCm: Float, weightKg: Float, label: String) -> Unit,
+    onRefreshWearable: () -> Unit = {}
 ) {
     var tab by remember { mutableStateOf(DetailTab.GROWTH) }
     var showGrowthEntry by remember { mutableStateOf(false) }
+    var isGeneratingReport by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     LazyColumn(
         modifier = Modifier
@@ -107,6 +121,30 @@ fun KidDetailScreen(
                             Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                         }
                         Spacer(Modifier.weight(1f))
+                        // Share report button
+                        Box(
+                            Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .clickable {
+                                    isGeneratingReport = true
+                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                        isGeneratingReport = false
+                                        onShareReport(context)
+                                    }, 800)
+                                }
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isGeneratingReport) {
+                                    Text("Generating…", style = MaterialTheme.typography.labelSmall, color = HeroGreen)
+                                } else {
+                                    Icon(Icons.Outlined.Share, contentDescription = "Share report", tint = HeroGreen, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Share Report", style = MaterialTheme.typography.labelSmall, color = HeroGreen, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
                     }
                     Column(
                         Modifier
@@ -196,7 +234,32 @@ fun KidDetailScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(14.dp))
+        }
+
+        // Wearable data card
+        if (wearableData != null) {
+            item {
+                HeroCard(Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconBubble(Icons.Outlined.Watch, HeroYellow)
+                        Spacer(Modifier.width(14.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Activity data", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                if (wearableData.isConnected) "${wearableData.stepsToday} steps · ${wearableData.activeMinutes} min active" else "Not connected",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        IconBubble(Icons.Outlined.DirectionsRun, HeroGreen)
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
         }
 
         item {
@@ -379,7 +442,6 @@ private fun GrowthChart(points: List<GrowthPoint>, color: Color, weight: Boolean
             return Offset(x, y)
         }
 
-        // grid lines
         repeat(4) { g ->
             val y = pad + (h - pad * 2) * g / 3f
             drawLine(color.copy(alpha = 0.08f), Offset(0f, y), Offset(w, y), strokeWidth = 2f)
