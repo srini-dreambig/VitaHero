@@ -40,12 +40,6 @@ android {
         }
     }
 
-    configurations.all {
-        resolutionStrategy {
-            force("com.google.guava:guava:33.6.0-android")
-        }
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -87,7 +81,10 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.androidx.security.crypto)
-    implementation(libs.health.connect.client)
+    implementation(libs.health.connect.client) {
+        exclude(group = "com.google.guava", module = "guava")
+        exclude(group = "com.google.guava", module = "failureaccess")
+    }
     implementation(libs.guava.android)
     implementation(libs.guava.failureaccess)
 
