@@ -2,7 +2,7 @@
 // Connects to Neon Postgres (vita_hero schema) for all CRUD operations.
 // Auth delegates to Neon Auth (Better Auth) for Google OAuth + email/password.
 // Phone OTP via Twilio is independent.
-// Updated: 2026-06-15 — email/password + Neon Auth social sign-in
+// Updated: 2026-06-15 — email/password + Neon Auth social sign-in + Origin header fix
 
 import { neon } from "@neondatabase/serverless";
 
@@ -122,15 +122,18 @@ interface NeonAuthResponse {
 
 // ─── Neon Auth Helpers ─────────────────────────────────────
 
-/** Call Neon Auth REST API. Returns parsed JSON or throws on error. */
+/** Call Neon Auth REST API. Returns parsed JSON or throws on error. Accepts optional Origin header. */
 async function callNeonAuth(
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  origin?: string
 ): Promise<NeonAuthResponse> {
   const url = `${NEON_AUTH}${path}`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (origin) headers["Origin"] = origin;
   const resp = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify(body),
   });
   const data = await resp.json() as Record<string, unknown>;
@@ -318,11 +321,12 @@ export default {
           const idToken = body.id_token as string;
           if (!idToken) return json({ error: "Missing id_token" }, 400);
 
+          const workerOrigin = new URL(request.url).origin;
           const neonResp = await callNeonAuth("/sign-in/social", {
             provider: "google",
             idToken: { token: idToken },
-            callbackURL: "/",
-          });
+            callbackURL: workerOrigin,
+          }, workerOrigin);
 
           const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
             sql, neonResp.user, "GOOGLE"
