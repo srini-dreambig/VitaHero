@@ -27,8 +27,15 @@ object ApiService {
         }
     }
 
+    /**
+     * Base URL for the Cloudflare Worker backend.
+     * Uses the build-time env var if available, otherwise falls back to
+     * the known deployed worker URL so the app works after rebuilds too.
+     */
     val baseUrl: String by lazy {
-        BuildConfig.RORK_FUNCTIONS_URL.ifBlank { "" }
+        BuildConfig.RORK_FUNCTIONS_URL.ifBlank {
+            "https://kidhero-health-backend.rork.app"
+        }
     }
 
     val isConfigured: Boolean get() = baseUrl.isNotBlank()

@@ -25,7 +25,6 @@ android {
         buildConfigField("String", "RORK_AUTH_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_AUTH_URL") ?: ""}\"")
         buildConfigField("String", "RORK_FUNCTIONS_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_FUNCTIONS_URL") ?: ""}\"")
         buildConfigField("String", "TEAM_ID", "\"${System.getenv("EXPO_PUBLIC_TEAM_ID") ?: ""}\"")
-        buildConfigField("String", "RORK_FUNCTIONS_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_FUNCTIONS_URL") ?: ""}\"")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${System.getenv("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID") ?: ""}\"")
     }
 
