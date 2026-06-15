@@ -9,7 +9,7 @@ import kotlinx.serialization.json.Json
 
 /**
  * HTTP client configured for the VitaHero Cloudflare Worker API
- * (Neon DB backend). Replaces the old SupabaseService.
+ * (Neon DB backend).
  *
  * When the functions URL is not configured, network calls are
  * silently skipped instead of spamming the console with errors.

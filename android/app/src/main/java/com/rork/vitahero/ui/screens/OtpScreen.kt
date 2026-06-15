@@ -57,8 +57,7 @@ import com.rork.vitahero.ui.theme.HeroGreen
 import kotlinx.coroutines.delay
 
 /**
- * OTP verification screen for Supabase Auth phone OTP.
- * Calls supabase.auth.verifyPhoneOtp() with the entered code.
+ * OTP verification screen for phone OTP via the Cloudflare Worker.
  */
 @Composable
 fun OtpScreen(

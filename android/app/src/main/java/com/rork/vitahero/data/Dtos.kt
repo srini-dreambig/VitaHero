@@ -3,7 +3,7 @@ package com.rork.vitahero.data
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-/** Supabase DTOs — match the database column names exactly. */
+/** DTOs — match the database column names exactly. */
 
 @Serializable
 data class ProfileDto(

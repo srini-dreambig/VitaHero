@@ -7,7 +7,7 @@ import java.io.File
 import java.util.concurrent.ConcurrentLinkedQueue
 
 /**
- * Offline-first sync queue for Supabase operations.
+ * Offline-first sync queue for backend operations.
  *
  * When the network is unavailable, mutations are queued here and
  * retried automatically once connectivity is restored. Each entry
@@ -50,7 +50,7 @@ object SyncQueue {
      * Process all pending sync operations.
      * Call this when connectivity is restored or after auth.
      */
-    suspend fun processAll(repository: SupabaseRepository, context: Context) {
+    suspend fun processAll(repository: ApiRepository, context: Context) {
         val toRetry = mutableListOf<SyncOp>()
         while (true) {
             val op = pendingOps.poll() ?: break
@@ -66,7 +66,7 @@ object SyncQueue {
         toRetry.forEach { pendingOps.add(it) }
     }
 
-    private suspend fun executeOp(op: SyncOp, repository: SupabaseRepository, context: Context) {
+    private suspend fun executeOp(op: SyncOp, repository: ApiRepository, context: Context) {
         // Delay between retries with exponential backoff
         if (op.retries > 0) {
             kotlinx.coroutines.delay(BASE_DELAY_MS * (1L shl (op.retries - 1).coerceAtMost(4)))
@@ -80,7 +80,7 @@ object SyncQueue {
             }
             SyncType.UPSERT_KIDS -> {
                 val dtos = json.decodeFromString<List<KidDto>>(op.payload)
-                repository.upsertKids(dtos)
+                dtos.forEach { repository.upsertKid(it) }
             }
             SyncType.UPSERT_APPOINTMENT -> {
                 val dto = json.decodeFromString<AppointmentDto>(op.payload)

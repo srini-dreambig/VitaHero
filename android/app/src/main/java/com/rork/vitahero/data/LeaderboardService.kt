@@ -12,19 +12,16 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Leaderboard service — queries Supabase for real multi-user leaderboard data
- * via the get_leaderboard() RPC function (see migration 004).
+ * Leaderboard service — queries the Cloudflare Worker API for real
+ * multi-user leaderboard data.
  *
- * Falls back to local-only ranking when the Supabase query fails or
- * the user is offline.
+ * Falls back to local-only ranking when the backend is unavailable
+ * or the user is offline.
  */
 object LeaderboardService {
 
     /**
-     * Fetch the global leaderboard from Supabase.
-     *
-     * Uses the get_leaderboard() stored function which returns the top 20 kids
-     * plus the current user's kid, ranked by score + streak points.
+     * Fetch the global leaderboard from the Neon DB backend.
      */
     suspend fun fetchLeaderboard(
         accessToken: String?,
@@ -33,17 +30,15 @@ object LeaderboardService {
         localEatenMeals: Int,
         localStreak: Int,
     ): List<LeaderEntry> = withContext(Dispatchers.IO) {
-        if (!SupabaseService.isConfigured) {
+        if (!ApiService.isConfigured) {
             return@withContext buildLocalLeaderboard(currentKidId, currentKidName, localEatenMeals, localStreak)
         }
         try {
-            val http = SupabaseService.http
-            val base = "${SupabaseService.baseUrl}/rest/v1"
-            val anonKey = SupabaseService.anonKey
+            val http = ApiService.http
+            val base = ApiService.baseUrl
 
-            // Call the get_leaderboard RPC function
-            val resp = http.post("$base/rpc/get_leaderboard") {
-                header("apikey", anonKey)
+            // Call the leaderboard API endpoint
+            val resp = http.post("$base/api/leaderboard") {
                 header("Content-Type", "application/json")
                 accessToken?.let { header("Authorization", "Bearer $it") }
                 contentType(ContentType.Application.Json)
@@ -73,7 +68,7 @@ object LeaderboardService {
     }
 
     /**
-     * Local fallback leaderboard when Supabase is unavailable.
+     * Local fallback leaderboard when the backend is unavailable.
      * Shows the current kid plus anonymized entries based on local activity.
      */
     private fun buildLocalLeaderboard(

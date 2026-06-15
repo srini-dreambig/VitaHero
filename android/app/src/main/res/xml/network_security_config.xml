@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Allow cleartext to localhost (required for Supabase OAuth/OTP redirect callbacks) -->
+    <!-- Allow cleartext to localhost for OAuth/OTP redirect callbacks -->
     <domain-config cleartextTrafficPermitted="true">
         <domain includeSubdomains="false">localhost</domain>
         <domain includeSubdomains="false">10.0.2.2</domain>

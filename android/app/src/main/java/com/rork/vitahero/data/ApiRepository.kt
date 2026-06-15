@@ -15,7 +15,6 @@ import java.util.UUID
 
 /**
  * Bridges the Android app to the Cloudflare Worker API (Neon DB).
- * Replaces the old SupabaseRepository.
  *
  * Uses the session token for authentication. When not configured,
  * all network calls return empty results silently.

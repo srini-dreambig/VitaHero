@@ -84,7 +84,7 @@ object AIService {
                 return@withContext fallbackTip(kid, streak)
             }
 
-            val http = SupabaseService.http
+            val http = ApiService.http
             val resp = http.post(url) {
                 header("Authorization", "Bearer $toolkitKey")
                 contentType(ContentType.Application.Json)

@@ -15,8 +15,7 @@ import kotlinx.coroutines.launch
  * Persists session token in EncryptedSharedPreferences so sessions survive
  * process death.
  *
- * No longer uses Supabase Auth — all auth goes through the Cloudflare Worker
- * backed by Neon DB.
+ * All auth goes through the Cloudflare Worker backed by Neon DB.
  */
 class AuthManager(private val app: Application) {
 

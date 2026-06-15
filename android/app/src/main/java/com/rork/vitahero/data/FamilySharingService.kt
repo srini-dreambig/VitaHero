@@ -14,23 +14,15 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 /**
- * Family Sharing — calls the VitaHero family-sharing edge function
- * for code validation, joining families, and fetching shared kid data.
- *
- * Endpoint: SUPABASE_URL/functions/v1/family-sharing
+ * Family Sharing — calls the Cloudflare Worker API for code validation,
+ * joining families, and fetching shared kid data.
  */
 object FamilySharingService {
 
-    private val http get() = SupabaseService.http
-    private val baseUrl get() = SupabaseService.baseUrl
-    private val anonKey get() = SupabaseService.anonKey
-    private val edgeFnUrl: String get() {
-        val base = SupabaseService.baseUrl
-        return if (base.isNotBlank()) "$base/functions/v1/family-sharing" else ""
-    }
+    private val http get() = ApiService.http
+    private val apiBase: String get() = ApiService.baseUrl
 
     private fun authHeaders(accessToken: String?) = buildMap {
-        put("apikey", anonKey)
         put("Content-Type", "application/json")
         accessToken?.let { put("Authorization", "Bearer $it") }
     }
@@ -80,13 +72,13 @@ object FamilySharingService {
      * Returns the family owner name and profile ID if valid.
      */
     suspend fun validateCode(code: String): Result<ValidateCodeResponse> = onIo {
-        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
+        if (!ApiService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
         try {
             val body = buildJsonObject {
                 put("action", "validate_code")
                 put("code", code)
             }
-            val resp = http.post(edgeFnUrl) {
+            val resp = http.post("$apiBase/api/family-sharing/validate") {
                 header("Content-Type", "application/json")
                 contentType(ContentType.Application.Json)
                 setBody(body.toString())
@@ -106,7 +98,7 @@ object FamilySharingService {
         relation: String,
         accessToken: String,
     ): Result<JoinFamilyResponse> = onIo {
-        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
+        if (!ApiService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
         try {
             val body = buildJsonObject {
                 put("action", "join_family")
@@ -115,7 +107,7 @@ object FamilySharingService {
                 put("relation", relation)
             }
             val headers = authHeaders(accessToken)
-            val resp = http.post(edgeFnUrl) {
+            val resp = http.post("$apiBase/api/family-sharing/join") {
                 headers.forEach { (k, v) -> header(k, v) }
                 contentType(ContentType.Application.Json)
                 setBody(body.toString())
@@ -133,10 +125,10 @@ object FamilySharingService {
         familyCode: String,
         accessToken: String,
     ): Result<SharedKidsResponse> = onIo {
-        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
+        if (!ApiService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
         try {
             val headers = authHeaders(accessToken)
-            val resp = http.get("$edgeFnUrl/shared-kids") {
+            val resp = http.get("$apiBase/api/family-sharing/kids") {
                 headers.forEach { (k, v) -> header(k, v) }
                 url { parameters.append("familyCode", familyCode) }
             }
