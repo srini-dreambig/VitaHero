@@ -13,6 +13,7 @@ room = "2.7.2"
 ksp = "2.3.6"
 securityCrypto = "1.1.0"
 healthConnect = "1.1.0"
+guava = "33.6.0-android"
 
 
 [libraries]
@@ -41,6 +42,8 @@ room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 health-connect-client = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
+guava-android = { group = "com.google.guava", name = "guava", version.ref = "guava" }
+guava-failureaccess = { group = "com.google.guava", name = "failureaccess", version = "1.0.3" }
 
 
 [plugins]

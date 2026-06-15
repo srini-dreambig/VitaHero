@@ -60,6 +60,14 @@
 -dontwarn com.google.crypto.tink.**
 -keep class com.google.crypto.tink.** { *; }
 
+# ── Guava (Android variant) ────────────────────────────────────
+-dontwarn com.google.common.**
+-keep class com.google.common.** { *; }
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn com.google.j2objc.annotations.**
+-dontwarn javax.annotation.**
+-dontwarn org.checkerframework.**
+
 # ── General Kotlin ────────────────────────────────────────────
 -keepattributes Signature
 -keepattributes *Annotation*
