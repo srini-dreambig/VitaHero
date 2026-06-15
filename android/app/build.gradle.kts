@@ -12,7 +12,7 @@ android {
 
     defaultConfig {
         applicationId = "com.rork.vitahero"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
@@ -72,6 +72,7 @@ dependencies {
     implementation(libs.room.ktx)
     ksp(libs.room.compiler)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.health.connect.client)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

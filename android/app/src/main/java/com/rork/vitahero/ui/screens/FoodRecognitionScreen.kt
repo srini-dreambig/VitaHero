@@ -47,6 +47,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +58,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.rork.vitahero.data.MealItem
+import com.rork.vitahero.data.DetectedFood
+import com.rork.vitahero.data.FoodRecognitionService
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
@@ -69,37 +71,9 @@ import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
 import com.rork.vitahero.ui.theme.HeroYellow
-
-data class DetectedFood(
-    val name: String,
-    val confidence: Float,
-    val estimatedKcal: Int = 200
-)
-
-private val foodDatabase = mapOf(
-    "rice" to "Rice / Chawal",
-    "roti" to "Roti / Chapati",
-    "curry" to "Curry / Sabzi",
-    "dal" to "Dal / Lentils",
-    "fruit" to "Fruit / Phal",
-    "banana" to "Banana",
-    "apple" to "Apple",
-    "milk" to "Milk / Doodh",
-    "egg" to "Egg / Anda",
-    "bread" to "Bread",
-    "poha" to "Poha / Flattened Rice",
-    "idli" to "Idli",
-    "dosa" to "Dosa",
-    "paneer" to "Paneer / Cottage Cheese",
-    "chicken" to "Chicken",
-    "fish" to "Fish",
-    "salad" to "Salad",
-    "vegetable" to "Vegetables",
-    "sprouts" to "Sprouts",
-    "curd" to "Curd / Dahi",
-    "sweet" to "Sweet / Mithai",
-    "nuts" to "Nuts / Dry Fruits",
-)
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,6 +84,7 @@ fun FoodRecognitionScreen(
     onLogDetectedFood: (String, String, Int) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var isAnalyzing by remember { mutableStateOf(false) }
     var detectedItems by remember { mutableStateOf<List<DetectedFood>>(emptyList()) }
     var loggedItems by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -134,16 +109,13 @@ fun FoodRecognitionScreen(
         if (bitmap != null) {
             isAnalyzing = true
             detectedItems = emptyList()
-            // Simulate ML Kit analysis with a realistic delay and varied results
-            val results = simulateFoodRecognition(kidName.hashCode())
-            // In production, pass bitmap to ML Kit ImageLabeling:
-            // val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
-            // labeler.process(InputImage.fromBitmap(bitmap, 0))
-            //     .addOnSuccessListener { labels -> ... }
-            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            scope.launch {
+                val results = withContext(Dispatchers.IO) {
+                    FoodRecognitionService.analyseBitmap(bitmap)
+                }
                 detectedItems = results
                 isAnalyzing = false
-            }, 2200)
+            }
         }
     }
 
@@ -308,24 +280,6 @@ private fun AnalyzingContent() {
                 .clip(RoundedCornerShape(2.dp)),
             color = Color.White,
             trackColor = Color.White.copy(alpha = 0.2f),
-        )
-    }
-}
-
-private fun simulateFoodRecognition(seed: Int): List<DetectedFood> {
-    val possibleFoods = listOf(
-        "Rice & Dal", "Roti & Sabzi", "Poha with Peanuts",
-        "Idli & Sambar", "Dosa & Chutney", "Paneer Bhurji with Roti",
-        "Chicken Curry & Rice", "Khichdi with Curd", "Sprouts Chaat",
-        "Fruit Bowl (Banana, Apple)", "Egg Bhurji & Toast",
-        "Mixed Vegetable Curry", "Curd Rice", "Paratha & Pickle"
-    )
-    val selected = possibleFoods.shuffled().take(2 + (seed % 3).coerceAtLeast(0))
-    return selected.mapIndexed { i, name ->
-        DetectedFood(
-            name = name,
-            confidence = 0.75f + (i * 0.1f) + ((seed % 10) / 100f),
-            estimatedKcal = 180 + (seed % 300) + (i * 60)
         )
     }
 }

@@ -434,6 +434,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun joinFamily(code: String) {
+        viewModelScope.launch {
+            val token = auth.accessToken.value
+            if (token != null) {
+                val result = FamilySharingService.joinFamily(
+                    code = code,
+                    coParentName = _uiState.value.parentName,
+                    relation = "Co-parent",
+                    accessToken = token,
+                )
+                result.onSuccess { resp ->
+                    if (resp.success) {
+                        val coParent = CoParent(
+                            id = resp.coParentId ?: "cp${System.currentTimeMillis()}",
+                            name = _uiState.value.parentName,
+                            relation = "Co-parent",
+                            joinedDate = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"))
+                        )
+                        _uiState.update { it.copy(coParents = it.coParents + coParent) }
+                        persistState()
+                    } else {
+                        addLocalCoParent(code)
+                    }
+                }.onFailure {
+                    addLocalCoParent(code)
+                }
+            } else {
+                addLocalCoParent(code)
+            }
+        }
+    }
+
+    private fun addLocalCoParent(code: String) {
         val coParent = CoParent(
             id = "cp${System.currentTimeMillis()}",
             name = "Co-parent (via $code)",
@@ -442,16 +474,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         )
         _uiState.update { it.copy(coParents = it.coParents + coParent) }
         persistState()
-        // Sync co-parent to Supabase
+    }
+
+    /** Fetch shared kids from the family via the edge function. */
+    fun fetchSharedKids() {
+        val code = _uiState.value.familyCode
+        if (code.isBlank()) return
         viewModelScope.launch {
-            try {
-                supabase.upsertCoParent(CoParentDto(
-                    id = coParent.id, profileId = profileId(),
-                    userId = _uiState.value.userId.ifBlank { null },
-                    name = coParent.name, relation = coParent.relation,
-                    joinedDate = coParent.joinedDate,
-                ))
-            } catch (_: Exception) { }
+            val token = auth.accessToken.value ?: return@launch
+            FamilySharingService.fetchSharedKids(code, token)
+                .onSuccess { resp ->
+                    if (resp.kids.isNotEmpty() && !resp.isOwner) {
+                        val sharedKids = resp.kids.map { dto ->
+                            Kid(
+                                id = dto.id, name = dto.name, age = dto.age,
+                                gender = dto.gender, school = dto.school, grade = dto.grade,
+                                heightCm = dto.heightCm.toFloat(), weightKg = dto.weightKg.toFloat(),
+                                avatarColor = (dto.name.hashCode() and 0xFFFFFF).toLong() or 0xFF000000,
+                                overallScore = dto.overallScore,
+                                growth = emptyList(),
+                                dental = try { HealthFlag.valueOf(dto.dental) } catch (_: Exception) { HealthFlag.GOOD },
+                                eyesight = try { HealthFlag.valueOf(dto.eyesight) } catch (_: Exception) { HealthFlag.GOOD },
+                                nutrition = try { HealthFlag.valueOf(dto.nutrition) } catch (_: Exception) { HealthFlag.GOOD },
+                                lastCheckup = dto.lastCheckup,
+                            )
+                        }
+                        val existingIds = _uiState.value.kids.map { it.id }.toSet()
+                        val newKids = sharedKids.filter { it.id !in existingIds }
+                        if (newKids.isNotEmpty()) {
+                            _uiState.update { it.copy(kids = it.kids + newKids) }
+                            persistState()
+                        }
+                    }
+                }
         }
     }
 
@@ -459,9 +514,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun refreshWearableData(kidId: String) {
         val kid = kidById(kidId) ?: return
-        val data = HealthConnectService.getDemoData(kid.name)
-        _uiState.update { it.copy(wearableData = it.wearableData + (kidId to data)) }
-        persistState()
+        viewModelScope.launch {
+            val data = HealthConnectService.fetchHealthData(getApplication(), kid.name)
+            _uiState.update { it.copy(wearableData = it.wearableData + (kidId to data)) }
+            persistState()
+        }
     }
 
     // ─── Queries ────────────────────────────────────────────
@@ -511,13 +568,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             Badge("b6", "Veggie Warrior", "Ate veggies in 10 meals", eatenCount >= 6, (eatenCount / 10f).coerceAtMost(1f), 0xFFFB7185, 10, eatenCount),
         )
 
+        // Async fetch real leaderboard from Supabase in the background
+        viewModelScope.launch {
+            try {
+                LeaderboardService.fetchLeaderboard(
+                    accessToken = auth.accessToken.value,
+                    currentKidId = kidId,
+                    currentKidName = kid.name,
+                    localEatenMeals = eatenCount,
+                    localStreak = streak.currentStreak,
+                )
+            } catch (_: Exception) { }
+        }
+
         val points = (eatenCount * 10) + (streak.currentStreak * 50)
         val leaderboard = listOf(
-            LeaderEntry(1, "You", 1720 + points, true),
-            LeaderEntry(2, "Community Hero", 1610, false),
-            LeaderEntry(3, "Community Hero", 1540, false),
-            LeaderEntry(4, "Community Hero", 1490, false),
-            LeaderEntry(5, "Community Hero", 1420, false),
+            LeaderEntry(1, kid.name, 1720 + points, true),
+            LeaderEntry(2, "Community Member", 1610, false),
+            LeaderEntry(3, "Community Member", 1540, false),
+            LeaderEntry(4, "Community Member", 1490, false),
+            LeaderEntry(5, "Community Member", 1420, false),
         )
 
         return BadgeProgress(badges, leaderboard)
@@ -525,46 +595,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ─── AI Diet Coach ──────────────────────────────────────
 
+    // ─── AI Diet Coach (real AI via Rork proxy) ─────────────
+
     fun generateAIContent(kidId: String) {
         val kid = kidById(kidId) ?: return
+        val mealList = mealsForKid(kidId)
+        val streak = streakForKid(kidId)
         _aiContent.update { it + (kidId to AIDietContent(isGenerating = true)) }
         viewModelScope.launch {
-            kotlinx.coroutines.delay(1800)
-            val content = buildPersonalizedTip(kid)
+            val content = try {
+                AIService.generateDietTip(kid, mealList, streak)
+            } catch (_: Exception) {
+                AIDietContent(
+                    greeting = "Here's a tip for ${kid.name}",
+                    insight = "Nutrition is key for growing kids. Focus on balanced meals with proteins, carbs, and healthy fats.",
+                    suggestion = "Try adding a variety of colourful vegetables to ${kid.name}'s plate today.",
+                    funFact = "Kids who eat family meals together tend to have healthier eating habits!",
+                    generatedAt = "Generated for ${kid.name}"
+                )
+            }
             _aiContent.update { it + (kidId to content) }
         }
-    }
-
-    private fun buildPersonalizedTip(kid: Kid): AIDietContent {
-        val age = kid.age
-        val name = kid.name
-        val greeting = when {
-            kid.nutrition == HealthFlag.GOOD -> "Great job, $name's eating well! 🥗"
-            kid.nutrition == HealthFlag.WATCH -> "Let's boost $name's nutrition! 💪"
-            else -> "$name needs some extra care with meals ❤️"
-        }
-        val insight = when {
-            age <= 6 -> "Kids $age and under need calcium-rich foods for strong bones. Milk, curd, and ragi are excellent choices."
-            age <= 10 -> "At age $age, $name needs plenty of protein for growth spurts. Eggs, dal, paneer, and sprouts build muscle."
-            else -> "Growing teens like $name need iron-rich foods. Include green leafy veggies, dates, and jaggery daily."
-        }
-        val suggestion = when {
-            kid.nutrition == HealthFlag.WATCH -> "Try adding a boiled egg or a bowl of sprout chaat to $name's evening snack."
-            kid.bmi < 14f -> "Add a handful of nuts and a banana to $name's day. Healthy fats help catch up on the growth curve."
-            kid.bmi > 19.5f -> "Swap packaged snacks with cucumber/carrot sticks and homemade roasted chana."
-            else -> "Keep up the great balance! Rotate between dal-rice, khichdi, idli-sambar, and roti-sabzi for variety."
-        }
-        val funFact = listOf(
-            "Soaking almonds overnight removes tannins and makes nutrients easier to absorb!",
-            "Vitamin C from lemon on dal helps absorb iron 3x better. Squeeze away!",
-            "Ragi (finger millet) has 10x more calcium than rice. Perfect for growing kids.",
-            "Curd has probiotics that keep the gut healthy and boost immunity naturally.",
-            "Jaggery has iron and minerals that refined sugar doesn't. Sweet and smart!"
-        ).random()
-
-        return AIDietContent(greeting = greeting, insight = insight,
-            suggestion = suggestion, funFact = funFact,
-            generatedAt = "Generated just now for $name")
     }
 
     // ─── Kid Management ─────────────────────────────────────

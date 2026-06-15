@@ -843,3 +843,48 @@ private val allTranslations = mapOf(
 fun tr(key: String, locale: AppLocale): String {
     return allTranslations[locale.code]?.get(key) ?: en[key] ?: key
 }
+
+/**
+ * Locale-aware string resolution for notifications and background tasks
+ * that don't have access to the Compose-based S.* system.
+ * Provides key-value lookup with English fallback for all supported locales.
+ */
+object LocaleStrings {
+
+    private val notifEn = mapOf(
+        "notif_camp_title" to "Camp Coming Up!",
+        "notif_camp_body" to "{camp} is in 2 days. Get the kids ready!",
+        "notif_checkup_title" to "Upcoming Appointment",
+        "notif_checkup_body" to "{kid} has a checkup with {doctor} today at {time}",
+        "notif_diet_title" to "Log {kid}'s Meals",
+        "notif_diet_body" to "Don't forget to mark today's meals for {kid}. Keep the streak going!",
+    )
+
+    private val notifHi = mapOf(
+        "notif_camp_title" to "\u0915\u0948\u0902\u092A \u0906\u0928\u0947 \u0935\u093E\u0932\u093E \u0939\u0948!",
+        "notif_camp_body" to "{camp} 2 \u0926\u093F\u0928\u094B\u0902 \u092E\u0947\u0902 \u0939\u0948\u0964 \u092C\u091A\u094D\u091A\u094B\u0902 \u0915\u094B \u0924\u0948\u092F\u093E\u0930 \u0915\u0930\u0947\u0902!",
+        "notif_checkup_title" to "\u0906\u0917\u093E\u092E\u0940 \u0905\u092A\u0949\u0907\u0902\u091F\u092E\u0947\u0902\u091F",
+        "notif_checkup_body" to "{kid} \u0915\u0940 {doctor} \u0915\u0947 \u0938\u093E\u0925 \u0906\u091C {time} \u092C\u091C\u0947 \u091A\u0947\u0915\u0905\u092A \u0939\u0948",
+        "notif_diet_title" to "{kid} \u0915\u093E \u0916\u093E\u0928\u093E \u0932\u0949\u0917 \u0915\u0930\u0947\u0902",
+        "notif_diet_body" to "{kid} \u0915\u0947 \u0932\u093F\u090F \u0906\u091C \u0915\u093E \u0916\u093E\u0928\u093E \u092E\u093E\u0930\u094D\u0915 \u0915\u0930\u0928\u093E \u0928 \u092D\u0942\u0932\u0947\u0902\u0964 \u0938\u094D\u091F\u094D\u0930\u0940\u0915 \u091C\u093E\u0930\u0940 \u0930\u0916\u0947\u0902!",
+    )
+
+    private val notifTe = mapOf(
+        "notif_camp_title" to "\u0C15\u0C4D\u0C2F\u0C3E\u0C02\u0C2A\u0C41 \u0C30\u0C3E\u0C2C\u0C4B\u0C24\u0C4B\u0C02\u0C26\u0C3F!",
+        "notif_camp_body" to "{camp} 2 \u0C30\u0C4B\u0C1C\u0C41\u0C32\u0C4D\u0C32\u0C4B \u0C09\u0C02\u0C26\u0C3F. \u0C2A\u0C3F\u0C32\u0C4D\u0C32\u0C32\u0C28\u0C41 \u0C38\u0C3F\u0C26\u0C4D\u0C27\u0C02 \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F!",
+        "notif_checkup_title" to "\u0C30\u0C3E\u0C2C\u0C4B\u0C2F\u0C47 \u0C05\u0C2A\u0C3E\u0C2F\u0C3F\u0C02\u0C1F\u0C4D\u200C\u0C2E\u0C46\u0C02\u0C1F\u0C4D",
+        "notif_checkup_body" to "{kid} \u0C15\u0C3F {doctor} \u0C24\u0C4B \u0C08\u0C30\u0C4B\u0C1C\u0C41 {time} \u0C15\u0C3F \u0C1A\u0C46\u0C15\u0C2A\u0C4D \u0C09\u0C02\u0C26\u0C3F",
+        "notif_diet_title" to "{kid} \u0C2D\u0C4B\u0C1C\u0C28\u0C3E\u0C28\u0C4D\u0C28\u0C3F \u0C32\u0C3E\u0C17\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
+        "notif_diet_body" to "{kid} \u0C15\u0C4B\u0C38\u0C02 \u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C2D\u0C4B\u0C1C\u0C28\u0C3E\u0C28\u0C4D\u0C28\u0C3F \u0C17\u0C41\u0C30\u0C4D\u0C24\u0C3F\u0C02\u0C1A\u0C21\u0C02 \u0C2E\u0C30\u0C4D\u0C1A\u0C3F\u0C2A\u0C4B\u0C35\u0C26\u0C4D\u0C26\u0C41. \u0C38\u0C4D\u0C1F\u0C4D\u0C30\u0C40\u0C15\u0C4D \u0C15\u0C4A\u0C28\u0C38\u0C3E\u0C17\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F!",
+    )
+
+    private val notifStrings: Map<AppLocale, Map<String, String>> = mapOf(
+        AppLocale.ENGLISH to notifEn,
+        AppLocale.HINDI to notifHi,
+        AppLocale.TELUGU to notifTe,
+    )
+
+    fun get(locale: AppLocale, key: String, fallback: String = ""): String {
+        return notifStrings[locale]?.get(key) ?: notifStrings[AppLocale.ENGLISH]?.get(key) ?: fallback
+    }
+}

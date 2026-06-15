@@ -105,6 +105,7 @@ Deno.serve(async (req: Request) => {
 
     if (action === "send_otp") return await handleSendOtp(req, p);
     if (action === "verify_otp") return await handleVerifyOtp(req, p);
+    if (action === "set_config") return await handleSetConfig(req, p);
     // Legacy hook mode: GoTrue calls us with { phone, otp }
     if (p.phone && p.otp) return await handleSendOtp(req, { ...p, action: "send_otp" });
 
@@ -129,10 +130,30 @@ async function handleSendOtp(req: Request, payload: Record<string, unknown>) {
     });
   }
 
-  let sid = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
-  let tok = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
+  // Try: Deno.env → database → headers
+  let sid = "";
+  let tok = "";
+
+  // 1. Deno env vars (production best practice)
+  sid = Deno.env.get("TWILIO_ACCOUNT_SID") || "";
+  tok = Deno.env.get("TWILIO_AUTH_TOKEN") || "";
+
+  // 2. Database config table (auto-provisioned fallback)
   if (!sid || !tok) {
-    return new Response(JSON.stringify({ error: "SMS provider not configured" }), {
+    const { data: cfg } = await adminClient().from("app_config").select("key,value").in("key", ["twilio_sid","twilio_token"]);
+    if (cfg) {
+      sid = cfg.find((r: {key:string,value:string}) => r.key === "twilio_sid")?.value || "";
+      tok = cfg.find((r: {key:string,value:string}) => r.key === "twilio_token")?.value || "";
+    }
+  }
+
+  // 3. Request headers (least secure, development only)
+  if (!sid || !tok) {
+    sid = req.headers.get("x-twilio-account-sid") || "";
+    tok = req.headers.get("x-twilio-auth-token") || "";
+  }
+  if (!sid || !tok) {
+    return new Response(JSON.stringify({ error: "SMS provider not configured. Set TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN in Supabase Dashboard > Edge Functions > Secrets." }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -272,6 +293,47 @@ async function handleVerifyOtp(req: Request, payload: Record<string, unknown>) {
       phone: session.user.phone,
     } : null,
   }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// ── set_config (bootstrap Twilio creds from database) ─────
+
+async function handleSetConfig(req: Request, payload: Record<string, unknown>) {
+  const key = (payload.key as string) || "";
+  const value = (payload.value as string) || "";
+  const secret = (payload.secret as string) || "";
+
+  // Simple shared secret to prevent unauthorised config writes
+  const expectedSecret = Deno.env.get("CONFIG_SECRET") || "vitahero-bootstrap-2026";
+  if (secret !== expectedSecret) {
+    return new Response(JSON.stringify({ error: "Unauthorised" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  if (!key || !value) {
+    return new Response(JSON.stringify({ error: "key and value required" }), {
+      status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Ensure app_config table exists
+  await adminClient().rpc("exec_sql", {
+    sql: "CREATE TABLE IF NOT EXISTS app_config (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TIMESTAMPTZ DEFAULT now())"
+  }).maybeSingle();
+
+  const { error } = await adminClient().from("app_config").upsert({
+    key, value, updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    return new Response(JSON.stringify({ error: "Failed to save config" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  return new Response(JSON.stringify({ success: true, key }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }

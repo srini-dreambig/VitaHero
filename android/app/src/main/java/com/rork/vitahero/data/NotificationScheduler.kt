@@ -38,6 +38,18 @@ object NotificationScheduler {
         ).forEach { nm.createNotificationChannel(it) }
     }
 
+    /** Resolve a locale-aware string for notifications. */
+    private fun resolveLocale(context: Context, key: String, fallback: String): String {
+        return try {
+            val storage = StorageService(context)
+            val state = storage.load()
+            val locale = AppLocale.entries.firstOrNull { it.code == state.localeCode } ?: AppLocale.ENGLISH
+            LocaleStrings.get(locale, key, fallback)
+        } catch (_: Exception) {
+            fallback
+        }
+    }
+
     fun scheduleCampReminder(context: Context, campTitle: String, campDate: String, campTime: String) {
         val calendar: Calendar = try {
             val sdf = SimpleDateFormat("dd MMM yyyy hh:mm a", Locale.US)
@@ -52,9 +64,13 @@ object NotificationScheduler {
 
         if (calendar.timeInMillis <= System.currentTimeMillis()) return
 
+        val title = resolveLocale(context, "notif_camp_title", "Camp Coming Up!")
+        val body = resolveLocale(context, "notif_camp_body", "$campTitle is in 2 days. Get the kids ready!")
+            .replace("{camp}", campTitle)
+
         val intent = Intent(context, NotificationReceiver::class.java).apply {
-            putExtra("title", "Camp Coming Up!")
-            putExtra("body", "$campTitle is in 2 days. Get the kids ready!")
+            putExtra("title", title)
+            putExtra("body", body)
             putExtra("channelId", CHANNEL_CAMP)
             putExtra("notifId", campTitle.hashCode())
         }
@@ -78,9 +94,13 @@ object NotificationScheduler {
 
         if (calendar.timeInMillis <= System.currentTimeMillis()) return
 
+        val title = resolveLocale(context, "notif_checkup_title", "Upcoming Appointment")
+        val body = resolveLocale(context, "notif_checkup_body", "{kid} has a checkup with {doctor} today at {time}")
+            .replace("{kid}", kidName).replace("{doctor}", doctorName).replace("{time}", time)
+
         val intent = Intent(context, NotificationReceiver::class.java).apply {
-            putExtra("title", "Upcoming Appointment")
-            putExtra("body", "$kidName has a checkup with $doctorName today at $time")
+            putExtra("title", title)
+            putExtra("body", body)
             putExtra("channelId", CHANNEL_CHECKUP)
             putExtra("notifId", (doctorName + date).hashCode())
         }
@@ -93,17 +113,21 @@ object NotificationScheduler {
     }
 
     fun scheduleDietReminder(context: Context, kidName: String, kidId: String) {
-        // Schedule daily reminders
         val calendar = Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, 19) // 7 PM
+            set(Calendar.HOUR_OF_DAY, 19)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
             if (before(Calendar.getInstance())) add(Calendar.DAY_OF_YEAR, 1)
         }
 
+        val title = resolveLocale(context, "notif_diet_title", "Log {kid}'s Meals")
+            .replace("{kid}", kidName)
+        val body = resolveLocale(context, "notif_diet_body", "Don't forget to mark today's meals for {kid}. Keep the streak going!")
+            .replace("{kid}", kidName)
+
         val intent = Intent(context, NotificationReceiver::class.java).apply {
-            putExtra("title", "Log $kidName's Meals")
-            putExtra("body", "Don't forget to mark today's meals for $kidName. Keep the streak going!")
+            putExtra("title", title)
+            putExtra("body", body)
             putExtra("channelId", CHANNEL_DIET)
             putExtra("notifId", kidId.hashCode())
         }
