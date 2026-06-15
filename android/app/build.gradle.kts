@@ -17,7 +17,16 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // Supabase configuration is loaded at runtime from Rork public env vars
+        // Rork public env vars → BuildConfig (safe for client)
+        buildConfigField("String", "SUPABASE_URL", "\"${System.getenv("EXPO_PUBLIC_SUPABASE_URL") ?: ""}\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"${System.getenv("EXPO_PUBLIC_SUPABASE_ANON_KEY") ?: ""}\"")
+        buildConfigField("String", "TOOLKIT_URL", "\"${System.getenv("EXPO_PUBLIC_TOOLKIT_URL") ?: ""}\"")
+        buildConfigField("String", "TOOLKIT_SECRET_KEY", "\"${System.getenv("EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY") ?: ""}\"")
+        buildConfigField("String", "PROJECT_ID", "\"${System.getenv("EXPO_PUBLIC_PROJECT_ID") ?: ""}\"")
+        buildConfigField("String", "RORK_API_BASE_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_API_BASE_URL") ?: ""}\"")
+        buildConfigField("String", "RORK_AUTH_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_AUTH_URL") ?: ""}\"")
+        buildConfigField("String", "RORK_FUNCTIONS_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_FUNCTIONS_URL") ?: ""}\"")
+        buildConfigField("String", "TEAM_ID", "\"${System.getenv("EXPO_PUBLIC_TEAM_ID") ?: ""}\"")
     }
 
     buildTypes {

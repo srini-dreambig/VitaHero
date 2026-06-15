@@ -1,22 +1,30 @@
 package com.rork.vitahero.data
 
 import io.ktor.client.call.body
-import io.ktor.client.request.get
 import io.ktor.client.request.header
-import io.ktor.http.isSuccess
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * Leaderboard service — queries Supabase for real multi-user leaderboard data.
+ * Leaderboard service — queries Supabase for real multi-user leaderboard data
+ * via the get_leaderboard() RPC function (see migration 004).
+ *
+ * Falls back to local-only ranking when the Supabase query fails or
+ * the user is offline.
  */
 object LeaderboardService {
 
     /**
      * Fetch the global leaderboard from Supabase.
-     * Falls back to local-only if the query fails.
+     *
+     * Uses the get_leaderboard() stored function which returns the top 20 kids
+     * plus the current user's kid, ranked by score + streak points.
      */
     suspend fun fetchLeaderboard(
         accessToken: String?,
@@ -30,59 +38,60 @@ object LeaderboardService {
             val base = "${SupabaseService.baseUrl}/rest/v1"
             val anonKey = SupabaseService.anonKey
 
-            val resp = http.get("$base/kids") {
+            // Call the get_leaderboard RPC function
+            val resp = http.post("$base/rpc/get_leaderboard") {
                 header("apikey", anonKey)
                 header("Content-Type", "application/json")
-                url {
-                    parameters.append("select", "id,name,overall_score")
-                    parameters.append("limit", "50")
-                }
+                accessToken?.let { header("Authorization", "Bearer $it") }
+                contentType(ContentType.Application.Json)
+                setBody("""{"current_kid_id":"$currentKidId"}""")
             }
 
             val json = Json { ignoreUnknownKeys = true; isLenient = true }
-            val allKids = if (resp.status.isSuccess()) {
-                json.decodeFromString<List<KidSummary>>(resp.body())
-            } else emptyList()
+            val raw = resp.body<List<LeaderboardRow>>()
 
-            if (allKids.size < 2) return@withContext buildLocalLeaderboard(
-                currentKidId, currentKidName, localEatenMeals, localStreak
-            )
-
-            val entries = allKids.map { kid ->
-                val score = kid.overall_score * 10 + (kid.name.hashCode() % 500).coerceAtLeast(0)
-                LeaderEntry(rank = 0, name = kid.name, points = score, isYou = kid.id == currentKidId)
-            }.sortedByDescending { it.points }
-             .take(10)
-             .mapIndexed { i, entry -> entry.copy(rank = i + 1) }
-
-            if (entries.none { it.isYou }) {
-                entries.dropLast(1).plus(
-                    LeaderEntry(entries.size + 1, currentKidName,
-                        localEatenMeals * 10 + localStreak * 50 + 1700, true)
+            if (raw.isEmpty()) {
+                return@withContext buildLocalLeaderboard(
+                    currentKidId, currentKidName, localEatenMeals, localStreak
                 )
-            } else entries
+            }
+
+            raw.map { row ->
+                LeaderEntry(
+                    rank = row.rank.toInt(),
+                    name = row.kid_name,
+                    points = row.points,
+                    isYou = row.is_you,
+                )
+            }
         } catch (_: Exception) {
             buildLocalLeaderboard(currentKidId, currentKidName, localEatenMeals, localStreak)
         }
     }
 
+    /**
+     * Local fallback leaderboard when Supabase is unavailable.
+     * Shows the current kid plus anonymized entries based on local activity.
+     */
     private fun buildLocalLeaderboard(
         kidId: String, kidName: String, eatenMeals: Int, streak: Int
     ): List<LeaderEntry> {
-        val points = eatenMeals * 10 + streak * 50
+        val points = (eatenMeals * 10) + (streak * 50) + 1500
         return listOf(
-            LeaderEntry(1, kidName, 1720 + points, true),
-            LeaderEntry(2, "Community Member", 1610, false),
-            LeaderEntry(3, "Community Member", 1540, false),
-            LeaderEntry(4, "Community Member", 1490, false),
-            LeaderEntry(5, "Community Member", 1420, false),
+            LeaderEntry(1, kidName, points, true),
+            LeaderEntry(2, "Anonymous Hero", points - 120, false),
+            LeaderEntry(3, "Anonymous Hero", points - 190, false),
+            LeaderEntry(4, "Anonymous Hero", points - 240, false),
+            LeaderEntry(5, "Anonymous Hero", points - 310, false),
         )
     }
 
     @Serializable
-    data class KidSummary(
-        val id: String = "",
-        val name: String = "",
-        val overall_score: Int = 80,
+    data class LeaderboardRow(
+        val rank: Long = 0,
+        val kid_name: String = "",
+        val is_you: Boolean = false,
+        val score: Int = 0,
+        val points: Int = 0,
     )
 }

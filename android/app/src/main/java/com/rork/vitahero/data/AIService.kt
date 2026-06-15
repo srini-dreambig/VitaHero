@@ -1,6 +1,6 @@
 package com.rork.vitahero.data
 
-import com.rork.vitahero.Config
+import com.rork.vitahero.BuildConfig
 import io.ktor.client.call.body
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -24,11 +24,8 @@ import kotlinx.serialization.json.put
  */
 object AIService {
 
-    private val toolkitUrl: String
-        get() = Config.allValues["EXPO_PUBLIC_TOOLKIT_URL"] ?: ""
-
-    private val toolkitKey: String
-        get() = Config.allValues["EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY"] ?: ""
+    private val toolkitUrl: String get() = BuildConfig.TOOLKIT_URL
+    private val toolkitKey: String get() = BuildConfig.TOOLKIT_SECRET_KEY
 
     private const val MODEL = "openai/gpt-4.1-nano"
 

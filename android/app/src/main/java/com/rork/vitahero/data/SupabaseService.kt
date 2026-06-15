@@ -1,6 +1,6 @@
 package com.rork.vitahero.data
 
-import com.rork.vitahero.Config
+import com.rork.vitahero.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -25,6 +25,6 @@ object SupabaseService {
         }
     }
 
-    val baseUrl: String get() = Config.allValues["EXPO_PUBLIC_SUPABASE_URL"] ?: ""
-    val anonKey: String get() = Config.allValues["EXPO_PUBLIC_SUPABASE_ANON_KEY"] ?: ""
+    val baseUrl: String get() = BuildConfig.SUPABASE_URL
+    val anonKey: String get() = BuildConfig.SUPABASE_ANON_KEY
 }
