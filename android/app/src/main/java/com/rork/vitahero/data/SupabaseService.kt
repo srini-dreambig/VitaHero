@@ -25,6 +25,8 @@ object SupabaseService {
         }
     }
 
-    val baseUrl: String get() = BuildConfig.SUPABASE_URL
+    val baseUrl: String get() = BuildConfig.SUPABASE_URL.ifBlank { "https://klmgvvsikkhzgfxfujua.supabase.co" }
     val anonKey: String get() = BuildConfig.SUPABASE_ANON_KEY
+    
+    val isConfigured: Boolean get() = baseUrl.isNotBlank() && anonKey.isNotBlank()
 }

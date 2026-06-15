@@ -34,9 +34,9 @@ class MainActivity : ComponentActivity() {
     ) { /* User returned from Settings — alarms may now be schedulable */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         NotificationScheduler.createChannels(this)
-        super.onCreate(savedInstanceState)
 
         // Android 13+: Request POST_NOTIFICATIONS at runtime
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
