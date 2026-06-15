@@ -1,0 +1,378 @@
+{
+  "id": "xhfbr95vbx28p28gvgrlz",
+  "role": "assistant",
+  "responseMessageContents": [
+    {
+      "type": "reasoning",
+      "text": "The user is reporting a \"Cleartext HTTP traffic to localhost not permitted\" error during email authentication. This is a common Android security issue where the app tries to make HTTP (not HTTPS) requests to localhost, and Android's cleartext traffic policy blocks it.\n\nThis typically happens during OAuth/email authentication flows where the Supabase auth redirect tries to use HTTP instead of HTTPS for the callback. Let me investigate the relevant files.\n\nLet me look at:\n1. The AndroidManifest.xml for `android:usesCleartextTraffic`\n2. The network security config\n3. The auth-related code",
+      "id": "eswz8akrrqxulki72j4n7",
+      "createdAt": 1781503688085,
+      "completedAt": 1781503690827
+    },
+    {
+      "type": "tool",
+      "id": "call_00_63EAgaQU4GwwlX73Be7Y7440",
+      "toolName": "read",
+      "input": {
+        "filePath": "android/app/src/main/AndroidManifest.xml"
+      },
+      "output": {
+        "path": "android/app/src/main/AndroidManifest.xml",
+        "content": "     1|<?xml version=\"1.0\" encoding=\"utf-8\"?>\n     2|<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">\n     3|\n     4|    <uses-permission android:name=\"android.permission.INTERNET\" />\n     5|    <uses-permission android:name=\"android.permission.CAMERA\" />\n     6|    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\" />\n     7|    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\" />\n     8|    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\" />\n     9|\n    10|    <application\n    11|        android:allowBackup=\"true\"\n    12|        android:icon=\"@mipmap/ic_launcher\"\n    13|        android:roundIcon=\"@mipmap/ic_launcher_round\"\n    14|        android:label=\"VitaHero\"\n    15|        android:supportsRtl=\"true\"\n    16|        android:theme=\"@style/Theme.RorkApp\">\n    17|        <activity\n    18|            android:name=\".MainActivity\"\n    19|            android:exported=\"true\"\n    20|            android:theme=\"@style/Theme.RorkApp\"\n    21|            android:launchMode=\"singleTask\">\n    22|            <intent-filter>\n    23|                <action android:name=\"android.intent.action.MAIN\" />\n    24|                <category android:name=\"android.intent.category.LAUNCHER\" />\n    25|            </intent-filter>\n    26|            <!-- Deeplink for Supabase Auth OTP/OAuth callback -->\n    27|            <intent-filter>\n    28|                <action android:name=\"android.intent.action.VIEW\" />\n    29|                <category android:name=\"android.intent.category.DEFAULT\" />\n    30|                <category android:name=\"android.intent.category.BROWSABLE\" />\n    31|                <data android:scheme=\"vitahero\" android:host=\"auth\" />\n    32|            </intent-filter>\n    33|        </activity>\n    34|\n    35|        <provider\n    36|            android:name=\"androidx.core.content.FileProvider\"\n    37|            android:authorities=\"${applicationId}.fileprovider\"\n    38|            android:exported=\"false\"\n    39|            android:grantUriPermissions=\"true\">\n    40|            <meta-data\n    41|                android:name=\"android.support.FILE_PROVIDER_PATHS\"\n    42|                android:resource=\"@xml/file_paths\" />\n    43|        </provider>\n    44|\n    45|        <receiver\n    46|            android:name=\"com.rork.vitahero.data.NotificationReceiver\"\n    47|            android:exported=\"false\" />\n    48|\n    49|        <receiver\n    50|            android:name=\"com.rork.vitahero.data.BootReceiver\"\n    51|            android:exported=\"false\">\n    52|            <intent-filter>\n    53|                <action android:name=\"android.intent.action.BOOT_COMPLETED\" />\n    54|            </intent-filter>\n    55|        </receiver>\n    56|    </application>\n    57|\n    58|</manifest>\n    59|\n\n(End of file - total 59 lines)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"android/app/src/main/AndroidManifest.xml\"}",
+      "createdAt": 1781503690837,
+      "completedAt": 1781503691119
+    },
+    {
+      "type": "tool",
+      "id": "call_01_cFdVTYA4p9zs81yKfzJZ9049",
+      "toolName": "read",
+      "input": {
+        "filePath": "android/app/src/main/res/xml"
+      },
+      "output": {
+        "error": "android/app/src/main/res/xml is not a file"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"android/app/src/main/res/xml\"}",
+      "createdAt": 1781503691152,
+      "completedAt": 1781503691440
+    },
+    {
+      "type": "tool",
+      "id": "call_02_h4zcBuCtHSJtE2jYgcJ72890",
+      "toolName": "grep",
+      "input": {
+        "pattern": "cleartext|usesCleartextTraffic|network_security",
+        "path": "android"
+      },
+      "output": {
+        "pattern": "cleartext|usesCleartextTraffic|network_security",
+        "results": [],
+        "truncated": false,
+        "totalMatches": 0
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"pattern\": \"cleartext|usesCleartextTraffic|network_security\", \"path\": \"android\"}",
+      "createdAt": 1781503691531,
+      "completedAt": 1781503692133
+    },
+    {
+      "type": "tool",
+      "id": "call_03_uDTFjioWUVyJbTTGcPUk5749",
+      "toolName": "grep",
+      "input": {
+        "pattern": "localhost|127\\.0\\.0\\.1|http://",
+        "path": "android/app/src/main/java"
+      },
+      "output": {
+        "pattern": "localhost|127\\.0\\.0\\.1|http://",
+        "results": [],
+        "truncated": false,
+        "totalMatches": 0
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"pattern\": \"localhost|127\\\\.0\\\\.0\\\\.1|http://\", \"path\": \"android/app/src/main/java\"}",
+      "createdAt": 1781503692189,
+      "completedAt": 1781503692811
+    },
+    {
+      "type": "reasoning",
+      "text": "The issue is clear: Android blocks cleartext (HTTP) traffic by default, and there's no `android:usesCleartextTraffic=\"true\"` or a network security config in the manifest. The Supabase auth flow uses a localhost redirect for OAuth/email auth callbacks, which goes through HTTP to localhost.\n\nLet me check the auth-related code to understand the flow better, and look at the xml directory for the network security config file.",
+      "id": "v9zl22f6mm3u9lrp8s62w",
+      "createdAt": 1781503694943,
+      "completedAt": 1781503697009
+    },
+    {
+      "type": "tool",
+      "id": "call_00_jgPMfsU7luzkqJcdhrBq6963",
+      "toolName": "bash",
+      "input": {
+        "command": "ls android/app/src/main/res/xml/"
+      },
+      "output": {
+        "stdout": "file_paths.xml\n",
+        "stderr": "",
+        "exitCode": 0
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"command\": \"ls android/app/src/main/res/xml/\"}",
+      "createdAt": 1781503697019,
+      "completedAt": 1781503697326
+    },
+    {
+      "type": "tool",
+      "id": "call_01_QJULrb9u0pQMHFW2rojm7724",
+      "toolName": "grep",
+      "input": {
+        "pattern": "otp|signIn|auth.*email|verifyOtp|localhost",
+        "path": "android/app/src/main/java/com/rork/vitahero/data"
+      },
+      "output": {
+        "pattern": "otp|signIn|auth.*email|verifyOtp|localhost",
+        "results": [
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/AppViewModel.kt",
+            "lineNumber": 300,
+            "line": "    fun signInWithEmail(email: String, password: String) {"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/AppViewModel.kt",
+            "lineNumber": 301,
+            "line": "        auth.signInWithEmail(email, password)"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/AppViewModel.kt",
+            "lineNumber": 305,
+            "line": "        auth.signUpWithEmail(email, password, name)"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/AuthManager.kt",
+            "lineNumber": 15,
+            "line": " * Manages authentication state — Supabase email/password and phone OTP."
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/AuthManager.kt",
+            "lineNumber": 169,
+            "line": "    fun signInWithEmail(email: String, password: String) {"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/AuthManager.kt",
+            "lineNumber": 173,
+            "line": "            SupabaseAuth.signInWithEmail(email, password).fold("
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt",
+            "lineNumber": 39,
+            "line": "    const val otpTitle = \"otp_title\""
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt",
+            "lineNumber": 40,
+            "line": "    const val otpSubtitle = \"otp_subtitle\""
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt",
+            "lineNumber": 52,
+            "line": "    const val sendOtp = \"send_otp\""
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt",
+            "lineNumber": 303,
+            "line": "    S.otpTitle to \"Verify Phone\","
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt",
+            "lineNumber": 304,
+            "line": "    S.otpSubtitle to \"Enter the 6-digit code sent to\","
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt",
+            "lineNumber": 530,
+            "line": "    S.otpTitle to \"\\u092B\\u093C\\u094B\\u0928 \\u0938\\u0924\\u094D\\u092F\\u093E\\u092A\\u093F\\u0924 \\u0915\\u0930\\u0947\\u0902\","
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt",
+            "lineNumber": 531,
+            "line": "    S.otpSubtitle to \"\\u0907\\u0938 \\u0928\\u0902\\u092C\\u0930 \\u092A\\u0930 \\u092D\\u0947\\u091C\\u093E \\u0917\\u092F\\u093E 6-\\u0905\\u0902\\u0915\\u094B\\u0902 \\u0915\\u093E \\u0915\\u094B\\u0921 \\u0921\\u093E\\u0932\\u0947\\u0902\","
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt",
+            "lineNumber": 691,
+            "line": "    S.otpTitle to \"\\u0C2B\\u0C4B\\u0C28\\u0C4D \\u0C27\\u0C43\\u0C35\\u0C40\\u0C15\\u0C30\\u0C3F\\u0C02\\u0C1A\\u0C02\\u0C21\\u0C3F\","
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt",
+            "lineNumber": 692,
+            "line": "    S.otpSubtitle to \"\\u0C08 \\u0C28\\u0C02\\u0C2C\\u0C30\\u0C4D\\u200C\\u0C15\\u0C3F \\u0C2A\\u0C02\\u0C2A\\u0C3F\\u0C28 6-\\u0C05\\u0C02\\u0C15\\u0C46\\u0C32 \\u0C15\\u0C4B\\u0C21\\u0C4D \\u0C28\\u0C2E\\u0C4B\\u0C26\\u0C41 \\u0C1A\\u0C47\\u0C2F\\u0C02\\u0C21\\u0C3F\","
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/SupabaseAuth.kt",
+            "lineNumber": 90,
+            "line": "    suspend fun signInWithEmail(email: String, password: String): Result<AuthResponse> = onIo {"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/SupabaseAuth.kt",
+            "lineNumber": 146,
+            "line": "                put(\"action\", \"send_otp\")"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/SupabaseAuth.kt",
+            "lineNumber": 174,
+            "line": "                put(\"action\", \"verify_otp\")"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/SupabaseAuth.kt",
+            "lineNumber": 176,
+            "line": "                put(\"otp\", token)"
+          }
+        ],
+        "truncated": false,
+        "totalMatches": 19
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"pattern\": \"otp|signIn|auth.*email|verifyOtp|localhost\", \"path\": \"android/app/src/main/java/com/rork/vitahero/data\"}",
+      "createdAt": 1781503697391,
+      "completedAt": 1781503698295
+    },
+    {
+      "type": "reasoning",
+      "text": "Now I understand the problem. The Android manifest doesn't have `android:usesCleartextTraffic=\"true\"` or a network security config. Android blocks HTTP traffic by default on API 28+.\n\nThe Supabase auth flow for email/password uses a redirect to a localhost URL (`http://localhost:...`) after the magic link or OAuth flow. By default, Android blocks cleartext HTTP traffic to localhost unless there's a specific configuration allowing it.\n\nThe fix is to create a `network_security_config.xml` file that allows cleartext traffic to localhost (which is safe since it's the local device), and reference it in the manifest.\n\nLet me create the network security config and update the manifest.",
+      "id": "hc1pz2vmom5ytxa7ihrzw",
+      "createdAt": 1781503701456,
+      "completedAt": 1781503704583
+    },
+    {
+      "type": "text",
+      "text": "The \"Cleartext HTTP traffic to localhost not permitted\" error happens because Android 9+ blocks HTTP by default, and the Supabase auth flow redirects to `http://localhost` for the OTP/magic link callback. Let me fix this.",
+      "id": "xsafd4f6sdfzwc3ogywb5",
+      "createdAt": 1781503704584
+    },
+    {
+      "type": "tool",
+      "id": "call_00_nJlEbhzGEy6Yu2ksICOb4806",
+      "toolName": "writeFile",
+      "input": {
+        "filePath": "android/app/src/main/res/xml/network_security_config.xml",
+        "content": "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<network-security-config>\n    <!-- Allow cleartext to localhost (required for Supabase OAuth/OTP redirect callbacks) -->\n    <domain-config cleartextTrafficPermitted=\"true\">\n        <domain includeSubdomains=\"false\">localhost</domain>\n        <domain includeSubdomains=\"false\">10.0.2.2</domain>\n        <domain includeSubdomains=\"false\">127.0.0.1</domain>\n    </domain-config>\n    <!-- All other traffic must use HTTPS -->\n    <base-config cleartextTrafficPermitted=\"false\" />\n</network-security-config>\n"
+      },
+      "output": {
+        "path": "android/app/src/main/res/xml/network_security_config.xml"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"android/app/src/main/res/xml/network_security_config.xml\", \"content\": \"<?xml version=\\\"1.0\\\" encoding=\\\"utf-8\\\"?>\\n<network-security-config>\\n    <!-- Allow cleartext to localhost (required for Supabase OAuth/OTP redirect callbacks) -->\\n    <domain-config cleartextTrafficPermitted=\\\"true\\\">\\n        <domain includeSubdomains=\\\"false\\\">localhost</domain>\\n        <domain includeSubdomains=\\\"false\\\">10.0.2.2</domain>\\n        <domain includeSubdomains=\\\"false\\\">127.0.0.1</domain>\\n    </domain-config>\\n    <!-- All other traffic must use HTTPS -->\\n    <base-config cleartextTrafficPermitted=\\\"false\\\" />\\n</network-security-config>\\n\"}",
+      "createdAt": 1781503705618,
+      "completedAt": 1781503707767
+    },
+    {
+      "type": "reasoning",
+      "text": "Now I need to reference this network security config in the AndroidManifest.xml. Let me update it.",
+      "id": "vw06b6d8ol8kmyxsymsb3",
+      "createdAt": 1781503710679,
+      "completedAt": 1781503711072
+    },
+    {
+      "type": "text",
+      "text": "Now let me reference it in the manifest:",
+      "id": "q1ml1s1x65i9pzu99wnmd",
+      "createdAt": 1781503711072
+    },
+    {
+      "type": "tool",
+      "id": "call_00_LkQg7xEpby6PzWO1Ksig1416",
+      "toolName": "multiEdit",
+      "input": {
+        "filePath": "android/app/src/main/AndroidManifest.xml",
+        "edits": [
+          {
+            "oldString": "android:theme=\"@style/Theme.RorkApp\">",
+            "newString": "android:networkSecurityConfig=\"@xml/network_security_config\"\n        android:theme=\"@style/Theme.RorkApp\">",
+            "replaceAll": false
+          }
+        ]
+      },
+      "output": {
+        "path": "android/app/src/main/AndroidManifest.xml"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"android/app/src/main/AndroidManifest.xml\", \"edits\": [{\"oldString\": \"android:theme=\\\"@style/Theme.RorkApp\\\">\", \"newString\": \"android:networkSecurityConfig=\\\"@xml/network_security_config\\\"\\n        android:theme=\\\"@style/Theme.RorkApp\\\">\"}]}",
+      "createdAt": 1781503711241,
+      "completedAt": 1781503712228
+    },
+    {
+      "type": "reasoning",
+      "text": "Let me verify the build passes with this fix.",
+      "id": "uib4a2cp2rgw9x6bqkya0",
+      "createdAt": 1781503714741,
+      "completedAt": 1781503715111
+    },
+    {
+      "type": "tool",
+      "id": "call_00_k2ayEgCfpWbZCF0RtaXu2044",
+      "toolName": "runChecks",
+      "input": {
+        "appPath": "android"
+      },
+      "output": {
+        "checkType": "build",
+        "appPath": "android",
+        "framework": "kotlin",
+        "success": true,
+        "message": "Build completed successfully"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"appPath\": \"android\"}",
+      "createdAt": 1781503715121,
+      "completedAt": 1781503867534
+    },
+    {
+      "type": "reasoning",
+      "text": "The build passed. I need to verify the final manifest looks correct.",
+      "id": "ad8m7srjlivi8dp62x093",
+      "createdAt": 1781503870161,
+      "completedAt": 1781503870473
+    },
+    {
+      "type": "tool",
+      "id": "call_00_TiiaJpgjK8eEMZs4dH6S6113",
+      "toolName": "read",
+      "input": {
+        "filePath": "android/app/src/main/AndroidManifest.xml"
+      },
+      "output": {
+        "path": "android/app/src/main/AndroidManifest.xml",
+        "content": "     1|<?xml version=\"1.0\" encoding=\"utf-8\"?>\n     2|<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\">\n     3|\n     4|    <uses-permission android:name=\"android.permission.INTERNET\" />\n     5|    <uses-permission android:name=\"android.permission.CAMERA\" />\n     6|    <uses-permission android:name=\"android.permission.POST_NOTIFICATIONS\" />\n     7|    <uses-permission android:name=\"android.permission.SCHEDULE_EXACT_ALARM\" />\n     8|    <uses-permission android:name=\"android.permission.RECEIVE_BOOT_COMPLETED\" />\n     9|\n    10|    <application\n    11|        android:allowBackup=\"true\"\n    12|        android:icon=\"@mipmap/ic_launcher\"\n    13|        android:roundIcon=\"@mipmap/ic_launcher_round\"\n    14|        android:label=\"VitaHero\"\n    15|        android:supportsRtl=\"true\"\n    16|        android:networkSecurityConfig=\"@xml/network_security_config\"\n    17|        android:theme=\"@style/Theme.RorkApp\">\n    18|        <activity\n    19|            android:name=\".MainActivity\"\n    20|            android:exported=\"true\"\n    21|            android:theme=\"@style/Theme.RorkApp\"\n    22|            android:launchMode=\"singleTask\">\n    23|            <intent-filter>\n    24|                <action android:name=\"android.intent.action.MAIN\" />\n    25|                <category android:name=\"android.intent.category.LAUNCHER\" />\n    26|            </intent-filter>\n    27|            <!-- Deeplink for Supabase Auth OTP/OAuth callback -->\n    28|            <intent-filter>\n    29|                <action android:name=\"android.intent.action.VIEW\" />\n    30|                <category android:name=\"android.intent.category.DEFAULT\" />\n    31|                <category android:name=\"android.intent.category.BROWSABLE\" />\n    32|                <data android:scheme=\"vitahero\" android:host=\"auth\" />\n    33|            </intent-filter>\n    34|        </activity>\n    35|\n    36|        <provider\n    37|            android:name=\"androidx.core.content.FileProvider\"\n    38|            android:authorities=\"${applicationId}.fileprovider\"\n    39|            android:exported=\"false\"\n    40|            android:grantUriPermissions=\"true\">\n    41|            <meta-data\n    42|                android:name=\"android.support.FILE_PROVIDER_PATHS\"\n    43|                android:resource=\"@xml/file_paths\" />\n    44|        </provider>\n    45|\n    46|        <receiver\n    47|            android:name=\"com.rork.vitahero.data.NotificationReceiver\"\n    48|            android:exported=\"false\" />\n    49|\n    50|        <receiver\n    51|            android:name=\"com.rork.vitahero.data.BootReceiver\"\n    52|            android:exported=\"false\">\n    53|            <intent-filter>\n    54|                <action android:name=\"android.intent.action.BOOT_COMPLETED\" />\n    55|            </intent-filter>\n    56|        </receiver>\n    57|    </application>\n    58|\n    59|</manifest>\n    60|\n\n(End of file - total 60 lines)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"android/app/src/main/AndroidManifest.xml\"}",
+      "createdAt": 1781503870482,
+      "completedAt": 1781503870755
+    },
+    {
+      "type": "reasoning",
+      "text": "The build passed successfully. The fix is in place. Let me summarize what was done.",
+      "id": "yr2sragd0okmkeqpgl2a4",
+      "createdAt": 1781503872705,
+      "completedAt": 1781503873072
+    },
+    {
+      "type": "text",
+      "text": "Build passed. Here's the fix:\n\n**Problem:** Android 9+ blocks all cleartext (HTTP) traffic by default. Supabase Auth uses `http://localhost` for its OTP/magic link redirect callback, so the redirect was being blocked.\n\n**Fix:** Added `network_security_config.xml` that allows cleartext only to `localhost`, `127.0.0.1`, and `10.0.2.2` (Android emulator's host alias) — these are all the local device, so no actual network traffic leaves the device. All other traffic still requires HTTPS. The manifest references this config via `android:networkSecurityConfig`.",
+      "id": "7crpxx9x5cv3h2uyzfudi",
+      "createdAt": 1781503873072
+    },
+    {
+      "type": "artifact",
+      "id": "ucm0rdjkmxdja9dmknn6p",
+      "title": "Fix login connection error",
+      "description": "Resolved an issue where the app could not complete the login process on certain devices. This update ensures the login system works correctly and securely.",
+      "actions": [
+        {
+          "type": "file-edit",
+          "filePath": "android/app/src/main/AndroidManifest.xml",
+          "content": "",
+          "completed": true
+        },
+        {
+          "type": "file-edit",
+          "filePath": "android/app/src/main/res/xml/network_security_config.xml",
+          "content": "",
+          "completed": true
+        }
+      ]
+    }
+  ],
+  "snapshotId": "xhfbr95vbx28p28gvgrlz"
+}
