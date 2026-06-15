@@ -162,7 +162,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         doctors = SampleData.doctors,
                         appointments = loadedApps,
                         notifications = SampleData.notifications,
-                        consentAccepted = saved.isLoggedIn || restored,
+                        consentAccepted = restored,
                         consentDeclined = saved.consentDeclined,
                         darkTheme = saved.darkTheme,
                         locale = restoredLocale,
@@ -179,12 +179,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     _meals.value = loadedMeals
                     _streaks.value = loadedStreaks
 
-                    if (!restored) {
-                        try { auth.setOnboardingComplete(saved.onboardingComplete) } catch (_: Exception) { }
-                        if (saved.isLoggedIn) {
-                            try { auth.login(saved.phone, saved.parentName) } catch (_: Exception) { }
-                        }
-                    }
+                    // Only real session tokens from SecureTokenStore can mark a user
+                    // as logged in. Never trust locally-persisted isLoggedIn/onboardingComplete
+                    // flags — they would let anyone bypass authentication.
 
                     // If user is authenticated, fetch real data from Neon DB
                     if (restored && auth.userId.value.isNotBlank()) {
