@@ -1,9 +1,8 @@
 package com.rork.vitahero.ui.navigation
 
-import androidx.compose.animation.AnimatedContentTransitionScope
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,7 +56,9 @@ private val OnboardingImages = listOf(
 )
 
 @Composable
-fun AppNavigation() {
+fun AppNavigation(
+    onGoogleSignInRequest: () -> Unit = {},
+) {
     val navController = rememberNavController()
     val appViewModel: AppViewModel = viewModel()
     val state by appViewModel.uiState.collectAsState()
@@ -112,25 +113,18 @@ fun AppNavigation() {
         }
 
         composable(Routes.AUTH) {
-            // Clear previous auth errors when entering auth screen
             LaunchedEffect(Unit) { appViewModel.clearAuthError() }
 
             AuthScreen(
                 isLoading = authLoading,
                 authError = authError,
+                onSignInWithGoogle = { onGoogleSignInRequest() },
                 onContinueWithPhone = { p ->
                     phone = p
                     pendingName = "Parent"
                     appViewModel.sendPhoneOtp(p)
-                    navController.navigate("otp/$p/${pendingName}")
+                    navController.navigate("otp/$p/$pendingName")
                 },
-                onContinueWithEmail = { email, password, name, isSignUp ->
-                    if (isSignUp) {
-                        appViewModel.signUpWithEmail(email, password, name)
-                    } else {
-                        appViewModel.signInWithEmail(email, password)
-                    }
-                }
             )
         }
 

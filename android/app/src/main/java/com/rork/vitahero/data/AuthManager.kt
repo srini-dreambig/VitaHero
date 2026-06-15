@@ -9,16 +9,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
- * Manages authentication state — Supabase email/password and phone OTP.
- * Persists tokens in EncryptedSharedPreferences so sessions survive
- * process death. Handles token refresh on app startup.
+ * Manages authentication state — Google Sign-In and phone OTP (Twilio).
+ * Persists session token in EncryptedSharedPreferences so sessions survive
+ * process death.
+ *
+ * No longer uses Supabase Auth — all auth goes through the Cloudflare Worker
+ * backed by Neon DB.
  */
 class AuthManager(private val app: Application) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val api = ApiRepository()
 
     private val _isLoggedIn = MutableStateFlow(false)
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
@@ -32,8 +35,8 @@ class AuthManager(private val app: Application) {
     private val _authLoading = MutableStateFlow(false)
     val authLoading: StateFlow<Boolean> = _authLoading.asStateFlow()
 
-    private val _accessToken = MutableStateFlow<String?>(null)
-    val accessToken: StateFlow<String?> = _accessToken.asStateFlow()
+    private val _sessionToken = MutableStateFlow<String?>(null)
+    val sessionToken: StateFlow<String?> = _sessionToken.asStateFlow()
 
     private val _userId = MutableStateFlow("")
     val userId: StateFlow<String> = _userId.asStateFlow()
@@ -44,71 +47,128 @@ class AuthManager(private val app: Application) {
     private val _phone = MutableStateFlow("")
     val phone: StateFlow<String> = _phone.asStateFlow()
 
-    private val _parentName = MutableStateFlow("Priya")
+    private val _parentName = MutableStateFlow("Parent")
     val parentName: StateFlow<String> = _parentName.asStateFlow()
 
     /** Try to restore a previous session from encrypted storage. */
     fun tryRestoreSession(): Boolean {
         return try {
-            val storedToken = SecureTokenStore.getAccessToken(app)
-            val storedRefresh = SecureTokenStore.getRefreshToken(app)
+            val storedToken = SecureTokenStore.getSessionToken(app)
             val storedUserId = SecureTokenStore.getUserId(app)
+            val storedName = SecureTokenStore.getParentName(app)
+            val storedPhone = SecureTokenStore.getPhone(app)
             if (storedToken != null && storedUserId != null) {
-                _accessToken.value = storedToken
+                _sessionToken.value = storedToken
                 _userId.value = storedUserId
                 _isLoggedIn.value = true
                 _onboardingComplete.value = true
-                // Try to refresh the token in the background
-                scope.launch {
-                    val result = SupabaseAuth.refreshToken(storedRefresh ?: "")
-                    result.onSuccess { resp ->
-                        _accessToken.value = resp.access_token
-                        SecureTokenStore.saveTokens(
-                            app, resp.access_token,
-                            resp.refresh_token, storedUserId
-                        )
-                    }.onFailure {
-                        // Token expired beyond refresh — clear session
-                        clearSession()
-                    }
-                }
+                if (storedName != null) _parentName.value = storedName
+                if (storedPhone != null) _phone.value = storedPhone
+                ApiService.sessionToken = storedToken
                 true
             } else false
-        } catch (e: Exception) {
-            // EncryptedSharedPreferences or Keystore unavailable — gracefully continue
+        } catch (_: Exception) {
             false
         }
     }
 
-    fun onEmailSignInSuccess(resp: SupabaseAuth.AuthResponse, name: String) {
-        _accessToken.value = resp.access_token
-        val user = resp.user
-        if (user != null) {
-            SecureTokenStore.saveTokens(app, resp.access_token, resp.refresh_token, user.id)
-            _userId.value = user.id
-            _email.value = user.email
-            _phone.value = user.phone ?: ""
-            _parentName.value = name.ifBlank { user.email.substringBefore('@') }
+    // ─── Google Sign-In ───────────────────────────────────────
+
+    /**
+     * Exchange a Google ID token for a session.
+     * Called after CredentialManager returns the ID token.
+     */
+    fun signInWithGoogle(idToken: String) {
+        _authLoading.value = true
+        _authError.value = null
+        scope.launch {
+            api.googleSignIn(idToken).fold(
+                onSuccess = { resp ->
+                    val token = resp.token
+                    val profile = resp.profile
+                    if (profile != null) {
+                        _sessionToken.value = token
+                        _userId.value = profile.user_id.ifBlank { profile.id }
+                        _email.value = profile.email ?: ""
+                        _parentName.value = profile.name.ifBlank { "Parent" }
+                        _phone.value = profile.phone ?: ""
+                        ApiService.sessionToken = token
+                        SecureTokenStore.saveSession(
+                            app, token,
+                            _userId.value,
+                            _parentName.value,
+                            _phone.value
+                        )
+                        _isLoggedIn.value = true
+                        _onboardingComplete.value = true
+                    } else {
+                        _authError.value = "Google sign-in response missing profile"
+                    }
+                    _authLoading.value = false
+                },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Google sign-in failed"
+                    _authLoading.value = false
+                }
+            )
         }
-        _isLoggedIn.value = true
-        _onboardingComplete.value = true
-        _authLoading.value = false
     }
 
-    fun onPhoneOtpSuccess(resp: SupabaseAuth.AuthResponse, rawPhone: String) {
-        _accessToken.value = resp.access_token
-        val user = resp.user
-        if (user != null) {
-            SecureTokenStore.saveTokens(app, resp.access_token, resp.refresh_token, user.id)
-            _userId.value = user.id
-            _email.value = user.email
-            _phone.value = user.phone ?: rawPhone
-            _parentName.value = user.user_metadata?.get("name") ?: "Parent"
+    // ─── Phone OTP ───────────────────────────────────────────
+
+    fun sendPhoneOtp(phone: String) {
+        _authLoading.value = true
+        _authError.value = null
+        scope.launch {
+            // Format phone with +91 prefix if not already present
+            val formatted = if (phone.startsWith("+")) phone else "+91$phone"
+            api.sendPhoneOtp(formatted).fold(
+                onSuccess = { _authLoading.value = false },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Failed to send OTP"
+                    _authLoading.value = false
+                }
+            )
         }
-        _isLoggedIn.value = true
-        _onboardingComplete.value = true
-        _authLoading.value = false
     }
+
+    fun verifyPhoneOtp(phone: String, otp: String) {
+        _authLoading.value = true
+        _authError.value = null
+        scope.launch {
+            val formatted = if (phone.startsWith("+")) phone else "+91$phone"
+            api.verifyPhoneOtp(formatted, otp).fold(
+                onSuccess = { resp ->
+                    val token = resp.token
+                    val profile = resp.profile
+                    if (profile != null) {
+                        _sessionToken.value = token
+                        _userId.value = profile.id
+                        _phone.value = profile.phone ?: phone
+                        _parentName.value = profile.name.ifBlank { "Parent" }
+                        ApiService.sessionToken = token
+                        SecureTokenStore.saveSession(
+                            app, token,
+                            _userId.value,
+                            _parentName.value,
+                            _phone.value
+                        )
+                        _isLoggedIn.value = true
+                        _onboardingComplete.value = true
+                    } else {
+                        _authError.value = "Phone verification response missing profile"
+                    }
+                    _authLoading.value = false
+                },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Invalid OTP"
+                    _authLoading.value = false
+                }
+            )
+        }
+    }
+
+    // ─── Legacy / Local login (kept for offline/demo fallback) ─
 
     fun login(phone: String, name: String = "") {
         _isLoggedIn.value = true
@@ -120,86 +180,31 @@ class AuthManager(private val app: Application) {
         _onboardingComplete.value = true
     }
 
+    // ─── Logout ──────────────────────────────────────────────
+
     fun logout() {
         scope.launch {
-            val token = _accessToken.value
-            _accessToken.value = null
-            if (token != null) {
-                try { SupabaseAuth.signOut(token) } catch (_: Exception) { }
-            }
+            try { api.logout() } catch (_: Exception) { }
         }
+        _sessionToken.value = null
+        ApiService.clearSession()
         SecureTokenStore.clear(app)
         _isLoggedIn.value = false
         _onboardingComplete.value = false
         _userId.value = ""
         _email.value = ""
+        _phone.value = ""
     }
 
     fun clearSession() {
+        _sessionToken.value = null
+        ApiService.clearSession()
         SecureTokenStore.clear(app)
         _isLoggedIn.value = false
-        _accessToken.value = null
         _userId.value = ""
-    }
-
-    fun sendPhoneOtp(phone: String) {
-        _authLoading.value = true
-        _authError.value = null
-        scope.launch {
-            SupabaseAuth.sendPhoneOtp("+91$phone").fold(
-                onSuccess = { _authLoading.value = false },
-                onFailure = { e ->
-                    _authError.value = e.message ?: "Failed to send OTP"
-                    _authLoading.value = false
-                }
-            )
-        }
-    }
-
-    fun verifyPhoneOtp(phone: String, token: String) {
-        _authLoading.value = true
-        _authError.value = null
-        scope.launch {
-            SupabaseAuth.verifyPhoneOtp("+91$phone", token).fold(
-                onSuccess = { resp -> onPhoneOtpSuccess(resp, phone) },
-                onFailure = { e ->
-                    _authError.value = e.message ?: "Invalid code"
-                    _authLoading.value = false
-                }
-            )
-        }
-    }
-
-    fun signInWithEmail(email: String, password: String) {
-        _authLoading.value = true
-        _authError.value = null
-        scope.launch {
-            SupabaseAuth.signInWithEmail(email, password).fold(
-                onSuccess = { resp -> onEmailSignInSuccess(resp, "") },
-                onFailure = { e ->
-                    _authError.value = e.message ?: "Sign in failed"
-                    _authLoading.value = false
-                }
-            )
-        }
-    }
-
-    fun signUpWithEmail(email: String, password: String, name: String) {
-        _authLoading.value = true
-        _authError.value = null
-        scope.launch {
-            SupabaseAuth.signUpWithEmail(email, password, name).fold(
-                onSuccess = { resp -> onEmailSignInSuccess(resp, name) },
-                onFailure = { e ->
-                    _authError.value = e.message ?: "Sign up failed"
-                    _authLoading.value = false
-                }
-            )
-        }
     }
 
     fun clearAuthError() { _authError.value = null }
     fun clearAuthLoading() { _authLoading.value = false }
-
     fun setOnboardingComplete(v: Boolean) { _onboardingComplete.value = v }
 }

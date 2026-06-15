@@ -7,25 +7,22 @@ import androidx.security.crypto.MasterKey
 
 /**
  * Encrypted token persistence using AndroidX Security Crypto.
- * Tokens survive process death and are stored in Android Keystore-backed
- * encrypted shared preferences.
+ * Stores session token (from Neon DB backend) and user profile info.
  *
  * On cloud emulators where the hardware-backed Keystore may be unavailable,
- * gracefully falls back to regular SharedPreferences so the app doesn't
- * crash during startup.
+ * gracefully falls back to regular SharedPreferences.
  */
 object SecureTokenStore {
 
     private const val PREFS_NAME = "vitahero_secure_tokens"
     private const val FALLBACK_PREFS_NAME = "vitahero_tokens_fallback"
-    private const val KEY_ACCESS_TOKEN = "access_token"
-    private const val KEY_REFRESH_TOKEN = "refresh_token"
+    private const val KEY_SESSION_TOKEN = "session_token"
     private const val KEY_USER_ID = "user_id"
+    private const val KEY_PARENT_NAME = "parent_name"
+    private const val KEY_PHONE = "phone"
 
     @Volatile
     private var prefs: SharedPreferences? = null
-    @Volatile
-    private var useFallback = false
 
     private fun getPrefs(context: Context): SharedPreferences {
         val cached = prefs
@@ -45,7 +42,6 @@ object SecureTokenStore {
                         EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                     )
                 } catch (_: Exception) {
-                    useFallback = true
                     context.getSharedPreferences(FALLBACK_PREFS_NAME, Context.MODE_PRIVATE)
                 }
                 prefs = result
@@ -54,31 +50,44 @@ object SecureTokenStore {
         }
     }
 
-    fun saveTokens(context: Context, accessToken: String, refreshToken: String, userId: String) {
+    fun saveSession(
+        context: Context,
+        sessionToken: String,
+        userId: String,
+        parentName: String,
+        phone: String
+    ) {
         try {
             getPrefs(context).edit()
-                .putString(KEY_ACCESS_TOKEN, accessToken)
-                .putString(KEY_REFRESH_TOKEN, refreshToken)
+                .putString(KEY_SESSION_TOKEN, sessionToken)
                 .putString(KEY_USER_ID, userId)
+                .putString(KEY_PARENT_NAME, parentName)
+                .putString(KEY_PHONE, phone)
                 .apply()
         } catch (_: Exception) { }
     }
 
-    fun getAccessToken(context: Context): String? {
+    fun getSessionToken(context: Context): String? {
         return try {
-            getPrefs(context).getString(KEY_ACCESS_TOKEN, null)
-        } catch (_: Exception) { null }
-    }
-
-    fun getRefreshToken(context: Context): String? {
-        return try {
-            getPrefs(context).getString(KEY_REFRESH_TOKEN, null)
+            getPrefs(context).getString(KEY_SESSION_TOKEN, null)
         } catch (_: Exception) { null }
     }
 
     fun getUserId(context: Context): String? {
         return try {
             getPrefs(context).getString(KEY_USER_ID, null)
+        } catch (_: Exception) { null }
+    }
+
+    fun getParentName(context: Context): String? {
+        return try {
+            getPrefs(context).getString(KEY_PARENT_NAME, null)
+        } catch (_: Exception) { null }
+    }
+
+    fun getPhone(context: Context): String? {
+        return try {
+            getPrefs(context).getString(KEY_PHONE, null)
         } catch (_: Exception) { null }
     }
 

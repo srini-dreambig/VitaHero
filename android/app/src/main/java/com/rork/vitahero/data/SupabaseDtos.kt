@@ -11,6 +11,7 @@ data class ProfileDto(
     @SerialName("user_id") val userId: String? = null,
     val phone: String? = null,
     val name: String = "",
+    val email: String? = null,
     @SerialName("onboarding_complete") val onboardingComplete: Boolean = false,
     @SerialName("is_logged_in") val isLoggedIn: Boolean = false,
     @SerialName("dark_theme") val darkTheme: Boolean = false,
@@ -20,6 +21,7 @@ data class ProfileDto(
     @SerialName("camp_reminders_enabled") val campRemindersEnabled: Boolean = true,
     @SerialName("consent_accepted") val consentAccepted: Boolean = false,
     @SerialName("consent_declined") val consentDeclined: Boolean = false,
+    @SerialName("auth_provider") val authProvider: String? = null,
 )
 
 @Serializable

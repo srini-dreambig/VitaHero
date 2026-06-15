@@ -56,6 +56,7 @@ object S {
     const val loginHint = "login_hint"
     const val emailConfirmNote = "email_confirm_note"
     const val smsNote = "sms_note"
+    const val signInWithGoogle = "sign_in_with_google"
 
     // ---- Consent ----
     const val consentTitle = "consent_title"
@@ -320,6 +321,7 @@ private val en = mapOf(
     S.loginHint to "Have account?",
     S.emailConfirmNote to "We'll send a confirmation to your email",
     S.smsNote to "We'll send a 6-digit code via SMS",
+    S.signInWithGoogle to "Sign in with Google",
     S.consentTitle to "Parental Consent",
     S.consentBody to "VitaHero collects your child's health data (height, weight, dental, eyesight, nutrition) to provide personalized insights and recommendations. This data is stored securely and never shared without your permission. You can delete it anytime.",
     S.consentAccept to "I Agree — Continue",

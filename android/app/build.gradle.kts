@@ -27,6 +27,8 @@ android {
         buildConfigField("String", "RORK_AUTH_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_AUTH_URL") ?: ""}\"")
         buildConfigField("String", "RORK_FUNCTIONS_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_FUNCTIONS_URL") ?: ""}\"")
         buildConfigField("String", "TEAM_ID", "\"${System.getenv("EXPO_PUBLIC_TEAM_ID") ?: ""}\"")
+        buildConfigField("String", "RORK_FUNCTIONS_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_FUNCTIONS_URL") ?: ""}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${System.getenv("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID") ?: ""}\"")
     }
 
     buildTypes {
@@ -86,6 +88,9 @@ dependencies {
         exclude(group = "com.google.guava", module = "failureaccess")
     }
     implementation(libs.guava.android)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

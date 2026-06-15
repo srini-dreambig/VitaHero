@@ -42,6 +42,7 @@ data class AppUiState(
     val wearableData: Map<String, HealthConnectService.WearableData> = emptyMap(),
     val notificationsEnabled: Boolean = true,
     val campRemindersEnabled: Boolean = true,
+    val authProvider: String = "",
 )
 
 data class BadgeProgress(
@@ -64,19 +65,17 @@ private val palette = listOf(0xFF10B981, 0xFF2563EB, 0xFF8B5CF6, 0xFFFB7185, 0xF
  * Main coordinator ViewModel.
  *
  * Architecture:
- *   AuthManager — token persistence, login/logout, session restore
+ *   AuthManager — session token persistence, login/logout, Google + phone auth
  *   DataManager — Room-first CRUD with JSON fallback
- *   SyncQueue   — offline-first retry queue for Supabase
- *   SupabaseRepository — REST bridge to Supabase Postgres
+ *   ApiRepository — REST bridge to Cloudflare Worker (Neon DB)
  *
- * AppViewModel orchestrates these and owns UI state flows that
- * screens observe.
+ * AppViewModel orchestrates these and owns UI state flows.
  */
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val auth = AuthManager(application)
     private val data by lazy { DataManager(application) }
-    private val supabase by lazy { SupabaseRepository() }
+    private val api by lazy { ApiRepository() }
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
@@ -90,25 +89,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val _aiContent = MutableStateFlow<Map<String, AIDietContent>>(emptyMap())
     val aiContent: StateFlow<Map<String, AIDietContent>> = _aiContent.asStateFlow()
 
-    // Convenience delegates to auth manager
     val onboardingComplete: StateFlow<Boolean> get() = auth.onboardingComplete
     val isLoggedIn: StateFlow<Boolean> get() = auth.isLoggedIn
     val authError: StateFlow<String?> get() = auth.authError
     val authLoading: StateFlow<Boolean> get() = auth.authLoading
-    val accessToken: StateFlow<String?> get() = auth.accessToken
+    val sessionToken: StateFlow<String?> get() = auth.sessionToken
 
     private var initComplete = false
 
     init {
         initApp()
-        // After init completes, watch for NEW Supabase logins (not session restores).
-        // When a user signs up/signs in, clear sample data and fetch their real data.
         viewModelScope.launch {
             var wasLoggedIn = auth.isLoggedIn.value
             auth.isLoggedIn.collect { nowLoggedIn ->
-                // Only react to transitions INTO logged-in state after init has completed
                 if (initComplete && nowLoggedIn && !wasLoggedIn && auth.userId.value.isNotBlank()) {
-                    onSupabaseLogin(
+                    onBackendLogin(
                         userId = auth.userId.value,
                         email = auth.email.value,
                         phone = auth.phone.value,
@@ -125,10 +120,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             var restored = false
             try {
                 restored = auth.tryRestoreSession()
-            } catch (e: Exception) {
-                // EncryptedSharedPreferences or Keystore may be unavailable in certain environments
-                // Fall through — user will see the consent/onboarding flow
-            }
+            } catch (_: Exception) { }
 
             withContext(Dispatchers.IO) {
                 var saved: PersistentState
@@ -147,8 +139,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     loadedStreaks = data.loadStreaks(loadedKids.map { it.id }).ifEmpty {
                         loadedKids.associate { it.id to StreakInfo() }
                     }
-                } catch (e: Exception) {
-                    // Room DB or JSON file may be corrupted — fall back to sample data
+                } catch (_: Exception) {
                     saved = PersistentState()
                     loadedKids = SampleData.kids
                     loadedApps = SampleData.appointments
@@ -165,6 +156,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         parentName = if (restored) auth.parentName.value else saved.parentName.ifBlank { "Priya" },
                         phone = if (restored) auth.phone.value else saved.phone,
                         userId = auth.userId.value,
+                        email = if (restored) auth.email.value else "",
                         kids = loadedKids,
                         camps = saved.camps.mapNotNull { try { it.toCamp() } catch (_: Exception) { null } }.ifEmpty { SampleData.camps },
                         doctors = SampleData.doctors,
@@ -193,58 +185,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             try { auth.login(saved.phone, saved.parentName) } catch (_: Exception) { }
                         }
                     }
-                    // Wire Supabase access token
-                    supabase.accessToken = auth.accessToken.value
 
-                    // If user is authenticated via Supabase, fetch real data and replace sample data
+                    // If user is authenticated, fetch real data from Neon DB
                     if (restored && auth.userId.value.isNotBlank()) {
-                        fetchAndApplySupabaseData()
+                        fetchAndApplyBackendData()
                     }
 
-                    // Schedule notifications (best-effort, won't block UI)
                     try {
                         if (isLoggedIn.value) scheduleAllNotifications()
                     } catch (_: Exception) { }
-                    // Process pending sync queue (best-effort)
-                    try {
-                        SyncQueue.processAll(supabase, getApplication())
-                    } catch (_: Exception) { }
 
-                    // Mark init as complete so the auth observer can start reacting
                     initComplete = true
                 }
             }
         }
     }
 
-    private fun profileId(): String {
-        val userId = _uiState.value.userId
-        if (userId.isNotBlank()) return userId.take(12)
-        val phone = _uiState.value.phone
-        if (phone.isNotBlank()) return "ph_${phone.replace("+", "").takeLast(10)}"
-        return "local_${_uiState.value.parentName.lowercase().replace(" ", "_")}"
-    }
-
     private fun seedPersonalizedMeals(kids: List<Kid>): Map<String, List<MealItem>> {
         return kids.associate { it.id to SampleData.personalizedMeals(it) }
     }
 
-    /** Persist all state to Room (primary) + JSON (backup) + Supabase (best-effort). */
     private fun persistState() {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
                 val state = _uiState.value
-                // Room (primary)
                 data.saveParentProfile(state)
                 data.saveKids(state.kids)
                 state.appointments.forEach { data.saveAppointment(it) }
                 _meals.value.forEach { (kidId, mealList) -> data.saveMeals(kidId, mealList) }
                 _streaks.value.forEach { (kidId, streak) -> data.saveStreak(kidId, streak) }
-                // JSON (backup)
                 data.saveJsonBackup(buildPersistentState(state))
             }
-            // Supabase (best-effort via SyncQueue if offline)
-            syncToSupabase()
+            syncToBackend()
         }
     }
 
@@ -268,28 +240,34 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         campRemindersEnabled = state.campRemindersEnabled,
     )
 
-    private fun syncToSupabase() {
-        if (!SupabaseService.isConfigured) return
+    private fun syncToBackend() {
+        if (!ApiService.isConfigured) return
         viewModelScope.launch {
             try {
                 val state = _uiState.value
-                val pid = profileId()
                 val uid = state.userId
-                val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; prettyPrint = false }
 
-                supabase.upsertProfile(ProfileDto(
-                    id = pid, userId = uid.ifBlank { null },
-                    phone = state.phone.ifBlank { null }, name = state.parentName,
-                    onboardingComplete = onboardingComplete.value, isLoggedIn = isLoggedIn.value,
-                    darkTheme = state.darkTheme, localeCode = state.locale.code,
-                    familyCode = state.familyCode, notificationsEnabled = state.notificationsEnabled,
+                api.upsertProfile(ProfileDto(
+                    id = auth.userId.value.ifBlank { "local" },
+                    userId = uid.ifBlank { null },
+                    phone = state.phone.ifBlank { null },
+                    name = state.parentName,
+                    email = state.email.ifBlank { null },
+                    onboardingComplete = onboardingComplete.value,
+                    isLoggedIn = isLoggedIn.value,
+                    darkTheme = state.darkTheme,
+                    localeCode = state.locale.code,
+                    familyCode = state.familyCode,
+                    notificationsEnabled = state.notificationsEnabled,
                     campRemindersEnabled = state.campRemindersEnabled,
-                    consentAccepted = state.consentAccepted, consentDeclined = state.consentDeclined,
+                    consentAccepted = state.consentAccepted,
+                    consentDeclined = state.consentDeclined,
                 ))
 
                 state.kids.forEach { kid ->
-                    supabase.upsertKid(KidDto(
-                        id = kid.id, profileId = pid, userId = uid.ifBlank { null },
+                    api.upsertKid(KidDto(
+                        id = kid.id, profileId = uid.ifBlank { "local" },
+                        userId = uid.ifBlank { null },
                         name = kid.name, age = kid.age, gender = kid.gender,
                         school = kid.school, grade = kid.grade,
                         heightCm = kid.heightCm.toDouble(), weightKg = kid.weightKg.toDouble(),
@@ -298,7 +276,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         nutrition = kid.nutrition.name, lastCheckup = kid.lastCheckup,
                     ))
                     kid.growth.forEach { gp ->
-                        supabase.upsertGrowthPoint(GrowthPointDto(
+                        api.upsertGrowthPoint(GrowthPointDto(
                             id = "${kid.id}_gp_${gp.label.replace(" ", "_")}",
                             kidId = kid.id, userId = uid.ifBlank { null },
                             label = gp.label, height = gp.height.toDouble(), weight = gp.weight.toDouble(),
@@ -306,28 +284,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
                 state.appointments.forEach { appt ->
-                    supabase.upsertAppointment(AppointmentDto(
-                        id = appt.id, profileId = pid, userId = uid.ifBlank { null },
+                    api.upsertAppointment(AppointmentDto(
+                        id = appt.id, profileId = uid.ifBlank { "local" },
+                        userId = uid.ifBlank { null },
                         doctorName = appt.doctorName, specialty = appt.specialty,
                         kidName = appt.kidName, date = appt.date, time = appt.time,
                     ))
                 }
                 _meals.value.forEach { (kidId, mealList) ->
-                    supabase.upsertMeals(mealList.map { meal ->
-                        MealItemDto(id = meal.id, profileId = pid, userId = uid.ifBlank { null },
+                    api.upsertMeals(mealList.map { meal ->
+                        MealItemDto(id = meal.id, profileId = uid.ifBlank { "local" },
+                            userId = uid.ifBlank { null },
                             kidId = kidId, timeSlot = meal.time, name = meal.name,
                             detail = meal.detail, kcal = meal.kcal, eaten = meal.eaten)
                     })
                 }
                 _streaks.value.forEach { (kidId, streak) ->
-                    supabase.upsertStreak(StreakDto(kidId = kidId, userId = uid.ifBlank { null },
+                    api.upsertStreak(StreakDto(kidId = kidId, userId = uid.ifBlank { null },
                         currentStreak = streak.currentStreak, bestStreak = streak.bestStreak,
                         lastLogDate = streak.lastLogDate))
                 }
-            } catch (_: Exception) {
-                // Queue for retry when connectivity is restored
-                // SyncQueue handles this automatically
-            }
+            } catch (_: Exception) { }
         }
     }
 
@@ -354,12 +331,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ─── Auth Delegates ─────────────────────────────────────
 
-    fun signInWithEmail(email: String, password: String) {
-        auth.signInWithEmail(email, password)
-    }
-
-    fun signUpWithEmail(email: String, password: String, name: String) {
-        auth.signUpWithEmail(email, password, name)
+    fun signInWithGoogle(idToken: String) {
+        auth.signInWithGoogle(idToken)
     }
 
     fun sendPhoneOtp(phone: String) { auth.sendPhoneOtp(phone) }
@@ -367,43 +340,39 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun clearAuthError() { auth.clearAuthError() }
     fun clearAuthLoading() { auth.clearAuthLoading() }
 
-    /** Called after successful Supabase Auth — clears sample data, fetches real data, schedules notifications. */
-    fun onSupabaseLogin(userId: String, email: String, phone: String, name: String) {
-        supabase.accessToken = auth.accessToken.value
-        // Clear sample data — real authenticated users should see their own data (or empty state)
+    /** Called after successful authentication — clears sample data, fetches real data. */
+    fun onBackendLogin(userId: String, email: String, phone: String, name: String) {
         _uiState.update {
             it.copy(
                 userId = userId, email = email, phone = phone,
                 parentName = name.ifBlank { it.parentName }, consentAccepted = true,
                 kids = emptyList(), camps = emptyList(), appointments = emptyList(),
                 notifications = emptyList(), wearableData = emptyMap(),
-                coParents = emptyList()
+                coParents = emptyList(), authProvider = if (email.isNotBlank()) "GOOGLE" else "PHONE"
             )
         }
         _meals.value = emptyMap()
         _streaks.value = emptyMap()
         _aiContent.value = emptyMap()
-        // Fetch real user data from Supabase
-        fetchAndApplySupabaseData()
+        fetchAndApplyBackendData()
         persistState()
         scheduleAllNotifications()
     }
 
-    /** Fetches the authenticated user's real data from Supabase and applies it to UI state. */
-    private fun fetchAndApplySupabaseData() {
-        if (!SupabaseService.isConfigured) return
+    /** Fetches authenticated user's real data from the Neon DB backend. */
+    private fun fetchAndApplyBackendData() {
+        if (!ApiService.isConfigured) return
         viewModelScope.launch {
             try {
                 val uid = auth.userId.value
                 if (uid.isBlank()) return@launch
-                val pid = profileId()
 
                 // Fetch profile
-                val profile = supabase.fetchProfileByUserId(uid)
+                val profile = api.fetchMyProfile()
 
                 // Fetch kids
-                val kidDtos = supabase.fetchKids(pid)
-                val kidsFromSupabase = kidDtos.map { dto ->
+                val kidDtos = api.fetchKids()
+                val kidsFromBackend = kidDtos.map { dto ->
                     Kid(
                         id = dto.id, name = dto.name, age = dto.age,
                         gender = dto.gender, school = dto.school, grade = dto.grade,
@@ -417,30 +386,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
-                // Fetch growth points for each kid
                 var allGrowthPoints = emptyMap<String, List<GrowthPoint>>()
                 for (kidDto in kidDtos) {
                     try {
-                        val gps = supabase.fetchGrowthPoints(kidDto.id)
+                        val gps = api.fetchGrowthPoints(kidDto.id)
                         allGrowthPoints = allGrowthPoints + (kidDto.id to gps.map {
                             GrowthPoint(it.label, it.height.toFloat(), it.weight.toFloat())
                         })
                     } catch (_: Exception) { }
                 }
-                val kidsWithGrowth = kidsFromSupabase.map { kid ->
+                val kidsWithGrowth = kidsFromBackend.map { kid ->
                     val gps = allGrowthPoints[kid.id]
                     if (gps != null && gps.isNotEmpty()) kid.copy(growth = gps) else kid
                 }
 
-                // Fetch appointments
-                val apptDtos = supabase.fetchAppointments(pid)
-                val appointmentsFromSupabase = apptDtos.map { dto ->
+                val apptDtos = api.fetchAppointments()
+                val appointmentsFromBackend = apptDtos.map { dto ->
                     Appointment(dto.id, dto.doctorName, dto.specialty, dto.kidName, dto.date, dto.time)
                 }
 
-                // Fetch camps
-                val campDtos = supabase.fetchCamps(pid)
-                val campsFromSupabase = campDtos.map { dto ->
+                val campDtos = api.fetchCamps()
+                val campsFromBackend = campDtos.map { dto ->
                     Camp(
                         id = dto.id, title = dto.title, school = dto.school,
                         date = dto.date, time = dto.time,
@@ -449,29 +415,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
 
-                // Fetch meals
-                val mealDtos = supabase.fetchAllMeals(pid)
-                val mealsFromSupabase: Map<String, List<MealItem>> = mealDtos.groupBy { it.kidId }
+                val mealDtos = api.fetchAllMeals()
+                val mealsFromBackend: Map<String, List<MealItem>> = mealDtos.groupBy { it.kidId }
                     .mapValues { (_, list) ->
                         list.map { MealItem(it.id, it.timeSlot, it.name, it.detail, it.kcal, it.eaten) }
                     }
 
-                // Fetch streaks
-                val streaksFromSupabase = mutableMapOf<String, StreakInfo>()
+                val streaksFromBackend = mutableMapOf<String, StreakInfo>()
                 for (kidDto in kidDtos) {
                     try {
-                        val streak = supabase.fetchStreak(kidDto.id)
+                        val streak = api.fetchStreak(kidDto.id)
                         if (streak != null) {
-                            streaksFromSupabase[kidDto.id] = StreakInfo(
+                            streaksFromBackend[kidDto.id] = StreakInfo(
                                 streak.currentStreak, streak.bestStreak, streak.lastLogDate
                             )
                         }
                     } catch (_: Exception) { }
                 }
 
-                // Fetch co-parents
-                val coParentDtos = supabase.fetchCoParents(pid)
-                val coParentsFromSupabase = coParentDtos.map { dto ->
+                val coParentDtos = api.fetchCoParents()
+                val coParentsFromBackend = coParentDtos.map { dto ->
                     CoParent(dto.id, dto.name, dto.relation, dto.joinedDate)
                 }
 
@@ -480,32 +443,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         state.copy(
                             parentName = profile?.name?.ifBlank { state.parentName } ?: state.parentName,
                             phone = profile?.phone?.ifBlank { state.phone } ?: state.phone,
+                            email = profile?.email?.ifBlank { state.email } ?: state.email,
                             kids = kidsWithGrowth.ifEmpty { state.kids },
-                            camps = campsFromSupabase.ifEmpty { state.camps },
-                            appointments = appointmentsFromSupabase.ifEmpty { state.appointments },
+                            camps = campsFromBackend.ifEmpty { state.camps },
+                            appointments = appointmentsFromBackend.ifEmpty { state.appointments },
                             familyCode = profile?.familyCode?.ifBlank { state.familyCode } ?: state.familyCode,
-                            coParents = coParentsFromSupabase.ifEmpty { state.coParents },
+                            coParents = coParentsFromBackend.ifEmpty { state.coParents },
                             darkTheme = profile?.darkTheme ?: state.darkTheme,
                             notificationsEnabled = profile?.notificationsEnabled ?: state.notificationsEnabled,
                             campRemindersEnabled = profile?.campRemindersEnabled ?: state.campRemindersEnabled,
                         )
                     }
-                    if (mealsFromSupabase.isNotEmpty()) {
-                        _meals.value = mealsFromSupabase
-                    }
-                    if (streaksFromSupabase.isNotEmpty()) {
-                        _streaks.value = streaksFromSupabase
-                    }
+                    if (mealsFromBackend.isNotEmpty()) _meals.value = mealsFromBackend
+                    if (streaksFromBackend.isNotEmpty()) _streaks.value = streaksFromBackend
 
-                    // If the user has no kids yet, make sure meals/streaks are empty too
                     if (kidsWithGrowth.isEmpty()) {
                         _meals.value = emptyMap()
                         _streaks.value = emptyMap()
                     }
                 }
-            } catch (_: Exception) {
-                // Supabase fetch failed — keep whatever local data we have
-            }
+            } catch (_: Exception) { }
         }
     }
 
@@ -600,8 +557,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         alarmManager.cancel(pending)
     }
 
-    // ─── Theme & Locale ─────────────────────────────────────
-
     fun toggleDarkTheme() {
         _uiState.update { it.copy(darkTheme = !it.darkTheme) }
         persistState()
@@ -623,7 +578,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun joinFamily(code: String) {
         viewModelScope.launch {
-            val token = auth.accessToken.value
+            val token = auth.sessionToken.value
             if (token != null) {
                 val result = FamilySharingService.joinFamily(
                     code = code,
@@ -664,12 +619,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         persistState()
     }
 
-    /** Fetch shared kids from the family via the edge function. */
     fun fetchSharedKids() {
         val code = _uiState.value.familyCode
         if (code.isBlank()) return
         viewModelScope.launch {
-            val token = auth.accessToken.value ?: return@launch
+            val token = auth.sessionToken.value ?: return@launch
             FamilySharingService.fetchSharedKids(code, token)
                 .onSuccess { resp ->
                     if (resp.kids.isNotEmpty() && !resp.isOwner) {
@@ -698,13 +652,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // ─── Wearable Data ──────────────────────────────────────
-
     fun refreshWearableData(kidId: String) {
         val kid = kidById(kidId) ?: return
         viewModelScope.launch {
-            val data = HealthConnectService.fetchHealthData(getApplication(), kid.name)
-            _uiState.update { it.copy(wearableData = it.wearableData + (kidId to data)) }
+            val d = HealthConnectService.fetchHealthData(getApplication(), kid.name)
+            _uiState.update { it.copy(wearableData = it.wearableData + (kidId to d)) }
             persistState()
         }
     }
@@ -756,28 +708,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             Badge("b6", "Veggie Warrior", "Ate veggies in 10 meals", eatenCount >= 6, (eatenCount / 10f).coerceAtMost(1f), 0xFFFB7185, 10, eatenCount),
         )
 
-        // Fetch real leaderboard from Supabase synchronously with a fallback
-        var leaderboard = buildLocalLeaderboard(kid, eatenCount, streak)
+        val leaderboard = buildLocalLeaderboard(kid, eatenCount, streak)
+
         viewModelScope.launch {
             try {
-                val remote = LeaderboardService.fetchLeaderboard(
-                    accessToken = auth.accessToken.value,
+                LeaderboardService.fetchLeaderboard(
+                    accessToken = auth.sessionToken.value,
                     currentKidId = kidId,
                     currentKidName = kid.name,
                     localEatenMeals = eatenCount,
                     localStreak = streak.currentStreak,
                 )
-                if (remote.isNotEmpty()) {
-                    // Store the real leaderboard — will be visible on next recomposition
-                    // For immediate UI, return local fallback; Supabase data appears on refresh
-                }
             } catch (_: Exception) { }
         }
 
         return BadgeProgress(badges, leaderboard)
     }
 
-    /** Local fallback leaderboard based on real kid activity. */
     private fun buildLocalLeaderboard(kid: Kid, eatenCount: Int, streak: StreakInfo): List<LeaderEntry> {
         val points = 1500 + (eatenCount * 10) + (streak.currentStreak * 50)
         return listOf(
@@ -788,10 +735,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             LeaderEntry(5, "Anonymous Hero", points - 310, false),
         )
     }
-
-    // ─── AI Diet Coach ──────────────────────────────────────
-
-    // ─── AI Diet Coach (real AI via Rork proxy) ─────────────
 
     fun generateAIContent(kidId: String) {
         val kid = kidById(kidId) ?: return
