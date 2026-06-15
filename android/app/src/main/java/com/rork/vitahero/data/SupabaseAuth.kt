@@ -69,6 +69,7 @@ object SupabaseAuth {
 
     /** Sign up with email + password. */
     suspend fun signUpWithEmail(email: String, password: String, name: String): Result<AuthResponse> = onIo {
+        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Supabase not configured"))
         try {
             val body = buildJsonObject {
                 put("email", email)
@@ -88,6 +89,7 @@ object SupabaseAuth {
 
     /** Sign in with email + password. */
     suspend fun signInWithEmail(email: String, password: String): Result<AuthResponse> = onIo {
+        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Supabase not configured"))
         try {
             val body = buildJsonObject {
                 put("email", email)
@@ -141,6 +143,7 @@ object SupabaseAuth {
      * @param phone phone number WITH country code (e.g. "+919876543210")
      */
     suspend fun sendPhoneOtp(phone: String): Result<Unit> = onIo {
+        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Supabase not configured"))
         try {
             val body = buildJsonObject {
                 put("action", "send_otp")
@@ -169,6 +172,7 @@ object SupabaseAuth {
      * @param phone phone number WITH country code (e.g. "+919876543210")
      */
     suspend fun verifyPhoneOtp(phone: String, token: String): Result<AuthResponse> = onIo {
+        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Supabase not configured"))
         try {
             val verifyBody = buildJsonObject {
                 put("action", "verify_otp")
@@ -212,6 +216,7 @@ object SupabaseAuth {
 
     /** Refresh the access token using a refresh token. */
     suspend fun refreshToken(refreshToken: String): Result<AuthResponse> = onIo {
+        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Supabase not configured"))
         try {
             val body = buildJsonObject { put("refresh_token", refreshToken) }
             val resp = http.post("$baseUrl/auth/v1/token?grant_type=refresh_token") {
@@ -227,6 +232,7 @@ object SupabaseAuth {
 
     /** Sign out (revoke the token on the server). */
     suspend fun signOut(accessToken: String): Result<Unit> = onIo {
+        if (!SupabaseService.isConfigured) return@onIo Result.success(Unit)
         try {
             http.post("$baseUrl/auth/v1/logout") {
                 header("apikey", anonKey)

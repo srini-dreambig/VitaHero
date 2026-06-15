@@ -269,6 +269,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     private fun syncToSupabase() {
+        if (!SupabaseService.isConfigured) return
         viewModelScope.launch {
             try {
                 val state = _uiState.value
@@ -390,6 +391,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Fetches the authenticated user's real data from Supabase and applies it to UI state. */
     private fun fetchAndApplySupabaseData() {
+        if (!SupabaseService.isConfigured) return
         viewModelScope.launch {
             try {
                 val uid = auth.userId.value

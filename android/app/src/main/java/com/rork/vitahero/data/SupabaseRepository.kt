@@ -18,12 +18,16 @@ import java.util.UUID
 /**
  * Bridges the Android app to Supabase Postgres via the REST API.
  * Uses the user's access token when authenticated, falls back to anon key.
+ *
+ * All network calls are silently skipped when Supabase credentials
+ * are not configured, preventing console error spam.
  */
 class SupabaseRepository {
 
     private val http get() = SupabaseService.http
     private val base get() = "${SupabaseService.baseUrl}/rest/v1"
     private val anonKey get() = SupabaseService.anonKey
+    private val skipNetwork: Boolean get() = !SupabaseService.isConfigured
 
     /**
      * Current access token, set by AppViewModel after successful auth.

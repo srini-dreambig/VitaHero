@@ -33,6 +33,9 @@ object LeaderboardService {
         localEatenMeals: Int,
         localStreak: Int,
     ): List<LeaderEntry> = withContext(Dispatchers.IO) {
+        if (!SupabaseService.isConfigured) {
+            return@withContext buildLocalLeaderboard(currentKidId, currentKidName, localEatenMeals, localStreak)
+        }
         try {
             val http = SupabaseService.http
             val base = "${SupabaseService.baseUrl}/rest/v1"

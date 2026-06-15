@@ -80,6 +80,7 @@ object FamilySharingService {
      * Returns the family owner name and profile ID if valid.
      */
     suspend fun validateCode(code: String): Result<ValidateCodeResponse> = onIo {
+        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
         try {
             val body = buildJsonObject {
                 put("action", "validate_code")
@@ -105,6 +106,7 @@ object FamilySharingService {
         relation: String,
         accessToken: String,
     ): Result<JoinFamilyResponse> = onIo {
+        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
         try {
             val body = buildJsonObject {
                 put("action", "join_family")
@@ -131,6 +133,7 @@ object FamilySharingService {
         familyCode: String,
         accessToken: String,
     ): Result<SharedKidsResponse> = onIo {
+        if (!SupabaseService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
         try {
             val headers = authHeaders(accessToken)
             val resp = http.get("$edgeFnUrl/shared-kids") {
