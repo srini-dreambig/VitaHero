@@ -43,7 +43,6 @@ room-compiler = { group = "androidx.room", name = "room-compiler", version.ref =
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 health-connect-client = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
 guava-android = { group = "com.google.guava", name = "guava", version.ref = "guava" }
-guava-failureaccess = { group = "com.google.guava", name = "failureaccess", version = "1.0.3" }
 
 
 [plugins]

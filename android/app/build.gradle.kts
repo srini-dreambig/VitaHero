@@ -86,7 +86,6 @@ dependencies {
         exclude(group = "com.google.guava", module = "failureaccess")
     }
     implementation(libs.guava.android)
-    implementation(libs.guava.failureaccess)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
