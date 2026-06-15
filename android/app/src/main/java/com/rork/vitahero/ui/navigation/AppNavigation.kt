@@ -119,6 +119,12 @@ fun AppNavigation(
                 isLoading = authLoading,
                 authError = authError,
                 onSignInWithGoogle = { onGoogleSignInRequest() },
+                onSignUpWithEmail = { name, email, password ->
+                    appViewModel.signUpWithEmail(name, email, password)
+                },
+                onSignInWithEmail = { email, password ->
+                    appViewModel.signInWithEmail(email, password)
+                },
                 onContinueWithPhone = { p ->
                     phone = p
                     pendingName = "Parent"

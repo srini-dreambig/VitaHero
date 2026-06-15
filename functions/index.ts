@@ -1,11 +1,13 @@
 // VitaHero Neon DB Backend — Cloudflare Worker
 // Connects to Neon Postgres (vita_hero schema) for all CRUD operations.
-// Handles Google Sign-In, phone OTP via Twilio, and session-token auth.
+// Auth delegates to Neon Auth (Better Auth) for Google OAuth + email/password.
+// Phone OTP via Twilio is independent.
+// Updated: 2026-06-15 — email/password + Neon Auth social sign-in
 
 import { neon } from "@neondatabase/serverless";
 
 const SCHEMA = "vita_hero";
-const GOOGLE_TOKENINFO = "https://oauth2.googleapis.com/tokeninfo";
+const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
 const TWILIO_API = "https://api.twilio.com/2010-04-01";
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
@@ -101,25 +103,78 @@ async function sendTwilioSms(
   }
 }
 
-// ─── Google Token Verification ──────────────────────────────
+interface NeonAuthUser {
+  id: string;
+  name?: string;
+  email: string;
+  emailVerified?: boolean;
+}
 
-async function verifyGoogleToken(idToken: string): Promise<{
-  sub: string; email: string; name: string; picture?: string;
-} | null> {
-  try {
-    const resp = await fetch(`${GOOGLE_TOKENINFO}?id_token=${encodeURIComponent(idToken)}`);
-    if (!resp.ok) return null;
-    const data = await resp.json() as Record<string, unknown>;
-    if (!data.sub || !data.email) return null;
-    return {
-      sub: data.sub as string,
-      email: data.email as string,
-      name: (data.name as string) || data.email.split("@")[0],
-      picture: data.picture as string | undefined,
-    };
-  } catch {
-    return null;
+interface NeonAuthSession {
+  token: string;
+}
+
+interface NeonAuthResponse {
+  user: NeonAuthUser;
+  session?: NeonAuthSession;
+  token?: string;
+}
+
+// ─── Neon Auth Helpers ─────────────────────────────────────
+
+/** Call Neon Auth REST API. Returns parsed JSON or throws on error. */
+async function callNeonAuth(
+  path: string,
+  body: Record<string, unknown>
+): Promise<NeonAuthResponse> {
+  const url = `${NEON_AUTH}${path}`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json() as Record<string, unknown>;
+  if (!resp.ok) {
+    const message = (data.message as string) || (data.error as string) || `Auth error (${resp.status})`;
+    throw new Error(message);
   }
+  return data as unknown as NeonAuthResponse;
+}
+
+/** Create or update a profile in vita_hero.profiles after Neon Auth success. */
+async function upsertProfileFromNeonAuth(
+  sql: ReturnType<typeof neon>,
+  user: NeonAuthUser,
+  provider: string
+): Promise<{ profileId: string; sessionToken: string }> {
+  const profileId = `na_${user.id.slice(0, 24)}`;
+  const sessionToken = generateToken();
+
+  const existing = await sql`
+    SELECT id FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
+  `;
+
+  if (existing.length === 0) {
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.profiles
+        (id, user_id, name, email, session_token, auth_provider,
+         onboarding_complete, is_logged_in)
+      VALUES (
+        ${profileId}, ${user.id}, ${user.name || user.email.split('@')[0]},
+        ${user.email}, ${sessionToken}, ${provider}, true, true
+      )
+    `;
+  } else {
+    await sql`
+      UPDATE ${sql(SCHEMA)}.profiles
+      SET session_token = ${sessionToken}, is_logged_in = true,
+          name = ${user.name || user.email.split('@')[0]},
+          email = ${user.email}, auth_provider = ${provider}
+      WHERE id = ${profileId}
+    `;
+  }
+
+  return { profileId, sessionToken };
 }
 
 // ─── Entrypoint ─────────────────────────────────────────────
@@ -188,52 +243,105 @@ export default {
       // AUTH ENDPOINTS
       // ═══════════════════════════════════════════════════
 
-      // ── Google Sign-In ────────────────────────────────
-      if (path === "/api/auth/google" && request.method === "POST") {
-        const body: Record<string, unknown> = await request.json();
-        const idToken = body.id_token as string;
-        if (!idToken) return json({ error: "Missing id_token" }, 400);
+      // ── Email/Password Sign-Up ───────────────────────
+      if (path === "/api/auth/signup" && request.method === "POST") {
+        try {
+          const body: Record<string, unknown> = await request.json();
+          const name = (body.name as string)?.trim();
+          const email = (body.email as string)?.trim();
+          const password = body.password as string;
 
-        const googleUser = await verifyGoogleToken(idToken);
-        if (!googleUser) return json({ error: "Invalid Google ID token" }, 401);
+          if (!name || !email || !password) {
+            return json({ error: "name, email, and password are required" }, 400);
+          }
+          if (password.length < 8) {
+            return json({ error: "Password must be at least 8 characters" }, 400);
+          }
 
-        const profileId = `g_${googleUser.sub.slice(0, 24)}`;
-        const sessionToken = generateToken();
+          const neonResp = await callNeonAuth("/sign-up/email", { name, email, password });
+          const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
+            sql, neonResp.user, "EMAIL"
+          );
 
-        // Upsert profile for this Google user
-        const existing = await sql`
-          SELECT id FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
-        `;
-
-        if (existing.length === 0) {
-          await sql`
-            INSERT INTO ${sql(SCHEMA)}.profiles
-              (id, user_id, name, email, session_token, auth_provider,
-               onboarding_complete, is_logged_in)
-            VALUES (
-              ${profileId}, ${googleUser.sub}, ${googleUser.name},
-              ${googleUser.email}, ${sessionToken}, 'GOOGLE', true, true
-            )
-          `;
-        } else {
-          await sql`
-            UPDATE ${sql(SCHEMA)}.profiles
-            SET session_token = ${sessionToken}, is_logged_in = true,
-                name = ${googleUser.name}, email = ${googleUser.email}
-            WHERE id = ${profileId}
-          `;
+          return json({
+            token: sessionToken,
+            profile: {
+              id: profileId,
+              user_id: neonResp.user.id,
+              name: neonResp.user.name || email.split("@")[0],
+              email: neonResp.user.email,
+              auth_provider: "EMAIL",
+            },
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          return json({ error: message }, 400);
         }
+      }
 
-        return json({
-          token: sessionToken,
-          profile: {
-            id: profileId,
-            user_id: googleUser.sub,
-            name: googleUser.name,
-            email: googleUser.email,
-            auth_provider: "GOOGLE",
-          },
-        });
+      // ── Email/Password Sign-In ───────────────────────
+      if (path === "/api/auth/signin" && request.method === "POST") {
+        try {
+          const body: Record<string, unknown> = await request.json();
+          const email = (body.email as string)?.trim();
+          const password = body.password as string;
+
+          if (!email || !password) {
+            return json({ error: "email and password are required" }, 400);
+          }
+
+          const neonResp = await callNeonAuth("/sign-in/email", { email, password });
+          const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
+            sql, neonResp.user, "EMAIL"
+          );
+
+          return json({
+            token: sessionToken,
+            profile: {
+              id: profileId,
+              user_id: neonResp.user.id,
+              name: neonResp.user.name || email.split("@")[0],
+              email: neonResp.user.email,
+              auth_provider: "EMAIL",
+            },
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          return json({ error: message }, 401);
+        }
+      }
+
+      // ── Google Sign-In (via Neon Auth social) ────────
+      if (path === "/api/auth/google" && request.method === "POST") {
+        try {
+          const body: Record<string, unknown> = await request.json();
+          const idToken = body.id_token as string;
+          if (!idToken) return json({ error: "Missing id_token" }, 400);
+
+          const neonResp = await callNeonAuth("/sign-in/social", {
+            provider: "google",
+            idToken: { token: idToken },
+            callbackURL: "/",
+          });
+
+          const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
+            sql, neonResp.user, "GOOGLE"
+          );
+
+          return json({
+            token: sessionToken,
+            profile: {
+              id: profileId,
+              user_id: neonResp.user.id,
+              name: neonResp.user.name || neonResp.user.email.split("@")[0],
+              email: neonResp.user.email,
+              auth_provider: "GOOGLE",
+            },
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          return json({ error: message }, 401);
+        }
       }
 
       // ── Phone OTP: Send ──────────────────────────────

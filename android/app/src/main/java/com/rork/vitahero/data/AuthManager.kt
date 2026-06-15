@@ -82,35 +82,70 @@ class AuthManager(private val app: Application) {
         _authError.value = null
         scope.launch {
             api.googleSignIn(idToken).fold(
-                onSuccess = { resp ->
-                    val token = resp.token
-                    val profile = resp.profile
-                    if (profile != null) {
-                        _sessionToken.value = token
-                        _userId.value = profile.user_id.ifBlank { profile.id }
-                        _email.value = profile.email ?: ""
-                        _parentName.value = profile.name.ifBlank { "Parent" }
-                        _phone.value = profile.phone ?: ""
-                        ApiService.sessionToken = token
-                        SecureTokenStore.saveSession(
-                            app, token,
-                            _userId.value,
-                            _parentName.value,
-                            _phone.value
-                        )
-                        _isLoggedIn.value = true
-                        _onboardingComplete.value = true
-                    } else {
-                        _authError.value = "Google sign-in response missing profile"
-                    }
-                    _authLoading.value = false
-                },
+                onSuccess = { resp -> onAuthSuccess(resp) },
                 onFailure = { e ->
                     _authError.value = e.message ?: "Google sign-in failed"
                     _authLoading.value = false
                 }
             )
         }
+    }
+
+    // ─── Email/Password Auth ──────────────────────────────────
+
+    /** Sign up with email + password via Neon Auth. */
+    fun signUpWithEmail(name: String, email: String, password: String) {
+        _authLoading.value = true
+        _authError.value = null
+        scope.launch {
+            api.signUpWithEmail(name, email, password).fold(
+                onSuccess = { resp -> onAuthSuccess(resp) },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Sign up failed"
+                    _authLoading.value = false
+                }
+            )
+        }
+    }
+
+    /** Sign in with email + password via Neon Auth. */
+    fun signInWithEmail(email: String, password: String) {
+        _authLoading.value = true
+        _authError.value = null
+        scope.launch {
+            api.signInWithEmail(email, password).fold(
+                onSuccess = { resp -> onAuthSuccess(resp) },
+                onFailure = { e ->
+                    _authError.value = e.message ?: "Invalid email or password"
+                    _authLoading.value = false
+                }
+            )
+        }
+    }
+
+    /** Shared auth success handler — persists token and sets logged-in state. */
+    private fun onAuthSuccess(resp: GoogleAuthResponse) {
+        val token = resp.token
+        val profile = resp.profile
+        if (profile != null) {
+            _sessionToken.value = token
+            _userId.value = profile.user_id.ifBlank { profile.id }
+            _email.value = profile.email ?: ""
+            _parentName.value = profile.name.ifBlank { "Parent" }
+            _phone.value = profile.phone ?: ""
+            ApiService.sessionToken = token
+            SecureTokenStore.saveSession(
+                app, token,
+                _userId.value,
+                _parentName.value,
+                _phone.value
+            )
+            _isLoggedIn.value = true
+            _onboardingComplete.value = true
+        } else {
+            _authError.value = "Sign-in response missing profile"
+        }
+        _authLoading.value = false
     }
 
     // ─── Phone OTP ───────────────────────────────────────────

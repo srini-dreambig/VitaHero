@@ -53,6 +53,46 @@ class ApiRepository {
         }
     }
 
+    /** Sign up with email + password via Neon Auth. */
+    suspend fun signUpWithEmail(name: String, email: String, password: String): Result<GoogleAuthResponse> = onIo {
+        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
+        try {
+            val resp = http.post("$base/api/auth/signup") {
+                header("Content-Type", "application/json")
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("name" to name, "email" to email, "password" to password))
+            }
+            if (resp.status.isSuccess()) {
+                Result.success(resp.body<GoogleAuthResponse>())
+            } else {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                Result.failure(Exception(err?.error ?: "Sign up failed"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Sign in with email + password via Neon Auth. */
+    suspend fun signInWithEmail(email: String, password: String): Result<GoogleAuthResponse> = onIo {
+        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
+        try {
+            val resp = http.post("$base/api/auth/signin") {
+                header("Content-Type", "application/json")
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("email" to email, "password" to password))
+            }
+            if (resp.status.isSuccess()) {
+                Result.success(resp.body<GoogleAuthResponse>())
+            } else {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                Result.failure(Exception(err?.error ?: "Invalid email or password"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** Send phone OTP via Twilio through the Worker. */
     suspend fun sendPhoneOtp(phone: String): Result<Unit> = onIo {
         if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))

@@ -332,6 +332,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         auth.signInWithGoogle(idToken)
     }
 
+    fun signUpWithEmail(name: String, email: String, password: String) {
+        auth.signUpWithEmail(name, email, password)
+    }
+
+    fun signInWithEmail(email: String, password: String) {
+        auth.signInWithEmail(email, password)
+    }
+
     fun sendPhoneOtp(phone: String) { auth.sendPhoneOtp(phone) }
     fun verifyPhoneOtp(phone: String, token: String) { auth.verifyPhoneOtp(phone, token) }
     fun clearAuthError() { auth.clearAuthError() }
