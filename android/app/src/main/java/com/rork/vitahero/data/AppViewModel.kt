@@ -97,8 +97,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val authLoading: StateFlow<Boolean> get() = auth.authLoading
     val accessToken: StateFlow<String?> get() = auth.accessToken
 
+    private var initComplete = false
+
     init {
         initApp()
+        // After init completes, watch for NEW Supabase logins (not session restores).
+        // When a user signs up/signs in, clear sample data and fetch their real data.
+        viewModelScope.launch {
+            var wasLoggedIn = auth.isLoggedIn.value
+            auth.isLoggedIn.collect { nowLoggedIn ->
+                // Only react to transitions INTO logged-in state after init has completed
+                if (initComplete && nowLoggedIn && !wasLoggedIn && auth.userId.value.isNotBlank()) {
+                    onSupabaseLogin(
+                        userId = auth.userId.value,
+                        email = auth.email.value,
+                        phone = auth.phone.value,
+                        name = auth.parentName.value
+                    )
+                }
+                wasLoggedIn = nowLoggedIn
+            }
+        }
     }
 
     private fun initApp() {
@@ -176,6 +195,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     }
                     // Wire Supabase access token
                     supabase.accessToken = auth.accessToken.value
+
+                    // If user is authenticated via Supabase, fetch real data and replace sample data
+                    if (restored && auth.userId.value.isNotBlank()) {
+                        fetchAndApplySupabaseData()
+                    }
+
                     // Schedule notifications (best-effort, won't block UI)
                     try {
                         if (isLoggedIn.value) scheduleAllNotifications()
@@ -184,6 +209,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     try {
                         SyncQueue.processAll(supabase, getApplication())
                     } catch (_: Exception) { }
+
+                    // Mark init as complete so the auth observer can start reacting
+                    initComplete = true
                 }
             }
         }
@@ -338,15 +366,145 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun clearAuthError() { auth.clearAuthError() }
     fun clearAuthLoading() { auth.clearAuthLoading() }
 
-    /** Called after successful Supabase Auth — syncs data and schedules notifications. */
+    /** Called after successful Supabase Auth — clears sample data, fetches real data, schedules notifications. */
     fun onSupabaseLogin(userId: String, email: String, phone: String, name: String) {
         supabase.accessToken = auth.accessToken.value
+        // Clear sample data — real authenticated users should see their own data (or empty state)
         _uiState.update {
-            it.copy(userId = userId, email = email, phone = phone,
-                parentName = name.ifBlank { it.parentName }, consentAccepted = true)
+            it.copy(
+                userId = userId, email = email, phone = phone,
+                parentName = name.ifBlank { it.parentName }, consentAccepted = true,
+                kids = emptyList(), camps = emptyList(), appointments = emptyList(),
+                notifications = emptyList(), wearableData = emptyMap(),
+                coParents = emptyList()
+            )
         }
+        _meals.value = emptyMap()
+        _streaks.value = emptyMap()
+        _aiContent.value = emptyMap()
+        // Fetch real user data from Supabase
+        fetchAndApplySupabaseData()
         persistState()
         scheduleAllNotifications()
+    }
+
+    /** Fetches the authenticated user's real data from Supabase and applies it to UI state. */
+    private fun fetchAndApplySupabaseData() {
+        viewModelScope.launch {
+            try {
+                val uid = auth.userId.value
+                if (uid.isBlank()) return@launch
+                val pid = profileId()
+
+                // Fetch profile
+                val profile = supabase.fetchProfileByUserId(uid)
+
+                // Fetch kids
+                val kidDtos = supabase.fetchKids(pid)
+                val kidsFromSupabase = kidDtos.map { dto ->
+                    Kid(
+                        id = dto.id, name = dto.name, age = dto.age,
+                        gender = dto.gender, school = dto.school, grade = dto.grade,
+                        heightCm = dto.heightCm.toFloat(), weightKg = dto.weightKg.toFloat(),
+                        avatarColor = dto.avatarColor, overallScore = dto.overallScore,
+                        growth = emptyList(),
+                        dental = try { HealthFlag.valueOf(dto.dental) } catch (_: Exception) { HealthFlag.GOOD },
+                        eyesight = try { HealthFlag.valueOf(dto.eyesight) } catch (_: Exception) { HealthFlag.GOOD },
+                        nutrition = try { HealthFlag.valueOf(dto.nutrition) } catch (_: Exception) { HealthFlag.GOOD },
+                        lastCheckup = dto.lastCheckup
+                    )
+                }
+
+                // Fetch growth points for each kid
+                var allGrowthPoints = emptyMap<String, List<GrowthPoint>>()
+                for (kidDto in kidDtos) {
+                    try {
+                        val gps = supabase.fetchGrowthPoints(kidDto.id)
+                        allGrowthPoints = allGrowthPoints + (kidDto.id to gps.map {
+                            GrowthPoint(it.label, it.height.toFloat(), it.weight.toFloat())
+                        })
+                    } catch (_: Exception) { }
+                }
+                val kidsWithGrowth = kidsFromSupabase.map { kid ->
+                    val gps = allGrowthPoints[kid.id]
+                    if (gps != null && gps.isNotEmpty()) kid.copy(growth = gps) else kid
+                }
+
+                // Fetch appointments
+                val apptDtos = supabase.fetchAppointments(pid)
+                val appointmentsFromSupabase = apptDtos.map { dto ->
+                    Appointment(dto.id, dto.doctorName, dto.specialty, dto.kidName, dto.date, dto.time)
+                }
+
+                // Fetch camps
+                val campDtos = supabase.fetchCamps(pid)
+                val campsFromSupabase = campDtos.map { dto ->
+                    Camp(
+                        id = dto.id, title = dto.title, school = dto.school,
+                        date = dto.date, time = dto.time,
+                        status = try { CampStatus.valueOf(dto.status) } catch (_: Exception) { CampStatus.UPCOMING },
+                        checks = dto.checks, resultSummary = dto.resultSummary
+                    )
+                }
+
+                // Fetch meals
+                val mealDtos = supabase.fetchAllMeals(pid)
+                val mealsFromSupabase: Map<String, List<MealItem>> = mealDtos.groupBy { it.kidId }
+                    .mapValues { (_, list) ->
+                        list.map { MealItem(it.id, it.timeSlot, it.name, it.detail, it.kcal, it.eaten) }
+                    }
+
+                // Fetch streaks
+                val streaksFromSupabase = mutableMapOf<String, StreakInfo>()
+                for (kidDto in kidDtos) {
+                    try {
+                        val streak = supabase.fetchStreak(kidDto.id)
+                        if (streak != null) {
+                            streaksFromSupabase[kidDto.id] = StreakInfo(
+                                streak.currentStreak, streak.bestStreak, streak.lastLogDate
+                            )
+                        }
+                    } catch (_: Exception) { }
+                }
+
+                // Fetch co-parents
+                val coParentDtos = supabase.fetchCoParents(pid)
+                val coParentsFromSupabase = coParentDtos.map { dto ->
+                    CoParent(dto.id, dto.name, dto.relation, dto.joinedDate)
+                }
+
+                withContext(Dispatchers.Main) {
+                    _uiState.update { state ->
+                        state.copy(
+                            parentName = profile?.name?.ifBlank { state.parentName } ?: state.parentName,
+                            phone = profile?.phone?.ifBlank { state.phone } ?: state.phone,
+                            kids = kidsWithGrowth.ifEmpty { state.kids },
+                            camps = campsFromSupabase.ifEmpty { state.camps },
+                            appointments = appointmentsFromSupabase.ifEmpty { state.appointments },
+                            familyCode = profile?.familyCode?.ifBlank { state.familyCode } ?: state.familyCode,
+                            coParents = coParentsFromSupabase.ifEmpty { state.coParents },
+                            darkTheme = profile?.darkTheme ?: state.darkTheme,
+                            notificationsEnabled = profile?.notificationsEnabled ?: state.notificationsEnabled,
+                            campRemindersEnabled = profile?.campRemindersEnabled ?: state.campRemindersEnabled,
+                        )
+                    }
+                    if (mealsFromSupabase.isNotEmpty()) {
+                        _meals.value = mealsFromSupabase
+                    }
+                    if (streaksFromSupabase.isNotEmpty()) {
+                        _streaks.value = streaksFromSupabase
+                    }
+
+                    // If the user has no kids yet, make sure meals/streaks are empty too
+                    if (kidsWithGrowth.isEmpty()) {
+                        _meals.value = emptyMap()
+                        _streaks.value = emptyMap()
+                    }
+                }
+            } catch (_: Exception) {
+                // Supabase fetch failed — keep whatever local data we have
+            }
+        }
     }
 
     fun login(phone: String, name: String = "") {
