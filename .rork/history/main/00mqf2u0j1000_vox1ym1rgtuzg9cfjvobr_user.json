@@ -1,0 +1,8 @@
+{
+  "id": "vox1ym1rgtuzg9cfjvobr",
+  "role": "user",
+  "content": "Looks like you are struggling to fix supabase issue, please use Neon DB with below credentials and only google sign in.\n\n\nKeep Twilio with phone number login as independent.\n\nAuth URL: https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth\n\nJWKS URL: https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth/.well-known/jwks.json\n\nDATABASE_URL: postgresql://neondb_owner:npg_nRtgb6axsr7F@ep-super-tree-afp87aw4-pooler.c-2.us-west-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require\n\n\nuse vita_hero schema for backend tables.",
+  "attachments": [],
+  "sourceAttachments": [],
+  "userId": "5059c92d-3bf5-486a-b43c-24c3a79f30f1"
+}
