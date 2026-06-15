@@ -75,8 +75,8 @@ private val palette = listOf(0xFF10B981, 0xFF2563EB, 0xFF8B5CF6, 0xFFFB7185, 0xF
 class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     val auth = AuthManager(application)
-    val data = DataManager(application)
-    private val supabase = SupabaseRepository()
+    private val data by lazy { DataManager(application) }
+    private val supabase by lazy { SupabaseRepository() }
 
     private val _uiState = MutableStateFlow(AppUiState())
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
@@ -103,18 +103,38 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun initApp() {
         viewModelScope.launch {
-            // Try to restore existing session from encrypted storage
-            val restored = auth.tryRestoreSession()
-            // Load data from Room (primary) with JSON fallback
+            var restored = false
+            try {
+                restored = auth.tryRestoreSession()
+            } catch (e: Exception) {
+                // EncryptedSharedPreferences or Keystore may be unavailable in certain environments
+                // Fall through — user will see the consent/onboarding flow
+            }
+
             withContext(Dispatchers.IO) {
-                val saved = data.loadPersistedState()
-                val loadedKids = data.loadKids().ifEmpty { SampleData.kids }
-                val loadedApps = data.loadAppointments().ifEmpty { SampleData.appointments }
-                val loadedMeals = data.loadMeals(loadedKids.map { it.id }).ifEmpty {
-                    seedPersonalizedMeals(loadedKids.ifEmpty { SampleData.kids })
-                }
-                val loadedStreaks = data.loadStreaks(loadedKids.map { it.id }).ifEmpty {
-                    loadedKids.associate { it.id to StreakInfo() }
+                var saved: PersistentState
+                var loadedKids: List<Kid>
+                var loadedApps: List<Appointment>
+                var loadedMeals: Map<String, List<MealItem>>
+                var loadedStreaks: Map<String, StreakInfo>
+
+                try {
+                    saved = data.loadPersistedState()
+                    loadedKids = data.loadKids().ifEmpty { SampleData.kids }
+                    loadedApps = data.loadAppointments().ifEmpty { SampleData.appointments }
+                    loadedMeals = data.loadMeals(loadedKids.map { it.id }).ifEmpty {
+                        seedPersonalizedMeals(loadedKids.ifEmpty { SampleData.kids })
+                    }
+                    loadedStreaks = data.loadStreaks(loadedKids.map { it.id }).ifEmpty {
+                        loadedKids.associate { it.id to StreakInfo() }
+                    }
+                } catch (e: Exception) {
+                    // Room DB or JSON file may be corrupted — fall back to sample data
+                    saved = PersistentState()
+                    loadedKids = SampleData.kids
+                    loadedApps = SampleData.appointments
+                    loadedMeals = seedPersonalizedMeals(SampleData.kids)
+                    loadedStreaks = SampleData.kids.associate { it.id to StreakInfo() }
                 }
 
                 withContext(Dispatchers.Main) {
@@ -127,7 +147,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         phone = if (restored) auth.phone.value else saved.phone,
                         userId = auth.userId.value,
                         kids = loadedKids,
-                        camps = saved.camps.map { it.toCamp() }.ifEmpty { SampleData.camps },
+                        camps = saved.camps.mapNotNull { try { it.toCamp() } catch (_: Exception) { null } }.ifEmpty { SampleData.camps },
                         doctors = SampleData.doctors,
                         appointments = loadedApps,
                         notifications = SampleData.notifications,
@@ -136,7 +156,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                         darkTheme = saved.darkTheme,
                         locale = restoredLocale,
                         familyCode = saved.familyCode,
-                        coParents = saved.coParents.map { cp -> CoParent(cp.id, cp.name, cp.relation, cp.joinedDate) },
+                        coParents = saved.coParents.mapNotNull { cp ->
+                            try { CoParent(cp.id, cp.name, cp.relation, cp.joinedDate) } catch (_: Exception) { null }
+                        },
                         wearableData = saved.wearableData.mapValues { (_, v) -> v.toWearableData() }.ifEmpty {
                             SampleData.kids.associate { it.id to HealthConnectService.getDemoData(it.name) }
                         },
@@ -147,15 +169,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     _streaks.value = loadedStreaks
 
                     if (!restored) {
-                        auth.setOnboardingComplete(saved.onboardingComplete)
-                        if (saved.isLoggedIn) auth.login(saved.phone, saved.parentName)
+                        try { auth.setOnboardingComplete(saved.onboardingComplete) } catch (_: Exception) { }
+                        if (saved.isLoggedIn) {
+                            try { auth.login(saved.phone, saved.parentName) } catch (_: Exception) { }
+                        }
                     }
                     // Wire Supabase access token
                     supabase.accessToken = auth.accessToken.value
-                    // Schedule notifications
-                    if (isLoggedIn.value) scheduleAllNotifications()
-                    // Process pending sync queue
-                    SyncQueue.processAll(supabase, getApplication())
+                    // Schedule notifications (best-effort, won't block UI)
+                    try {
+                        if (isLoggedIn.value) scheduleAllNotifications()
+                    } catch (_: Exception) { }
+                    // Process pending sync queue (best-effort)
+                    try {
+                        SyncQueue.processAll(supabase, getApplication())
+                    } catch (_: Exception) { }
                 }
             }
         }

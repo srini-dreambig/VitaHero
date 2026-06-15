@@ -49,31 +49,35 @@ class AuthManager(private val app: Application) {
 
     /** Try to restore a previous session from encrypted storage. */
     fun tryRestoreSession(): Boolean {
-        val storedToken = SecureTokenStore.getAccessToken(app)
-        val storedRefresh = SecureTokenStore.getRefreshToken(app)
-        val storedUserId = SecureTokenStore.getUserId(app)
-        if (storedToken != null && storedUserId != null) {
-            _accessToken.value = storedToken
-            _userId.value = storedUserId
-            _isLoggedIn.value = true
-            _onboardingComplete.value = true
-            // Try to refresh the token in the background
-            scope.launch {
-                val result = SupabaseAuth.refreshToken(storedRefresh ?: "")
-                result.onSuccess { resp ->
-                    _accessToken.value = resp.access_token
-                    SecureTokenStore.saveTokens(
-                        app, resp.access_token,
-                        resp.refresh_token, storedUserId
-                    )
-                }.onFailure {
-                    // Token expired beyond refresh — clear session
-                    clearSession()
+        return try {
+            val storedToken = SecureTokenStore.getAccessToken(app)
+            val storedRefresh = SecureTokenStore.getRefreshToken(app)
+            val storedUserId = SecureTokenStore.getUserId(app)
+            if (storedToken != null && storedUserId != null) {
+                _accessToken.value = storedToken
+                _userId.value = storedUserId
+                _isLoggedIn.value = true
+                _onboardingComplete.value = true
+                // Try to refresh the token in the background
+                scope.launch {
+                    val result = SupabaseAuth.refreshToken(storedRefresh ?: "")
+                    result.onSuccess { resp ->
+                        _accessToken.value = resp.access_token
+                        SecureTokenStore.saveTokens(
+                            app, resp.access_token,
+                            resp.refresh_token, storedUserId
+                        )
+                    }.onFailure {
+                        // Token expired beyond refresh — clear session
+                        clearSession()
+                    }
                 }
-            }
-            return true
+                true
+            } else false
+        } catch (e: Exception) {
+            // EncryptedSharedPreferences or Keystore unavailable — gracefully continue
+            false
         }
-        return false
     }
 
     fun onEmailSignInSuccess(resp: SupabaseAuth.AuthResponse, name: String) {
