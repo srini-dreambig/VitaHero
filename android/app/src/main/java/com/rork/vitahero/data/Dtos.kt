@@ -47,7 +47,7 @@ data class KidDto(
 @Serializable
 data class CampDto(
     val id: String,
-    @SerialName("profile_id") val profileId: String,
+    @SerialName("profile_id") val profileId: String = "",
     @SerialName("user_id") val userId: String? = null,
     val title: String,
     val school: String,
@@ -56,6 +56,13 @@ data class CampDto(
     val status: String = "UPCOMING",
     val checks: List<String> = emptyList(),
     @SerialName("result_summary") val resultSummary: String? = null,
+    @SerialName("is_partner") val isPartner: Boolean = false,
+    @SerialName("school_id") val schoolId: String? = null,
+    @SerialName("school_camp_id") val schoolCampId: String? = null,
+    val description: String = "",
+    val grades: List<String> = emptyList(),
+    val capacity: Int = 0,
+    @SerialName("registered_kid_ids") val registeredKidIds: List<String> = emptyList(),
 )
 
 @Serializable
@@ -64,6 +71,7 @@ data class AppointmentDto(
     @SerialName("profile_id") val profileId: String,
     @SerialName("user_id") val userId: String? = null,
     @SerialName("doctor_name") val doctorName: String,
+    @SerialName("doctor_id") val doctorId: String? = null,
     val specialty: String,
     @SerialName("kid_name") val kidName: String,
     val date: String,
@@ -110,4 +118,129 @@ data class CoParentDto(
     val name: String,
     val relation: String,
     @SerialName("joined_date") val joinedDate: String = "",
+)
+
+@Serializable
+data class DoctorDto(
+    val id: String,
+    val name: String,
+    val specialty: String,
+    val hospital: String = "",
+    val city: String = "",
+    val rating: Double = 4.5,
+    @SerialName("hospital_id") val hospitalId: String? = null,
+    @SerialName("is_camp_partner") val isCampPartner: Boolean = false,
+)
+
+@Serializable
+data class BookingDirectoryDoctorDto(
+    val id: String,
+    val name: String,
+    val specialty: String,
+    val hospital: String = "",
+    @SerialName("hospital_id") val hospitalId: String? = null,
+    val city: String = "",
+    val rating: Double = 4.5,
+    @SerialName("is_camp_partner") val isCampPartner: Boolean = false,
+)
+
+@Serializable
+data class BookingHospitalDto(
+    val id: String,
+    val name: String,
+    val city: String = "",
+    val district: String = "",
+    val address: String = "",
+    val lat: Double? = null,
+    val lng: Double? = null,
+    val phone: String = "",
+    val rating: Double = 4.5,
+    @SerialName("is_camp_partner") val isCampPartner: Boolean = false,
+    @SerialName("conducted_camps") val conductedCamps: Int = 0,
+    @SerialName("user_camp_linked") val userCampLinked: Boolean = false,
+    @SerialName("user_linked_camps") val userLinkedCamps: Int = 0,
+    @SerialName("distance_km") val distanceKm: Double? = null,
+    val specialties: List<String> = emptyList(),
+    val doctors: List<BookingDirectoryDoctorDto> = emptyList(),
+)
+
+@Serializable
+data class BookingDirectoryDto(
+    val city: String,
+    val hospitals: List<BookingHospitalDto> = emptyList(),
+    val specialties: List<String> = emptyList(),
+)
+
+@Serializable
+data class BookingSlotDto(
+    val date: String,
+    val time: String,
+    val label: String,
+)
+
+@Serializable
+data class BookingSlotsResponse(
+    @SerialName("doctor_id") val doctorId: String,
+    val slots: List<BookingSlotDto> = emptyList(),
+)
+
+@Serializable
+data class NotificationDto(
+    val id: String,
+    val title: String,
+    val body: String,
+    val time: String = "",
+    val type: String = "CAMP",
+    val unread: Boolean = true,
+)
+
+@Serializable
+data class SchoolDto(
+    val id: String,
+    val name: String,
+    val city: String = "",
+    val district: String = "",
+    val description: String = "",
+    val active: Boolean = true,
+)
+
+@Serializable
+data class MySchoolDto(
+    val id: String,
+    val name: String,
+    val city: String = "",
+    val district: String = "",
+    val description: String = "",
+    @SerialName("enrolled_at") val enrolledAt: String? = null,
+    @SerialName("kid_id") val kidId: String? = null,
+)
+
+@Serializable
+data class SchoolEnrollResponse(
+    val success: Boolean = false,
+    @SerialName("schoolId") val schoolId: String? = null,
+    @SerialName("schoolName") val schoolName: String? = null,
+    val error: String? = null,
+)
+
+@Serializable
+data class CampRegisterResponse(
+    val success: Boolean = false,
+    @SerialName("registrationId") val registrationId: String? = null,
+    val error: String? = null,
+)
+
+@Serializable
+data class AiDietTipDto(
+    val content: AiDietTipContentDto = AiDietTipContentDto(),
+    @SerialName("generated_at") val generatedAt: String? = null,
+)
+
+@Serializable
+data class AiDietTipContentDto(
+    val greeting: String = "",
+    val insight: String = "",
+    val suggestion: String = "",
+    @SerialName("funFact") val funFact: String = "",
+    @SerialName("generatedAt") val generatedAt: String = "",
 )

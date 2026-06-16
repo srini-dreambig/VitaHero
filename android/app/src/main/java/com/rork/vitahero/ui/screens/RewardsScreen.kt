@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,14 +56,24 @@ import com.rork.vitahero.ui.theme.HeroYellow
 @Composable
 fun RewardsScreen(
     kids: List<Kid>,
+    leaderboards: Map<String, List<LeaderEntry>>,
+    onRefreshLeaderboard: (String) -> Unit,
     badgeData: (String) -> BadgeProgress,
 ) {
     var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
+    LaunchedEffect(selectedKidId) {
+        if (selectedKidId.isNotBlank()) onRefreshLeaderboard(selectedKidId)
+    }
+    LaunchedEffect(kids.map { it.id }) {
+        if (selectedKidId.isBlank()) {
+            selectedKidId = kids.firstOrNull()?.id.orEmpty()
+        }
+    }
     val active = kids.firstOrNull { it.id == selectedKidId }
     val progress = badgeData(selectedKidId)
     val badges = progress.badges
     val earned = badges.count { it.earned }
-    val leaderboard = progress.leaderboard
+    val leaderboard = leaderboards[selectedKidId] ?: progress.leaderboard
     val kidName = active?.name ?: "Hero"
 
     LazyColumn(
@@ -140,7 +151,7 @@ fun RewardsScreen(
                 }
             }
             Spacer(Modifier.height(24.dp))
-            Text("$kidName — ${t(S.heroBadges)}", style = MaterialTheme.typography.headlineSmall)
+            Text(tf(S.kidBadges, kidName), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
         }
 

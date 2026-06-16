@@ -40,10 +40,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.AppLocale
+import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
+import com.rork.vitahero.ui.components.FieldLabel
+import com.rork.vitahero.ui.components.HeroTextField
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 
@@ -108,17 +114,17 @@ fun AddKidScreen(
             )
             Spacer(Modifier.height(24.dp))
 
-            Label(t(S.kidName))
+            FieldLabel(t(S.kidName))
             HeroTextField(value = name, onValueChange = { name = it }, placeholder = "e.g. Rahul Sharma")
             Spacer(Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) {
-                    Label(t(S.kidAge))
+                    FieldLabel(t(S.kidAge))
                     HeroTextField(value = age, onValueChange = { age = it.filter(Char::isDigit).take(2) }, placeholder = "Years", keyboardType = KeyboardType.Number)
                 }
                 Column(Modifier.weight(1.4f)) {
-                    Label(t(S.kidGender))
+                    FieldLabel(t(S.kidGender))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         GenderChip(t(S.boy), gender == "Boy", Modifier.weight(1f)) { gender = "Boy" }
                         GenderChip(t(S.girl), gender == "Girl", Modifier.weight(1f)) { gender = "Girl" }
@@ -127,21 +133,21 @@ fun AddKidScreen(
             }
             Spacer(Modifier.height(16.dp))
 
-            Label(t(S.kidSchool))
+            FieldLabel(t(S.kidSchool))
             HeroTextField(value = school, onValueChange = { school = it }, placeholder = "School name")
             Spacer(Modifier.height(16.dp))
 
-            Label(t(S.kidGrade))
+            FieldLabel(t(S.kidGrade))
             HeroTextField(value = grade, onValueChange = { grade = it }, placeholder = "e.g. Class 4-B")
             Spacer(Modifier.height(16.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Column(Modifier.weight(1f)) {
-                    Label(t(S.kidHeight))
+                    FieldLabel(t(S.kidHeight))
                     HeroTextField(value = height, onValueChange = { height = it.filter { c -> c.isDigit() || c == '.' } }, placeholder = "e.g. 132", keyboardType = KeyboardType.Number)
                 }
                 Column(Modifier.weight(1f)) {
-                    Label(t(S.kidWeight))
+                    FieldLabel(t(S.kidWeight))
                     HeroTextField(value = weight, onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }, placeholder = "e.g. 29", keyboardType = KeyboardType.Number)
                 }
             }
@@ -169,16 +175,6 @@ fun AddKidScreen(
 }
 
 @Composable
-private fun Label(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(bottom = 8.dp)
-    )
-}
-
-@Composable
 private fun GenderChip(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
         modifier = modifier
@@ -199,5 +195,15 @@ private fun GenderChip(text: String, selected: Boolean, modifier: Modifier = Mod
             color = if (selected) HeroGreen else MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold
         )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun AddKidScreenPreview() {
+    androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides AppLocale.ENGLISH) {
+        AppTheme {
+            AddKidScreen(onBack = {}, onSave = { _, _, _, _, _, _, _ -> })
+        }
     }
 }

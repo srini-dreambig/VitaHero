@@ -30,9 +30,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Lightbulb
-import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.Psychology
-import androidx.compose.material.icons.outlined.SmartDisplay
 import androidx.compose.material.icons.outlined.TipsAndUpdates
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -52,14 +50,18 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AIDietContent
+import com.rork.vitahero.data.AppLocale
+import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.MealItem
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.ProgressRing
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
+import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -404,6 +406,29 @@ private fun MealCard(meal: MealItem, onToggle: () -> Unit) {
                     Icon(Icons.Outlined.Check, contentDescription = "Eaten", tint = Color.White, modifier = Modifier.size(20.dp * scale))
                 }
             }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun DietScreenPreview() {
+    androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides AppLocale.ENGLISH) {
+        AppTheme {
+            DietScreen(
+                kidName = "Preview",
+                kidId = "k1",
+                meals = emptyList(),
+                aiContent = AIDietContent(
+                    greeting = "",
+                    insight = "",
+                    suggestion = "Try adding some spinach to his lunch today.",
+                    funFact = "Spinach is packed with iron and vitamins!"
+                ),
+                onBack = {},
+                onToggleMeal = {},
+                onGenerateAI = {}
+            )
         }
     }
 }

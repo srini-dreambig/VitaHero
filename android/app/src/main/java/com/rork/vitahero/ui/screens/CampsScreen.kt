@@ -23,6 +23,8 @@ import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,15 +34,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Camp
 import com.rork.vitahero.data.CampStatus
+import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.EmptyState
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 
@@ -48,7 +54,9 @@ import com.rork.vitahero.ui.theme.HeroGreen
 @Composable
 fun CampsScreen(
     camps: List<Camp>,
-    onBookFollowUp: () -> Unit
+    onBookFollowUp: () -> Unit,
+    onOpenCamp: (String) -> Unit = {},
+    onOpenSchools: () -> Unit = {},
 ) {
     val upcoming = camps.filter { it.status == CampStatus.UPCOMING }
     val past = camps.filter { it.status == CampStatus.COMPLETED }
@@ -69,14 +77,29 @@ fun CampsScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            HeroCard(
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenSchools)
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.School, contentDescription = null, tint = HeroBlue, modifier = Modifier.size(24.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(t(S.linkSchoolPartners), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.schoolPartnersSub), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
         }
 
         if (camps.isEmpty()) {
             item {
                 EmptyState(
                     icon = Icons.Outlined.CalendarMonth,
-                    title = "No camps yet",
-                    subtitle = "When your school schedules a health camp, it will appear here."
+                    title = t(S.noCampsYet),
+                    subtitle = t(S.noCampsSub)
                 )
             }
             return@LazyColumn
@@ -88,7 +111,7 @@ fun CampsScreen(
                 Spacer(Modifier.height(12.dp))
             }
             items(upcoming, key = { it.id }) { camp ->
-                CampCard(camp, onBookFollowUp)
+                CampCard(camp, onBookFollowUp, onOpenCamp)
                 Spacer(Modifier.height(12.dp))
             }
         }
@@ -99,7 +122,7 @@ fun CampsScreen(
             Spacer(Modifier.height(12.dp))
         }
         items(past, key = { it.id }) { camp ->
-            CampCard(camp, onBookFollowUp)
+            CampCard(camp, onBookFollowUp, onOpenCamp)
             Spacer(Modifier.height(12.dp))
         }
     }
@@ -107,10 +130,14 @@ fun CampsScreen(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit) {
+private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit, onOpenCamp: (String) -> Unit) {
     val upcoming = camp.status == CampStatus.UPCOMING
     val accent = if (upcoming) HeroBlue else HeroGreen
-    HeroCard(Modifier.fillMaxWidth()) {
+    HeroCard(
+        Modifier
+            .fillMaxWidth()
+            .clickable { onOpenCamp(camp.id) }
+    ) {
         Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconBubble(
@@ -119,6 +146,14 @@ private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit) {
                 )
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
+                    if (camp.isPartnerCamp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(14.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(t(S.partnerCamp), style = MaterialTheme.typography.labelSmall, color = HeroGreen, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
                     Text(camp.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
@@ -189,6 +224,21 @@ private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit) {
                     color = if (upcoming) MaterialTheme.colorScheme.onSurface else Color.White
                 )
             }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun CampsScreenPreview() {
+    androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides AppLocale.ENGLISH) {
+        AppTheme {
+            CampsScreen(
+                camps = emptyList(),
+                onBookFollowUp = {},
+                onOpenCamp = {},
+                onOpenSchools = {},
+            )
         }
     }
 }

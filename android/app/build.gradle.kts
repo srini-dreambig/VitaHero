@@ -3,7 +3,21 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.ksp)
+}
+
+import java.util.Properties
+
+val localProperties = Properties().apply {
+    rootProject.file("local.properties").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+
+fun buildConfigProp(vararg keys: String): String {
+    for (key in keys) {
+        System.getenv(key)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        localProperties.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        (project.findProperty(key) as? String)?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+    }
+    return ""
 }
 
 android {
@@ -17,15 +31,13 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        // Rork public env vars → BuildConfig (safe for client)
-        buildConfigField("String", "TOOLKIT_URL", "\"${System.getenv("EXPO_PUBLIC_TOOLKIT_URL") ?: ""}\"")
-        buildConfigField("String", "TOOLKIT_SECRET_KEY", "\"${System.getenv("EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY") ?: ""}\"")
-        buildConfigField("String", "PROJECT_ID", "\"${System.getenv("EXPO_PUBLIC_PROJECT_ID") ?: ""}\"")
-        buildConfigField("String", "RORK_API_BASE_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_API_BASE_URL") ?: ""}\"")
-        buildConfigField("String", "RORK_AUTH_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_AUTH_URL") ?: ""}\"")
-        buildConfigField("String", "RORK_FUNCTIONS_URL", "\"${System.getenv("EXPO_PUBLIC_RORK_FUNCTIONS_URL") ?: ""}\"")
-        buildConfigField("String", "TEAM_ID", "\"${System.getenv("EXPO_PUBLIC_TEAM_ID") ?: ""}\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${System.getenv("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID") ?: ""}\"")
+        // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
+        buildConfigField("String", "RORK_FUNCTIONS_URL", "\"${buildConfigProp("RORK_FUNCTIONS_URL", "EXPO_PUBLIC_RORK_FUNCTIONS_URL")}\"")
+        buildConfigField("String", "RORK_API_BASE_URL", "\"${buildConfigProp("RORK_API_BASE_URL", "EXPO_PUBLIC_RORK_API_BASE_URL")}\"")
+        buildConfigField("String", "RORK_AUTH_URL", "\"${buildConfigProp("RORK_AUTH_URL", "EXPO_PUBLIC_RORK_AUTH_URL")}\"")
+        buildConfigField("String", "PROJECT_ID", "\"${buildConfigProp("PROJECT_ID", "EXPO_PUBLIC_PROJECT_ID")}\"")
+        buildConfigField("String", "TEAM_ID", "\"${buildConfigProp("TEAM_ID", "EXPO_PUBLIC_TEAM_ID")}\"")
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${buildConfigProp("GOOGLE_WEB_CLIENT_ID", "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID")}\"")
     }
 
     buildTypes {
@@ -76,18 +88,17 @@ dependencies {
     implementation(libs.ktor.serialization.json)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
-    implementation(libs.room.runtime)
-    implementation(libs.room.ktx)
-    ksp(libs.room.compiler)
-    implementation(libs.androidx.security.crypto)
     implementation(libs.health.connect.client) {
         exclude(group = "com.google.guava", module = "guava")
         exclude(group = "com.google.guava", module = "failureaccess")
     }
+    implementation(libs.androidx.security.crypto)
     implementation(libs.guava.android)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services.auth)
     implementation(libs.googleid)
+    implementation(libs.mlkit.image.labeling)
+    implementation(libs.androidx.work.runtime.ktx)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

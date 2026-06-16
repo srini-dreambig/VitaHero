@@ -153,6 +153,7 @@ object S {
     const val notifSubtitle = "notif_subtitle"
     const val campReminderSub = "camp_reminder_sub"
     const val linkedHospitals = "linked_hospitals"
+    const val hospitalPartnersSub = "hospital_partners_sub"
     const val familySharing = "family_sharing"
     const val privacyData = "privacy_data"
     const val helpSupport = "help_support"
@@ -187,6 +188,18 @@ object S {
     // ---- Booking ----
     const val bookAppt = "book_appt"
     const val selectDoctor = "select_doctor"
+    const val selectHospital = "select_hospital"
+    const val hospitalsNearYou = "hospitals_near_you"
+    const val campPartnerHospital = "camp_partner_hospital"
+    const val conductedCampsCount = "conducted_camps_count"
+    const val viewByHospital = "view_by_hospital"
+    const val viewBySpecialty = "view_by_specialty"
+    const val yourArea = "your_area"
+    const val noHospitalsFound = "no_hospitals_found"
+    const val kmAway = "km_away"
+    const val useMyLocation = "use_my_location"
+    const val locationSorted = "location_sorted"
+    const val noSlotsAvailable = "no_slots_available"
     const val selectKid = "select_kid"
     const val selectDate = "select_date"
     const val selectTime = "select_time"
@@ -209,8 +222,54 @@ object S {
     const val stepsToday = "steps_today"
     const val activeMinutes = "active_minutes"
     const val syncedFrom = "synced_from"
+    const val healthConnectInstall = "health_connect_install"
 
-    // ---- Extra UI strings ----
+    // ---- Kid management ----
+    const val deleteKid = "delete_kid"
+    const val deleteKidConfirm = "delete_kid_confirm"
+    const val deleteKidBody = "delete_kid_body"
+
+    // ---- School partnerships ----
+    const val schoolPartners = "school_partners"
+    const val schoolPartnersSub = "school_partners_sub"
+    const val linkedSchools = "linked_schools"
+    const val enterPartnerCode = "enter_partner_code"
+    const val partnerCodeHint = "partner_code_hint"
+    const val linkChildOptional = "link_child_optional"
+    const val linkSchool = "link_school"
+    const val partnerSchoolsList = "partner_schools_list"
+    const val linked = "linked"
+    const val schoolLinked = "school_linked"
+    const val schoolEnrollFailed = "school_enroll_failed"
+    const val campRegistered = "camp_registered"
+    const val campRegisterFailed = "camp_register_failed"
+    const val campDetails = "camp_details"
+    const val partnerCamp = "partner_camp"
+    const val eligibleGrades = "eligible_grades"
+    const val screeningsIncluded = "screenings_included"
+    const val capacity = "capacity"
+    const val registerChild = "register_child"
+    const val registered = "registered"
+    const val selected = "selected"
+    const val confirmRegistration = "confirm_registration"
+    const val linkSchoolPartners = "link_school_partners"
+    const val openSchools = "open_schools"
+
+    // ---- Clinical growth charts ----
+    const val clinicalGrowthCharts = "clinical_growth_charts"
+    const val growthChartsFor = "growth_charts_for"
+    const val currentAssessment = "current_assessment"
+    const val heightPercentile = "height_percentile"
+    const val weightPercentile = "weight_percentile"
+    const val bmiPercentile = "bmi_percentile"
+    const val referenceStandard = "reference_standard"
+    const val heightChart = "height_chart"
+    const val weightChart = "weight_chart"
+    const val bmiChart = "bmi_chart"
+    const val yourChild = "your_child"
+    const val growthChartDisclaimer = "growth_chart_disclaimer"
+    const val viewClinicalCharts = "view_clinical_charts"
+
     const val verifyNumber = "verify_number"
     const val didntGetCode = "didnt_get_code"
     const val resendIn = "resend_in"
@@ -278,6 +337,24 @@ object S {
     const val noKidsYet = "no_kids_yet"
     const val noKidsSub = "no_kids_sub"
     const val addFirstChild = "add_first_child"
+
+    // ---- Errors & sync ----
+    const val syncFailed = "sync_failed"
+    const val authGoogleFailed = "auth_google_failed"
+    const val authSignupFailed = "auth_signup_failed"
+    const val authSigninFailed = "auth_signin_failed"
+    const val authMissingToken = "auth_missing_token"
+    const val authOtpSendFailed = "auth_otp_send_failed"
+    const val authOtpInvalid = "auth_otp_invalid"
+    const val familyInvalid = "family_invalid"
+    const val coParentRelation = "co_parent_relation"
+    const val noFamilyCodeYet = "no_family_code_yet"
+    const val generateFamilyCode = "generate_family_code"
+    const val linkedHospitalsSub = "linked_hospitals_sub"
+    const val privacyDataSub = "privacy_data_sub"
+    const val helpSupportSub = "help_support_sub"
+    const val todayLabel = "today_label"
+    const val tomorrowLabel = "tomorrow_label"
 }
 
 private val en = mapOf(
@@ -422,6 +499,19 @@ private val en = mapOf(
     S.noFoodDetected to "No food items detected. Try a clearer photo.",
     S.bookAppt to "Book Appointment",
     S.selectDoctor to "Select a doctor",
+    S.selectHospital to "Select a hospital",
+    S.hospitalsNearYou to "Hospitals in your area",
+    S.campPartnerHospital to "Camp partner",
+    S.conductedCampsCount to "%d school camps conducted",
+    S.viewByHospital to "By hospital",
+    S.viewBySpecialty to "By specialty",
+    S.yourArea to "Your area",
+    S.noHospitalsFound to "No hospitals found in this area",
+    S.kmAway to "%s km away",
+    S.useMyLocation to "Use my location",
+    S.locationSorted to "Sorted by distance from you",
+    S.hospitalPartnersSub to "Partner hospitals near you — camp partners shown first",
+    S.noSlotsAvailable to "No open slots for this doctor. Try another date or doctor.",
     S.selectKid to "For which child?",
     S.selectDate to "Select date",
     S.selectTime to "Select time slot",
@@ -440,6 +530,47 @@ private val en = mapOf(
     S.stepsToday to "Steps today",
     S.activeMinutes to "Active minutes",
     S.syncedFrom to "Synced from device",
+    S.healthConnectInstall to "Install Health Connect from Play Store to sync activity data.",
+    S.deleteKid to "Remove child",
+    S.deleteKidConfirm to "Remove this child?",
+    S.deleteKidBody to "All meals, streaks, and growth data for this child will be permanently deleted.",
+    S.schoolPartners to "School Partners",
+    S.schoolPartnersSub to "Link your child's school to receive real health camp schedules",
+    S.linkedSchools to "Your linked schools",
+    S.enterPartnerCode to "Enter partner code",
+    S.partnerCodeHint to "Ask your school nurse for the VitaHero partner code (e.g. OAK2026).",
+    S.linkChildOptional to "Link a child (optional)",
+    S.linkSchool to "Link school",
+    S.partnerSchoolsList to "Partner schools in Hyderabad",
+    S.linked to "Linked",
+    S.schoolLinked to "Connected to %s. Partner camps are now in your Camps tab.",
+    S.schoolEnrollFailed to "Could not link school. Check the partner code.",
+    S.campRegistered to "Camp registration confirmed! A reminder will appear before the camp.",
+    S.campRegisterFailed to "Registration failed. Enroll with your school first.",
+    S.campDetails to "Camp details",
+    S.partnerCamp to "Verified school camp",
+    S.eligibleGrades to "Eligible grades",
+    S.screeningsIncluded to "Screenings included",
+    S.capacity to "Capacity",
+    S.registerChild to "Register your child",
+    S.registered to "Registered",
+    S.selected to "Selected",
+    S.confirmRegistration to "Confirm registration",
+    S.linkSchoolPartners to "Link school partner",
+    S.openSchools to "School partners",
+    S.clinicalGrowthCharts to "Clinical growth charts",
+    S.growthChartsFor to "WHO/IAP charts for %s",
+    S.currentAssessment to "Current assessment",
+    S.heightPercentile to "Height percentile",
+    S.weightPercentile to "Weight percentile",
+    S.bmiPercentile to "BMI percentile",
+    S.referenceStandard to "Reference",
+    S.heightChart to "Height",
+    S.weightChart to "Weight",
+    S.bmiChart to "BMI",
+    S.yourChild to "Your child",
+    S.growthChartDisclaimer to "Based on WHO 2007 growth references used by IAP. For clinical decisions, consult your paediatrician.",
+    S.viewClinicalCharts to "View WHO/IAP percentile charts",
     S.verifyNumber to "Verify your number",
     S.didntGetCode to "Didn't get the code?",
     S.resendIn to "Resend in %ss",
@@ -506,6 +637,22 @@ private val en = mapOf(
     S.noKidsYet to "No children yet",
     S.noKidsSub to "Add your first child to start tracking their health & growth.",
     S.addFirstChild to "Add a child",
+    S.syncFailed to "Could not save your data. Please try again.",
+    S.authGoogleFailed to "Google sign-in failed. Please try again.",
+    S.authSignupFailed to "Sign up failed. Please check your details.",
+    S.authSigninFailed to "Invalid email or password.",
+    S.authMissingToken to "Sign-in incomplete. Please try again.",
+    S.authOtpSendFailed to "Could not send OTP. Please try again.",
+    S.authOtpInvalid to "Invalid OTP. Please try again.",
+    S.familyInvalid to "Family code not found. Please check and try again.",
+    S.coParentRelation to "Co-parent",
+    S.noFamilyCodeYet to "Generate your family code to invite a co-parent.",
+    S.generateFamilyCode to "Generate family code",
+    S.linkedHospitalsSub to "Partner hospitals near you — camp partners shown first",
+    S.privacyDataSub to "DPDP compliant · parental consent",
+    S.helpSupportSub to "Email our support team",
+    S.todayLabel to "Today",
+    S.tomorrowLabel to "Tomorrow",
 )
 
 private val hi = mapOf(
@@ -649,6 +796,18 @@ private val hi = mapOf(
     S.noFoodDetected to "\u0915\u094B\u0908 \u092D\u094B\u091C\u0928 \u0928\u0939\u0940\u0902 \u092A\u0939\u091A\u093E\u0928\u093E \u0917\u092F\u093E\u0964 \u0915\u0943\u092A\u092F\u093E \u0938\u093E\u092B\u093C \u0924\u0938\u094D\u0935\u0940\u0930 \u0932\u0947\u0902\u0964",
     S.bookAppt to "\u0905\u092A\u0949\u0907\u0902\u091F\u092E\u0947\u0902\u091F \u092C\u0941\u0915 \u0915\u0930\u0947\u0902",
     S.selectDoctor to "\u0921\u0949\u0915\u094D\u091F\u0930 \u091A\u0941\u0928\u0947\u0902",
+    S.selectHospital to "\u0905\u0938\u094D\u092A\u0924\u093E\u0932 \u091A\u0941\u0928\u0947\u0902",
+    S.hospitalsNearYou to "\u0906\u092A\u0915\u0947 \u0915\u094D\u0937\u0947\u0924\u094D\u0930 \u092E\u0947\u0902 \u0905\u0938\u094D\u092A\u0924\u093E\u0932",
+    S.campPartnerHospital to "\u0936\u093F\u092C\u093F\u0930 \u0938\u093E\u0925\u0940",
+    S.conductedCampsCount to "%d \u0938\u094D\u0915\u0942\u0932 \u0936\u093F\u092C\u093F\u0930 \u0915\u0930 \u091A\u0941\u0915\u0947",
+    S.viewByHospital to "\u0905\u0938\u094D\u092A\u0924\u093E\u0932 \u0915\u0947 \u0905\u0928\u0941\u0938\u093E\u0930",
+    S.viewBySpecialty to "\u0935\u093F\u0936\u0947\u0937\u0924\u093E \u0915\u0947 \u0905\u0928\u0941\u0938\u093E\u0930",
+    S.yourArea to "\u0906\u092A\u0915\u093E \u0915\u094D\u0937\u0947\u0924\u094D\u0930",
+    S.noHospitalsFound to "\u0907\u0938 \u0915\u094D\u0937\u0947\u0924\u094D\u0930 \u092E\u0947\u0902 \u0915\u094B\u0908 \u0905\u0938\u094D\u092A\u0924\u093E\u0932 \u0928\u0939\u0940\u0902",
+    S.kmAway to "%s \u0915\u093F\u092E\u0940 \u0926\u0942\u0930",
+    S.useMyLocation to "\u092E\u0947\u0930\u093E \u0938\u094D\u0925\u093E\u0928 \u0909\u092A\u092F\u094B\u0917 \u0915\u0930\u0947\u0902",
+    S.locationSorted to "\u0906\u092A\u0915\u0947 \u0928\u093F\u0915\u091F \u0926\u0942\u0930\u0940 \u0915\u0947 \u0905\u0928\u0941\u0938\u093E\u0930 \u0915\u094D\u0930\u092E \u092E\u0947\u0902",
+    S.hospitalPartnersSub to "\u0906\u092A\u0915\u0947 \u092A\u093E\u0938 \u092A\u093E\u0930\u094D\u091F\u0928\u0930 \u0905\u0938\u094D\u092A\u0924\u093E\u0932 \u2014 \u0936\u093F\u092C\u093F\u0930 \u0938\u093E\u0925\u0940 \u092A\u0939\u0932\u0947",
     S.selectKid to "\u0915\u093F\u0938 \u092C\u091A\u094D\u091A\u0947 \u0915\u0947 \u0932\u093F\u090F?",
     S.selectDate to "\u0924\u093E\u0930\u0940\u0916 \u091A\u0941\u0928\u0947\u0902",
     S.selectTime to "\u0938\u092E\u092F \u091A\u0941\u0928\u0947\u0902",
@@ -667,6 +826,19 @@ private val hi = mapOf(
     S.stepsToday to "\u0906\u091C \u0915\u0947 \u0915\u0926\u092E",
     S.activeMinutes to "\u0938\u0915\u094D\u0930\u093F\u092F \u092E\u093F\u0928\u091F",
     S.syncedFrom to "\u0921\u093F\u0935\u093E\u0907\u0938 \u0938\u0947 \u0938\u093F\u0902\u0915",
+    S.healthConnectInstall to "\u0917\u0924\u093F\u0935\u093F\u0927\u093F \u0921\u0947\u091F\u093E \u0938\u093F\u0902\u0915 \u0915\u0930\u0928\u0947 \u0915\u0947 \u0932\u093F\u090F Play Store \u0938\u0947 Health Connect \u0907\u0902\u0938\u094D\u091F\u0949\u0932 \u0915\u0930\u0947\u0902\u0964",
+    S.deleteKid to "\u092C\u091A\u094D\u091A\u0947 \u0939\u091F\u093E\u090F\u0902",
+    S.deleteKidConfirm to "\u0915\u094D\u092F\u093E \u0907\u0938 \u092C\u091A\u094D\u091A\u0947 \u0915\u094B \u0939\u091F\u093E\u0928\u093E \u0939\u0948?",
+    S.deleteKidBody to "\u0907\u0938 \u092C\u091A\u094D\u091A\u0947 \u0915\u0947 \u0938\u092D\u0940 \u092D\u094B\u091C\u0928, \u0938\u094D\u091F\u094D\u0930\u0940\u0915 \u0914\u0930 \u0935\u093F\u0915\u093E\u0938 \u0921\u0947\u091F\u093E \u0939\u092E\u0947\u0936\u093E \u0915\u0947 \u0932\u093F\u090F \u0939\u091F \u091C\u093E\u090F\u0917\u093E\u0964",
+    S.syncFailed to "\u0921\u0947\u091F\u093E \u0938\u0947\u0935 \u0928\u0939\u0940\u0902 \u0939\u094B \u0938\u0915\u093E\u0964 \u0915\u0943\u092A\u092F\u093E \u092A\u0941\u0928\u0903 \u092A\u094D\u0930\u092F\u093E\u0938 \u0915\u0930\u0947\u0902\u0964",
+    S.familyInvalid to "\u092A\u0930\u093F\u0935\u093E\u0930 \u0915\u094B\u0921 \u0928\u0939\u0940\u0902 \u092E\u093F\u0932\u093E\u0964 \u0915\u094B\u0921 \u091C\u093E\u0902\u091A \u0915\u0930\u0947\u0902\u0964",
+    S.noFamilyCodeYet to "\u0938\u0939-\u092A\u093E\u0932\u0915 \u0915\u094B \u0906\u092E\u0902\u0924\u094D\u0930\u093F\u0924 \u0915\u0930\u0928\u0947 \u0915\u0947 \u0932\u093F\u090F \u092A\u0930\u093F\u0935\u093E\u0930 \u0915\u094B\u0921 \u092C\u0928\u093E\u090F\u0902\u0964",
+    S.generateFamilyCode to "\u092A\u0930\u093F\u0935\u093E\u0930 \u0915\u094B\u0921 \u092C\u0928\u093E\u090F\u0902",
+    S.todayLabel to "\u0906\u091C",
+    S.tomorrowLabel to "\u0915\u0932",
+    S.linkedHospitalsSub to "Partner hospitals near you — camp partners shown first",
+    S.privacyDataSub to "DPDP \u0905\u0928\u0941\u092A\u093E\u0932\u0928 \u00B7 \u092E\u093E\u0924\u093E-\u092A\u093F\u0924\u093E \u0938\u0939\u092E\u0924\u093F",
+    S.helpSupportSub to "\u0938\u0939\u093E\u092F\u0924\u093E \u091F\u0940\u092E \u0915\u094B \u0908\u092E\u0947\u0932 \u0915\u0930\u0947\u0902",
 )
 
 private val te = mapOf(
@@ -816,6 +988,18 @@ private val te = mapOf(
     S.noFoodDetected to "\u0C0F \u0C06\u0C39\u0C3E\u0C30\u0C3E\u0C32\u0C41 \u0C17\u0C41\u0C30\u0C4D\u0C24\u0C3F\u0C02\u0C1A\u0C2C\u0C21\u0C32\u0C47\u0C26\u0C41. \u0C38\u0C4D\u0C2A\u0C37\u0C4D\u0C1F\u0C2E\u0C48\u0C28 \u0C2B\u0C4B\u0C1F\u0C4B \u0C24\u0C40\u0C2F\u0C02\u0C21\u0C3F.",
     S.bookAppt to "\u0C05\u0C2A\u0C3E\u0C2F\u0C3F\u0C02\u0C1F\u0C4D\u200C\u0C2E\u0C46\u0C02\u0C1F\u0C4D \u0C2C\u0C41\u0C15\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
     S.selectDoctor to "\u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D\u200C\u0C28\u0C3F \u0C0E\u0C02\u0C1A\u0C41\u0C15\u0C4B\u0C02\u0C21\u0C3F",
+    S.selectHospital to "\u0C06\u0C38\u0C2A\u0C24\u0C4D\u0C30\u0C2E\u0C41 \u0C0E\u0C02\u0C1A\u0C41\u0C15\u0C4B\u0C02\u0C21\u0C3F",
+    S.hospitalsNearYou to "\u0C2E\u0C40 \u0C2A\u0C3F\u0C30\u0C3F\u0C35\u0C47\u0C36\u0C02\u0C32\u0C4B \u0C06\u0C38\u0C2A\u0C24\u0C4D\u0C30\u0C2E\u0C41\u0C32\u0C41",
+    S.campPartnerHospital to "\u0C15\u0C3E\u0C02\u0C2A\u0C4D \u0C2D\u0C3E\u0C17\u0C38\u0C4D\u0C35\u0C3E\u0C2E\u0C3F",
+    S.conductedCampsCount to "%d \u0C38\u0C4D\u0C15\u0C42\u0C32\u0C4D \u0C15\u0C3E\u0C02\u0C2A\u0C4D\u200C\u0C32\u0C41 \u0C28\u0C3F\u0C30\u0C35\u0C39\u0C3F\u0C02\u0C1A\u0C3F\u0C30\u0C3F",
+    S.viewByHospital to "\u0C06\u0C38\u0C2A\u0C24\u0C4D\u0C30\u0C02 \u0C26\u0C4D\u0C35\u0C3E\u0C30\u0C3E",
+    S.viewBySpecialty to "\u0C38\u0C3F\u0C2A\u0C47\u0C37\u0C24\u0C32 \u0C26\u0C4D\u0C35\u0C3E\u0C30\u0C3E",
+    S.yourArea to "\u0C2E\u0C40 \u0C2A\u0C3F\u0C30\u0C3F\u0C35\u0C47\u0C36\u0C02",
+    S.noHospitalsFound to "\u0C08 \u0C2A\u0C3F\u0C30\u0C3F\u0C35\u0C47\u0C36\u0C02\u0C32\u0C4B \u0C06\u0C38\u0C2A\u0C24\u0C4D\u0C30\u0C2E\u0C41\u0C32\u0C41 \u0C32\u0C47\u0C35\u0C41",
+    S.kmAway to "%s \u0C15\u0C3F.\u0C2E\u0C40 \u0C26\u0C42\u0C30\u0C02",
+    S.useMyLocation to "\u0C28\u0C3E \u0C38\u0C4D\u0C25\u0C3E\u0C28\u0C02 \u0C09\u0C2A\u0C2F\u0C4B\u0C17\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F",
+    S.locationSorted to "\u0C2E\u0C40 \u0C26\u0C17\u0C4D\u0C17\u0C30\u0C3F\u0C28\u0C41\u0C02\u0C21\u0C3F \u0C26\u0C42\u0C30\u0C02 \u0C05\u0C28\u0C41\u0C17\u0C41\u0C23\u0C02\u0C17\u0C3E \u0C15\u0C4D\u0C30\u0C2E\u0C02\u0C2D\u0C02",
+    S.hospitalPartnersSub to "\u0C2E\u0C40 \u0C38\u0C4D\u0C25\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C06\u0C38\u0C41\u0C2A\u0C24\u0C4D\u0C30 \u0C2D\u0C3E\u0C17\u0C38\u0C4D\u0C35\u0C3E\u0C2E\u0C3F\u0C32\u0C41 \u2014 \u0C15\u0C3E\u0C02\u0C2A\u0C4D \u0C2D\u0C3E\u0C17\u0C38\u0C4D\u0C35\u0C3E\u0C2E\u0C3F\u0C32\u0C41 \u0C2E\u0C41\u0C02\u0C26\u0C41",
     S.selectKid to "\u0C0F \u0C2A\u0C3F\u0C32\u0C4D\u0C32\u0C15\u0C4B\u0C38\u0C02?",
     S.selectDate to "\u0C24\u0C47\u0C26\u0C40 \u0C0E\u0C02\u0C1A\u0C41\u0C15\u0C4B\u0C02\u0C21\u0C3F",
     S.selectTime to "\u0C38\u0C2E\u0C2F\u0C3E\u0C28\u0C4D\u0C28\u0C3F \u0C0E\u0C02\u0C1A\u0C41\u0C15\u0C4B\u0C02\u0C21\u0C3F",
@@ -834,6 +1018,15 @@ private val te = mapOf(
     S.stepsToday to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C05\u0C21\u0C41\u0C17\u0C41\u0C32\u0C41",
     S.activeMinutes to "\u0C2F\u0C3E\u0C15\u0C4D\u0C1F\u0C3F\u0C35\u0C4D \u0C28\u0C3F\u0C2E\u0C3F\u0C37\u0C3E\u0C32\u0C41",
     S.syncedFrom to "\u0C2A\u0C30\u0C3F\u0C15\u0C30\u0C02 \u0C28\u0C41\u0C02\u0C21\u0C3F \u0C38\u0C3F\u0C02\u0C15\u0C4D",
+    S.syncFailed to "\u0C21\u0C47\u0C1F\u0C3E\u0C28\u0C41 \u0C38\u0C47\u0C35\u0C4D \u0C1A\u0C47\u0C2F\u0C32\u0C47\u0C2E\u0C41\u0C02\u0C26\u0C32\u0C47\u0C26\u0C41\u0964 \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C2E\u0C33\u0C4D\u0C32\u0C40 \u0C2A\u0C4D\u0C30\u0C2F\u0C24\u0C4D\u0C28\u0C02\u0C1A\u0C02\u0C21\u0C3F\u0964",
+    S.familyInvalid to "\u0C15\u0C41\u0C1F\u0C41\u0C02\u0C2C \u0C15\u0C4B\u0C21\u0C4D \u0C15\u0C28\u0C41\u0C17\u0C4B\u0C28\u0C02\u0C32\u0C47\u0C26\u0C41\u0964 \u0C15\u0C4B\u0C21\u0C4D \u0C24\u0C2A\u0C4D\u0C2A\u0C3F\u0C02\u0C1A\u0C3F \u0C1A\u0C42\u0C21\u0C02\u0C21\u0C3F\u0964",
+    S.noFamilyCodeYet to "\u0C38\u0C39-\u0C24\u0C32\u0C4D\u0C32\u0C3F\u0C28\u0C3F \u0C06\u0C39\u0C4D\u0C35\u0C3E\u0C28\u0C3F\u0C02\u0C1A\u0C21\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C15\u0C41\u0C1F\u0C41\u0C02\u0C2C \u0C15\u0C4B\u0C21\u0C4D \u0C38\u0C3E\u0C27\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F\u0964",
+    S.generateFamilyCode to "\u0C15\u0C41\u0C1F\u0C41\u0C02\u0C2C \u0C15\u0C4B\u0C21\u0C4D \u0C38\u0C3E\u0C27\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F",
+    S.todayLabel to "\u0C08\u0C30\u0C4B\u0C1C\u0C41",
+    S.tomorrowLabel to "\u0C05\u0C2E\u0C3E\u0C30\u0C3E\u0C1F",
+    S.linkedHospitalsSub to "Partner hospitals near you — camp partners shown first",
+    S.privacyDataSub to "DPDP \u0C05\u0C28\u0C41\u0C2A\u0C3E\u0C32\u0C28 \u00B7 \u0C24\u0C02\u0C21\u0C4D\u0C30\u0C3F \u0C05\u0C02\u0C17\u0C40\u0C15\u0C30\u0C23",
+    S.helpSupportSub to "\u0C38\u0C39\u0C3E\u0C2F\u0C02 \u0C1F\u0C40\u0C02\u0C15\u0C41 \u0C08\u0C2E\u0C47\u0C2F\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F",
 )
 
 private val allTranslations = mapOf(

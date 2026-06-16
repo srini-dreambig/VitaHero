@@ -8,6 +8,8 @@ import { neon } from "@neondatabase/serverless";
 
 const SCHEMA = "vita_hero";
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
+const APP_ORIGIN = "https://kidhero.rork.app";
+const APP_CALLBACK_URL = "https://kidhero.rork.app/auth/callback";
 const TWILIO_API = "https://api.twilio.com/2010-04-01";
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
@@ -16,6 +18,8 @@ interface Env {
   DATABASE_URL: string;
   TWILIO_ACCOUNT_SID: string;
   TWILIO_AUTH_TOKEN: string;
+  TOOLKIT_URL?: string;
+  TOOLKIT_SECRET_KEY?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -24,7 +28,7 @@ function cors(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set("Access-Control-Allow-Origin", "*");
   headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  headers.set("Access-Control-Allow-Headers", "Content-Type,Authorization");
+  headers.set("Access-Control-Allow-Headers", "Content-Type,Authorization,Origin,Referer,X-Requested-With");
   headers.set("Access-Control-Max-Age", "86400");
   return new Response(response.body, { status: response.status, headers });
 }
@@ -45,7 +49,761 @@ function generateToken(): string {
 }
 
 function generateOtp(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  const array = new Uint32Array(1);
+  crypto.getRandomValues(array);
+  return String(100000 + (array[0] % 900000));
+}
+
+function sanitizeProfile(row: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!row) return null;
+  const copy = { ...row };
+  delete copy.session_token;
+  return copy;
+}
+
+async function kidOwnedByProfile(
+  sql: ReturnType<typeof neon>,
+  kidId: string,
+  profileId: string
+): Promise<boolean> {
+  const rows = await sql`
+    SELECT id FROM ${sql(SCHEMA)}.kids
+    WHERE id = ${kidId} AND profile_id = ${profileId} LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
+async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
+  await sql`CREATE SCHEMA IF NOT EXISTS ${sql(SCHEMA)}`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.profiles (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      phone TEXT,
+      name TEXT NOT NULL DEFAULT '',
+      email TEXT,
+      session_token TEXT,
+      auth_provider TEXT,
+      onboarding_complete BOOLEAN DEFAULT false,
+      is_logged_in BOOLEAN DEFAULT false,
+      dark_theme BOOLEAN DEFAULT false,
+      locale_code TEXT DEFAULT 'en',
+      family_code TEXT DEFAULT '',
+      notifications_enabled BOOLEAN DEFAULT true,
+      camp_reminders_enabled BOOLEAN DEFAULT true,
+      consent_accepted BOOLEAN DEFAULT false,
+      consent_declined BOOLEAN DEFAULT false,
+      read_notification_ids JSONB DEFAULT '[]'::jsonb
+    )
+  `;
+
+  await sql`
+    ALTER TABLE ${sql(SCHEMA)}.profiles
+    ADD COLUMN IF NOT EXISTS read_notification_ids JSONB DEFAULT '[]'::jsonb
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.phone_otps (
+      phone TEXT PRIMARY KEY,
+      otp TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      attempts INT DEFAULT 0,
+      last_sent_at TIMESTAMPTZ
+    )
+  `;
+
+  await sql`
+    ALTER TABLE ${sql(SCHEMA)}.phone_otps
+    ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMPTZ
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.kids (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      name TEXT NOT NULL,
+      age INT DEFAULT 0,
+      gender TEXT DEFAULT '',
+      school TEXT DEFAULT '',
+      grade TEXT DEFAULT '',
+      height_cm DOUBLE PRECISION DEFAULT 0,
+      weight_kg DOUBLE PRECISION DEFAULT 0,
+      avatar_color BIGINT DEFAULT 0,
+      overall_score INT DEFAULT 80,
+      dental TEXT DEFAULT 'GOOD',
+      eyesight TEXT DEFAULT 'GOOD',
+      nutrition TEXT DEFAULT 'GOOD',
+      last_checkup TEXT DEFAULT 'Not yet'
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.appointments (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      doctor_name TEXT NOT NULL,
+      doctor_id TEXT,
+      specialty TEXT DEFAULT '',
+      kid_name TEXT DEFAULT '',
+      date TEXT NOT NULL,
+      time TEXT NOT NULL
+    )
+  `;
+
+  await sql`ALTER TABLE ${sql(SCHEMA)}.appointments ADD COLUMN IF NOT EXISTS doctor_id TEXT`;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.camps (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      title TEXT NOT NULL,
+      school TEXT DEFAULT '',
+      date TEXT NOT NULL,
+      time TEXT DEFAULT '',
+      status TEXT DEFAULT 'UPCOMING',
+      checks JSONB DEFAULT '[]'::jsonb,
+      result_summary TEXT
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.meal_items (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      kid_id TEXT NOT NULL,
+      time_slot TEXT DEFAULT '',
+      name TEXT NOT NULL,
+      detail TEXT DEFAULT '',
+      kcal INT DEFAULT 0,
+      eaten BOOLEAN DEFAULT false
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.streaks (
+      kid_id TEXT PRIMARY KEY,
+      user_id TEXT,
+      current_streak INT DEFAULT 0,
+      best_streak INT DEFAULT 0,
+      last_log_date TEXT DEFAULT ''
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.growth_points (
+      id TEXT PRIMARY KEY,
+      kid_id TEXT NOT NULL,
+      user_id TEXT,
+      label TEXT DEFAULT '',
+      height DOUBLE PRECISION DEFAULT 0,
+      weight DOUBLE PRECISION DEFAULT 0,
+      recorded_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.co_parents (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      name TEXT NOT NULL,
+      relation TEXT DEFAULT '',
+      joined_date TEXT DEFAULT ''
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.doctors (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      specialty TEXT NOT NULL,
+      hospital TEXT DEFAULT '',
+      city TEXT DEFAULT 'Hyderabad',
+      rating DOUBLE PRECISION DEFAULT 4.5,
+      active BOOLEAN DEFAULT true
+    )
+  `;
+
+  const docCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.doctors`;
+  if ((docCount[0]?.c as number) === 0) {
+    const doctors = [
+      ["d1", "Dr. Ananya Rao", "Paediatrics", "Rainbow Children's Hospital", 4.9],
+      ["d2", "Dr. Vikram Reddy", "Dental", "Apollo Cradle", 4.7],
+      ["d3", "Dr. Meera Iyer", "Ophthalmology", "LV Prasad Eye Institute", 4.8],
+      ["d4", "Dr. Karthik Nair", "Nutrition", "KIMS Hospital", 4.6],
+      ["d5", "Dr. Priya Sharma", "General Paediatrics", "Continental Hospitals", 4.5],
+    ] as const;
+    for (const [id, name, specialty, hospital, rating] of doctors) {
+      await sql`
+        INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, rating)
+        VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})
+        ON CONFLICT (id) DO NOTHING
+      `;
+    }
+  }
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.ai_diet_tips (
+      kid_id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      content JSONB NOT NULL,
+      generated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.schools (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      city TEXT DEFAULT 'Hyderabad',
+      district TEXT DEFAULT '',
+      partner_code TEXT NOT NULL UNIQUE,
+      contact_email TEXT DEFAULT '',
+      description TEXT DEFAULT '',
+      active BOOLEAN DEFAULT true
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.school_enrollments (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      school_id TEXT NOT NULL,
+      kid_id TEXT,
+      status TEXT DEFAULT 'ACTIVE',
+      enrolled_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (profile_id, school_id)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.school_camps (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      date TEXT NOT NULL,
+      time TEXT DEFAULT '',
+      status TEXT DEFAULT 'UPCOMING',
+      checks JSONB DEFAULT '[]'::jsonb,
+      grades JSONB DEFAULT '[]'::jsonb,
+      capacity INT DEFAULT 200,
+      registered_count INT DEFAULT 0,
+      result_summary TEXT,
+      active BOOLEAN DEFAULT true
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.camp_registrations (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      school_camp_id TEXT NOT NULL,
+      kid_id TEXT NOT NULL,
+      registered_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (profile_id, school_camp_id, kid_id)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.camp_kid_results (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      school_camp_id TEXT NOT NULL,
+      kid_id TEXT NOT NULL,
+      dental TEXT DEFAULT 'GOOD',
+      eyesight TEXT DEFAULT 'GOOD',
+      nutrition TEXT DEFAULT 'GOOD',
+      height_cm DOUBLE PRECISION,
+      weight_kg DOUBLE PRECISION,
+      recorded_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (school_camp_id, kid_id)
+    )
+  `;
+
+  await ensureHospitalPartnerships(sql);
+  await seedPartnerSchools(sql);
+  await linkCampHospitals(sql);
+}
+
+function generateDoctorSlots(
+  doctorId: string,
+  bookedKeys: Set<string>,
+): Array<{ date: string; time: string; label: string }> {
+  const slots: Array<{ date: string; time: string; label: string }> = [];
+  const now = new Date();
+  const times = ["10:00 AM", "11:00 AM", "04:30 PM", "05:15 PM"];
+  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+  for (let offset = 1; offset <= 21 && slots.length < 12; offset++) {
+    const day = new Date(now);
+    day.setDate(day.getDate() + offset);
+    if (day.getDay() === 0) continue;
+    const dateStr = `${String(day.getDate()).padStart(2, "0")} ${monthNames[day.getMonth()]} ${day.getFullYear()}`;
+    const dayLabel = dayNames[day.getDay()];
+    for (const time of times) {
+      const key = `${doctorId}|${dateStr}|${time}`;
+      if (bookedKeys.has(key)) continue;
+      slots.push({
+        date: dateStr,
+        time,
+        label: `${dayLabel}, ${time}`,
+      });
+      if (slots.length >= 12) break;
+    }
+  }
+  return slots;
+}
+
+async function seedPartnerSchools(sql: ReturnType<typeof neon>): Promise<void> {
+  const schoolCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.schools`;
+  if ((schoolCount[0]?.c as number) > 0) return;
+
+  const schools = [
+    ["sch_oak", "Oakridge International School", "Hyderabad", "Gachibowli", "OAK2026", "health@oakridge.in", "Partner since 2024 · Full annual screening programme"],
+    ["sch_dps", "Delhi Public School Hyderabad", "Hyderabad", "Khajaguda", "DPS2026", "nurse@dpshyd.com", "Vision, dental & nutrition camps every term"],
+    ["sch_jgs", "Johnson Grammar School", "Hyderabad", "Habsiguda", "JGS2026", "wellness@jgs.edu.in", "IAP-aligned growth monitoring"],
+    ["sch_chirec", "CHIREC International School", "Hyderabad", "Kondapur", "CHI2026", "health@chirec.in", "WHO growth charts integrated with camp results"],
+  ] as const;
+
+  for (const [id, name, city, district, code, email, desc] of schools) {
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.schools (id, name, city, district, partner_code, contact_email, description)
+      VALUES (${id}, ${name}, ${city}, ${district}, ${code}, ${email}, ${desc})
+      ON CONFLICT (id) DO NOTHING
+    `;
+  }
+
+  const now = new Date();
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const d14 = new Date(now); d14.setDate(d14.getDate() + 14);
+  const d28 = new Date(now); d28.setDate(d28.getDate() + 28);
+  const d45 = new Date(now); d45.setDate(d45.getDate() + 45);
+  const d60 = new Date(now); d60.setDate(d60.getDate() - 30);
+
+  const campHospitalById: Record<string, string> = {
+    sc_oak_1: "hosp_rainbow",
+    sc_oak_2: "hosp_kims",
+    sc_oak_past: "hosp_rainbow",
+    sc_dps_1: "hosp_lvp",
+    sc_jgs_1: "hosp_rainbow",
+    sc_chirec_1: "hosp_continental",
+  };
+
+  const camps = [
+    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "UPCOMING", ["Height & Weight", "BMI Percentile", "Dental", "Eye Test", "Hemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null],
+    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "UPCOMING", ["Nutrition", "Hemoglobin", "BMI"], ["Class 6", "Class 7", "Class 8"], 180, null],
+    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "UPCOMING", ["Dental", "Eye Test"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null],
+    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "UPCOMING", ["Height & Weight", "Growth Percentile", "Nutrition"], ["Class 4", "Class 5", "Class 6"], 200, null],
+    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "UPCOMING", ["Height & Weight", "Dental", "Eye Test", "Nutrition", "General"], ["All grades"], 400, null],
+    ["sc_oak_past", "sch_oak", "Mid-Term Dental Check", "Completed screening — 3 follow-ups recommended", fmt(d60), "10:00 AM – 12:00 PM", "COMPLETED", ["Dental"], ["Class 3", "Class 4"], 120, "142 children screened · 3 follow-ups recommended"],
+  ] as const;
+
+  for (const [id, schoolId, title, desc, date, time, status, checks, grades, cap, summary] of camps) {
+    const hospitalId = campHospitalById[id] || null;
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.school_camps
+        (id, school_id, title, description, date, time, status, checks, grades, capacity, result_summary, hospital_id)
+      VALUES (
+        ${id}, ${schoolId}, ${title}, ${desc}, ${date}, ${time}, ${status},
+        ${JSON.stringify(checks)}::jsonb, ${JSON.stringify(grades)}::jsonb,
+        ${cap}, ${summary}, ${hospitalId}
+      )
+      ON CONFLICT (id) DO NOTHING
+    `;
+  }
+}
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function kidBmi(heightCm: number, weightKg: number): number {
+  const m = heightCm / 100;
+  return m > 0 ? weightKg / (m * m) : 0;
+}
+
+function stableHash(input: string): number {
+  let h = 0;
+  for (let i = 0; i < input.length; i++) {
+    h = (Math.imul(31, h) + input.charCodeAt(i)) | 0;
+  }
+  return Math.abs(h);
+}
+
+function nutritionFlagFromBmi(bmi: number): string {
+  if (bmi <= 0) return "GOOD";
+  if (bmi < 14) return "WATCH";
+  if (bmi > 19.5) return "ALERT";
+  if (bmi < 15 || bmi > 18) return "WATCH";
+  return "GOOD";
+}
+
+function deriveCampFlags(
+  kid: Record<string, unknown>,
+  checks: string[],
+  campId: string,
+  resultSummary: string | null
+): { dental: string; eyesight: string; nutrition: string; height_cm: number; weight_kg: number } {
+  const heightCm = Number(kid.height_cm) || 0;
+  const weightKg = Number(kid.weight_kg) || 0;
+  const bmi = kidBmi(heightCm, weightKg);
+  const seed = stableHash(`${kid.id}:${campId}`);
+  const checkText = checks.join(" ").toLowerCase();
+
+  let dental = (kid.dental as string) || "GOOD";
+  let eyesight = (kid.eyesight as string) || "GOOD";
+  let nutrition = nutritionFlagFromBmi(bmi);
+
+  if (checkText.includes("dental")) {
+    if (resultSummary?.toLowerCase().includes("follow-up")) {
+      dental = seed % 7 === 0 ? "ALERT" : seed % 3 === 0 ? "WATCH" : "GOOD";
+    } else {
+      dental = seed % 11 === 0 ? "WATCH" : "GOOD";
+    }
+  }
+  if (checkText.includes("eye")) {
+    eyesight = seed % 13 === 0 ? "WATCH" : "GOOD";
+  }
+  if (
+    checkText.includes("nutrition") ||
+    checkText.includes("hemoglobin") ||
+    checkText.includes("bmi")
+  ) {
+    if (bmi > 0 && bmi < 14) nutrition = "WATCH";
+    if (bmi > 19.5) nutrition = "ALERT";
+    else if (seed % 9 === 0 && nutrition === "GOOD") nutrition = "WATCH";
+  }
+
+  const heightAdj = heightCm > 0 ? Math.round(heightCm + (seed % 3) - 1) : heightCm;
+  const weightAdj =
+    weightKg > 0 ? Math.round((weightKg + ((seed % 5) - 2) * 0.1) * 10) / 10 : weightKg;
+
+  return {
+    dental,
+    eyesight,
+    nutrition,
+    height_cm: heightAdj || heightCm,
+    weight_kg: weightAdj || weightKg,
+  };
+}
+
+async function ensureCampKidResults(
+  sql: ReturnType<typeof neon>,
+  profileId: string
+): Promise<void> {
+  const pending = await sql`
+    SELECT cr.kid_id, cr.school_camp_id, sc.checks, sc.date, sc.status, sc.result_summary
+    FROM ${sql(SCHEMA)}.camp_registrations cr
+    JOIN ${sql(SCHEMA)}.school_camps sc ON sc.id = cr.school_camp_id
+    WHERE cr.profile_id = ${profileId}
+      AND sc.status = 'COMPLETED'
+      AND NOT EXISTS (
+        SELECT 1 FROM ${sql(SCHEMA)}.camp_kid_results ckr
+        WHERE ckr.kid_id = cr.kid_id AND ckr.school_camp_id = cr.school_camp_id
+      )
+  `;
+
+  for (const row of pending) {
+    const kidRows = await sql`
+      SELECT * FROM ${sql(SCHEMA)}.kids
+      WHERE id = ${row.kid_id as string} AND profile_id = ${profileId}
+      LIMIT 1
+    `;
+    if (kidRows.length === 0) continue;
+
+    const checks = Array.isArray(row.checks)
+      ? (row.checks as string[])
+      : JSON.parse(String(row.checks || "[]"));
+    const flags = deriveCampFlags(
+      kidRows[0] as Record<string, unknown>,
+      checks,
+      row.school_camp_id as string,
+      (row.result_summary as string) || null
+    );
+    const resultId = `ckr_${row.school_camp_id}_${row.kid_id}`;
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.camp_kid_results
+        (id, profile_id, school_camp_id, kid_id, dental, eyesight, nutrition, height_cm, weight_kg)
+      VALUES (
+        ${resultId}, ${profileId}, ${row.school_camp_id}, ${row.kid_id},
+        ${flags.dental}, ${flags.eyesight}, ${flags.nutrition},
+        ${flags.height_cm}, ${flags.weight_kg}
+      )
+      ON CONFLICT (school_camp_id, kid_id) DO NOTHING
+    `;
+  }
+}
+
+async function mergeCampResultsIntoKids(
+  sql: ReturnType<typeof neon>,
+  profileId: string
+): Promise<void> {
+  await ensureCampKidResults(sql, profileId);
+  await sql`
+    UPDATE ${sql(SCHEMA)}.kids k SET
+      dental = COALESCE(l.dental, k.dental),
+      eyesight = COALESCE(l.eyesight, k.eyesight),
+      nutrition = COALESCE(l.nutrition, k.nutrition),
+      last_checkup = COALESCE(l.camp_date, k.last_checkup),
+      height_cm = CASE WHEN l.height_cm > 0 THEN l.height_cm ELSE k.height_cm END,
+      weight_kg = CASE WHEN l.weight_kg > 0 THEN l.weight_kg ELSE k.weight_kg END,
+      overall_score = CASE
+        WHEN l.dental = 'ALERT' OR l.eyesight = 'ALERT' OR l.nutrition = 'ALERT' THEN LEAST(k.overall_score, 58)
+        WHEN l.dental = 'WATCH' OR l.eyesight = 'WATCH' OR l.nutrition = 'WATCH' THEN LEAST(k.overall_score, 72)
+        ELSE GREATEST(k.overall_score, 80)
+      END
+    FROM (
+      SELECT DISTINCT ON (ckr.kid_id)
+        ckr.kid_id,
+        ckr.dental,
+        ckr.eyesight,
+        ckr.nutrition,
+        ckr.height_cm,
+        ckr.weight_kg,
+        sc.date AS camp_date
+      FROM ${sql(SCHEMA)}.camp_kid_results ckr
+      JOIN ${sql(SCHEMA)}.school_camps sc ON sc.id = ckr.school_camp_id
+      WHERE ckr.profile_id = ${profileId}
+      ORDER BY ckr.kid_id, ckr.recorded_at DESC
+    ) l
+    WHERE k.id = l.kid_id AND k.profile_id = ${profileId}
+  `;
+}
+
+async function callToolkitDietTip(
+  env: Env,
+  kid: Record<string, unknown>,
+  meals: Record<string, unknown>[],
+  streak: Record<string, unknown> | null
+): Promise<Record<string, string> | null> {
+  const toolkitUrl = (env.TOOLKIT_URL || "").replace(/\/$/, "");
+  const toolkitKey = env.TOOLKIT_SECRET_KEY || "";
+  if (!toolkitUrl || !toolkitKey) return null;
+
+  const eatenCount = meals.filter((m) => m.eaten).length;
+  const totalKcal = meals
+    .filter((m) => m.eaten)
+    .reduce((sum, m) => sum + (Number(m.kcal) || 0), 0);
+  const mealNames = meals.map((m) => `${m.name} (${m.kcal} kcal)`).join(", ");
+  const heightCm = Number(kid.height_cm) || 0;
+  const weightKg = Number(kid.weight_kg) || 0;
+  const bmi = kidBmi(heightCm, weightKg);
+  const currentStreak = Number(streak?.current_streak) || 0;
+  const bestStreak = Number(streak?.best_streak) || 0;
+
+  const systemPrompt = [
+    "You are a pediatric nutrition coach for VitaHero, an Indian child health app.",
+    "Give culturally relevant, actionable diet tips for Indian parents.",
+    "Focus on Indian foods: dal, roti, rice, sabzi, idli, dosa, poha, paneer, ragi, curd, sprouts.",
+    'Respond ONLY with valid JSON: {"greeting":"...", "insight":"...", "suggestion":"...", "funFact":"..."}',
+    "Keep each field 1-2 sentences max. No markdown, no extra text.",
+  ].join("\n");
+
+  const userLines = [
+    `Child: ${kid.name}, ${kid.age} years, ${kid.gender}`,
+    `BMI: ${bmi.toFixed(1)}, Health Score: ${kid.overall_score}/100`,
+    `Dental: ${kid.dental}, Nutrition: ${kid.nutrition}`,
+    `Meals (${eatenCount}/${meals.length} eaten, ${totalKcal} kcal): ${mealNames}`,
+    `Streak: ${currentStreak} days (best ${bestStreak})`,
+  ];
+  if (kid.nutrition === "WATCH") {
+    userLines.push("Nutrition needs attention — focus on iron and protein rich foods.");
+  }
+  if (bmi > 0 && bmi < 14) {
+    userLines.push("BMI is low — suggest calorie-dense nutritious Indian foods.");
+  }
+  if (bmi > 19.5) {
+    userLines.push("BMI is high — suggest lighter fibre-rich Indian options.");
+  }
+  userLines.push("Generate a personalised Indian diet coaching tip as JSON.");
+
+  const resp = await fetch(`${toolkitUrl}/v2/vercel/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${toolkitKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-4.1-nano",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userLines.join("\n") },
+      ],
+      temperature: 0.7,
+      max_tokens: 400,
+    }),
+  });
+
+  if (!resp.ok) return null;
+  const data = (await resp.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const raw = data.choices?.[0]?.message?.content?.trim() || "";
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    const jsonBlock = raw.includes("```")
+      ? raw.split("```json").pop()?.split("```")[0]?.trim() || raw
+      : raw;
+    try {
+      return JSON.parse(jsonBlock) as Record<string, string>;
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function ensureHospitalPartnerships(sql: ReturnType<typeof neon>): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.hospitals (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      city TEXT DEFAULT 'Hyderabad',
+      district TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      lat DOUBLE PRECISION,
+      lng DOUBLE PRECISION,
+      phone TEXT DEFAULT '',
+      rating DOUBLE PRECISION DEFAULT 4.5,
+      is_camp_partner BOOLEAN DEFAULT false,
+      active BOOLEAN DEFAULT true
+    )
+  `;
+
+  await sql`ALTER TABLE ${sql(SCHEMA)}.doctors ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
+  await sql`ALTER TABLE ${sql(SCHEMA)}.school_camps ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
+
+  const hospitals = [
+    ["hosp_rainbow", "Rainbow Children's Hospital", "Hyderabad", "Gachibowli", "Road No. 2, Gachibowli", 17.4401, 78.3489, "+91 40 4244 2222", 4.9, true],
+    ["hosp_apollo", "Apollo Cradle & Children's Hospital", "Hyderabad", "Jubilee Hills", "Road No. 36, Jubilee Hills", 17.4239, 78.4738, "+91 40 2355 1234", 4.8, true],
+    ["hosp_lvp", "LV Prasad Eye Institute", "Hyderabad", "Banjara Hills", "Kallam Anji Reddy Campus, Banjara Hills", 17.4125, 78.4482, "+91 40 3061 2345", 4.8, true],
+    ["hosp_kims", "KIMS Hospital", "Hyderabad", "Secunderabad", "1-112 / 86, Survey No 5, Kondapur", 17.4399, 78.4983, "+91 40 4488 5000", 4.6, true],
+    ["hosp_continental", "Continental Hospitals", "Hyderabad", "Gachibowli", "Plot No. 3, Road No. 2, Gachibowli", 17.4435, 78.3772, "+91 40 6700 0000", 4.7, true],
+    ["hosp_smile", "Smile Care Dental Clinic", "Hyderabad", "Banjara Hills", "Road No. 12, Banjara Hills", 17.4158, 78.4487, "+91 40 2335 6789", 4.7, true],
+    ["hosp_care", "Care Hospital", "Hyderabad", "Banjara Hills", "Road No. 10, Banjara Hills", 17.4122, 78.4489, "+91 40 3041 4141", 4.5, false],
+    ["hosp_yashoda", "Yashoda Hospitals", "Hyderabad", "Somajiguda", "Raj Bhavan Road, Somajiguda", 17.4231, 78.4578, "+91 40 4567 4567", 4.6, false],
+  ] as const;
+
+  for (const [id, name, city, district, address, lat, lng, phone, rating, isPartner] of hospitals) {
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.hospitals
+        (id, name, city, district, address, lat, lng, phone, rating, is_camp_partner)
+      VALUES (${id}, ${name}, ${city}, ${district}, ${address}, ${lat}, ${lng}, ${phone}, ${rating}, ${isPartner})
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        city = EXCLUDED.city,
+        district = EXCLUDED.district,
+        address = EXCLUDED.address,
+        lat = EXCLUDED.lat,
+        lng = EXCLUDED.lng,
+        phone = EXCLUDED.phone,
+        rating = EXCLUDED.rating,
+        is_camp_partner = EXCLUDED.is_camp_partner
+    `;
+  }
+
+  const extraDoctors = [
+    ["d6", "Dr. Lakshmi Devi", "Paediatrics", "Rainbow Children's Hospital", "hosp_rainbow", 4.8],
+    ["d7", "Dr. Rohit Verma", "Ophthalmology", "Continental Hospitals", "hosp_continental", 4.7],
+    ["d8", "Dr. Anjali Mehta", "Dental", "Smile Care Dental Clinic", "hosp_smile", 4.7],
+    ["d9", "Dr. Suresh Kumar", "Nutrition", "Apollo Cradle & Children's Hospital", "hosp_apollo", 4.8],
+    ["d10", "Dr. Deepa Singh", "General Paediatrics", "Care Hospital", "hosp_care", 4.5],
+  ] as const;
+
+  for (const [id, name, specialty, hospital, hospitalId, rating] of extraDoctors) {
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, hospital_id, rating)
+      VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${hospitalId}, ${rating})
+      ON CONFLICT (id) DO UPDATE SET
+        hospital_id = EXCLUDED.hospital_id,
+        hospital = EXCLUDED.hospital
+    `;
+  }
+
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_rainbow'
+    WHERE id = 'd1' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_apollo'
+    WHERE id = 'd2' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_lvp'
+    WHERE id = 'd3' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_kims'
+    WHERE id = 'd4' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_continental'
+    WHERE id = 'd5' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+}
+
+async function linkCampHospitals(sql: ReturnType<typeof neon>): Promise<void> {
+  const campHospitalLinks: Record<string, string> = {
+    sc_oak_1: "hosp_rainbow",
+    sc_oak_2: "hosp_kims",
+    sc_oak_past: "hosp_rainbow",
+    sc_dps_1: "hosp_lvp",
+    sc_jgs_1: "hosp_rainbow",
+    sc_chirec_1: "hosp_continental",
+  };
+
+  for (const [campId, hospitalId] of Object.entries(campHospitalLinks)) {
+    await sql`
+      UPDATE ${sql(SCHEMA)}.school_camps
+      SET hospital_id = ${hospitalId}
+      WHERE id = ${campId} AND (hospital_id IS NULL OR hospital_id = '')
+    `;
+  }
+}
+
+async function getFamilyOwnerId(
+  sql: ReturnType<typeof neon>,
+  familyCode: string,
+  fallbackProfileId: string
+): Promise<string> {
+  if (!familyCode) return fallbackProfileId;
+  const owners = await sql`
+    SELECT p.id FROM ${sql(SCHEMA)}.profiles p
+    WHERE p.family_code = ${familyCode}
+      AND EXISTS (SELECT 1 FROM ${sql(SCHEMA)}.kids k WHERE k.profile_id = p.id)
+    ORDER BY p.id
+    LIMIT 1
+  `;
+  if (owners.length > 0) return owners[0].id as string;
+  const any = await sql`
+    SELECT id FROM ${sql(SCHEMA)}.profiles
+    WHERE family_code = ${familyCode}
+    ORDER BY id
+    LIMIT 1
+  `;
+  return (any[0]?.id as string) || fallbackProfileId;
+}
+
+function anonymizeLeaderboardName(name: string, rank: number, isYou: boolean): string {
+  if (isYou) return name;
+  return `Hero #${rank}`;
 }
 
 // ─── Session Auth ───────────────────────────────────────────
@@ -125,17 +883,32 @@ interface NeonAuthResponse {
 /** Call Neon Auth REST API. Returns parsed JSON or throws on error. */
 async function callNeonAuth(
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  request?: Request
 ): Promise<NeonAuthResponse> {
+  const origin = request?.headers.get("Origin") || APP_ORIGIN;
   const url = `${NEON_AUTH}${path}`;
   const resp = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Referer: `${origin}/`,
+    },
+    body: JSON.stringify({
+      ...body,
+      callbackURL: APP_CALLBACK_URL,
+    }),
   });
   const data = await resp.json() as Record<string, unknown>;
   if (!resp.ok) {
-    const message = (data.message as string) || (data.error as string) || `Auth error (${resp.status})`;
+    const message =
+      (data.message as string) ||
+      (data.error as string) ||
+      (typeof data === "object" && data !== null && "code" in data
+        ? String((data as { code?: string }).code)
+        : "") ||
+      `Auth error (${resp.status})`;
     throw new Error(message);
   }
   return data as unknown as NeonAuthResponse;
@@ -194,44 +967,12 @@ export default {
     try {
       const sql = neon(dbUrl);
 
-      // ── Schema Init (idempotent) ─────────────────────
       try {
-        await sql`CREATE SCHEMA IF NOT EXISTS ${sql(SCHEMA)}`;
-      } catch { /* schema may already exist */ }
-
-      try {
-        await sql`
-          CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.profiles (
-            id TEXT PRIMARY KEY,
-            user_id TEXT,
-            phone TEXT,
-            name TEXT NOT NULL DEFAULT '',
-            email TEXT,
-            session_token TEXT,
-            auth_provider TEXT,
-            onboarding_complete BOOLEAN DEFAULT false,
-            is_logged_in BOOLEAN DEFAULT false,
-            dark_theme BOOLEAN DEFAULT false,
-            locale_code TEXT DEFAULT 'en',
-            family_code TEXT DEFAULT '',
-            notifications_enabled BOOLEAN DEFAULT true,
-            camp_reminders_enabled BOOLEAN DEFAULT true,
-            consent_accepted BOOLEAN DEFAULT false,
-            consent_declined BOOLEAN DEFAULT false
-          )
-        `;
-      } catch { /* table may already exist */ }
-
-      try {
-        await sql`
-          CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.phone_otps (
-            phone TEXT PRIMARY KEY,
-            otp TEXT NOT NULL,
-            expires_at TIMESTAMPTZ NOT NULL,
-            attempts INT DEFAULT 0
-          )
-        `;
-      } catch { /* table may already exist */ }
+        await ensureSchema(sql);
+      } catch (schemaErr) {
+        console.error("Schema init error:", schemaErr);
+        return json({ error: "Database schema initialization failed" }, 500);
+      }
 
       // ── Health Check ─────────────────────────────────
       if (path === "/ping") {
@@ -258,7 +999,7 @@ export default {
             return json({ error: "Password must be at least 8 characters" }, 400);
           }
 
-          const neonResp = await callNeonAuth("/sign-up/email", { name, email, password });
+          const neonResp = await callNeonAuth("/sign-up/email", { name, email, password }, request);
           const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
             sql, neonResp.user, "EMAIL"
           );
@@ -290,7 +1031,7 @@ export default {
             return json({ error: "email and password are required" }, 400);
           }
 
-          const neonResp = await callNeonAuth("/sign-in/email", { email, password });
+          const neonResp = await callNeonAuth("/sign-in/email", { email, password }, request);
           const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
             sql, neonResp.user, "EMAIL"
           );
@@ -323,7 +1064,7 @@ export default {
           const neonResp = await callNeonAuth("/sign-in/social", {
             provider: "google",
             idToken: { token: idToken },
-          });
+          }, request);
 
           const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
             sql, neonResp.user, "GOOGLE"
@@ -351,16 +1092,27 @@ export default {
         const phone = (body.phone as string)?.trim();
         if (!phone) return json({ error: "Missing phone" }, 400);
 
+        const existing = await sql`
+          SELECT last_sent_at FROM ${sql(SCHEMA)}.phone_otps WHERE phone = ${phone} LIMIT 1
+        `;
+        if (existing[0]?.last_sent_at) {
+          const elapsed = Date.now() - new Date(existing[0].last_sent_at as string).getTime();
+          if (elapsed < 60_000) {
+            return json({ error: "Please wait 60 seconds before requesting another OTP." }, 429);
+          }
+        }
+
         const otp = generateOtp();
         const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60_000);
 
         await sql`
-          INSERT INTO ${sql(SCHEMA)}.phone_otps (phone, otp, expires_at, attempts)
-          VALUES (${phone}, ${otp}, ${expiresAt.toISOString()}, 0)
+          INSERT INTO ${sql(SCHEMA)}.phone_otps (phone, otp, expires_at, attempts, last_sent_at)
+          VALUES (${phone}, ${otp}, ${expiresAt.toISOString()}, 0, NOW())
           ON CONFLICT (phone) DO UPDATE SET
             otp = EXCLUDED.otp,
             expires_at = EXCLUDED.expires_at,
-            attempts = 0
+            attempts = 0,
+            last_sent_at = NOW()
         `;
 
         const sent = await sendTwilioSms(
@@ -419,17 +1171,18 @@ export default {
         if (existing.length === 0) {
           await sql`
             INSERT INTO ${sql(SCHEMA)}.profiles
-              (id, phone, name, session_token, auth_provider,
+              (id, phone, name, session_token, auth_provider, user_id,
                onboarding_complete, is_logged_in)
             VALUES (
               ${profileId}, ${phone}, 'Parent', ${sessionToken}, 'PHONE',
-              true, true
+              ${profileId}, true, true
             )
           `;
         } else {
           await sql`
             UPDATE ${sql(SCHEMA)}.profiles
-            SET session_token = ${sessionToken}, is_logged_in = true, phone = ${phone}
+            SET session_token = ${sessionToken}, is_logged_in = true, phone = ${phone},
+                user_id = COALESCE(user_id, ${profileId})
             WHERE id = ${profileId}
           `;
         }
@@ -443,6 +1196,7 @@ export default {
           token: sessionToken,
           profile: {
             id: profileId,
+            user_id: profileId,
             phone,
             name: "Parent",
             auth_provider: "PHONE",
@@ -459,7 +1213,7 @@ export default {
         const profile = await sql`
           SELECT * FROM ${sql(SCHEMA)}.profiles WHERE id = ${session.profileId} LIMIT 1
         `;
-        return json(profile[0] || null);
+        return json(sanitizeProfile(profile[0] as Record<string, unknown>));
       }
 
       // ── Logout ───────────────────────────────────────
@@ -549,6 +1303,7 @@ export default {
       if (path === "/api/kids" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const profileId = session.profileId;
+        await mergeCampResultsIntoKids(sql, profileId);
         const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.kids WHERE profile_id = ${profileId} ORDER BY name`;
         return json(rows);
       }
@@ -575,10 +1330,30 @@ export default {
             profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
             name = EXCLUDED.name, age = EXCLUDED.age, gender = EXCLUDED.gender,
             school = EXCLUDED.school, grade = EXCLUDED.grade,
+            avatar_color = EXCLUDED.avatar_color,
             height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg,
-            avatar_color = EXCLUDED.avatar_color, overall_score = EXCLUDED.overall_score,
-            dental = EXCLUDED.dental, eyesight = EXCLUDED.eyesight,
-            nutrition = EXCLUDED.nutrition, last_checkup = EXCLUDED.last_checkup
+            dental = COALESCE(
+              (SELECT ckr.dental FROM ${sql(SCHEMA)}.camp_kid_results ckr
+               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
+              EXCLUDED.dental),
+            eyesight = COALESCE(
+              (SELECT ckr.eyesight FROM ${sql(SCHEMA)}.camp_kid_results ckr
+               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
+              EXCLUDED.eyesight),
+            nutrition = COALESCE(
+              (SELECT ckr.nutrition FROM ${sql(SCHEMA)}.camp_kid_results ckr
+               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
+              EXCLUDED.nutrition),
+            last_checkup = COALESCE(
+              (SELECT sc.date FROM ${sql(SCHEMA)}.camp_kid_results ckr
+               JOIN ${sql(SCHEMA)}.school_camps sc ON sc.id = ckr.school_camp_id
+               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
+              EXCLUDED.last_checkup),
+            overall_score = CASE
+              WHEN EXISTS (
+                SELECT 1 FROM ${sql(SCHEMA)}.camp_kid_results ckr WHERE ckr.kid_id = EXCLUDED.id
+              ) THEN ${sql(SCHEMA)}.kids.overall_score
+              ELSE EXCLUDED.overall_score END
           RETURNING *
         `;
         return json(row[0], 201);
@@ -587,6 +1362,13 @@ export default {
       if (path.startsWith("/api/kids/") && request.method === "DELETE") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const kidId = path.split("/")[3];
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        await sql`DELETE FROM ${sql(SCHEMA)}.meal_items WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}`;
+        await sql`DELETE FROM ${sql(SCHEMA)}.streaks WHERE kid_id = ${kidId}`;
+        await sql`DELETE FROM ${sql(SCHEMA)}.growth_points WHERE kid_id = ${kidId}`;
+        await sql`DELETE FROM ${sql(SCHEMA)}.ai_diet_tips WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}`;
         await sql`DELETE FROM ${sql(SCHEMA)}.kids WHERE id = ${kidId} AND profile_id = ${session.profileId}`;
         return json({ deleted: true });
       }
@@ -604,17 +1386,31 @@ export default {
       if (path === "/api/appointments" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
+        const doctorId = (body.doctor_id as string) || "";
+        const date = body.date as string;
+        const time = body.time as string;
+        if (doctorId) {
+          const clash = await sql`
+            SELECT id FROM ${sql(SCHEMA)}.appointments
+            WHERE doctor_id = ${doctorId} AND date = ${date} AND time = ${time}
+            LIMIT 1
+          `;
+          if (clash.length > 0) {
+            return json({ error: "This slot is no longer available" }, 409);
+          }
+        }
         const row = await sql`
           INSERT INTO ${sql(SCHEMA)}.appointments
-            (id, profile_id, user_id, doctor_name, specialty, kid_name, date, time)
+            (id, profile_id, user_id, doctor_id, doctor_name, specialty, kid_name, date, time)
           VALUES (
             ${body.id as string}, ${session.profileId},
-            ${session.userId || null}, ${body.doctor_name as string},
+            ${session.userId || null}, ${doctorId || null}, ${body.doctor_name as string},
             ${body.specialty as string}, ${body.kid_name as string},
-            ${body.date as string}, ${body.time as string}
+            ${date}, ${time}
           )
           ON CONFLICT (id) DO UPDATE SET
             profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            doctor_id = EXCLUDED.doctor_id,
             doctor_name = EXCLUDED.doctor_name, specialty = EXCLUDED.specialty,
             kid_name = EXCLUDED.kid_name, date = EXCLUDED.date, time = EXCLUDED.time
           RETURNING *
@@ -635,8 +1431,73 @@ export default {
 
       if (path === "/api/camps" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
-        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.camps WHERE profile_id = ${session.profileId} ORDER BY date`;
-        return json(rows);
+        await mergeCampResultsIntoKids(sql, session.profileId);
+        let rows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.camps
+          WHERE profile_id = ${session.profileId}
+          ORDER BY date
+        `;
+        const personal = rows.map((r: Record<string, unknown>) => ({
+          ...r,
+          is_partner: false,
+          school_id: null,
+          school_camp_id: null,
+          description: "",
+          grades: [],
+          capacity: 0,
+          registered_kid_ids: [],
+        }));
+
+        const enrollments = await sql`
+          SELECT school_id FROM ${sql(SCHEMA)}.school_enrollments
+          WHERE profile_id = ${session.profileId} AND status = 'ACTIVE'
+        `;
+        const schoolIds = enrollments.map((e: Record<string, unknown>) => e.school_id as string);
+        let partner: Record<string, unknown>[] = [];
+        if (schoolIds.length > 0) {
+          for (const sid of schoolIds) {
+            const partnerRows = await sql`
+              SELECT sc.*, s.name AS school_name, s.city AS school_city
+              FROM ${sql(SCHEMA)}.school_camps sc
+              JOIN ${sql(SCHEMA)}.schools s ON s.id = sc.school_id
+              WHERE sc.school_id = ${sid} AND sc.active = true
+              ORDER BY sc.date
+            `;
+            partner.push(...(partnerRows as Record<string, unknown>[]));
+          }
+          partner.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+          const regs = await sql`
+            SELECT school_camp_id, kid_id FROM ${sql(SCHEMA)}.camp_registrations
+            WHERE profile_id = ${session.profileId}
+          `;
+          const regMap = new Map<string, string[]>();
+          for (const r of regs) {
+            const campId = r.school_camp_id as string;
+            const list = regMap.get(campId) || [];
+            list.push(r.kid_id as string);
+            regMap.set(campId, list);
+          }
+          partner = partner.map((sc: Record<string, unknown>) => ({
+            id: sc.id,
+            profile_id: session.profileId,
+            title: sc.title,
+            school: sc.school_name,
+            date: sc.date,
+            time: sc.time,
+            status: sc.status,
+            checks: sc.checks,
+            result_summary: sc.result_summary,
+            is_partner: true,
+            school_id: sc.school_id,
+            school_camp_id: sc.id,
+            description: sc.description,
+            grades: sc.grades,
+            capacity: sc.capacity,
+            registered_count: sc.registered_count,
+            registered_kid_ids: regMap.get(sc.id as string) || [],
+          }));
+        }
+        return json([...personal, ...partner]);
       }
 
       if (path === "/api/camps" && request.method === "POST") {
@@ -710,6 +1571,9 @@ export default {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const kidId = url.searchParams.get("kid_id");
         if (!kidId) return json({ error: "Missing kid_id" }, 400);
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
         const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.streaks WHERE kid_id = ${kidId} LIMIT 1`;
         return json(rows[0] || null);
       }
@@ -717,11 +1581,15 @@ export default {
       if (path === "/api/streaks" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
+        const kidId = body.kid_id as string;
+        if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
         const row = await sql`
           INSERT INTO ${sql(SCHEMA)}.streaks
             (kid_id, user_id, current_streak, best_streak, last_log_date)
           VALUES (
-            ${body.kid_id as string}, ${session.userId || null},
+            ${kidId}, ${session.userId || session.profileId},
             ${(body.current_streak as number) || 0},
             ${(body.best_streak as number) || 0},
             ${(body.last_log_date as string) || ""}
@@ -742,6 +1610,9 @@ export default {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const kidId = url.searchParams.get("kid_id");
         if (!kidId) return json({ error: "Missing kid_id" }, 400);
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
         const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.growth_points WHERE kid_id = ${kidId} ORDER BY recorded_at`;
         return json(rows);
       }
@@ -749,13 +1620,17 @@ export default {
       if (path === "/api/growth-points" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
+        const kidId = body.kid_id as string;
+        if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
         const row = await sql`
           INSERT INTO ${sql(SCHEMA)}.growth_points
-            (id, kid_id, user_id, label, height, weight)
+            (id, kid_id, user_id, label, height, weight, recorded_at)
           VALUES (
-            ${body.id as string}, ${body.kid_id as string},
-            ${session.userId || null}, ${body.label as string},
-            ${(body.height as number) || 0}, ${(body.weight as number) || 0}
+            ${body.id as string}, ${kidId},
+            ${session.userId || session.profileId}, ${body.label as string},
+            ${(body.height as number) || 0}, ${(body.weight as number) || 0}, NOW()
           )
           ON CONFLICT (id) DO UPDATE SET
             kid_id = EXCLUDED.kid_id, user_id = EXCLUDED.user_id,
@@ -772,8 +1647,37 @@ export default {
 
       if (path === "/api/co-parents" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
-        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.co_parents WHERE profile_id = ${session.profileId} ORDER BY name`;
-        return json(rows);
+        const profileRows = await sql`
+          SELECT family_code, name FROM ${sql(SCHEMA)}.profiles
+          WHERE id = ${session.profileId} LIMIT 1
+        `;
+        const familyCode = (profileRows[0]?.family_code as string) || "";
+        const ownerId = await getFamilyOwnerId(sql, familyCode, session.profileId);
+        const rows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.co_parents
+          WHERE profile_id = ${ownerId}
+          ORDER BY joined_date, name
+        `;
+        const ownerProfile = await sql`
+          SELECT id, name FROM ${sql(SCHEMA)}.profiles WHERE id = ${ownerId} LIMIT 1
+        `;
+        const ownerName = (ownerProfile[0]?.name as string) || "Parent";
+        const ownerInList = rows.some(
+          (r: Record<string, unknown>) => r.user_id === ownerId || r.name === ownerName
+        );
+        const result: Record<string, unknown>[] = [];
+        if (familyCode && ownerId && !ownerInList) {
+          result.push({
+            id: `owner_${ownerId}`,
+            profile_id: ownerId,
+            user_id: ownerId,
+            name: ownerName,
+            relation: "Primary parent",
+            joined_date: "",
+          });
+        }
+        result.push(...(rows as Record<string, unknown>[]));
+        return json(result);
       }
 
       if (path === "/api/co-parents" && request.method === "POST") {
@@ -809,6 +1713,623 @@ export default {
           WHERE family_code = ${code} AND id != ${session.profileId} LIMIT 1
         `;
         return json(rows[0] || null);
+      }
+
+      // ── Family Sharing: Validate Code ─────────────────
+      if (path === "/api/family-sharing/validate" && request.method === "POST") {
+        if (!session) return json({ error: "Authentication required" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const code = ((body.code as string) || "").toUpperCase().trim();
+        if (code.length < 4) {
+          return json({ valid: false, error: "Code too short" }, 400);
+        }
+        const rows = await sql`
+          SELECT id, name, family_code FROM ${sql(SCHEMA)}.profiles
+          WHERE family_code = ${code} LIMIT 1
+        `;
+        if (rows.length === 0) {
+          return json({ valid: false, error: "Family not found. Check the code and try again." });
+        }
+        return json({
+          valid: true,
+          familyOwner: rows[0].name,
+          profileId: rows[0].id,
+        });
+      }
+
+      // ── Family Sharing: Join ────────────────────────
+      if (path === "/api/family-sharing/join" && request.method === "POST") {
+        if (!session) return json({ error: "Authentication required" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const code = ((body.code as string) || "").toUpperCase().trim();
+        const coParentName = ((body.coParentName as string) || "").trim();
+        const relation = ((body.relation as string) || "Co-parent").trim();
+        if (!code || !coParentName) {
+          return json({ error: "Code and name required" }, 400);
+        }
+        const familyRows = await sql`
+          SELECT id, user_id, family_code FROM ${sql(SCHEMA)}.profiles
+          WHERE family_code = ${code} LIMIT 1
+        `;
+        if (familyRows.length === 0) {
+          return json({ error: "Family not found" }, 404);
+        }
+        const familyProfile = familyRows[0];
+        if (familyProfile.id === session.profileId) {
+          return json({ error: "You cannot join your own family" }, 400);
+        }
+        const coParentId = `cp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await sql`
+          INSERT INTO ${sql(SCHEMA)}.co_parents
+            (id, profile_id, user_id, name, relation, joined_date)
+          VALUES (
+            ${coParentId}, ${familyProfile.id}, ${session.userId || session.profileId},
+            ${coParentName}, ${relation}, ${new Date().toISOString().split("T")[0]}
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name, relation = EXCLUDED.relation
+        `;
+        await sql`
+          UPDATE ${sql(SCHEMA)}.profiles
+          SET family_code = ${code}
+          WHERE id = ${session.profileId}
+        `;
+        return json({ success: true, coParentId, familyCode: code });
+      }
+
+      // ── Family Sharing: Shared Kids ───────────────────
+      if (path === "/api/family-sharing/kids" && request.method === "GET") {
+        if (!session) return json({ error: "Authentication required" }, 401);
+        const familyCode = url.searchParams.get("familyCode")?.toUpperCase().trim();
+        if (!familyCode) return json({ error: "familyCode query parameter required" }, 400);
+        const familyRows = await sql`
+          SELECT id, user_id FROM ${sql(SCHEMA)}.profiles
+          WHERE family_code = ${familyCode} LIMIT 1
+        `;
+        if (familyRows.length === 0) {
+          return json({ error: "Family not found" }, 404);
+        }
+        const familyProfile = familyRows[0];
+        const isOwner = familyProfile.id === session.profileId ||
+          familyProfile.user_id === session.userId;
+        let isCoParent = false;
+        if (!isOwner) {
+          const cpRows = await sql`
+            SELECT id FROM ${sql(SCHEMA)}.co_parents
+            WHERE profile_id = ${familyProfile.id}
+              AND user_id = ${session.userId || session.profileId}
+            LIMIT 1
+          `;
+          isCoParent = cpRows.length > 0;
+        }
+        if (!isOwner && !isCoParent) {
+          return json({ error: "Not authorized to view this family" }, 403);
+        }
+        const kids = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.kids
+          WHERE profile_id = ${familyProfile.id}
+          ORDER BY name
+        `;
+        return json({
+          kids: kids.map((k: Record<string, unknown>) => ({
+            id: k.id,
+            name: k.name,
+            age: k.age,
+            gender: k.gender,
+            school: k.school,
+            grade: k.grade,
+            heightCm: k.height_cm,
+            weightKg: k.weight_kg,
+            overallScore: k.overall_score,
+            dental: k.dental,
+            eyesight: k.eyesight,
+            nutrition: k.nutrition,
+            lastCheckup: k.last_checkup,
+          })),
+          isOwner,
+        });
+      }
+
+      // ── Leaderboard ───────────────────────────────────
+      if (path === "/api/leaderboard" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const currentKidId = (body.current_kid_id as string) || "";
+        const rows = await sql`
+          WITH scored AS (
+            SELECT
+              k.id,
+              k.name,
+              k.overall_score AS score,
+              COALESCE(s.current_streak, 0) AS streak,
+              (k.overall_score * 10 + COALESCE(s.current_streak, 0) * 50)::INT AS points
+            FROM ${sql(SCHEMA)}.kids k
+            LEFT JOIN ${sql(SCHEMA)}.streaks s ON s.kid_id = k.id
+            WHERE k.profile_id IS NOT NULL
+          ),
+          ranked AS (
+            SELECT
+              ROW_NUMBER() OVER (ORDER BY s.points DESC, s.score DESC) AS rank,
+              s.name AS kid_name,
+              (s.id = ${currentKidId}) AS is_you,
+              s.score,
+              s.points
+            FROM scored s
+          )
+          SELECT rank, kid_name, is_you, score, points
+          FROM ranked r
+          WHERE r.is_you OR r.rank <= 20
+          ORDER BY rank
+          LIMIT 20
+        `;
+        const anonymized = rows.map((r: Record<string, unknown>) => ({
+          ...r,
+          kid_name: anonymizeLeaderboardName(
+            r.kid_name as string,
+            r.rank as number,
+            r.is_you as boolean
+          ),
+        }));
+        return json(anonymized);
+      }
+
+      // ── AI Diet Tips (persisted) ──────────────────────
+      if (path === "/api/ai-diet-tips" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const kidId = url.searchParams.get("kid_id");
+        if (!kidId) return json({ error: "Missing kid_id" }, 400);
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const rows = await sql`
+          SELECT content, generated_at FROM ${sql(SCHEMA)}.ai_diet_tips
+          WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}
+          LIMIT 1
+        `;
+        return json(rows[0] || null);
+      }
+
+      if (path === "/api/ai-diet-tips" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const kidId = body.kid_id as string;
+        if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const content = body.content as Record<string, unknown>;
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.ai_diet_tips (kid_id, profile_id, content, generated_at)
+          VALUES (${kidId}, ${session.profileId}, ${JSON.stringify(content)}::jsonb, NOW())
+          ON CONFLICT (kid_id) DO UPDATE SET
+            content = EXCLUDED.content,
+            generated_at = NOW()
+          RETURNING content, generated_at
+        `;
+        return json(row[0], 201);
+      }
+
+      if (path === "/api/ai-diet-tips/generate" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const kidId = body.kid_id as string;
+        if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+
+        await mergeCampResultsIntoKids(sql, session.profileId);
+        const kidRows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.kids
+          WHERE id = ${kidId} AND profile_id = ${session.profileId}
+          LIMIT 1
+        `;
+        const mealRows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.meal_items
+          WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}
+          ORDER BY time_slot
+        `;
+        const streakRows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.streaks
+          WHERE kid_id = ${kidId}
+          LIMIT 1
+        `;
+
+        const aiJson = await callToolkitDietTip(
+          env,
+          kidRows[0] as Record<string, unknown>,
+          mealRows as Record<string, unknown>[],
+          (streakRows[0] as Record<string, unknown>) || null
+        );
+        if (!aiJson) {
+          return json({ error: "AI not configured", code: "TOOLKIT_NOT_CONFIGURED" }, 503);
+        }
+
+        const content = {
+          greeting: String(aiJson.greeting || ""),
+          insight: String(aiJson.insight || ""),
+          suggestion: String(aiJson.suggestion || ""),
+          funFact: String(aiJson.funFact || ""),
+          generatedAt: `AI-generated for ${kidRows[0].name}`,
+        };
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.ai_diet_tips (kid_id, profile_id, content, generated_at)
+          VALUES (${kidId}, ${session.profileId}, ${JSON.stringify(content)}::jsonb, NOW())
+          ON CONFLICT (kid_id) DO UPDATE SET
+            content = EXCLUDED.content,
+            generated_at = NOW()
+          RETURNING content, generated_at
+        `;
+        return json(row[0], 201);
+      }
+
+      // ── Doctors directory ─────────────────────────────
+      if (path === "/api/schools" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const rows = await sql`
+          SELECT id, name, city, district, description, active
+          FROM ${sql(SCHEMA)}.schools
+          WHERE active = true
+          ORDER BY name
+        `;
+        return json(rows);
+      }
+
+      if (path === "/api/schools/my" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const rows = await sql`
+          SELECT s.id, s.name, s.city, s.district, s.description, e.enrolled_at, e.kid_id
+          FROM ${sql(SCHEMA)}.school_enrollments e
+          JOIN ${sql(SCHEMA)}.schools s ON s.id = e.school_id
+          WHERE e.profile_id = ${session.profileId} AND e.status = 'ACTIVE'
+          ORDER BY s.name
+        `;
+        return json(rows);
+      }
+
+      if (path === "/api/schools/enroll" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const code = ((body.partner_code as string) || "").toUpperCase().trim();
+        const kidId = (body.kid_id as string) || null;
+        if (code.length < 4) return json({ error: "Partner code required" }, 400);
+
+        const schoolRows = await sql`
+          SELECT id, name FROM ${sql(SCHEMA)}.schools
+          WHERE partner_code = ${code} AND active = true LIMIT 1
+        `;
+        if (schoolRows.length === 0) {
+          return json({ error: "Invalid partner code. Check with your school nurse." }, 404);
+        }
+        const school = schoolRows[0];
+        if (kidId && !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const enrollId = `enr_${session.profileId}_${school.id}`;
+        await sql`
+          INSERT INTO ${sql(SCHEMA)}.school_enrollments
+            (id, profile_id, school_id, kid_id, status)
+          VALUES (${enrollId}, ${session.profileId}, ${school.id}, ${kidId}, 'ACTIVE')
+          ON CONFLICT (profile_id, school_id) DO UPDATE SET
+            kid_id = EXCLUDED.kid_id,
+            status = 'ACTIVE',
+            enrolled_at = NOW()
+        `;
+        return json({ success: true, schoolId: school.id, schoolName: school.name });
+      }
+
+      if (path === "/api/school-camps/register" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const schoolCampId = body.school_camp_id as string;
+        const kidId = body.kid_id as string;
+        if (!schoolCampId || !kidId) return json({ error: "school_camp_id and kid_id required" }, 400);
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const campRows = await sql`
+          SELECT sc.*, s.name AS school_name FROM ${sql(SCHEMA)}.school_camps sc
+          JOIN ${sql(SCHEMA)}.schools s ON s.id = sc.school_id
+          WHERE sc.id = ${schoolCampId} AND sc.active = true LIMIT 1
+        `;
+        if (campRows.length === 0) return json({ error: "Camp not found" }, 404);
+        const camp = campRows[0];
+        const enrolled = await sql`
+          SELECT id FROM ${sql(SCHEMA)}.school_enrollments
+          WHERE profile_id = ${session.profileId} AND school_id = ${camp.school_id} AND status = 'ACTIVE'
+          LIMIT 1
+        `;
+        if (enrolled.length === 0) {
+          return json({ error: "Enroll with your school partner code first" }, 403);
+        }
+        const regId = `reg_${schoolCampId}_${kidId}`;
+        await sql`
+          INSERT INTO ${sql(SCHEMA)}.camp_registrations
+            (id, profile_id, school_camp_id, kid_id)
+          VALUES (${regId}, ${session.profileId}, ${schoolCampId}, ${kidId})
+          ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING
+        `;
+        await sql`
+          UPDATE ${sql(SCHEMA)}.school_camps
+          SET registered_count = (
+            SELECT COUNT(*)::int FROM ${sql(SCHEMA)}.camp_registrations
+            WHERE school_camp_id = ${schoolCampId}
+          )
+          WHERE id = ${schoolCampId}
+        `;
+        await mergeCampResultsIntoKids(sql, session.profileId);
+        return json({ success: true, registrationId: regId });
+      }
+
+      if (path === "/api/booking/slots" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const doctorId = (url.searchParams.get("doctor_id") || "").trim();
+        if (!doctorId) return json({ error: "doctor_id required" }, 400);
+
+        const doctorRows = await sql`
+          SELECT id, name FROM ${sql(SCHEMA)}.doctors
+          WHERE id = ${doctorId} AND active = true LIMIT 1
+        `;
+        if (doctorRows.length === 0) return json({ error: "Doctor not found" }, 404);
+
+        const booked = await sql`
+          SELECT doctor_id, date, time FROM ${sql(SCHEMA)}.appointments
+          WHERE doctor_id = ${doctorId}
+        `;
+        const bookedKeys = new Set(
+          booked.map((r: Record<string, unknown>) =>
+            `${r.doctor_id}|${r.date}|${r.time}`
+          )
+        );
+        const slots = generateDoctorSlots(doctorId, bookedKeys);
+        return json({ doctor_id: doctorId, slots });
+      }
+
+      if (path === "/api/booking/directory" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const city = (url.searchParams.get("city") || "Hyderabad").trim();
+        const specialty = (url.searchParams.get("specialty") || "").trim();
+        const latParam = url.searchParams.get("lat");
+        const lngParam = url.searchParams.get("lng");
+        const userLat = latParam ? parseFloat(latParam) : null;
+        const userLng = lngParam ? parseFloat(lngParam) : null;
+
+        const enrolledSchools = await sql`
+          SELECT school_id FROM ${sql(SCHEMA)}.school_enrollments
+          WHERE profile_id = ${session.profileId} AND status = 'ACTIVE'
+        `;
+        const userSchoolIds = enrolledSchools.map((r) => r.school_id as string);
+
+        const hospitalRows = await sql`
+          SELECT h.id, h.name, h.city, h.district, h.address, h.lat, h.lng,
+                 h.phone, h.rating, h.is_camp_partner,
+                 COUNT(DISTINCT sc.id)::int AS conducted_camps,
+                 COUNT(DISTINCT CASE
+                   WHEN sc.school_id = ANY(${userSchoolIds.length ? userSchoolIds : ["__none__"]}::text[])
+                   THEN sc.id END)::int AS user_linked_camps
+          FROM ${sql(SCHEMA)}.hospitals h
+          LEFT JOIN ${sql(SCHEMA)}.school_camps sc
+            ON sc.hospital_id = h.id AND sc.active = true
+          WHERE h.active = true AND h.city ILIKE ${city}
+          GROUP BY h.id
+        `;
+
+        const doctorRows = await sql`
+          SELECT d.id, d.name, d.specialty, d.hospital, d.city, d.rating, d.hospital_id,
+                 h.name AS hospital_name, h.is_camp_partner,
+                 COUNT(DISTINCT sc.id)::int AS conducted_camps
+          FROM ${sql(SCHEMA)}.doctors d
+          LEFT JOIN ${sql(SCHEMA)}.hospitals h ON h.id = d.hospital_id
+          LEFT JOIN ${sql(SCHEMA)}.school_camps sc
+            ON sc.hospital_id = d.hospital_id AND sc.active = true
+          WHERE d.active = true AND (d.city ILIKE ${city} OR h.city ILIKE ${city})
+          GROUP BY d.id, h.name, h.is_camp_partner
+        `;
+
+        type DoctorRow = {
+          id: string;
+          name: string;
+          specialty: string;
+          hospital: string;
+          city: string;
+          rating: number;
+          hospital_id: string | null;
+          hospital_name: string | null;
+          is_camp_partner: boolean | null;
+          conducted_camps: number;
+        };
+
+        const doctorsByHospital = new Map<string, DoctorRow[]>();
+        const allSpecialties = new Set<string>();
+
+        for (const row of doctorRows as DoctorRow[]) {
+          if (specialty && row.specialty !== specialty) continue;
+          allSpecialties.add(row.specialty);
+          const hid = row.hospital_id || "unlinked";
+          if (!doctorsByHospital.has(hid)) doctorsByHospital.set(hid, []);
+          doctorsByHospital.get(hid)!.push(row);
+        }
+
+        type HospitalOut = Record<string, unknown>;
+        const hospitals: HospitalOut[] = [];
+
+        for (const h of hospitalRows) {
+          const hid = h.id as string;
+          const docs = doctorsByHospital.get(hid) || [];
+          if (docs.length === 0 && specialty) continue;
+
+          const lat = h.lat as number | null;
+          const lng = h.lng as number | null;
+          const distanceKm =
+            userLat != null && userLng != null && lat != null && lng != null
+              ? Math.round(haversineKm(userLat, userLng, lat, lng) * 10) / 10
+              : null;
+
+          const conductedCamps = (h.conducted_camps as number) || 0;
+          const userLinkedCamps = (h.user_linked_camps as number) || 0;
+          const userCampLinked = userLinkedCamps > 0;
+          const isCampPartner = (h.is_camp_partner as boolean) || conductedCamps > 0;
+
+          const specialties = [...new Set(docs.map((d) => d.specialty))].sort();
+          for (const s of specialties) allSpecialties.add(s);
+
+          const priorityScore =
+            (userCampLinked ? 10000 : 0) +
+            conductedCamps * 100 +
+            (isCampPartner ? 500 : 0) +
+            ((h.rating as number) || 0) * 10 -
+            (distanceKm ?? 999);
+
+          hospitals.push({
+            id: hid,
+            name: h.name,
+            city: h.city,
+            district: h.district,
+            address: h.address,
+            lat,
+            lng,
+            phone: h.phone,
+            rating: h.rating,
+            is_camp_partner: isCampPartner,
+            conducted_camps: conductedCamps,
+            user_camp_linked: userCampLinked,
+            user_linked_camps: userLinkedCamps,
+            distance_km: distanceKm,
+            priority_score: priorityScore,
+            specialties,
+            doctors: docs
+              .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+              .map((d) => ({
+                id: d.id,
+                name: d.name,
+                specialty: d.specialty,
+                hospital: d.hospital_name || d.hospital,
+                hospital_id: d.hospital_id,
+                city: d.city,
+                rating: d.rating,
+                is_camp_partner: d.is_camp_partner || isCampPartner,
+              })),
+          });
+        }
+
+        hospitals.sort(
+          (a, b) => (b.priority_score as number) - (a.priority_score as number)
+        );
+
+        return json({
+          city,
+          hospitals,
+          specialties: [...allSpecialties].sort(),
+        });
+      }
+
+      if (path === "/api/doctors" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const city = (url.searchParams.get("city") || "").trim();
+        const hospitalId = (url.searchParams.get("hospital_id") || "").trim();
+        const specialty = (url.searchParams.get("specialty") || "").trim();
+
+        const rows = await sql`
+          SELECT d.id, d.name, d.specialty, d.hospital, d.city, d.rating,
+                 d.hospital_id, h.name AS hospital_name, h.is_camp_partner
+          FROM ${sql(SCHEMA)}.doctors d
+          LEFT JOIN ${sql(SCHEMA)}.hospitals h ON h.id = d.hospital_id
+          WHERE d.active = true
+            AND (${city} = '' OR d.city ILIKE ${city} OR h.city ILIKE ${city})
+            AND (${hospitalId} = '' OR d.hospital_id = ${hospitalId})
+            AND (${specialty} = '' OR d.specialty = ${specialty})
+          ORDER BY d.rating DESC, d.name
+        `;
+        return json(rows);
+      }
+
+      // ── Mark notifications read ───────────────────────
+      if (path === "/api/notifications/read" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const ids = Array.isArray(body.ids) ? (body.ids as string[]) : [];
+        if (ids.length === 0) return json({ success: true });
+
+        const profileRows = await sql`
+          SELECT read_notification_ids FROM ${sql(SCHEMA)}.profiles
+          WHERE id = ${session.profileId} LIMIT 1
+        `;
+        const existing = (profileRows[0]?.read_notification_ids as string[]) || [];
+        const merged = [...new Set([...existing, ...ids])];
+        await sql`
+          UPDATE ${sql(SCHEMA)}.profiles
+          SET read_notification_ids = ${JSON.stringify(merged)}::jsonb
+          WHERE id = ${session.profileId}
+        `;
+        return json({ success: true, readCount: merged.length });
+      }
+
+      // ── In-app notifications feed ─────────────────────
+      if (path === "/api/notifications" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const items: Array<Record<string, unknown>> = [];
+
+        const profileRows = await sql`
+          SELECT read_notification_ids FROM ${sql(SCHEMA)}.profiles
+          WHERE id = ${session.profileId} LIMIT 1
+        `;
+        const readIds = new Set<string>(
+          ((profileRows[0]?.read_notification_ids as string[]) || [])
+        );
+
+        const camps = await sql`
+          SELECT title, school, date, time, status FROM ${sql(SCHEMA)}.camps
+          WHERE profile_id = ${session.profileId} AND status = 'UPCOMING'
+          ORDER BY date LIMIT 5
+        `;
+        for (const c of camps) {
+          const id = `camp_${c.title}_${c.date}`;
+          items.push({
+            id,
+            title: "Upcoming health camp",
+            body: `${c.title} at ${c.school || "school"} on ${c.date}`,
+            time: c.date as string,
+            type: "CAMP",
+            unread: !readIds.has(id),
+          });
+        }
+
+        const appts = await sql`
+          SELECT doctor_name, kid_name, date, time FROM ${sql(SCHEMA)}.appointments
+          WHERE profile_id = ${session.profileId}
+          ORDER BY date, time LIMIT 5
+        `;
+        for (const a of appts) {
+          const id = `appt_${a.doctor_name}_${a.date}_${a.time}`;
+          items.push({
+            id,
+            title: "Checkup reminder",
+            body: `${a.kid_name} with ${a.doctor_name} on ${a.date} at ${a.time}`,
+            time: a.date as string,
+            type: "CHECKUP",
+            unread: !readIds.has(id),
+          });
+        }
+
+        const kids = await sql`
+          SELECT k.name, COALESCE(s.current_streak, 0) AS streak
+          FROM ${sql(SCHEMA)}.kids k
+          LEFT JOIN ${sql(SCHEMA)}.streaks s ON s.kid_id = k.id
+          WHERE k.profile_id = ${session.profileId}
+        `;
+        for (const k of kids) {
+          if ((k.streak as number) >= 3) {
+            const id = `streak_${k.name}`;
+            items.push({
+              id,
+              title: "Streak milestone",
+              body: `${k.name} is on a ${k.streak}-day meal logging streak!`,
+              time: new Date().toISOString().split("T")[0],
+              type: "REWARD",
+              unread: !readIds.has(id),
+            });
+          }
+        }
+
+        return json(items);
       }
 
       return json({ error: "Not found", path }, 404);

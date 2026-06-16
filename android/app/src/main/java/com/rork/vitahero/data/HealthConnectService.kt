@@ -41,12 +41,8 @@ object HealthConnectService {
     )
 
     fun isHealthConnectAvailable(context: Context): Boolean {
-        return try {
-            context.packageManager.getPackageInfo(HC_PACKAGE, 0)
-            true
-        } catch (_: Exception) {
-            false
-        }
+        val status = HealthConnectClient.getSdkStatus(context)
+        return status == HealthConnectClient.SDK_AVAILABLE
     }
 
     fun openHealthConnectInstall(context: Context) {
@@ -70,7 +66,10 @@ object HealthConnectService {
     suspend fun fetchHealthData(context: Context, kidName: String): WearableData =
         withContext(Dispatchers.IO) {
             if (!isHealthConnectAvailable(context)) {
-                return@withContext getEstimatedData(kidName)
+                return@withContext WearableData(
+                    stepsToday = 0, activeMinutes = 0, caloriesBurned = 0,
+                    lastSyncTime = "", sourceDevice = "", isConnected = false
+                )
             }
 
             try {
@@ -126,50 +125,14 @@ object HealthConnectService {
                     isConnected = true
                 )
             } catch (e: Exception) {
-                // Fallback to estimated data
-                getEstimatedData(kidName).copy(
-                    isConnected = false,
-                    sourceDevice = "Health Connect (sync failed)"
+                WearableData(
+                    stepsToday = 0, activeMinutes = 0, caloriesBurned = 0,
+                    lastSyncTime = "", sourceDevice = "Health Connect",
+                    isConnected = false
                 )
             }
         }
 
-    /**
-     * Returns estimated data when Health Connect is not available.
-     * Uses a deterministic but varied algorithm based on kid's name.
-     */
-    private fun getEstimatedData(kidName: String): WearableData {
-        val nameHash = kidName.hashCode()
-        val steps = 5000 + (nameHash % 7000).coerceAtLeast(0)
-        val minutes = 30 + (nameHash % 60)
-        return WearableData(
-            stepsToday = steps,
-            activeMinutes = minutes,
-            caloriesBurned = steps / 20,
-            lastSyncTime = "Estimated",
-            sourceDevice = if (nameHash % 2 == 0) "Fitbit Ace 3" else "Samsung Galaxy Fit",
-            isConnected = true
-        )
-    }
-
-    /** @deprecated Use fetchHealthData() instead for real data. */
-    fun getDemoData(kidName: String): WearableData = getEstimatedData(kidName)
+    /** @deprecated No estimated data — returns disconnected state. */
+    fun getDemoData(kidName: String): WearableData = WearableData(isConnected = false)
 }
-
-fun HealthConnectService.WearableData.toSerializable(): SerializableWearableData = SerializableWearableData(
-    stepsToday = stepsToday,
-    activeMinutes = activeMinutes,
-    caloriesBurned = caloriesBurned,
-    lastSyncTime = lastSyncTime,
-    sourceDevice = sourceDevice,
-    isConnected = isConnected,
-)
-
-fun SerializableWearableData.toWearableData(): HealthConnectService.WearableData = HealthConnectService.WearableData(
-    stepsToday = stepsToday,
-    activeMinutes = activeMinutes,
-    caloriesBurned = caloriesBurned,
-    lastSyncTime = lastSyncTime,
-    sourceDevice = sourceDevice,
-    isConnected = isConnected,
-)

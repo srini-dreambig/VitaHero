@@ -1,0 +1,10 @@
+# Cloudflare Worker secrets (set in Rork dashboard or `wrangler secret put`)
+# Copy to functions/.dev.vars for local worker testing — never commit real values.
+
+DATABASE_URL=postgresql://user:pass@host/neondb?sslmode=require
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+
+# Rork Toolkit — used server-side for AI diet tips (NOT in the Android app)
+TOOLKIT_URL=https://toolkit.rork.app
+TOOLKIT_SECRET_KEY=

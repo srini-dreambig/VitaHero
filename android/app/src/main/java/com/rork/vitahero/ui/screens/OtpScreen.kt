@@ -109,7 +109,7 @@ fun OtpScreen(
         Text(t(S.verifyNumber), style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(8.dp))
         Text(
-            "${t(S.otpSubtitle)} +91 ${phone.ifEmpty { "98765 43210" }}",
+            "${t(S.otpSubtitle)} ${if (phone.isNotBlank()) "+91 $phone" else ""}",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

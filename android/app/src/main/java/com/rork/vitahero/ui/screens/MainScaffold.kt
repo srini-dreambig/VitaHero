@@ -53,6 +53,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppViewModel
+import com.rork.vitahero.data.KidsViewModel
+import com.rork.vitahero.data.ProfileViewModel
 
 private enum class Tab(val label: String, val filled: ImageVector, val outlined: ImageVector) {
     HOME("Home", Icons.Filled.Home, Icons.Outlined.Home),
@@ -65,6 +67,8 @@ private enum class Tab(val label: String, val filled: ImageVector, val outlined:
 @Composable
 fun MainScaffold(
     appViewModel: AppViewModel,
+    profileViewModel: ProfileViewModel,
+    kidsViewModel: KidsViewModel,
     phone: String,
     darkTheme: Boolean,
     onOpenKid: (String) -> Unit,
@@ -73,8 +77,12 @@ fun MainScaffold(
     onOpenNotifications: () -> Unit,
     onAddKid: () -> Unit,
     onOpenFamilySharing: () -> Unit,
+    onOpenSchools: () -> Unit = {},
+    onOpenHospitals: () -> Unit = {},
+    onOpenCamp: (String) -> Unit = {},
+    onOpenGrowthCharts: (String) -> Unit = {},
     onOpenFoodRecognition: (String, String) -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     val state by appViewModel.uiState.collectAsState()
@@ -112,12 +120,19 @@ fun MainScaffold(
                 )
                 Tab.CAMPS -> CampsScreen(
                     camps = state.camps,
-                    onBookFollowUp = onOpenBooking
+                    onBookFollowUp = onOpenBooking,
+                    onOpenCamp = onOpenCamp,
+                    onOpenSchools = onOpenSchools,
                 )
-                Tab.REWARDS -> RewardsScreen(
-                    kids = state.kids,
-                    badgeData = { appViewModel.badgeProgressForKid(it) }
-                )
+                Tab.REWARDS -> {
+                    val leaderboards by kidsViewModel.leaderboards.collectAsState()
+                    RewardsScreen(
+                        kids = state.kids,
+                        leaderboards = leaderboards,
+                        onRefreshLeaderboard = { kidsViewModel.refreshLeaderboard(it) },
+                        badgeData = { kidsViewModel.badgeProgressForKid(it) }
+                    )
+                }
                 Tab.PROFILE -> ProfileScreen(
                     parentName = state.parentName,
                     phone = phone,
@@ -126,11 +141,12 @@ fun MainScaffold(
                     currentLocale = state.locale,
                     notificationsEnabled = state.notificationsEnabled,
                     campRemindersEnabled = state.campRemindersEnabled,
-                    onToggleDarkTheme = { appViewModel.toggleDarkTheme() },
-                    onToggleNotifications = { appViewModel.toggleNotificationsEnabled() },
-                    onToggleCampReminders = { appViewModel.toggleCampReminders() },
-                    onSelectLocale = { appViewModel.setLocale(it) },
+                    onToggleDarkTheme = { profileViewModel.toggleDarkTheme() },
+                    onToggleNotifications = { profileViewModel.toggleNotificationsEnabled() },
+                    onToggleCampReminders = { profileViewModel.toggleCampReminders() },
+                    onSelectLocale = { profileViewModel.setLocale(it) },
                     onOpenFamilySharing = onOpenFamilySharing,
+                    onOpenHospitals = onOpenHospitals,
                     onLogout = onLogout
                 )
             }
@@ -148,60 +164,50 @@ fun MainScaffold(
 private fun BottomBar(
     selected: Tab,
     onSelect: (Tab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
-    val navBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val navBarPadding = WindowInsets.navigationBars.asPaddingValues()
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = navBarPadding.calculateBottomPadding()),
         color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 16.dp,
-        shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)
+        shadowElevation = 8.dp,
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(top = 10.dp, bottom = navBarPadding + 10.dp, start = 8.dp, end = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            Tab.entries.forEach { t ->
-                BottomItem(t, t == selected) { onSelect(t) }
+            Tab.entries.forEach { tab ->
+                val isSelected = tab == selected
+                val scale by animateFloatAsState(if (isSelected) 1.1f else 1f, label = "tabScale")
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                        ) { onSelect(tab) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Icon(
+                        imageVector = if (isSelected) tab.filled else tab.outlined,
+                        contentDescription = tab.label,
+                        tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                        modifier = Modifier.size((22 * scale).dp),
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        tab.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                    )
+                }
             }
         }
-    }
-}
-
-@Composable
-private fun BottomItem(tab: Tab, selected: Boolean, onClick: () -> Unit) {
-    val scale by animateFloatAsState(if (selected) 1f else 0.92f, label = "scale")
-    val interaction = remember { MutableInteractionSource() }
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
-                .padding(horizontal = 16.dp, vertical = 5.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                if (selected) tab.filled else tab.outlined,
-                contentDescription = tab.label,
-                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp * scale)
-            )
-        }
-        Spacer(Modifier.height(3.dp))
-        Text(
-            tab.label,
-            style = MaterialTheme.typography.labelSmall,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
-        )
     }
 }

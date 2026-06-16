@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rork.vitahero.data.CoParent
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
@@ -61,12 +62,6 @@ import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
 
-data class CoParent(
-    val id: String,
-    val name: String,
-    val relation: String,
-    val joinedDate: String = ""
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,6 +70,7 @@ fun FamilySharingScreen(
     coParents: List<CoParent>,
     onBack: () -> Unit,
     onJoinFamily: (String) -> Unit,
+    onGenerateCode: () -> Unit,
     onShareCode: () -> Unit
 ) {
     val context = LocalContext.current
@@ -124,6 +120,19 @@ fun FamilySharingScreen(
                         Spacer(Modifier.height(14.dp))
                         Text(t(S.yourFamilyCode), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(8.dp))
+                        if (familyCode.isBlank()) {
+                            Text(
+                                t(S.noFamilyCodeYet),
+                                color = Color.White.copy(alpha = 0.9f),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            PrimaryGradientButton(
+                                text = t(S.generateFamilyCode),
+                                onClick = onGenerateCode,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 familyCode,
@@ -169,6 +178,7 @@ fun FamilySharingScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Text(t(S.shareYourCode).take(25) + "…", color = HeroGreen, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                             }
+                        }
                         }
                     }
                 }

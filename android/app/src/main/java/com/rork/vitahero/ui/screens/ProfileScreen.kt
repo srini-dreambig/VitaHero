@@ -45,18 +45,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
+import android.content.Intent
+import android.net.Uri
 
 @Composable
 fun ProfileScreen(
@@ -72,8 +78,10 @@ fun ProfileScreen(
     onToggleCampReminders: () -> Unit,
     onSelectLocale: (AppLocale) -> Unit,
     onOpenFamilySharing: () -> Unit,
+    onOpenHospitals: () -> Unit = {},
     onLogout: () -> Unit
 ) {
+    val context = LocalContext.current
 
     LazyColumn(
         modifier = Modifier
@@ -100,7 +108,11 @@ fun ProfileScreen(
                         Spacer(Modifier.width(16.dp))
                         Column {
                             Text(parentName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            Text("+91 ${phone.ifEmpty { "98765 43210" }}", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                if (phone.isNotBlank()) "+91 $phone" else t(S.phonePlaceholder),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
                     }
                 }
@@ -183,7 +195,11 @@ fun ProfileScreen(
             Spacer(Modifier.height(12.dp))
             HeroCard(Modifier.fillMaxWidth()) {
                 Column {
-                    LinkRow(Icons.Outlined.LocalHospital, HeroPurple, t(S.linkedHospitals), "Rainbow, LV Prasad, Apollo Cradle")
+                    LinkRow(
+                        Icons.Outlined.LocalHospital, HeroPurple, t(S.linkedHospitals),
+                        t(S.linkedHospitalsSub),
+                        onClick = onOpenHospitals
+                    )
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -200,8 +216,18 @@ fun ProfileScreen(
                             Icon(Icons.AutoMirrored.Outlined.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                         }
                     }
-                    LinkRow(Icons.Outlined.Lock, HeroBlue, t(S.privacyData), "DPDP compliant · parental consent")
-                    LinkRow(Icons.Outlined.SupportAgent, Color(0xFFF59E0B), t(S.helpSupport), "We're here to help")
+                    LinkRow(
+                        Icons.Outlined.Lock, HeroBlue, t(S.privacyData), t(S.privacyDataSub),
+                        onClick = {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://kidhero.rork.app/privacy")))
+                        }
+                    )
+                    LinkRow(
+                        Icons.Outlined.SupportAgent, Color(0xFFF59E0B), t(S.helpSupport), t(S.helpSupportSub),
+                        onClick = {
+                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@kidhero.rork.app")))
+                        }
+                    )
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -254,11 +280,11 @@ private fun ToggleRow(icon: ImageVector, tint: Color, title: String, subtitle: S
 }
 
 @Composable
-private fun LinkRow(icon: ImageVector, tint: Color, title: String, subtitle: String) {
+private fun LinkRow(icon: ImageVector, tint: Color, title: String, subtitle: String, onClick: () -> Unit = {}) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clickable { }
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -269,5 +295,30 @@ private fun LinkRow(icon: ImageVector, tint: Color, title: String, subtitle: Str
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(Icons.AutoMirrored.Outlined.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun ProfileScreenPreview() {
+    androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides AppLocale.ENGLISH) {
+        AppTheme {
+            ProfileScreen(
+                parentName = "Priya Sharma",
+                phone = "",
+                kids = emptyList(),
+                darkTheme = false,
+                currentLocale = AppLocale.ENGLISH,
+                notificationsEnabled = true,
+                campRemindersEnabled = true,
+                onToggleDarkTheme = {},
+                onToggleNotifications = {},
+                onToggleCampReminders = {},
+                onSelectLocale = {},
+                onOpenFamilySharing = {},
+                onOpenHospitals = {},
+                onLogout = {}
+            )
+        }
     }
 }

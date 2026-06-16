@@ -46,9 +46,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.AppLocale
+import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
+import com.rork.vitahero.ui.components.FieldLabel
+import com.rork.vitahero.ui.components.HeroTextField
 import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 
@@ -449,43 +455,19 @@ private fun PhoneAuthSection(
     }
 }
 
-// ─── Reusable Components ────────────────────────────────────
+// ─── Previews ────────────────────────────────────────────────
 
+@Preview(showBackground = true)
 @Composable
-private fun FieldLabel(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 8.dp)
-    )
-}
-
-@Composable
-fun HeroTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier,
-    keyboardType: KeyboardType = KeyboardType.Text,
-    isPassword: Boolean = false
-) {
-    androidx.compose.material3.OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        placeholder = { Text(placeholder, color = MaterialTheme.colorScheme.onSurfaceVariant) },
-        singleLine = true,
-        shape = RoundedCornerShape(14.dp),
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        visualTransformation = if (isPassword) PasswordVisualTransformation() else androidx.compose.ui.text.input.VisualTransformation.None,
-        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = MaterialTheme.colorScheme.primary,
-            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-            focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-        ),
-        modifier = modifier
-    )
+private fun AuthScreenPreview() {
+    androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides AppLocale.ENGLISH) {
+        AppTheme {
+            AuthScreen(
+                onSignInWithGoogle = {},
+                onSignUpWithEmail = { _, _, _ -> },
+                onSignInWithEmail = { _, _ -> },
+                onContinueWithPhone = {}
+            )
+        }
+    }
 }

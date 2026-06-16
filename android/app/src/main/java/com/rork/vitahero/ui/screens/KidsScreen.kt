@@ -26,9 +26,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.EmptyState
 import com.rork.vitahero.ui.components.FlagChip
@@ -36,6 +39,9 @@ import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.components.tf
+import com.rork.vitahero.ui.theme.AppTheme
+import com.rork.vitahero.ui.theme.HeroGreen
 
 @Composable
 fun KidsScreen(
@@ -60,7 +66,8 @@ fun KidsScreen(
                 Column(Modifier.weight(1f)) {
                     Text(t(S.myKids), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
                     Text(
-                        "${kids.size} ${if (kids.size == 1) "child" else "children"} tracked",
+                        if (kids.size == 1) tf(S.childTracked, kids.size.toString())
+                        else tf(S.childrenTracked, kids.size.toString()),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -166,6 +173,20 @@ private fun AddKidCard(modifier: Modifier = Modifier, onClick: () -> Unit) {
                 Text(t(S.addAnotherChild), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                 Text(t(S.trackAllKids), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
             }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun KidsScreenPreview() {
+    androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides AppLocale.ENGLISH) {
+        AppTheme {
+            KidsScreen(
+                kids = emptyList(),
+                onOpenKid = {},
+                onAddKid = {}
+            )
         }
     }
 }

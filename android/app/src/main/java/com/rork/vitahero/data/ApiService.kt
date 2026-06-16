@@ -4,15 +4,14 @@ import com.rork.vitahero.BuildConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.header
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
 /**
  * HTTP client configured for the VitaHero Cloudflare Worker API
  * (Neon DB backend).
- *
- * When the functions URL is not configured, network calls are
- * silently skipped instead of spamming the console with errors.
  */
 object ApiService {
     val http: HttpClient by lazy {
@@ -24,13 +23,18 @@ object ApiService {
                     coerceInputValues = true
                 })
             }
+            
+            // Set global headers that are required by the backend Auth proxy
+            defaultRequest {
+                header("Origin", "https://kidhero.rork.app")
+                header("Referer", "https://kidhero.rork.app/")
+                header("X-Requested-With", "com.rork.vitahero")
+            }
         }
     }
 
     /**
      * Base URL for the Cloudflare Worker backend.
-     * Uses the build-time env var if available, otherwise falls back to
-     * the known deployed worker URL so the app works after rebuilds too.
      */
     val baseUrl: String by lazy {
         BuildConfig.RORK_FUNCTIONS_URL.ifBlank {

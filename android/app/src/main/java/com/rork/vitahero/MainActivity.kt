@@ -13,8 +13,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
 import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
@@ -22,14 +28,18 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
+import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.rork.vitahero.data.AppViewModel
+import com.rork.vitahero.data.HealthConnectPermissions
+import com.rork.vitahero.data.KidsViewModel
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.NotificationScheduler
+import com.rork.vitahero.data.VitaHeroViewModelFactory
 import com.rork.vitahero.ui.navigation.AppNavigation
 import com.rork.vitahero.ui.theme.AppTheme
 import kotlinx.coroutines.launch
@@ -40,44 +50,76 @@ class MainActivity : ComponentActivity() {
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* granted or denied — channels already created */ }
+    ) { }
 
     private val exactAlarmLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
-    ) { /* User returned from Settings */ }
+    ) { }
+
+    private val healthConnectPermissionLauncher = registerForActivityResult(
+        PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        if (granted.containsAll(HealthConnectPermissions.permissions)) {
+            kidsViewModel.onHealthConnectPermissionsGranted()
+        }
+    }
 
     private lateinit var appViewModel: AppViewModel
+    private lateinit var kidsViewModel: KidsViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         NotificationScheduler.createChannels(this)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }
-
-        requestExactAlarmIfNeeded()
-
         setContent {
-            appViewModel = viewModel()
-            val state by appViewModel.uiState.collectAsState()
+            val app = application as VitaHeroApplication
+            val factory = remember { VitaHeroViewModelFactory(app, app.appContainer) }
+            appViewModel = viewModel(factory = factory)
+            kidsViewModel = viewModel(factory = factory)
 
-            androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides state.locale) {
+            kidsViewModel.setHealthConnectRequestHandler {
+                healthConnectPermissionLauncher.launch(HealthConnectPermissions.permissions)
+            }
+
+            val state by appViewModel.uiState.collectAsState()
+            val isLoggedIn by appViewModel.isLoggedIn.collectAsState()
+            val syncMessage by appViewModel.syncMessage.collectAsState()
+            val snackbarHostState = remember { SnackbarHostState() }
+
+            LaunchedEffect(isLoggedIn) {
+                if (isLoggedIn) {
+                    requestExactAlarmIfNeeded()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        if (ContextCompat.checkSelfPermission(
+                                this@MainActivity,
+                                Manifest.permission.POST_NOTIFICATIONS,
+                            ) != PackageManager.PERMISSION_GRANTED
+                        ) {
+                            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    }
+                }
+            }
+
+            LaunchedEffect(syncMessage) {
+                syncMessage?.let { msg ->
+                    snackbarHostState.showSnackbar(msg)
+                    appViewModel.clearSyncMessage()
+                }
+            }
+
+            CompositionLocalProvider(LocalAppLocale provides state.locale) {
                 AppTheme(darkTheme = state.darkTheme) {
-                    AppNavigation(
-                        onGoogleSignInRequest = { launchGoogleSignIn() }
-                    )
+                    Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { _ ->
+                        AppNavigation(
+                            onGoogleSignInRequest = { launchGoogleSignIn() }
+                        )
+                    }
                 }
             }
         }
     }
-
-    // ─── Google Sign-In ──────────────────────────────────────
 
     private fun launchGoogleSignIn() {
         val webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID
@@ -87,12 +129,8 @@ class MainActivity : ComponentActivity() {
         }
 
         val credentialManager = CredentialManager.create(this)
-
-        // Generate a secure nonce
         val rawNonce = UUID.randomUUID().toString()
-        val bytes = rawNonce.toByteArray()
-        val md = MessageDigest.getInstance("SHA-256")
-        val digest = md.digest(bytes)
+        val digest = MessageDigest.getInstance("SHA-256").digest(rawNonce.toByteArray())
         val hashedNonce = digest.fold("") { str, it -> str + "%02x".format(it) }
 
         val googleIdOption = GetGoogleIdOption.Builder()
@@ -113,8 +151,7 @@ class MainActivity : ComponentActivity() {
                     context = this@MainActivity,
                 )
                 handleGoogleSignInResult(result)
-            } catch (e: NoCredentialException) {
-                // No Google accounts available — let user try phone OTP
+            } catch (_: NoCredentialException) {
                 Toast.makeText(this@MainActivity, "No Google accounts found. Try phone sign-in.", Toast.LENGTH_SHORT).show()
             } catch (e: GetCredentialException) {
                 Toast.makeText(this@MainActivity, "Google Sign-In failed: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -129,9 +166,8 @@ class MainActivity : ComponentActivity() {
         ) {
             try {
                 val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                val idToken = googleIdTokenCredential.idToken
-                appViewModel.signInWithGoogle(idToken)
-            } catch (e: GoogleIdTokenParsingException) {
+                appViewModel.signInWithGoogle(googleIdTokenCredential.idToken)
+            } catch (_: GoogleIdTokenParsingException) {
                 Toast.makeText(this, "Failed to parse Google ID token", Toast.LENGTH_SHORT).show()
             }
         } else {
@@ -139,10 +175,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ─── Alarm ───────────────────────────────────────────────
-
     private fun requestExactAlarmIfNeeded() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val alarmManager = getSystemService(ALARM_SERVICE) as AlarmManager
             if (!alarmManager.canScheduleExactAlarms()) {
                 Toast.makeText(

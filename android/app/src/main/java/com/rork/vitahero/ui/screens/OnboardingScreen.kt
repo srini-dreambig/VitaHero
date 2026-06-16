@@ -191,7 +191,7 @@ fun OnboardingScreen(
                     .padding(bottom = 40.dp)
             ) {
                 PrimaryGradientButton(
-                    text = if (isLast) "Create Account" else "Next",
+                    text = if (isLast) t(S.createAccount) else t(S.next),
                     onClick = {
                         if (isLast) onFinish()
                         else scope.launch { pager.animateScrollToPage(pager.currentPage + 1) }

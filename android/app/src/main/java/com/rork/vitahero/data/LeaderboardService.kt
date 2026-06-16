@@ -31,7 +31,9 @@ object LeaderboardService {
         localStreak: Int,
     ): List<LeaderEntry> = withContext(Dispatchers.IO) {
         if (!ApiService.isConfigured) {
-            return@withContext buildLocalLeaderboard(currentKidId, currentKidName, localEatenMeals, localStreak)
+            return@withContext listOf(
+                LeaderEntry(1, currentKidName, (localEatenMeals * 10) + (localStreak * 50) + 1500, true)
+            )
         }
         try {
             val http = ApiService.http
@@ -49,8 +51,8 @@ object LeaderboardService {
             val raw = resp.body<List<LeaderboardRow>>()
 
             if (raw.isEmpty()) {
-                return@withContext buildLocalLeaderboard(
-                    currentKidId, currentKidName, localEatenMeals, localStreak
+                return@withContext listOf(
+                    LeaderEntry(1, currentKidName, (localEatenMeals * 10) + (localStreak * 50) + 1500, true)
                 )
             }
 
@@ -63,25 +65,10 @@ object LeaderboardService {
                 )
             }
         } catch (_: Exception) {
-            buildLocalLeaderboard(currentKidId, currentKidName, localEatenMeals, localStreak)
+            listOf(
+                LeaderEntry(1, currentKidName, (localEatenMeals * 10) + (localStreak * 50) + 1500, true)
+            )
         }
-    }
-
-    /**
-     * Local fallback leaderboard when the backend is unavailable.
-     * Shows the current kid plus anonymized entries based on local activity.
-     */
-    private fun buildLocalLeaderboard(
-        kidId: String, kidName: String, eatenMeals: Int, streak: Int
-    ): List<LeaderEntry> {
-        val points = (eatenMeals * 10) + (streak * 50) + 1500
-        return listOf(
-            LeaderEntry(1, kidName, points, true),
-            LeaderEntry(2, "Anonymous Hero", points - 120, false),
-            LeaderEntry(3, "Anonymous Hero", points - 190, false),
-            LeaderEntry(4, "Anonymous Hero", points - 240, false),
-            LeaderEntry(5, "Anonymous Hero", points - 310, false),
-        )
     }
 
     @Serializable

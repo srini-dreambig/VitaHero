@@ -25,7 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.DirectionsRun
+import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.RemoveRedEye
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Share
@@ -36,6 +36,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +57,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.GrowthAssessment
 import com.rork.vitahero.data.GrowthPoint
 import com.rork.vitahero.data.HealthConnectService
 import com.rork.vitahero.data.HealthFlag
@@ -71,8 +74,6 @@ import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroYellow
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 private enum class DetailTab(val labelKey: String) {
     GROWTH(S.growthTabLabel), DENTAL(S.dentalTabLabel), EYE(S.eyeTabLabel), NUTRITION(S.nutritionTabLabel)
@@ -86,12 +87,37 @@ fun KidDetailScreen(
     onOpenDiet: () -> Unit,
     onShareReport: (Context) -> Unit,
     onAddGrowth: (heightCm: Float, weightKg: Float, label: String) -> Unit,
-    onRefreshWearable: () -> Unit = {}
+    onRefreshWearable: () -> Unit = {},
+    onDeleteKid: () -> Unit = {},
+    onOpenGrowthCharts: () -> Unit = {},
+    growthAssessment: GrowthAssessment? = null,
 ) {
     var tab by remember { mutableStateOf(DetailTab.GROWTH) }
     var showGrowthEntry by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     var isGeneratingReport by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text(t(S.deleteKidConfirm)) },
+            text = { Text(t(S.deleteKidBody)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDeleteKid()
+                }) {
+                    Text(t(S.deleteKid), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(t(S.cancel))
+                }
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -240,34 +266,38 @@ fun KidDetailScreen(
             Spacer(Modifier.height(14.dp))
         }
 
-        // Wearable data card
-        if (wearableData != null) {
-            item {
-                HeroCard(Modifier
+        // Wearable / Health Connect card
+        item {
+            HeroCard(
+                Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp)
-                ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconBubble(Icons.Outlined.Watch, HeroYellow)
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(t(S.activityData), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                            Text(
-                                if (wearableData.isConnected) "${wearableData.stepsToday} steps · ${wearableData.activeMinutes} min active" else t(S.notConnected),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        IconBubble(Icons.Outlined.DirectionsRun, HeroGreen)
+                    .clickable { onRefreshWearable() }
+            ) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconBubble(Icons.Outlined.Watch, HeroYellow)
+                    Spacer(Modifier.width(14.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(t(S.activityData), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            when {
+                                wearableData?.isConnected == true ->
+                                    "${wearableData.stepsToday} ${t(S.stepsToday)} · ${wearableData.activeMinutes} ${t(S.activeMinutes)}"
+                                else -> t(S.wearableSub)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
+                    IconBubble(Icons.Outlined.Refresh, HeroGreen)
                 }
-                Spacer(Modifier.height(14.dp))
             }
+            Spacer(Modifier.height(14.dp))
         }
 
         item {
             when (tab) {
-                DetailTab.GROWTH -> GrowthTab(kid)
+                DetailTab.GROWTH -> GrowthTab(kid, growthAssessment, onOpenGrowthCharts)
                 DetailTab.DENTAL -> FlagTab(
                     t(S.dentalTabLabel), kid.dental,
                     if (kid.dental == HealthFlag.GOOD) t(S.dentalGoodMsg)
@@ -280,6 +310,28 @@ fun KidDetailScreen(
                 )
                 DetailTab.NUTRITION -> NutritionTab(kid, onOpenDiet)
             }
+        }
+
+        item {
+            Spacer(Modifier.height(24.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f))
+                    .clickable { showDeleteConfirm = true }
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    t(S.deleteKid),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+            Spacer(Modifier.height(32.dp))
         }
     }
 }
@@ -384,8 +436,32 @@ private fun HeaderStat(label: String, value: String) {
 }
 
 @Composable
-private fun GrowthTab(kid: Kid) {
+private fun GrowthTab(kid: Kid, assessment: GrowthAssessment?, onOpenClinicalCharts: () -> Unit) {
     Column(Modifier.padding(horizontal = 20.dp)) {
+        assessment?.let { a ->
+            HeroCard(Modifier.fillMaxWidth(), background = HeroGreen.copy(alpha = 0.06f)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(t(S.currentAssessment), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.height(8.dp))
+                    Text("${t(S.heightPercentile)}: ${a.heightPercentile}% · ${a.heightStatus}", style = MaterialTheme.typography.bodySmall)
+                    Text("${t(S.bmiPercentile)}: ${a.bmiPercentile}% · ${a.bmiStatus}", style = MaterialTheme.typography.bodySmall)
+                    Text("${t(S.referenceStandard)}: ${a.chartSource}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(HeroBlue.copy(alpha = 0.1f))
+                    .clickable(onClick = onOpenClinicalCharts)
+                    .padding(vertical = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(t(S.viewClinicalCharts), color = HeroBlue, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(14.dp))
+        }
         HeroCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

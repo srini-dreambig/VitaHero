@@ -138,9 +138,10 @@ fun ConsentScreen(
 
         Spacer(Modifier.height(40.dp))
         Text(
-            "VitaHero v1.0",
+            t(S.version),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(20.dp))
     }

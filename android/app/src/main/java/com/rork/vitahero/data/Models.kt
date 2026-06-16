@@ -19,9 +19,10 @@ data class HealthMetric(
 )
 
 data class GrowthPoint(
+    val id: String = "",
     val label: String,
     val height: Float, // cm
-    val weight: Float  // kg
+    val weight: Float, // kg
 )
 
 data class Kid(
@@ -65,7 +66,34 @@ data class Camp(
     val time: String,
     val status: CampStatus,
     val checks: List<String>,
-    val resultSummary: String?
+    val resultSummary: String?,
+    val isPartnerCamp: Boolean = false,
+    val schoolId: String = "",
+    val schoolCampId: String = "",
+    val description: String = "",
+    val grades: List<String> = emptyList(),
+    val capacity: Int = 0,
+    val registeredKidIds: List<String> = emptyList(),
+)
+
+data class PartnerSchool(
+    val id: String,
+    val name: String,
+    val city: String,
+    val district: String,
+    val description: String,
+    val enrolledAt: String = "",
+    val kidId: String? = null,
+)
+
+data class GrowthAssessment(
+    val heightPercentile: Int,
+    val weightPercentile: Int,
+    val bmiPercentile: Int,
+    val heightStatus: String,
+    val weightStatus: String,
+    val bmiStatus: String,
+    val chartSource: String = "WHO/IAP 2007",
 )
 
 data class Doctor(
@@ -75,11 +103,42 @@ data class Doctor(
     val hospital: String,
     val rating: Float,
     val nextSlot: String,
-    val avatarColor: Long
+    val avatarColor: Long,
+    val hospitalId: String = "",
+    val city: String = "",
+    val isCampPartner: Boolean = false,
+)
+
+data class Hospital(
+    val id: String,
+    val name: String,
+    val city: String,
+    val district: String,
+    val address: String,
+    val rating: Float,
+    val isCampPartner: Boolean,
+    val conductedCamps: Int,
+    val userCampLinked: Boolean,
+    val distanceKm: Float?,
+    val specialties: List<String>,
+    val doctors: List<Doctor>,
+)
+
+data class BookingDirectory(
+    val city: String,
+    val hospitals: List<Hospital>,
+    val specialties: List<String>,
+)
+
+data class BookingTimeSlot(
+    val label: String,
+    val date: String,
+    val time: String,
 )
 
 data class Appointment(
     val id: String,
+    val doctorId: String = "",
     val doctorName: String,
     val specialty: String,
     val kidName: String,
@@ -120,6 +179,13 @@ data class StreakInfo(
     val lastLogDate: String = ""
 )
 
+data class CoParent(
+    val id: String,
+    val name: String,
+    val relation: String,
+    val joinedDate: String = ""
+)
+
 data class PersonalizedDietTip(
     val greeting: String,
     val insight: String,
@@ -137,111 +203,3 @@ data class AppNotification(
 )
 
 enum class NotificationType { CAMP, CHECKUP, DIET, REWARD }
-
-// --- Serialization helpers ---
-
-fun Kid.toSerializable(): SerializableKid = SerializableKid(
-    id = id,
-    name = name,
-    age = age,
-    gender = gender,
-    school = school,
-    grade = grade,
-    heightCm = heightCm,
-    weightKg = weightKg,
-    avatarColor = avatarColor,
-    overallScore = overallScore,
-    growth = growth.map { SerializableGrowthPoint(it.label, it.height, it.weight) },
-    dental = dental.name,
-    eyesight = eyesight.name,
-    nutrition = nutrition.name,
-    lastCheckup = lastCheckup,
-)
-
-fun SerializableKid.toKid(): Kid = Kid(
-    id = id,
-    name = name,
-    age = age,
-    gender = gender,
-    school = school,
-    grade = grade,
-    heightCm = heightCm,
-    weightKg = weightKg,
-    avatarColor = avatarColor,
-    overallScore = overallScore,
-    growth = growth.map { GrowthPoint(it.label, it.height, it.weight) },
-    dental = try { HealthFlag.valueOf(dental) } catch (_: Exception) { HealthFlag.GOOD },
-    eyesight = try { HealthFlag.valueOf(eyesight) } catch (_: Exception) { HealthFlag.GOOD },
-    nutrition = try { HealthFlag.valueOf(nutrition) } catch (_: Exception) { HealthFlag.GOOD },
-    lastCheckup = lastCheckup,
-)
-
-fun Appointment.toSerializable(): SerializableAppointment = SerializableAppointment(
-    id = id,
-    doctorName = doctorName,
-    specialty = specialty,
-    kidName = kidName,
-    date = date,
-    time = time,
-)
-
-fun SerializableAppointment.toAppointment(): Appointment = Appointment(
-    id = id,
-    doctorName = doctorName,
-    specialty = specialty,
-    kidName = kidName,
-    date = date,
-    time = time,
-)
-
-fun MealItem.toSerializable(): SerializableMealItem = SerializableMealItem(
-    id = id,
-    time = time,
-    name = name,
-    detail = detail,
-    kcal = kcal,
-    eaten = eaten,
-)
-
-fun SerializableMealItem.toMealItem(): MealItem = MealItem(
-    id = id,
-    time = time,
-    name = name,
-    detail = detail,
-    kcal = kcal,
-    eaten = eaten,
-)
-
-fun Camp.toSerializableCamp(): SerializableCamp = SerializableCamp(
-    id = id,
-    title = title,
-    school = school,
-    date = date,
-    time = time,
-    status = status.name,
-    checks = checks,
-    resultSummary = resultSummary,
-)
-
-fun SerializableCamp.toCamp(): Camp = Camp(
-    id = id,
-    title = title,
-    school = school,
-    date = date,
-    time = time,
-    status = try { CampStatus.valueOf(status) } catch (_: Exception) { CampStatus.UPCOMING },
-    checks = checks,
-    resultSummary = resultSummary,
-)
-
-fun StreakInfo.toSerializable(): SerializableStreakInfo = SerializableStreakInfo(
-    currentStreak = currentStreak,
-    bestStreak = bestStreak,
-    lastLogDate = lastLogDate,
-)
-
-fun SerializableStreakInfo.toStreakInfo(): StreakInfo = StreakInfo(
-    currentStreak = currentStreak,
-    bestStreak = bestStreak,
-    lastLogDate = lastLogDate,
-)

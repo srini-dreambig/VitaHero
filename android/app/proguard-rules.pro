@@ -13,10 +13,6 @@
     kotlinx.serialization.KSerializer serializer(...);
 }
 
-# ── Room ──────────────────────────────────────────────────────
--keep class * extends androidx.room.RoomDatabase
--dontwarn androidx.room.paging.**
-
 # ── Ktor ──────────────────────────────────────────────────────
 -keep class io.ktor.** { *; }
 -dontwarn io.ktor.**
@@ -24,8 +20,7 @@
 # ── Coil ──────────────────────────────────────────────────────
 -dontwarn coil3.**
 
-# ── Supabase DTOs (reflection-safe) ───────────────────────────
--keep class com.rork.vitahero.data.SupabaseDtosKt { *; }
+# ── API DTOs (reflection-safe) ────────────────────────────────
 -keep class com.rork.vitahero.data.ProfileDto { *; }
 -keep class com.rork.vitahero.data.KidDto { *; }
 -keep class com.rork.vitahero.data.CampDto { *; }
@@ -35,30 +30,8 @@
 -keep class com.rork.vitahero.data.StreakDto { *; }
 -keep class com.rork.vitahero.data.CoParentDto { *; }
 
-# ── PersistentState & serializables ───────────────────────────
--keep class com.rork.vitahero.data.PersistentState { *; }
--keep class com.rork.vitahero.data.SerializableKid { *; }
--keep class com.rork.vitahero.data.SerializableGrowthPoint { *; }
--keep class com.rork.vitahero.data.SerializableAppointment { *; }
--keep class com.rork.vitahero.data.SerializableMealItem { *; }
--keep class com.rork.vitahero.data.SerializableStreakInfo { *; }
--keep class com.rork.vitahero.data.SerializableCoParent { *; }
--keep class com.rork.vitahero.data.SerializableWearableData { *; }
--keep class com.rork.vitahero.data.SerializableCamp { *; }
-
-# ── Supabase Auth response models ─────────────────────────────
--keep class com.rork.vitahero.data.SupabaseAuth$AuthResponse { *; }
--keep class com.rork.vitahero.data.SupabaseAuth$AuthUser { *; }
--keep class com.rork.vitahero.data.SupabaseAuth$EdgeFnVerifyResponse { *; }
--keep class com.rork.vitahero.data.SupabaseAuth$EdgeFnUser { *; }
-
 # ── Models (used in serialization) ────────────────────────────
 -keep class com.rork.vitahero.data.ModelsKt { *; }
-
-# ── Tink (security-crypto dependency) ─────────────────────────
--dontwarn com.google.errorprone.annotations.**
--dontwarn com.google.crypto.tink.**
--keep class com.google.crypto.tink.** { *; }
 
 # ── Guava (Android variant) ────────────────────────────────────
 -dontwarn com.google.common.**
@@ -67,6 +40,13 @@
 -dontwarn com.google.j2objc.annotations.**
 -dontwarn javax.annotation.**
 -dontwarn org.checkerframework.**
+
+-keep class com.rork.vitahero.data.SyncBatch { *; }
+-keep class com.rork.vitahero.data.SyncBatch$$serializer { *; }
+
+# ── ML Kit ────────────────────────────────────────────────────
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
 
 # ── General Kotlin ────────────────────────────────────────────
 -keepattributes Signature

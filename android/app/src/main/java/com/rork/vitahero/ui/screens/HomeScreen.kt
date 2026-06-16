@@ -36,21 +36,23 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Appointment
 import com.rork.vitahero.data.Camp
 import com.rork.vitahero.data.CampStatus
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
-import com.rork.vitahero.ui.components.FlagChip
 import com.rork.vitahero.ui.components.HeroCard
-import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.ProgressRing
 import com.rork.vitahero.ui.components.SectionHeader
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
+import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroGreen
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -271,7 +273,7 @@ private fun QuickAction(
             Modifier.padding(vertical = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            IconBubble(icon, tint, size = 44.dp)
+            com.rork.vitahero.ui.components.IconBubble(icon, tint, size = 44.dp)
             Spacer(Modifier.height(10.dp))
             Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
         }
@@ -326,7 +328,7 @@ private fun AppointmentRow(appt: Appointment, modifier: Modifier = Modifier) {
             Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconBubble(Icons.Outlined.CalendarMonth, HeroBlue)
+            com.rork.vitahero.ui.components.IconBubble(Icons.Outlined.CalendarMonth, HeroBlue)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Text(appt.doctorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -340,6 +342,28 @@ private fun AppointmentRow(appt: Appointment, modifier: Modifier = Modifier) {
                 Text(appt.date, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = HeroBlue)
                 Text(appt.time, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun HomeScreenPreview() {
+    androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides AppLocale.ENGLISH) {
+        AppTheme {
+            HomeScreen(
+                parentName = "Priya",
+                kids = emptyList(),
+                camps = emptyList(),
+                appointments = emptyList(),
+                unreadCount = 2,
+                onOpenKid = {},
+                onOpenNotifications = {},
+                onOpenCamps = {},
+                onOpenDiet = {},
+                onOpenRewards = {},
+                onBookAppointment = {}
+            )
         }
     }
 }

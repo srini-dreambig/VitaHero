@@ -67,19 +67,13 @@ object FamilySharingService {
         val lastCheckup: String = "",
     )
 
-    /**
-     * Validate a family code via the edge function.
-     * Returns the family owner name and profile ID if valid.
-     */
-    suspend fun validateCode(code: String): Result<ValidateCodeResponse> = onIo {
+    suspend fun validateCode(code: String, accessToken: String): Result<ValidateCodeResponse> = onIo {
         if (!ApiService.isConfigured) return@onIo Result.failure(Exception("Not configured"))
         try {
-            val body = buildJsonObject {
-                put("action", "validate_code")
-                put("code", code)
-            }
+            val body = buildJsonObject { put("code", code) }
+            val headers = authHeaders(accessToken)
             val resp = http.post("$apiBase/api/family-sharing/validate") {
-                header("Content-Type", "application/json")
+                headers.forEach { (k, v) -> header(k, v) }
                 contentType(ContentType.Application.Json)
                 setBody(body.toString())
             }

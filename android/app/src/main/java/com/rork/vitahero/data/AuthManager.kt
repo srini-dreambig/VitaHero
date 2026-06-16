@@ -9,23 +9,21 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * Manages authentication state — Google Sign-In and phone OTP (Twilio).
- * Persists session token in EncryptedSharedPreferences so sessions survive
- * process death.
- *
- * All auth goes through the Cloudflare Worker backed by Neon DB.
+ * Manages authentication state — Google Sign-In, email/password, and phone OTP.
+ * Session token is stored encrypted locally; all profile data comes from Neon DB.
  */
 class AuthManager(private val app: Application) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private val api = ApiRepository()
+    private val api get() = ApiRepositoryProvider.repository
 
     private val _isLoggedIn = MutableStateFlow(false)
     val isLoggedIn: StateFlow<Boolean> = _isLoggedIn.asStateFlow()
 
-    private val _onboardingComplete = MutableStateFlow(false)
+    private val _onboardingComplete = MutableStateFlow(SessionStore.isOnboardingComplete(app))
     val onboardingComplete: StateFlow<Boolean> = _onboardingComplete.asStateFlow()
 
     private val _authError = MutableStateFlow<String?>(null)
@@ -36,6 +34,10 @@ class AuthManager(private val app: Application) {
 
     private val _sessionToken = MutableStateFlow<String?>(null)
     val sessionToken: StateFlow<String?> = _sessionToken.asStateFlow()
+
+    /** Profile PK in vita_hero.profiles (na_* or ph_*). */
+    private val _profileId = MutableStateFlow("")
+    val profileId: StateFlow<String> = _profileId.asStateFlow()
 
     private val _userId = MutableStateFlow("")
     val userId: StateFlow<String> = _userId.asStateFlow()
@@ -49,34 +51,22 @@ class AuthManager(private val app: Application) {
     private val _parentName = MutableStateFlow("Parent")
     val parentName: StateFlow<String> = _parentName.asStateFlow()
 
-    /** Try to restore a previous session from encrypted storage. */
-    fun tryRestoreSession(): Boolean {
-        return try {
-            val storedToken = SecureTokenStore.getSessionToken(app)
-            val storedUserId = SecureTokenStore.getUserId(app)
-            val storedName = SecureTokenStore.getParentName(app)
-            val storedPhone = SecureTokenStore.getPhone(app)
-            if (storedToken != null && storedUserId != null) {
-                _sessionToken.value = storedToken
-                _userId.value = storedUserId
-                _isLoggedIn.value = true
-                _onboardingComplete.value = true
-                if (storedName != null) _parentName.value = storedName
-                if (storedPhone != null) _phone.value = storedPhone
-                ApiService.sessionToken = storedToken
-                true
-            } else false
-        } catch (_: Exception) {
-            false
+    suspend fun tryRestoreSession(): Boolean = withContext(Dispatchers.IO) {
+        val token = SessionStore.getToken(app) ?: return@withContext false
+        ApiService.sessionToken = token
+        val profile = api.fetchMyProfile() ?: run {
+            SessionStore.clearToken(app)
+            ApiService.clearSession()
+            return@withContext false
         }
+        withContext(Dispatchers.Main) {
+            applyProfile(profile, token)
+            _isLoggedIn.value = true
+            _onboardingComplete.value = profile.onboardingComplete || SessionStore.isOnboardingComplete(app)
+        }
+        true
     }
 
-    // ─── Google Sign-In ───────────────────────────────────────
-
-    /**
-     * Exchange a Google ID token for a session.
-     * Called after CredentialManager returns the ID token.
-     */
     fun signInWithGoogle(idToken: String) {
         _authLoading.value = true
         _authError.value = null
@@ -84,16 +74,13 @@ class AuthManager(private val app: Application) {
             api.googleSignIn(idToken).fold(
                 onSuccess = { resp -> onAuthSuccess(resp) },
                 onFailure = { e ->
-                    _authError.value = e.message ?: "Google sign-in failed"
+                    _authError.value = e.message ?: tr(S.authGoogleFailed, AppLocale.ENGLISH)
                     _authLoading.value = false
                 }
             )
         }
     }
 
-    // ─── Email/Password Auth ──────────────────────────────────
-
-    /** Sign up with email + password via Neon Auth. */
     fun signUpWithEmail(name: String, email: String, password: String) {
         _authLoading.value = true
         _authError.value = null
@@ -101,14 +88,13 @@ class AuthManager(private val app: Application) {
             api.signUpWithEmail(name, email, password).fold(
                 onSuccess = { resp -> onAuthSuccess(resp) },
                 onFailure = { e ->
-                    _authError.value = e.message ?: "Sign up failed"
+                    _authError.value = e.message ?: tr(S.authSignupFailed, AppLocale.ENGLISH)
                     _authLoading.value = false
                 }
             )
         }
     }
 
-    /** Sign in with email + password via Neon Auth. */
     fun signInWithEmail(email: String, password: String) {
         _authLoading.value = true
         _authError.value = null
@@ -116,50 +102,57 @@ class AuthManager(private val app: Application) {
             api.signInWithEmail(email, password).fold(
                 onSuccess = { resp -> onAuthSuccess(resp) },
                 onFailure = { e ->
-                    _authError.value = e.message ?: "Invalid email or password"
+                    _authError.value = e.message ?: tr(S.authSigninFailed, AppLocale.ENGLISH)
                     _authLoading.value = false
                 }
             )
         }
     }
 
-    /** Shared auth success handler — persists token and sets logged-in state. */
     private fun onAuthSuccess(resp: GoogleAuthResponse) {
         val token = resp.token
         val profile = resp.profile
-        if (profile != null) {
-            _sessionToken.value = token
-            _userId.value = profile.user_id.ifBlank { profile.id }
-            _email.value = profile.email ?: ""
-            _parentName.value = profile.name.ifBlank { "Parent" }
-            _phone.value = profile.phone ?: ""
-            ApiService.sessionToken = token
-            SecureTokenStore.saveSession(
-                app, token,
-                _userId.value,
-                _parentName.value,
-                _phone.value
-            )
+        if (profile != null && token.isNotBlank()) {
+            SessionStore.saveToken(app, token)
+            applyAuthProfile(profile, token)
             _isLoggedIn.value = true
             _onboardingComplete.value = true
+            SessionStore.setOnboardingComplete(app, true)
         } else {
-            _authError.value = "Sign-in response missing profile"
+            _authError.value = tr(S.authMissingToken, AppLocale.ENGLISH)
         }
         _authLoading.value = false
     }
 
-    // ─── Phone OTP ───────────────────────────────────────────
+    private fun applyAuthProfile(profile: AuthProfile, token: String) {
+        _sessionToken.value = token
+        _profileId.value = profile.id
+        _userId.value = profile.user_id.ifBlank { profile.id }
+        _email.value = profile.email ?: ""
+        _parentName.value = profile.name.ifBlank { "Parent" }
+        _phone.value = profile.phone ?: ""
+        ApiService.sessionToken = token
+    }
+
+    private fun applyProfile(profile: ProfileDto, token: String) {
+        _sessionToken.value = token
+        _profileId.value = profile.id
+        _userId.value = profile.userId ?: profile.id
+        _email.value = profile.email ?: ""
+        _parentName.value = profile.name.ifBlank { "Parent" }
+        _phone.value = profile.phone ?: ""
+        ApiService.sessionToken = token
+    }
 
     fun sendPhoneOtp(phone: String) {
         _authLoading.value = true
         _authError.value = null
         scope.launch {
-            // Format phone with +91 prefix if not already present
             val formatted = if (phone.startsWith("+")) phone else "+91$phone"
             api.sendPhoneOtp(formatted).fold(
                 onSuccess = { _authLoading.value = false },
                 onFailure = { e ->
-                    _authError.value = e.message ?: "Failed to send OTP"
+                    _authError.value = e.message ?: tr(S.authOtpSendFailed, AppLocale.ENGLISH)
                     _authLoading.value = false
                 }
             )
@@ -172,73 +165,51 @@ class AuthManager(private val app: Application) {
         scope.launch {
             val formatted = if (phone.startsWith("+")) phone else "+91$phone"
             api.verifyPhoneOtp(formatted, otp).fold(
-                onSuccess = { resp ->
-                    val token = resp.token
-                    val profile = resp.profile
-                    if (profile != null) {
-                        _sessionToken.value = token
-                        _userId.value = profile.id
-                        _phone.value = profile.phone ?: phone
-                        _parentName.value = profile.name.ifBlank { "Parent" }
-                        ApiService.sessionToken = token
-                        SecureTokenStore.saveSession(
-                            app, token,
-                            _userId.value,
-                            _parentName.value,
-                            _phone.value
-                        )
-                        _isLoggedIn.value = true
-                        _onboardingComplete.value = true
-                    } else {
-                        _authError.value = "Phone verification response missing profile"
-                    }
-                    _authLoading.value = false
-                },
+                onSuccess = { resp -> onAuthSuccess(resp) },
                 onFailure = { e ->
-                    _authError.value = e.message ?: "Invalid OTP"
+                    _authError.value = e.message ?: tr(S.authOtpInvalid, AppLocale.ENGLISH)
                     _authLoading.value = false
                 }
             )
         }
     }
 
-    // ─── Legacy / Local login (kept for offline/demo fallback) ─
-
-    fun login(phone: String, name: String = "") {
-        _isLoggedIn.value = true
-        _phone.value = phone
-        if (name.isNotBlank()) _parentName.value = name
-    }
-
     fun completeOnboarding() {
         _onboardingComplete.value = true
+        SessionStore.setOnboardingComplete(app, true)
     }
-
-    // ─── Logout ──────────────────────────────────────────────
 
     fun logout() {
         scope.launch {
             try { api.logout() } catch (_: Exception) { }
         }
+        SessionStore.clearToken(app)
         _sessionToken.value = null
         ApiService.clearSession()
-        SecureTokenStore.clear(app)
         _isLoggedIn.value = false
-        _onboardingComplete.value = false
+        _profileId.value = ""
         _userId.value = ""
         _email.value = ""
         _phone.value = ""
     }
 
     fun clearSession() {
+        SessionStore.clearToken(app)
         _sessionToken.value = null
         ApiService.clearSession()
-        SecureTokenStore.clear(app)
         _isLoggedIn.value = false
+        _profileId.value = ""
         _userId.value = ""
     }
 
     fun clearAuthError() { _authError.value = null }
     fun clearAuthLoading() { _authLoading.value = false }
-    fun setOnboardingComplete(v: Boolean) { _onboardingComplete.value = v }
+    fun setOnboardingComplete(v: Boolean) {
+        _onboardingComplete.value = v
+        SessionStore.setOnboardingComplete(app, v)
+    }
+
+    fun onDestroy() {
+        scope.cancel()
+    }
 }
