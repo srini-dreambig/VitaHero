@@ -895,10 +895,10 @@ async function callNeonAuth(
       Origin: origin,
       Referer: `${origin}/`,
     },
-    body: JSON.stringify({
-      ...body,
-      callbackURL: APP_CALLBACK_URL,
-    }),
+    // Mobile/API flows: rely on Origin header only. Do not send callbackURL —
+    // a relative callbackURL triggers MISSING_ORIGIN; an unlisted absolute URL
+    // triggers INVALID_CALLBACKURL in Neon Auth.
+    body: JSON.stringify(body),
   });
   const data = await resp.json() as Record<string, unknown>;
   if (!resp.ok) {
