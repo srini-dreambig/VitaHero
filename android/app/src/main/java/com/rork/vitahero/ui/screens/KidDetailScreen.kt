@@ -29,7 +29,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.RemoveRedEye
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.TrendingUp
+import androidx.compose.material.icons.automirrored.outlined.TrendingUp
 import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -349,7 +349,7 @@ private fun GrowthEntryCard(
     HeroCard(Modifier.padding(horizontal = 20.dp), background = MaterialTheme.colorScheme.surface) {
         Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Outlined.TrendingUp, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(22.dp))
+                Icon(Icons.AutoMirrored.Outlined.TrendingUp, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(t(S.newMeasurement), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Box(

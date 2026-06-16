@@ -2,6 +2,7 @@ node_modules
 .env
 .expo
 .rork
+.gradle-home/
 
 # Cloudflare Functions
 functions/node_modules

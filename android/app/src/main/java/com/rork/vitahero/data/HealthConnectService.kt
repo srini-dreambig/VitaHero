@@ -106,11 +106,7 @@ object HealthConnectService {
                     )
                 )
                 val activeMinutes = exerciseResponse.records.sumOf {
-                    val start = it.startTime
-                    val end = it.endTime
-                    if (start != null && end != null) {
-                        java.time.Duration.between(start, end).toMinutes().toInt()
-                    } else 0
+                    java.time.Duration.between(it.startTime, it.endTime).toMinutes().toInt()
                 }
 
                 val formatter = DateTimeFormatter.ofPattern("HH:mm")
