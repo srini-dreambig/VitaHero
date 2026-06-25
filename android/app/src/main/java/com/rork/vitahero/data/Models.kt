@@ -40,21 +40,9 @@ data class Kid(
     val dental: HealthFlag,
     val eyesight: HealthFlag,
     val nutrition: HealthFlag,
-    val lastCheckup: String
-) {
-    val bmi: Float
-        get() {
-            val m = heightCm / 100f
-            return if (m > 0) weightKg / (m * m) else 0f
-        }
-
-    val bmiFlag: HealthFlag
-        get() = when {
-            bmi < 14f -> HealthFlag.WATCH
-            bmi > 19.5f -> HealthFlag.ALERT
-            else -> HealthFlag.GOOD
-        }
-}
+    val lastCheckup: String,
+    val source: String = "PARENT", // ADMIN = provisioned from a school camp (medical data is read-only)
+)
 
 enum class CampStatus { UPCOMING, COMPLETED }
 
@@ -89,10 +77,8 @@ data class PartnerSchool(
 data class GrowthAssessment(
     val heightPercentile: Int,
     val weightPercentile: Int,
-    val bmiPercentile: Int,
     val heightStatus: String,
     val weightStatus: String,
-    val bmiStatus: String,
     val chartSource: String = "WHO/IAP 2007",
 )
 

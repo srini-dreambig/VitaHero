@@ -47,7 +47,7 @@ import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -60,7 +60,7 @@ fun CampDetailScreen(
 ) {
     var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
     val upcoming = camp.status == CampStatus.UPCOMING
-    val accent = if (upcoming) HeroBlue else HeroGreen
+    val accent = if (upcoming) HeroBlue else HeroOrange
     val registered = camp.registeredKidIds
 
     LazyColumn(
@@ -89,9 +89,9 @@ fun CampDetailScreen(
                 Column(Modifier.padding(20.dp)) {
                     if (camp.isPartnerCamp) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text(t(S.partnerCamp), style = MaterialTheme.typography.labelMedium, color = HeroGreen, fontWeight = FontWeight.Bold)
+                            Text(t(S.partnerCamp), style = MaterialTheme.typography.labelMedium, color = HeroOrange, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.height(10.dp))
                     }
@@ -156,10 +156,10 @@ fun CampDetailScreen(
                             Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(HeroGreen.copy(alpha = 0.1f))
+                                .background(HeroOrange.copy(alpha = 0.1f))
                                 .padding(12.dp)
                         ) {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = HeroGreen, fontWeight = FontWeight.Medium)
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = HeroOrange, fontWeight = FontWeight.Medium)
                         }
                     }
                 }
@@ -185,7 +185,7 @@ fun CampDetailScreen(
                                 Text("${kid.grade} · ${kid.school}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                             if (isRegistered) {
-                                Text(t(S.registered), style = MaterialTheme.typography.labelSmall, color = HeroGreen, fontWeight = FontWeight.Bold)
+                                Text(t(S.registered), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.Bold)
                             } else if (selectedKidId == kid.id) {
                                 Text(t(S.selected), style = MaterialTheme.typography.labelSmall, color = HeroBlue, fontWeight = FontWeight.Bold)
                             }

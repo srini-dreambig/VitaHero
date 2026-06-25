@@ -59,7 +59,7 @@ import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 
 
@@ -112,7 +112,7 @@ fun FamilySharingScreen(
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
-                        .background(Brush.linearGradient(listOf(HeroGreen, HeroBlue)))
+                        .background(Brush.linearGradient(listOf(HeroOrange, HeroBlue)))
                         .padding(24.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -174,9 +174,9 @@ fun FamilySharingScreen(
                                 .padding(horizontal = 24.dp, vertical = 12.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.Share, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Outlined.Share, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(t(S.shareYourCode).take(25) + "…", color = HeroGreen, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                Text(t(S.shareYourCode).take(25) + "…", color = HeroOrange, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                             }
                         }
                         }

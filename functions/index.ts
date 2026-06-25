@@ -14,12 +14,29 @@ const TWILIO_API = "https://api.twilio.com/2010-04-01";
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
 
+// ── Closed-app configuration ──
+// VitaHero is a closed, admin-provisioned app: parents log in by phone only and
+// must have been imported by an admin first. Public self-signup is disabled.
+const ANDROID_PACKAGE = "com.rork.vitahero";
+const DEFAULT_COUNTRY_CODE = "91"; // India
+const INVITE_EXPIRY_DAYS = 30;
+const INVITE_RESEND_COOLDOWN_HOURS = 24;
+const IMPORT_MAX_ROWS = 2000;
+
 interface Env {
   DATABASE_URL: string;
   TWILIO_ACCOUNT_SID: string;
   TWILIO_AUTH_TOKEN: string;
   TOOLKIT_URL?: string;
   TOOLKIT_SECRET_KEY?: string;
+  // Admin import portal auth (bootstrap key; role-based admins also supported).
+  ADMIN_API_KEY?: string;
+  // HMAC key for stateless invite tokens.
+  INVITE_SIGNING_KEY?: string;
+  // Android App Links: comma-separated SHA-256 signing-cert fingerprints.
+  ANDROID_CERT_SHA256?: string;
+  // Play Store listing URL used as install fallback in the invite landing page.
+  APP_PLAY_URL?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────
@@ -28,7 +45,7 @@ function cors(response: Response): Response {
   const headers = new Headers(response.headers);
   headers.set("Access-Control-Allow-Origin", "*");
   headers.set("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS");
-  headers.set("Access-Control-Allow-Headers", "Content-Type,Authorization,Origin,Referer,X-Requested-With");
+  headers.set("Access-Control-Allow-Headers", "Content-Type,Authorization,Origin,Referer,X-Requested-With,X-Admin-Key");
   headers.set("Access-Control-Max-Age", "86400");
   return new Response(response.body, { status: response.status, headers });
 }
@@ -103,6 +120,13 @@ async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
     ADD COLUMN IF NOT EXISTS read_notification_ids JSONB DEFAULT '[]'::jsonb
   `;
 
+  // Closed-app: roles + admin provisioning of parents.
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'PARENT'`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS provisioned BOOLEAN DEFAULT false`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invited_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invite_count INT DEFAULT 0`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS school_id TEXT`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.phone_otps (
       phone TEXT PRIMARY KEY,
@@ -137,6 +161,14 @@ async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
       nutrition TEXT DEFAULT 'GOOD',
       last_checkup TEXT DEFAULT 'Not yet'
     )
+  `;
+
+  // Closed-app: stable identity for idempotent re-imports + provenance.
+  await sql`ALTER TABLE vita_hero.kids ADD COLUMN IF NOT EXISTS student_ref TEXT`;
+  await sql`ALTER TABLE vita_hero.kids ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'PARENT'`;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS kids_profile_studentref
+    ON vita_hero.kids(profile_id, student_ref) WHERE student_ref IS NOT NULL
   `;
 
   await sql`
@@ -323,6 +355,32 @@ async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
       weight_kg DOUBLE PRECISION,
       recorded_at TIMESTAMPTZ DEFAULT NOW(),
       UNIQUE (school_camp_id, kid_id)
+    )
+  `;
+
+  // Closed-app: admin import audit + SMS invite ledger.
+  await sql`
+    CREATE TABLE IF NOT EXISTS vita_hero.import_batches (
+      id TEXT PRIMARY KEY,
+      admin_id TEXT DEFAULT '',
+      filename TEXT DEFAULT '',
+      total INT DEFAULT 0,
+      created INT DEFAULT 0,
+      updated INT DEFAULT 0,
+      skipped INT DEFAULT 0,
+      errors INT DEFAULT 0,
+      invited INT DEFAULT 0,
+      dry_run BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS vita_hero.sms_log (
+      id TEXT PRIMARY KEY,
+      phone TEXT NOT NULL,
+      type TEXT DEFAULT 'INVITE',
+      status TEXT DEFAULT 'SENT',
+      sent_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
 
@@ -602,7 +660,6 @@ async function callToolkitDietTip(
   const mealNames = meals.map((m) => `${m.name} (${m.kcal} kcal)`).join(", ");
   const heightCm = Number(kid.height_cm) || 0;
   const weightKg = Number(kid.weight_kg) || 0;
-  const bmi = kidBmi(heightCm, weightKg);
   const currentStreak = Number(streak?.current_streak) || 0;
   const bestStreak = Number(streak?.best_streak) || 0;
 
@@ -616,19 +673,16 @@ async function callToolkitDietTip(
 
   const userLines = [
     `Child: ${kid.name}, ${kid.age} years, ${kid.gender}`,
-    `BMI: ${bmi.toFixed(1)}, Health Score: ${kid.overall_score}/100`,
+    `Height: ${heightCm} cm, Weight: ${weightKg} kg, Health Score: ${kid.overall_score}/100`,
     `Dental: ${kid.dental}, Nutrition: ${kid.nutrition}`,
     `Meals (${eatenCount}/${meals.length} eaten, ${totalKcal} kcal): ${mealNames}`,
     `Streak: ${currentStreak} days (best ${bestStreak})`,
   ];
   if (kid.nutrition === "WATCH") {
-    userLines.push("Nutrition needs attention — focus on iron and protein rich foods.");
+    userLines.push("Nutrition needs attention — suggest calorie-dense, iron and protein rich Indian foods.");
   }
-  if (bmi > 0 && bmi < 14) {
-    userLines.push("BMI is low — suggest calorie-dense nutritious Indian foods.");
-  }
-  if (bmi > 19.5) {
-    userLines.push("BMI is high — suggest lighter fibre-rich Indian options.");
+  if (kid.nutrition === "ALERT") {
+    userLines.push("Nutrition is a concern — recommend a balanced, fibre-rich Indian diet and a pediatric check-up.");
   }
   userLines.push("Generate a personalised Indian diet coaching tip as JSON.");
 
@@ -667,6 +721,79 @@ async function callToolkitDietTip(
     } catch {
       return null;
     }
+  }
+}
+
+async function callToolkitFoodVision(
+  env: Env,
+  imageDataUrl: string
+): Promise<Array<{ name: string; kcal: number; confidence: number }> | null> {
+  const toolkitUrl = (env.TOOLKIT_URL || "").replace(/\/$/, "");
+  const toolkitKey = env.TOOLKIT_SECRET_KEY || "";
+  if (!toolkitUrl || !toolkitKey) return null;
+
+  const systemPrompt = [
+    "You are a food recognition assistant for VitaHero, an Indian child-nutrition app.",
+    "Identify the edible food and drink items visible in the photo.",
+    "Prefer specific names (e.g. 'Dates', 'Banana', 'Idli & Sambar', 'Dal & Rice', 'Curd Rice').",
+    "Estimate calories (kcal) for a typical child-sized serving of what is shown.",
+    "Return ONLY valid JSON of this exact shape, up to 5 items, most likely first:",
+    '{"items":[{"name":"...","kcal":123,"confidence":0.0}]}',
+    'confidence is 0.0-1.0. If no food is visible, return {"items":[]}. No markdown, no extra text.',
+  ].join("\n");
+
+  const resp = await fetch(`${toolkitUrl}/v2/vercel/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${toolkitKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-4.1-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Identify the foods in this photo and estimate calories. Respond as JSON only.",
+            },
+            { type: "image_url", image_url: { url: imageDataUrl } },
+          ],
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 500,
+    }),
+  });
+
+  if (!resp.ok) return null;
+  const data = (await resp.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  let raw = data.choices?.[0]?.message?.content?.trim() || "";
+  if (!raw) return null;
+  if (raw.includes("```")) {
+    raw =
+      raw.split("```json").pop()?.split("```")[0]?.trim() ||
+      raw.replace(/```/g, "").trim();
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      items?: Array<{ name?: unknown; kcal?: unknown; confidence?: unknown }>;
+    };
+    const items = Array.isArray(parsed.items) ? parsed.items : [];
+    return items
+      .map((it) => ({
+        name: String(it.name || "").trim(),
+        kcal: Math.max(0, Math.round(Number(it.kcal) || 0)),
+        confidence: Math.min(1, Math.max(0, Number(it.confidence) || 0.6)),
+      }))
+      .filter((it) => it.name.length > 0)
+      .slice(0, 5);
+  } catch {
+    return null;
   }
 }
 
@@ -811,15 +938,20 @@ function anonymizeLeaderboardName(name: string, rank: number, isYou: boolean): s
 async function authenticateSession(
   sql: ReturnType<typeof neon>,
   token: string
-): Promise<{ profileId: string; userId: string; name: string } | null> {
+): Promise<{ profileId: string; userId: string; name: string; role: string } | null> {
   if (!token || token.length < 30) return null;
   try {
     const rows = await sql`
-      SELECT id, user_id, name FROM ${sql(SCHEMA)}.profiles
+      SELECT id, user_id, name, role FROM ${sql(SCHEMA)}.profiles
       WHERE session_token = ${token} LIMIT 1
     `;
     if (rows.length === 0) return null;
-    return { profileId: rows[0].id, userId: rows[0].user_id || "", name: rows[0].name };
+    return {
+      profileId: rows[0].id,
+      userId: rows[0].user_id || "",
+      name: rows[0].name,
+      role: (rows[0].role as string) || "PARENT",
+    };
   } catch {
     return null;
   }
@@ -859,6 +991,399 @@ async function sendTwilioSms(
     console.error("Twilio send error:", e);
     return false;
   }
+}
+
+// ─── Closed-app helpers (provisioning, admin auth, invites) ──
+
+/** Normalize a raw phone string into E.164 + the 10-digit local key. */
+function normalizePhone(raw: string | undefined | null): { e164: string; last10: string } | null {
+  if (!raw) return null;
+  const hadPlus = raw.trim().startsWith("+");
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length < 10) return null;
+  const last10 = digits.slice(-10);
+  // Preserve an explicit country code if one was provided, else default.
+  let cc = DEFAULT_COUNTRY_CODE;
+  if (digits.length > 10) cc = digits.slice(0, digits.length - 10);
+  else if (hadPlus) cc = ""; // already E.164-ish without national digits — unlikely
+  const e164 = `+${cc || DEFAULT_COUNTRY_CODE}${last10}`;
+  return { e164, last10 };
+}
+
+function profileIdForPhone(last10: string): string {
+  return `ph_${last10}`;
+}
+
+function slugify(s: string): string {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+}
+
+/** Stable per-child identity so re-imports across camps update the same kid row. */
+function buildStudentRef(
+  provided: string | undefined,
+  last10: string,
+  name: string,
+  dobOrAge: string
+): string {
+  const explicit = (provided || "").trim();
+  if (explicit) return `sid_${slugify(explicit)}`;
+  return `auto_${last10}_${slugify(name)}_${slugify(dobOrAge || "na")}`;
+}
+
+function b64urlEncode(bytes: ArrayBuffer | Uint8Array): string {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let bin = "";
+  for (const b of arr) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64urlToString(s: string): string {
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
+  return atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
+}
+
+async function hmacSign(message: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+  return b64urlEncode(sig);
+}
+
+/** Stateless, expiring invite token: base64url(payload).hmac. */
+async function signInviteToken(last10: string, env: Env): Promise<string | null> {
+  const secret = env.INVITE_SIGNING_KEY || env.ADMIN_API_KEY;
+  if (!secret) return null;
+  const payload = b64urlEncode(
+    new TextEncoder().encode(
+      JSON.stringify({ p: last10, exp: Date.now() + INVITE_EXPIRY_DAYS * 86400_000 })
+    )
+  );
+  const sig = await hmacSign(payload, secret);
+  return `${payload}.${sig}`;
+}
+
+async function verifyInviteToken(token: string, env: Env): Promise<string | null> {
+  const secret = env.INVITE_SIGNING_KEY || env.ADMIN_API_KEY;
+  if (!secret || !token || !token.includes(".")) return null;
+  const [payload, sig] = token.split(".");
+  const expected = await hmacSign(payload, secret);
+  if (expected !== sig) return null;
+  try {
+    const data = JSON.parse(b64urlToString(payload)) as { p?: string; exp?: number };
+    if (!data.p || !data.exp || Date.now() > data.exp) return null;
+    return data.p;
+  } catch {
+    return null;
+  }
+}
+
+/** Admin gate: ADMIN_API_KEY header (bootstrap) OR a role=ADMIN session. */
+async function requireAdmin(
+  request: Request,
+  sql: ReturnType<typeof neon>,
+  env: Env
+): Promise<{ adminId: string } | null> {
+  const headerKey = request.headers.get("X-Admin-Key") || "";
+  if (env.ADMIN_API_KEY && headerKey && headerKey === env.ADMIN_API_KEY) {
+    return { adminId: "apikey" };
+  }
+  const session = await authenticateSession(sql, extractToken(request));
+  if (session && (session.role === "ADMIN" || session.role === "SUPERADMIN")) {
+    return { adminId: session.profileId };
+  }
+  return null;
+}
+
+// ─── Admin import (CSV/Excel rows → provisioned data) ────────
+
+/** Case-insensitive, punctuation-insensitive field accessor for a CSV/Excel row. */
+function rowField(row: Record<string, unknown>, ...wanted: string[]): string {
+  for (const k of Object.keys(row)) {
+    const norm = k.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (wanted.includes(norm)) {
+      const v = row[k];
+      return v == null ? "" : String(v).trim();
+    }
+  }
+  return "";
+}
+
+function normHealthFlag(v: string): string {
+  const s = (v || "").trim().toUpperCase();
+  if (s === "GOOD" || s === "OK" || s === "NORMAL" || s === "FINE") return "GOOD";
+  if (s === "WATCH" || s === "MONITOR" || s === "ATTENTION") return "WATCH";
+  if (s === "ALERT" || s === "CRITICAL" || s === "REFER" || s === "BAD") return "ALERT";
+  return "GOOD";
+}
+
+function parseNum(v: string): number | null {
+  if (!v) return null;
+  const n = parseFloat(v.replace(/[^0-9.]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+function deriveAge(dob: string, age: string): number {
+  const a = parseInt(age, 10);
+  if (Number.isFinite(a) && a > 0 && a < 25) return a;
+  // dob like YYYY-MM-DD or DD-MM-YYYY or YYYY
+  const yearMatch = dob.match(/\b(19|20)\d{2}\b/);
+  if (yearMatch) {
+    const y = parseInt(yearMatch[0], 10);
+    const now = new Date().getFullYear();
+    const diff = now - y;
+    if (diff > 0 && diff < 25) return diff;
+  }
+  return 0;
+}
+
+interface ImportRowResult {
+  row: number;
+  phone: string;
+  student: string;
+  status: "created" | "updated" | "skipped" | "error";
+  message?: string;
+}
+
+interface ImportReport {
+  batchId: string;
+  dryRun: boolean;
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  invited: number;
+  uniqueParents: number;
+  results: ImportRowResult[];
+}
+
+async function processImport(
+  sql: ReturnType<typeof neon>,
+  env: Env,
+  rows: Record<string, unknown>[],
+  opts: { dryRun: boolean; sendInvites: boolean; filename: string; adminId: string; appOrigin: string }
+): Promise<ImportReport> {
+  const report: ImportReport = {
+    batchId: `imp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    dryRun: opts.dryRun,
+    total: rows.length,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: 0,
+    invited: 0,
+    uniqueParents: 0,
+    results: [],
+  };
+  const uniquePhones = new Map<string, string>(); // last10 -> e164
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNo = i + 1;
+    try {
+      const rawPhone = rowField(row, "phone", "mobile", "mobilenumber", "phonenumber", "contact");
+      const studentName = rowField(row, "studentname", "childname", "kidname", "student", "name");
+      const norm = normalizePhone(rawPhone);
+      if (!norm) {
+        report.errors++;
+        report.results.push({ row: rowNo, phone: rawPhone, student: studentName, status: "error", message: "Invalid phone number" });
+        continue;
+      }
+      if (!studentName) {
+        report.errors++;
+        report.results.push({ row: rowNo, phone: norm.e164, student: "", status: "error", message: "Missing student name" });
+        continue;
+      }
+
+      const parentName = rowField(row, "parentname", "guardianname", "parent", "fathername", "mothername") || "Parent";
+      const gender = rowField(row, "gender", "sex");
+      const grade = rowField(row, "grade", "class", "standard");
+      const dob = rowField(row, "dob", "dateofbirth", "birthdate");
+      const ageStr = rowField(row, "age");
+      const age = deriveAge(dob, ageStr);
+      const schoolCode = rowField(row, "schoolcode", "schoolid");
+      const schoolName = rowField(row, "schoolname", "school");
+      const campCode = rowField(row, "campcode", "campid");
+      const campDate = rowField(row, "campdate", "date");
+      const campTitle = rowField(row, "camptitle", "campname", "camp") || "Health Camp";
+      const heightCm = parseNum(rowField(row, "heightcm", "height"));
+      const weightKg = parseNum(rowField(row, "weightkg", "weight"));
+      const dental = normHealthFlag(rowField(row, "dental", "teeth"));
+      const eyesight = normHealthFlag(rowField(row, "eyesight", "vision", "eye"));
+      const nutrition = normHealthFlag(rowField(row, "nutrition", "nutritionstatus"));
+      const studentId = rowField(row, "studentid", "studentref", "rollno", "rollnumber", "admissionno");
+
+      const profileId = profileIdForPhone(norm.last10);
+      const studentRef = buildStudentRef(studentId, norm.last10, studentName, dob || ageStr);
+
+      // Resolve / upsert school + camp identity (writes skipped on dry run).
+      let schoolId = "";
+      if (schoolCode || schoolName) {
+        schoolId = schoolCode ? `sch_${slugify(schoolCode)}` : `sch_${slugify(schoolName)}`;
+        if (!opts.dryRun) {
+          await sql`
+            INSERT INTO vita_hero.schools (id, name, partner_code, active)
+            VALUES (${schoolId}, ${schoolName || schoolCode}, ${(schoolCode || slugify(schoolName)).toUpperCase()}, true)
+            ON CONFLICT (id) DO UPDATE SET name = COALESCE(NULLIF(EXCLUDED.name, ''), vita_hero.schools.name)
+          `;
+        }
+      }
+
+      let campId = "";
+      if (schoolId && (campCode || campDate || campTitle)) {
+        campId = `sc_${schoolId}_${slugify(campCode || campDate || campTitle)}`;
+        if (!opts.dryRun) {
+          await sql`
+            INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, active)
+            VALUES (${campId}, ${schoolId}, ${campTitle}, ${campDate || new Date().toISOString().slice(0, 10)}, 'COMPLETED', true)
+            ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title
+          `;
+        }
+      }
+
+      // Classify created vs updated by checking the kid's existence.
+      const existingKid = await sql`
+        SELECT id FROM vita_hero.kids WHERE profile_id = ${profileId} AND student_ref = ${studentRef} LIMIT 1
+      `;
+      const isNew = existingKid.length === 0;
+      const kidId = isNew ? `k_${slugify(studentRef)}_${Math.random().toString(36).slice(2, 6)}` : (existingKid[0].id as string);
+
+      if (!opts.dryRun) {
+        // Provision the parent profile (no session, never downgrade an admin).
+        await sql`
+          INSERT INTO vita_hero.profiles (id, phone, name, user_id, auth_provider, role, provisioned, school_id, is_logged_in)
+          VALUES (${profileId}, ${norm.e164}, ${parentName}, ${profileId}, 'PHONE', 'PARENT', true, ${schoolId || null}, false)
+          ON CONFLICT (id) DO UPDATE SET
+            provisioned = true,
+            name = CASE WHEN vita_hero.profiles.name IN ('', 'Parent') THEN EXCLUDED.name ELSE vita_hero.profiles.name END,
+            phone = EXCLUDED.phone,
+            school_id = COALESCE(EXCLUDED.school_id, vita_hero.profiles.school_id)
+        `;
+
+        if (isNew) {
+          await sql`
+            INSERT INTO vita_hero.kids
+              (id, profile_id, user_id, name, age, gender, school, grade, height_cm, weight_kg,
+               dental, eyesight, nutrition, last_checkup, student_ref, source)
+            VALUES (${kidId}, ${profileId}, ${profileId}, ${studentName}, ${age}, ${gender}, ${schoolName || ""}, ${grade},
+                    ${heightCm ?? 0}, ${weightKg ?? 0}, ${dental}, ${eyesight}, ${nutrition},
+                    ${campDate || "Camp"}, ${studentRef}, 'ADMIN')
+          `;
+        } else {
+          await sql`
+            UPDATE vita_hero.kids SET
+              name = ${studentName}, age = ${age}, gender = ${gender},
+              school = ${schoolName || ""}, grade = ${grade},
+              height_cm = ${heightCm ?? 0}, weight_kg = ${weightKg ?? 0},
+              dental = ${dental}, eyesight = ${eyesight}, nutrition = ${nutrition},
+              last_checkup = ${campDate || "Camp"}, source = 'ADMIN'
+            WHERE id = ${kidId}
+          `;
+        }
+
+        // Seed a growth-history point from the camp measurement (height/weight only).
+        // Idempotent: keyed by kid + measurement label so re-imports update in place.
+        if (heightCm != null || weightKg != null) {
+          const gpLabel = campDate || campTitle || "Camp";
+          const gpId = `gp_${kidId}_${slugify(gpLabel)}`;
+          await sql`
+            INSERT INTO vita_hero.growth_points (id, kid_id, user_id, label, height, weight)
+            VALUES (${gpId}, ${kidId}, ${profileId}, ${gpLabel}, ${heightCm ?? 0}, ${weightKg ?? 0})
+            ON CONFLICT (id) DO UPDATE SET
+              label = EXCLUDED.label, height = EXCLUDED.height, weight = EXCLUDED.weight, recorded_at = NOW()
+          `;
+        }
+
+        if (campId) {
+          await sql`
+            INSERT INTO vita_hero.camp_registrations (id, profile_id, school_camp_id, kid_id)
+            VALUES (${"reg_" + kidId + "_" + campId.slice(-6)}, ${profileId}, ${campId}, ${kidId})
+            ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING
+          `;
+          await sql`
+            INSERT INTO vita_hero.camp_kid_results
+              (id, profile_id, school_camp_id, kid_id, dental, eyesight, nutrition, height_cm, weight_kg)
+            VALUES (${"ckr_" + kidId + "_" + campId.slice(-6)}, ${profileId}, ${campId}, ${kidId},
+                    ${dental}, ${eyesight}, ${nutrition}, ${heightCm}, ${weightKg})
+            ON CONFLICT (school_camp_id, kid_id) DO UPDATE SET
+              dental = EXCLUDED.dental, eyesight = EXCLUDED.eyesight, nutrition = EXCLUDED.nutrition,
+              height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg, recorded_at = NOW()
+          `;
+        }
+      }
+
+      uniquePhones.set(norm.last10, norm.e164);
+      if (isNew) report.created++; else report.updated++;
+      report.results.push({ row: rowNo, phone: norm.e164, student: studentName, status: isNew ? "created" : "updated" });
+    } catch (e) {
+      report.errors++;
+      report.results.push({
+        row: rowNo,
+        phone: "",
+        student: "",
+        status: "error",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  report.uniqueParents = uniquePhones.size;
+
+  // Send invites (only on a real run when requested).
+  if (!opts.dryRun && opts.sendInvites) {
+    for (const [last10, e164] of uniquePhones) {
+      const sent = await sendInviteForPhone(sql, env, last10, e164, opts.appOrigin);
+      if (sent) report.invited++;
+    }
+  }
+
+  if (!opts.dryRun) {
+    await sql`
+      INSERT INTO vita_hero.import_batches
+        (id, admin_id, filename, total, created, updated, skipped, errors, invited, dry_run)
+      VALUES (${report.batchId}, ${opts.adminId}, ${opts.filename}, ${report.total},
+              ${report.created}, ${report.updated}, ${report.skipped}, ${report.errors}, ${report.invited}, false)
+    `;
+  }
+
+  return report;
+}
+
+/** Send an invite SMS to a provisioned parent (respects a resend cooldown). */
+async function sendInviteForPhone(
+  sql: ReturnType<typeof neon>,
+  env: Env,
+  last10: string,
+  e164: string,
+  appOrigin: string,
+  force = false
+): Promise<boolean> {
+  const profileId = profileIdForPhone(last10);
+  const prof = await sql`SELECT invited_at FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1`;
+  if (!force && prof[0]?.invited_at) {
+    const elapsed = Date.now() - new Date(prof[0].invited_at as string).getTime();
+    if (elapsed < INVITE_RESEND_COOLDOWN_HOURS * 3600_000) return false;
+  }
+  const token = await signInviteToken(last10, env);
+  const link = token ? `${appOrigin}/i/${token}` : (env.APP_PLAY_URL || appOrigin);
+  const ok = await sendTwilioSms(
+    env,
+    e164,
+    `VitaHero: your child's school health report is ready. Open the app and sign in with this mobile number: ${link}`
+  );
+  await sql`
+    INSERT INTO vita_hero.sms_log (id, phone, type, status)
+    VALUES (${"sms_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)}, ${e164}, 'INVITE', ${ok ? "SENT" : "FAILED"})
+  `;
+  await sql`
+    UPDATE vita_hero.profiles SET invited_at = NOW(), invite_count = invite_count + 1 WHERE id = ${profileId}
+  `;
+  return ok;
 }
 
 interface NeonAuthUser {
@@ -918,7 +1443,8 @@ async function callNeonAuth(
 async function upsertProfileFromNeonAuth(
   sql: ReturnType<typeof neon>,
   user: NeonAuthUser,
-  provider: string
+  provider: string,
+  role?: string
 ): Promise<{ profileId: string; sessionToken: string }> {
   const profileId = `na_${user.id.slice(0, 24)}`;
   const sessionToken = generateToken();
@@ -931,10 +1457,10 @@ async function upsertProfileFromNeonAuth(
     await sql`
       INSERT INTO ${sql(SCHEMA)}.profiles
         (id, user_id, name, email, session_token, auth_provider,
-         onboarding_complete, is_logged_in)
+         onboarding_complete, is_logged_in, role)
       VALUES (
         ${profileId}, ${user.id}, ${user.name || user.email.split('@')[0]},
-        ${user.email}, ${sessionToken}, ${provider}, true, true
+        ${user.email}, ${sessionToken}, ${provider}, true, true, ${role || 'PARENT'}
       )
     `;
   } else {
@@ -942,7 +1468,8 @@ async function upsertProfileFromNeonAuth(
       UPDATE ${sql(SCHEMA)}.profiles
       SET session_token = ${sessionToken}, is_logged_in = true,
           name = ${user.name || user.email.split('@')[0]},
-          email = ${user.email}, auth_provider = ${provider}
+          email = ${user.email}, auth_provider = ${provider},
+          role = COALESCE(${role ?? null}, role)
       WHERE id = ${profileId}
     `;
   }
@@ -980,13 +1507,73 @@ export default {
         return json({ ok: true, db: rows[0] });
       }
 
+      // ── Android App Links verification ───────────────
+      if (path === "/.well-known/assetlinks.json") {
+        const fingerprints = (env.ANDROID_CERT_SHA256 || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const body = [
+          {
+            relation: ["delegate_permission/common.handle_all_urls"],
+            target: {
+              namespace: "android_app",
+              package_name: ANDROID_PACKAGE,
+              sha256_cert_fingerprints: fingerprints,
+            },
+          },
+        ];
+        return cors(new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
+      // ── Invite token → phone (app prefill) ───────────
+      if (path === "/api/invite/resolve" && request.method === "GET") {
+        const token = url.searchParams.get("token") || "";
+        const last10 = await verifyInviteToken(token, env);
+        if (!last10) return json({ valid: false }, 200);
+        return json({ valid: true, phone: `+${DEFAULT_COUNTRY_CODE}${last10}`, last10 });
+      }
+
+      // ── Invite landing page (opened from SMS) ────────
+      if (path.startsWith("/i/")) {
+        const token = path.slice(3);
+        const playUrl = env.APP_PLAY_URL || `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`;
+        const deepLink = `vitahero://invite?token=${encodeURIComponent(token)}`;
+        const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VitaHero — Open your child's health report</title>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0EA5A4;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center}
+.card{background:#fff;color:#0f172a;max-width:420px;margin:20px;padding:28px;border-radius:20px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+h1{font-size:20px;margin:0 0 8px}p{color:#475569;line-height:1.5}
+a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decoration:none;padding:14px;border-radius:12px;font-weight:600;margin-top:16px}</style></head>
+<body><div class="card"><h1>VitaHero</h1>
+<p>Your child's school health report is ready. Install the app, then sign in with the mobile number this link was sent to.</p>
+<a class="btn" href="${playUrl}">Get the app</a>
+<a class="btn" style="background:#1e293b" href="${deepLink}">Open in app</a></div>
+<script>try{window.location.href=${JSON.stringify(deepLink)};}catch(e){}</script>
+</body></html>`;
+        return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
+      }
+
       // ═══════════════════════════════════════════════════
       // AUTH ENDPOINTS
       // ═══════════════════════════════════════════════════
 
-      // ── Email/Password Sign-Up ───────────────────────
+      // ── Email/Password Sign-Up (ADMIN accounts only) ──
+      // Closed app: public self-signup is disabled. Only an existing admin
+      // (X-Admin-Key bootstrap or role=ADMIN session) may create new admin accounts.
       if (path === "/api/auth/signup" && request.method === "POST") {
         try {
+          const admin = await requireAdmin(request, sql, env);
+          if (!admin) {
+            return json(
+              { error: "Sign-up is disabled. This is a closed app.", code: "SIGNUP_DISABLED" },
+              403
+            );
+          }
           const body: Record<string, unknown> = await request.json();
           const name = (body.name as string)?.trim();
           const email = (body.email as string)?.trim();
@@ -1001,7 +1588,7 @@ export default {
 
           const neonResp = await callNeonAuth("/sign-up/email", { name, email, password }, request);
           const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
-            sql, neonResp.user, "EMAIL"
+            sql, neonResp.user, "EMAIL", "ADMIN"
           );
 
           return json({
@@ -1052,38 +1639,16 @@ export default {
         }
       }
 
-      // ── Google Sign-In (via Neon Auth social) ────────
+      // ── Google Sign-In ───────────────────────────────
+      // Closed app: parents are phone-only, admins use email. Google is disabled.
       if (path === "/api/auth/google" && request.method === "POST") {
-        try {
-          const body: Record<string, unknown> = await request.json();
-          const idToken = body.id_token as string;
-          if (!idToken) return json({ error: "Missing id_token" }, 400);
-
-          // No callbackURL needed — this is a server-side idToken exchange,
-          // not a browser OAuth redirect flow.
-          const neonResp = await callNeonAuth("/sign-in/social", {
-            provider: "google",
-            idToken: { token: idToken },
-          }, request);
-
-          const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
-            sql, neonResp.user, "GOOGLE"
-          );
-
-          return json({
-            token: sessionToken,
-            profile: {
-              id: profileId,
-              user_id: neonResp.user.id,
-              name: neonResp.user.name || neonResp.user.email.split("@")[0],
-              email: neonResp.user.email,
-              auth_provider: "GOOGLE",
-            },
-          });
-        } catch (e) {
-          const message = e instanceof Error ? e.message : String(e);
-          return json({ error: message }, 401);
-        }
+        return json(
+          {
+            error: "Google sign-in is disabled. Please sign in with your registered mobile number.",
+            code: "GOOGLE_DISABLED",
+          },
+          403
+        );
       }
 
       // ── Phone OTP: Send ──────────────────────────────
@@ -1091,6 +1656,23 @@ export default {
         const body: Record<string, unknown> = await request.json();
         const phone = (body.phone as string)?.trim();
         if (!phone) return json({ error: "Missing phone" }, 400);
+
+        // Closed app: only admin-provisioned numbers may receive an OTP.
+        const norm = normalizePhone(phone);
+        if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
+        const provRows = await sql`
+          SELECT provisioned FROM vita_hero.profiles
+          WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1
+        `;
+        if (provRows.length === 0 || provRows[0].provisioned !== true) {
+          return json(
+            {
+              error: "This number isn't registered. Please contact your school or camp organizer.",
+              code: "NOT_PROVISIONED",
+            },
+            403
+          );
+        }
 
         const existing = await sql`
           SELECT last_sent_at FROM ${sql(SCHEMA)}.phone_otps WHERE phone = ${phone} LIMIT 1
@@ -1160,32 +1742,33 @@ export default {
         // OTP verified — clean up
         await sql`DELETE FROM ${sql(SCHEMA)}.phone_otps WHERE phone = ${phone}`;
 
-        // Create or update profile
-        const profileId = `ph_${phone.replace(/\D/g, "").slice(-10)}`;
+        // Closed app: the parent must have been provisioned by an admin import.
+        // We never auto-create a profile here.
+        const norm = normalizePhone(phone);
+        if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
+        const profileId = profileIdForPhone(norm.last10);
         const sessionToken = generateToken();
 
         const existing = await sql`
-          SELECT id FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
+          SELECT id, provisioned, name FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
         `;
 
-        if (existing.length === 0) {
-          await sql`
-            INSERT INTO ${sql(SCHEMA)}.profiles
-              (id, phone, name, session_token, auth_provider, user_id,
-               onboarding_complete, is_logged_in)
-            VALUES (
-              ${profileId}, ${phone}, 'Parent', ${sessionToken}, 'PHONE',
-              ${profileId}, true, true
-            )
-          `;
-        } else {
-          await sql`
-            UPDATE ${sql(SCHEMA)}.profiles
-            SET session_token = ${sessionToken}, is_logged_in = true, phone = ${phone},
-                user_id = COALESCE(user_id, ${profileId})
-            WHERE id = ${profileId}
-          `;
+        if (existing.length === 0 || existing[0].provisioned !== true) {
+          return json(
+            {
+              error: "This number isn't registered. Please contact your school or camp organizer.",
+              code: "NOT_PROVISIONED",
+            },
+            403
+          );
         }
+
+        await sql`
+          UPDATE vita_hero.profiles
+          SET session_token = ${sessionToken}, is_logged_in = true, phone = ${phone},
+              user_id = COALESCE(user_id, ${profileId})
+          WHERE id = ${profileId}
+        `;
 
         // Also delete any old OTPs
         try {
@@ -1198,7 +1781,7 @@ export default {
             id: profileId,
             user_id: profileId,
             phone,
-            name: "Parent",
+            name: (existing[0].name as string) || "Parent",
             auth_provider: "PHONE",
           },
         });
@@ -1227,6 +1810,77 @@ export default {
           `;
         }
         return json({ success: true });
+      }
+
+      // ═══════════════════════════════════════════════════
+      // ADMIN ENDPOINTS (X-Admin-Key or role=ADMIN session)
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/api/admin/import" && request.method === "POST") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+
+        const body: Record<string, unknown> = await request.json();
+        const rows = Array.isArray(body.rows) ? (body.rows as Record<string, unknown>[]) : [];
+        if (rows.length === 0) return json({ error: "No rows provided" }, 400);
+        if (rows.length > IMPORT_MAX_ROWS) {
+          return json({ error: `Too many rows (max ${IMPORT_MAX_ROWS}). Split the file into chunks.` }, 413);
+        }
+
+        const report = await processImport(sql, env, rows, {
+          dryRun: body.dryRun === true,
+          sendInvites: body.sendInvites === true,
+          filename: (body.filename as string) || "",
+          adminId: admin.adminId,
+          appOrigin: url.origin,
+        });
+        return json(report);
+      }
+
+      if (path === "/api/admin/import-batches" && request.method === "GET") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const rows = await sql`
+          SELECT id, admin_id, filename, total, created, updated, skipped, errors, invited, dry_run, created_at
+          FROM vita_hero.import_batches ORDER BY created_at DESC LIMIT 50
+        `;
+        return json(rows);
+      }
+
+      if (path === "/api/admin/invite" && request.method === "POST") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const body: Record<string, unknown> = await request.json();
+        const phones = Array.isArray(body.phones) ? (body.phones as string[]) : [];
+        const force = body.force === true;
+        let invited = 0;
+        const skipped: string[] = [];
+        for (const raw of phones) {
+          const norm = normalizePhone(raw);
+          if (!norm) { skipped.push(raw); continue; }
+          const prof = await sql`
+            SELECT provisioned FROM vita_hero.profiles WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1
+          `;
+          if (prof.length === 0 || prof[0].provisioned !== true) { skipped.push(norm.e164); continue; }
+          const sent = await sendInviteForPhone(sql, env, norm.last10, norm.e164, url.origin, force);
+          if (sent) invited++; else skipped.push(norm.e164);
+        }
+        return json({ invited, skipped });
+      }
+
+      if (path === "/api/admin/stats" && request.method === "GET") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const parents = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true`;
+        const active = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true AND is_logged_in = true`;
+        const kids = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.kids WHERE source = 'ADMIN'`;
+        const invites = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.sms_log WHERE type = 'INVITE' AND status = 'SENT'`;
+        return json({
+          provisionedParents: parents[0].n,
+          activeParents: active[0].n,
+          importedKids: kids[0].n,
+          invitesSent: invites[0].n,
+        });
       }
 
       // ═══════════════════════════════════════════════════
@@ -1959,6 +2613,26 @@ export default {
           RETURNING content, generated_at
         `;
         return json(row[0], 201);
+      }
+
+      // ── Food recognition (AI vision) ──────────────────
+      if (path === "/api/food-recognition" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const imageBase64 = String(body.image_base64 || "").trim();
+        if (!imageBase64) return json({ error: "Missing image_base64" }, 400);
+        const mime = String(body.mime || "image/jpeg");
+        const dataUrl = imageBase64.startsWith("data:")
+          ? imageBase64
+          : `data:${mime};base64,${imageBase64}`;
+        const items = await callToolkitFoodVision(env, dataUrl);
+        if (items === null) {
+          return json(
+            { error: "AI not configured", code: "TOOLKIT_NOT_CONFIGURED" },
+            503
+          );
+        }
+        return json({ items });
       }
 
       // ── Doctors directory ─────────────────────────────

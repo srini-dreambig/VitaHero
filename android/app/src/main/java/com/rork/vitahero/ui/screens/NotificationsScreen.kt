@@ -44,7 +44,7 @@ import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 import com.rork.vitahero.ui.theme.HeroYellow
 
@@ -97,7 +97,7 @@ private fun NotificationRow(n: AppNotification) {
     val (icon, tint) = when (n.type) {
         NotificationType.CAMP -> Icons.Outlined.CalendarMonth to HeroBlue
         NotificationType.CHECKUP -> Icons.Outlined.MedicalServices to HeroPurple
-        NotificationType.DIET -> Icons.Outlined.Restaurant to HeroGreen
+        NotificationType.DIET -> Icons.Outlined.Restaurant to HeroOrange
         NotificationType.REWARD -> Icons.Outlined.WorkspacePremium to HeroYellow
     }
     HeroCard(

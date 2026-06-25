@@ -53,7 +53,7 @@ import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import kotlinx.coroutines.delay
 
 /**
@@ -100,10 +100,10 @@ fun OtpScreen(
             Modifier
                 .size(64.dp)
                 .clip(CircleShape)
-                .background(HeroGreen.copy(alpha = 0.14f)),
+                .background(HeroOrange.copy(alpha = 0.14f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Outlined.MarkEmailRead, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(32.dp))
+            Icon(Icons.Outlined.MarkEmailRead, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(32.dp))
         }
         Spacer(Modifier.height(20.dp))
         Text(t(S.verifyNumber), style = MaterialTheme.typography.headlineLarge)
@@ -163,7 +163,7 @@ fun OtpScreen(
                             .background(MaterialTheme.colorScheme.surface)
                             .border(
                                 width = if (active) 2.dp else 1.dp,
-                                color = if (active) HeroGreen else MaterialTheme.colorScheme.outline,
+                                color = if (active) HeroOrange else MaterialTheme.colorScheme.outline,
                                 shape = RoundedCornerShape(14.dp)
                             ),
                         contentAlignment = Alignment.Center
@@ -172,7 +172,7 @@ fun OtpScreen(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
                                 strokeWidth = 2.dp,
-                                color = HeroGreen
+                                color = HeroOrange
                             )
                         } else {
                             Text(char, fontSize = 24.sp, fontWeight = FontWeight.Bold)
@@ -201,7 +201,7 @@ fun OtpScreen(
                     seconds = 30
                     onResend?.invoke()
                 }) {
-                    Text(t(S.resend).take(10), color = HeroGreen, fontWeight = FontWeight.SemiBold)
+                    Text(t(S.resend).take(10), color = HeroOrange, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

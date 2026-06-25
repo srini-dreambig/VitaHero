@@ -45,10 +45,10 @@ import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroYellow
 
-private enum class ChartMetric { HEIGHT, WEIGHT, BMI }
+private enum class ChartMetric { HEIGHT, WEIGHT }
 
 @Composable
 fun GrowthChartsScreen(
@@ -60,17 +60,14 @@ fun GrowthChartsScreen(
     val growthMetric = when (metric) {
         ChartMetric.HEIGHT -> GrowthStandards.Metric.HEIGHT
         ChartMetric.WEIGHT -> GrowthStandards.Metric.WEIGHT
-        ChartMetric.BMI -> GrowthStandards.Metric.BMI
     }
     val unit = when (metric) {
         ChartMetric.HEIGHT -> "cm"
         ChartMetric.WEIGHT -> "kg"
-        ChartMetric.BMI -> "kg/m²"
     }
     val currentValue = when (metric) {
         ChartMetric.HEIGHT -> kid.heightCm
         ChartMetric.WEIGHT -> kid.weightKg
-        ChartMetric.BMI -> kid.bmi
     }
 
     LazyColumn(
@@ -99,13 +96,12 @@ fun GrowthChartsScreen(
 
         assessment?.let { a ->
             item {
-                HeroCard(Modifier.fillMaxWidth(), background = HeroGreen.copy(alpha = 0.06f)) {
+                HeroCard(Modifier.fillMaxWidth(), background = HeroOrange.copy(alpha = 0.06f)) {
                     Column(Modifier.padding(16.dp)) {
                         Text(t(S.currentAssessment), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(10.dp))
                         AssessmentRow(t(S.heightPercentile), "${a.heightPercentile}%", a.heightStatus)
                         AssessmentRow(t(S.weightPercentile), "${a.weightPercentile}%", a.weightStatus)
-                        AssessmentRow(t(S.bmiPercentile), "${a.bmiPercentile}%", a.bmiStatus)
                         Spacer(Modifier.height(8.dp))
                         Text("${t(S.referenceStandard)}: ${a.chartSource}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -121,7 +117,6 @@ fun GrowthChartsScreen(
                     val label = when (m) {
                         ChartMetric.HEIGHT -> t(S.heightChart)
                         ChartMetric.WEIGHT -> t(S.weightChart)
-                        ChartMetric.BMI -> t(S.bmiChart)
                     }
                     Text(
                         label,
@@ -146,7 +141,7 @@ fun GrowthChartsScreen(
                         "${t(S.yourChild)}: %.1f $unit".format(currentValue),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = HeroGreen,
+                        color = HeroOrange,
                     )
                     Spacer(Modifier.height(8.dp))
                     PercentileLegend()
@@ -179,7 +174,7 @@ private fun PercentileLegend() {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         LegendDot(HeroYellow, "P97")
         LegendDot(HeroBlue.copy(alpha = 0.5f), "P85")
-        LegendDot(HeroGreen, "P50")
+        LegendDot(HeroOrange, "P50")
         LegendDot(HeroBlue.copy(alpha = 0.35f), "P15")
         LegendDot(Color(0xFF94A3B8), "P3")
     }
@@ -203,7 +198,7 @@ private fun ClinicalPercentileChart(
     val ages = GrowthStandards.chartAges()
     val percentiles = listOf(3, 15, 50, 85, 97)
     val colors = listOf(
-        Color(0xFF94A3B8), HeroBlue.copy(alpha = 0.35f), HeroGreen,
+        Color(0xFF94A3B8), HeroBlue.copy(alpha = 0.35f), HeroOrange,
         HeroBlue.copy(alpha = 0.5f), HeroYellow,
     )
 
@@ -239,7 +234,7 @@ private fun ClinicalPercentileChart(
 
         val kidX = padL + chartW * ((kid.age.coerceIn(2, 18) - 2) / 16f)
         val kidY = yAt(currentValue)
-        drawCircle(HeroGreen, radius = 10f, center = Offset(kidX, kidY))
+        drawCircle(HeroOrange, radius = 10f, center = Offset(kidX, kidY))
         drawCircle(Color.White, radius = 5f, center = Offset(kidX, kidY))
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

@@ -69,7 +69,7 @@ import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 import com.rork.vitahero.ui.theme.HeroYellow
 import java.time.LocalDate
@@ -170,10 +170,10 @@ fun BookingScreen(
                     Modifier
                         .size(96.dp)
                         .clip(CircleShape)
-                        .background(HeroGreen.copy(alpha = 0.14f)),
+                        .background(HeroOrange.copy(alpha = 0.14f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(54.dp))
+                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(54.dp))
                 }
                 Spacer(Modifier.height(24.dp))
                 Text(t(S.apptConfirmed), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -254,7 +254,7 @@ fun BookingScreen(
                         Box(
                             Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(if (locationEnabled) HeroGreen.copy(alpha = 0.14f) else HeroPurple.copy(alpha = 0.14f))
+                                .background(if (locationEnabled) HeroOrange.copy(alpha = 0.14f) else HeroPurple.copy(alpha = 0.14f))
                                 .clickable {
                                     if (LocationHelper.hasLocationPermission(context)) {
                                         onUseMyLocation()
@@ -268,14 +268,14 @@ fun BookingScreen(
                                 Icon(
                                     Icons.Outlined.MyLocation,
                                     contentDescription = null,
-                                    tint = if (locationEnabled) HeroGreen else HeroPurple,
+                                    tint = if (locationEnabled) HeroOrange else HeroPurple,
                                     modifier = Modifier.size(16.dp)
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 Text(
                                     t(S.useMyLocation),
                                     style = MaterialTheme.typography.labelMedium,
-                                    color = if (locationEnabled) HeroGreen else HeroPurple,
+                                    color = if (locationEnabled) HeroOrange else HeroPurple,
                                     fontWeight = FontWeight.SemiBold
                                 )
                             }
@@ -287,7 +287,7 @@ fun BookingScreen(
                     Text(
                         t(S.locationSorted),
                         style = MaterialTheme.typography.labelSmall,
-                        color = HeroGreen,
+                        color = HeroOrange,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
@@ -301,14 +301,14 @@ fun BookingScreen(
                         Row(
                             Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(if (selected) HeroGreen.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
+                                .background(if (selected) HeroOrange.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
                                 .clickable { selectedKid = kid.name }
                                 .padding(end = 16.dp, top = 6.dp, bottom = 6.dp, start = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             KidAvatar(kid.name, kid.avatarColor, size = 32.dp)
                             Spacer(Modifier.width(8.dp))
-                            Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = if (selected) HeroGreen else MaterialTheme.colorScheme.onSurface)
+                            Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurface)
                         }
                     }
                 }
@@ -527,9 +527,9 @@ private fun HospitalSectionHeader(hospital: Hospital) {
             Text(hospital.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             if (hospital.userCampLinked || hospital.isCampPartner) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(12.dp))
+                    Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(12.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text(t(S.campPartnerHospital), style = MaterialTheme.typography.labelSmall, color = HeroGreen)
+                    Text(t(S.campPartnerHospital), style = MaterialTheme.typography.labelSmall, color = HeroOrange)
                 }
             }
         }

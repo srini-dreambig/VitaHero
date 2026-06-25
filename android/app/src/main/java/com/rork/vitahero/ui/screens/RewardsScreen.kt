@@ -50,7 +50,7 @@ import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroYellow
 
 @Composable
@@ -103,7 +103,7 @@ fun RewardsScreen(
                         Row(
                             Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(if (selected) HeroGreen.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
+                                .background(if (selected) HeroOrange.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
                                 .padding(end = 16.dp, top = 6.dp, bottom = 6.dp, start = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -113,7 +113,7 @@ fun RewardsScreen(
                                 kid.name,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (selected) HeroGreen else MaterialTheme.colorScheme.onSurface,
+                                color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(
                                     top = 4.dp, bottom = 4.dp, end = 4.dp
                                 )
@@ -283,7 +283,7 @@ private fun LeaderRow(entry: LeaderEntry) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(if (entry.isYou) HeroGreen.copy(alpha = 0.08f) else Color.Transparent)
+            .background(if (entry.isYou) HeroOrange.copy(alpha = 0.08f) else Color.Transparent)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -301,7 +301,7 @@ private fun LeaderRow(entry: LeaderEntry) {
             entry.name,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = if (entry.isYou) FontWeight.Bold else FontWeight.Medium,
-            color = if (entry.isYou) HeroGreen else MaterialTheme.colorScheme.onSurface,
+            color = if (entry.isYou) HeroOrange else MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
         Text("${entry.points} ${t(S.points)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)

@@ -54,7 +54,7 @@ import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 import com.rork.vitahero.ui.theme.HeroYellow
 
@@ -160,7 +160,7 @@ fun HomeScreen(
                     .padding(horizontal = 20.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                QuickAction(t(S.dietPlan), Icons.Outlined.Restaurant, HeroGreen, Modifier.weight(1f)) {
+                QuickAction(t(S.dietPlan), Icons.Outlined.Restaurant, HeroOrange, Modifier.weight(1f)) {
                     kids.firstOrNull()?.let { onOpenDiet(it.id) }
                 }
                 QuickAction(t(S.bookVisit), Icons.Outlined.MedicalServices, HeroBlue, Modifier.weight(1f), onClick = onBookAppointment)
@@ -247,12 +247,6 @@ private fun KidStatCard(kid: Kid, onClick: () -> Unit) {
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = Color(kid.avatarColor)
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "BMI ${"%.1f".format(kid.bmi)}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }

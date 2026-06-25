@@ -31,15 +31,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.rork.vitahero.R
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import kotlinx.coroutines.launch
 
 private data class Slide(
@@ -59,7 +61,7 @@ fun OnboardingScreen(
             images.getOrElse(0) { "" },
             t(S.onboardingTitle1),
             t(S.onboardingSub1),
-            HeroGreen
+            HeroOrange
         ),
         Slide(
             images.getOrElse(1) { "" },
@@ -94,10 +96,16 @@ fun OnboardingScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
                     .padding(top = 36.dp),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Image(
+                    painter = painterResource(id = R.drawable.vitahero_logo),
+                    contentDescription = "VitaHero",
+                    modifier = Modifier.height(40.dp)
+                )
                 TextButton(onClick = onFinish) {
                     Text(t(S.skip), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }

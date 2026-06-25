@@ -38,7 +38,7 @@ import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 
 @Composable
 fun ConsentScreen(
@@ -59,7 +59,7 @@ fun ConsentScreen(
             Modifier
                 .size(80.dp)
                 .clip(RoundedCornerShape(22.dp))
-                .background(Brush.linearGradient(listOf(HeroGreen, HeroBlue))),
+                .background(Brush.linearGradient(listOf(HeroOrange, HeroBlue))),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Outlined.HealthAndSafety, contentDescription = null, tint = Color.White, modifier = Modifier.size(42.dp))
@@ -86,7 +86,7 @@ fun ConsentScreen(
             icon = Icons.Outlined.Lock,
             title = t(S.consentItem1Title),
             description = t(S.consentItem1Desc),
-            tint = HeroGreen
+            tint = HeroOrange
         )
         Spacer(Modifier.height(16.dp))
         ConsentItem(

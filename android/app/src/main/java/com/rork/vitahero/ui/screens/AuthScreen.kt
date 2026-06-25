@@ -1,6 +1,7 @@
 package com.rork.vitahero.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -42,12 +44,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.R
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
@@ -56,7 +60,7 @@ import com.rork.vitahero.ui.components.HeroTextField
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 
 private enum class AuthTab { GOOGLE, EMAIL, PHONE }
 
@@ -73,21 +77,11 @@ fun AuthScreen(
     onSignInWithEmail: (email: String, password: String) -> Unit,
     onContinueWithPhone: (phone: String) -> Unit,
     isLoading: Boolean = false,
-    authError: String? = null
+    authError: String? = null,
+    prefilledPhone: String = "",
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = AuthTab.entries
-
-    // Email sign-in vs sign-up toggle
-    var isEmailSignUp by remember { mutableStateOf(false) }
-
-    // Phone
-    var phone by remember { mutableStateOf("") }
-
-    // Email form
-    var emailName by remember { mutableStateOf("") }
-    var emailAddress by remember { mutableStateOf("") }
-    var emailPassword by remember { mutableStateOf("") }
+    // Closed app: parents sign in with their registered mobile number only.
+    var phone by remember(prefilledPhone) { mutableStateOf(prefilledPhone) }
 
     Column(
         Modifier
@@ -100,18 +94,15 @@ fun AuthScreen(
     ) {
         Spacer(Modifier.height(32.dp))
 
-        // Logo
-        Box(
-            Modifier
-                .size(64.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Brush.linearGradient(listOf(HeroGreen, HeroBlue))),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Outlined.Shield, contentDescription = null, tint = Color.White, modifier = Modifier.size(34.dp))
-        }
-        Spacer(Modifier.height(12.dp))
-        Text("VitaHero", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+        // Brand logo
+        Image(
+            painter = painterResource(id = R.drawable.vitahero_logo),
+            contentDescription = "VitaHero",
+            modifier = Modifier
+                .fillMaxWidth(0.62f)
+                .heightIn(max = 180.dp)
+        )
+        Spacer(Modifier.height(4.dp))
         Text(
             t(S.appSubtitle),
             style = MaterialTheme.typography.bodyMedium,
@@ -120,77 +111,13 @@ fun AuthScreen(
 
         Spacer(Modifier.height(24.dp))
 
-        // ─── Tab Bar ──────────────────────────────────────────
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(4.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            tabs.forEachIndexed { index, tab ->
-                val isSelected = index == selectedTab
-                val tabLabel = when (tab) {
-                    AuthTab.GOOGLE -> t(S.signInWithGoogle).replace("Sign in with ", "")
-                    AuthTab.EMAIL -> t(S.emailTab)
-                    AuthTab.PHONE -> t(S.phoneTab)
-                }
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .height(40.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(if (isSelected) MaterialTheme.colorScheme.surface else Color.Transparent)
-                        .clickable { selectedTab = index },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        tabLabel,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-
-        Spacer(Modifier.height(20.dp))
-
-        // ─── Tab Content ──────────────────────────────────────
-        when (tabs[selectedTab]) {
-            AuthTab.GOOGLE -> GoogleAuthSection(
-                onSignInWithGoogle = onSignInWithGoogle,
-                isLoading = isLoading
-            )
-
-            AuthTab.EMAIL -> EmailAuthSection(
-                isSignUp = isEmailSignUp,
-                onToggleMode = { isEmailSignUp = !isEmailSignUp },
-                name = emailName,
-                onNameChange = { emailName = it },
-                email = emailAddress,
-                onEmailChange = { emailAddress = it },
-                password = emailPassword,
-                onPasswordChange = { emailPassword = it },
-                onSubmit = {
-                    if (isEmailSignUp) {
-                        onSignUpWithEmail(emailName, emailAddress, emailPassword)
-                    } else {
-                        onSignInWithEmail(emailAddress, emailPassword)
-                    }
-                },
-                isLoading = isLoading
-            )
-
-            AuthTab.PHONE -> PhoneAuthSection(
-                phone = phone,
-                onPhoneChange = { if (it.length <= 10) phone = it.filter(Char::isDigit) },
-                onSubmit = { onContinueWithPhone(phone) },
-                isLoading = isLoading
-            )
-        }
+        // Closed app: parents sign in with their registered mobile number only.
+        PhoneAuthSection(
+            phone = phone,
+            onPhoneChange = { if (it.length <= 10) phone = it.filter(Char::isDigit) },
+            onSubmit = { onContinueWithPhone(phone) },
+            isLoading = isLoading
+        )
 
         // ─── Auth Error ───────────────────────────────────────
         if (authError != null) {
@@ -212,7 +139,7 @@ fun AuthScreen(
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp),
                 strokeWidth = 2.dp,
-                color = HeroGreen
+                color = HeroOrange
             )
         }
 
@@ -224,7 +151,7 @@ fun AuthScreen(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier.padding(bottom = 16.dp)
         ) {
-            Icon(Icons.Outlined.Lock, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(16.dp))
+            Icon(Icons.Outlined.Lock, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(16.dp))
             Text(
                 t(S.trustBadge),
                 style = MaterialTheme.typography.bodySmall,
@@ -351,7 +278,7 @@ private fun EmailAuthSection(
             .clip(RoundedCornerShape(14.dp))
             .background(
                 if (submitEnabled && !isLoading)
-                    Brush.linearGradient(listOf(HeroGreen, HeroBlue))
+                    Brush.linearGradient(listOf(HeroOrange, HeroBlue))
                 else
                     Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
             )
@@ -384,7 +311,7 @@ private fun EmailAuthSection(
             if (isSignUp) t(S.loginTab) else t(S.signupTab),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Bold,
-            color = HeroGreen,
+            color = HeroOrange,
             modifier = Modifier.clickable { onToggleMode() }
         )
     }
@@ -438,7 +365,7 @@ private fun PhoneAuthSection(
             .clip(RoundedCornerShape(14.dp))
             .background(
                 if (phone.length == 10 && !isLoading)
-                    Brush.linearGradient(listOf(HeroGreen, HeroBlue))
+                    Brush.linearGradient(listOf(HeroOrange, HeroBlue))
                 else
                     Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
             )

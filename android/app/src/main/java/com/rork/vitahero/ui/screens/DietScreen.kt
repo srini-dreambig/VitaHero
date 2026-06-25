@@ -63,7 +63,7 @@ import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 import com.rork.vitahero.ui.theme.HeroYellow
 
@@ -108,7 +108,7 @@ fun DietScreen(
                 // Today summary card
                 HeroCard(Modifier.fillMaxWidth(), background = MaterialTheme.colorScheme.surface) {
                     Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                        ProgressRing(progress = progress, size = 72.dp, color = HeroGreen) {
+                        ProgressRing(progress = progress, size = 72.dp, color = HeroOrange) {
                             Text("$eatenCount/${meals.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.width(18.dp))
@@ -124,7 +124,7 @@ fun DietScreen(
                                 if (progress >= 1f) t(S.allMealsLogged)
                                 else t(S.logAllMealsHint),
                                 style = MaterialTheme.typography.bodySmall,
-                                color = HeroGreen,
+                                color = HeroOrange,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -283,7 +283,7 @@ private fun AIContentCard(content: AIDietContent, onRegenerate: () -> Unit) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .background(Brush.linearGradient(listOf(HeroGreen, HeroBlue)))
+                .background(Brush.linearGradient(listOf(HeroOrange, HeroBlue)))
                 .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -314,7 +314,7 @@ private fun AIContentCard(content: AIDietContent, onRegenerate: () -> Unit) {
             Spacer(Modifier.height(12.dp))
 
             // Suggestion
-            AITipRow(Icons.Outlined.TipsAndUpdates, HeroGreen, t(S.tryToday), content.suggestion)
+            AITipRow(Icons.Outlined.TipsAndUpdates, HeroOrange, t(S.tryToday), content.suggestion)
             Spacer(Modifier.height(12.dp))
 
             // Fun fact
@@ -368,7 +368,7 @@ private fun MealCard(meal: MealItem, onToggle: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle),
-        background = if (meal.eaten) HeroGreen.copy(alpha = 0.07f) else MaterialTheme.colorScheme.surface
+        background = if (meal.eaten) HeroOrange.copy(alpha = 0.07f) else MaterialTheme.colorScheme.surface
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -399,7 +399,7 @@ private fun MealCard(meal: MealItem, onToggle: () -> Unit) {
                 Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(if (meal.eaten) HeroGreen else MaterialTheme.colorScheme.surfaceVariant),
+                    .background(if (meal.eaten) HeroOrange else MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 if (scale > 0.1f) {

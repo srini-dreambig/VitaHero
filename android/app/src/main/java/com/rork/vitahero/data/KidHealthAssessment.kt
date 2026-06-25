@@ -11,8 +11,6 @@ object KidHealthAssessment {
         heightCm: Float,
         weightKg: Float,
     ): Assessment {
-        val m = heightCm / 100f
-        val bmi = if (m > 0) weightKg / (m * m) else 0f
         val kid = Kid(
             id = "",
             name = "",
@@ -32,9 +30,9 @@ object KidHealthAssessment {
         )
         val growth = GrowthStandards.assess(kid)
         val nutrition = when {
-            growth.bmiPercentile < 5 -> HealthFlag.WATCH
-            growth.bmiPercentile >= 95 -> HealthFlag.ALERT
-            growth.bmiPercentile < 15 || growth.bmiPercentile > 85 -> HealthFlag.WATCH
+            growth.weightPercentile < 5 -> HealthFlag.WATCH
+            growth.weightPercentile >= 97 -> HealthFlag.ALERT
+            growth.weightPercentile < 15 || growth.weightPercentile > 90 -> HealthFlag.WATCH
             else -> HealthFlag.GOOD
         }
         val heightFlag = when {
@@ -42,7 +40,7 @@ object KidHealthAssessment {
             growth.heightPercentile < 15 -> HealthFlag.WATCH
             else -> HealthFlag.GOOD
         }
-        val avgPct = (growth.heightPercentile + growth.weightPercentile + growth.bmiPercentile) / 3
+        val avgPct = (growth.heightPercentile + growth.weightPercentile) / 2
         val overallScore = when {
             avgPct in 15..85 -> 88
             avgPct in 5..14 || avgPct in 86..94 -> 72

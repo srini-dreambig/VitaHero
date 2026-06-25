@@ -32,7 +32,7 @@ import com.rork.vitahero.data.Doctor
 import com.rork.vitahero.data.Hospital
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroYellow
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -49,12 +49,12 @@ fun HospitalDirectoryCard(
         Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggleExpand),
-        background = if (hospital.userCampLinked) HeroGreen.copy(alpha = 0.06f) else MaterialTheme.colorScheme.surface,
+        background = if (hospital.userCampLinked) HeroOrange.copy(alpha = 0.06f) else MaterialTheme.colorScheme.surface,
         border = !hospital.userCampLinked
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.Top) {
-                IconBubble(Icons.Outlined.LocalHospital, if (hospital.userCampLinked) HeroGreen else HeroBlue)
+                IconBubble(Icons.Outlined.LocalHospital, if (hospital.userCampLinked) HeroOrange else HeroBlue)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(hospital.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -92,9 +92,9 @@ fun HospitalDirectoryCard(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (hospital.userCampLinked || hospital.isCampPartner) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(14.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(t(S.campPartnerHospital), style = MaterialTheme.typography.labelSmall, color = HeroGreen, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.campPartnerHospital), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 if (hospital.conductedCamps > 0) {
@@ -152,7 +152,7 @@ fun DoctorDirectoryCard(doctor: Doctor, selected: Boolean, onClick: () -> Unit) 
                     Text(doctor.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     if (doctor.isCampPartner) {
                         Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(14.dp))
                     }
                 }
                 Text(doctor.specialty, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

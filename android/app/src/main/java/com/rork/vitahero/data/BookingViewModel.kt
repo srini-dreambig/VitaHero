@@ -2,6 +2,7 @@ package com.rork.vitahero.data
 
 import android.app.Application
 import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
@@ -71,8 +72,26 @@ class BookingViewModel(
 
     fun fetchLocationAndRefresh(context: Context) {
         viewModelScope.launch {
-            val loc = LocationHelper.getLastKnownLocation(context) ?: return@launch
+            if (!LocationHelper.hasLocationPermission(context)) {
+                toast("Location permission is needed to find hospitals near you")
+                return@launch
+            }
+            if (!LocationHelper.isLocationEnabled(context)) {
+                toast("Turn on location/GPS to sort hospitals by distance")
+                return@launch
+            }
+            val loc = LocationHelper.getCurrentLocation(context)
+            if (loc == null) {
+                toast("Couldn't get your location. Please try again in a moment")
+                return@launch
+            }
             applyUserLocation(loc.first, loc.second)
+        }
+    }
+
+    private suspend fun toast(message: String) {
+        withContext(Dispatchers.Main) {
+            Toast.makeText(getApplication(), message, Toast.LENGTH_SHORT).show()
         }
     }
 

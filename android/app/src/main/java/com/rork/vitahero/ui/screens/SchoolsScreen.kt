@@ -45,7 +45,7 @@ import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 
 @Composable
 fun SchoolsScreen(
@@ -101,7 +101,7 @@ fun SchoolsScreen(
             HeroCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBubble(Icons.Outlined.VpnKey, HeroGreen)
+                        IconBubble(Icons.Outlined.VpnKey, HeroOrange)
                         Spacer(Modifier.width(12.dp))
                         Text(t(S.enterPartnerCode), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     }
@@ -115,7 +115,7 @@ fun SchoolsScreen(
                         placeholder = { Text("OAK2026") },
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroGreen),
+                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
                     )
                     if (kids.isNotEmpty()) {
                         Spacer(Modifier.height(10.dp))
@@ -129,11 +129,11 @@ fun SchoolsScreen(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(50))
                                         .clickable { selectedKidId = kid.id }
-                                        .background(if (selected) HeroGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
+                                        .background(if (selected) HeroOrange.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
                                         .padding(horizontal = 14.dp, vertical = 8.dp),
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selected) HeroGreen else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                         }
@@ -162,15 +162,15 @@ fun SchoolsScreen(
 
 @Composable
 private fun LinkedSchoolCard(school: PartnerSchool) {
-    HeroCard(Modifier.fillMaxWidth(), background = HeroGreen.copy(alpha = 0.06f)) {
+    HeroCard(Modifier.fillMaxWidth(), background = HeroOrange.copy(alpha = 0.06f)) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconBubble(Icons.Outlined.CheckCircle, HeroGreen)
+            IconBubble(Icons.Outlined.CheckCircle, HeroOrange)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(school.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Text("${school.city} · ${school.district}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Text(t(S.linked), style = MaterialTheme.typography.labelSmall, color = HeroGreen, fontWeight = FontWeight.Bold)
+            Text(t(S.linked), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -190,7 +190,7 @@ private fun PartnerSchoolCard(school: PartnerSchool, isLinked: Boolean) {
                 }
                 if (isLinked) {
                     Spacer(Modifier.height(6.dp))
-                    Text(t(S.linked), style = MaterialTheme.typography.labelSmall, color = HeroGreen, fontWeight = FontWeight.Bold)
+                    Text(t(S.linked), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.Bold)
                 }
             }
         }

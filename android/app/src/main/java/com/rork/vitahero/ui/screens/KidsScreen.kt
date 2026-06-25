@@ -41,7 +41,7 @@ import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.AppTheme
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 
 @Composable
 fun KidsScreen(
@@ -124,11 +124,10 @@ private fun KidCard(kid: Kid, modifier: Modifier = Modifier, onClick: () -> Unit
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Metric("Height", "${kid.heightCm.toInt()} cm", Modifier.weight(1f))
                 Metric("Weight", "${kid.weightKg.toInt()} kg", Modifier.weight(1f))
-                Metric("BMI", "%.1f".format(kid.bmi), Modifier.weight(1f))
             }
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FlagChip(kid.bmiFlag)
+                FlagChip(kid.nutrition)
                 if (kid.eyesight != HealthFlag.GOOD) FlagChip(HealthFlag.WATCH)
                 else FlagChip(HealthFlag.GOOD)
             }

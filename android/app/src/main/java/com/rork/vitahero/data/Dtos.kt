@@ -6,6 +6,13 @@ import kotlinx.serialization.Serializable
 /** DTOs — match the database column names exactly. */
 
 @Serializable
+data class InviteResolveDto(
+    val valid: Boolean = false,
+    val phone: String? = null,
+    val last10: String? = null,
+)
+
+@Serializable
 data class ProfileDto(
     val id: String,
     @SerialName("user_id") val userId: String? = null,
@@ -42,6 +49,7 @@ data class KidDto(
     val eyesight: String = "GOOD",
     val nutrition: String = "GOOD",
     @SerialName("last_checkup") val lastCheckup: String = "Not yet",
+    val source: String = "PARENT",
 )
 
 @Serializable
@@ -243,4 +251,17 @@ data class AiDietTipContentDto(
     val suggestion: String = "",
     @SerialName("funFact") val funFact: String = "",
     @SerialName("generatedAt") val generatedAt: String = "",
+)
+
+@Serializable
+data class FoodRecognitionResponseDto(
+    val items: List<DetectedFoodDto> = emptyList(),
+    val error: String? = null,
+)
+
+@Serializable
+data class DetectedFoodDto(
+    val name: String = "",
+    val kcal: Int = 0,
+    val confidence: Float = 0.6f,
 )

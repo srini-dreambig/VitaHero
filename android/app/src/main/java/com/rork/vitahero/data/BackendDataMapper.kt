@@ -21,6 +21,7 @@ object BackendDataMapper {
         eyesight = parseFlag(dto.eyesight),
         nutrition = parseFlag(dto.nutrition),
         lastCheckup = dto.lastCheckup,
+        source = dto.source,
     )
 
     fun mapGrowthPoint(dto: GrowthPointDto): GrowthPoint = GrowthPoint(

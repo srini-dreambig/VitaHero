@@ -59,7 +59,7 @@ import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 import android.content.Intent
 import android.net.Uri
@@ -100,7 +100,7 @@ fun ProfileScreen(
                             Modifier
                                 .size(64.dp)
                                 .clip(CircleShape)
-                                .background(Brush.linearGradient(listOf(HeroGreen, HeroBlue))),
+                                .background(Brush.linearGradient(listOf(HeroOrange, HeroBlue))),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(parentName.take(1).uppercase(), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -187,7 +187,7 @@ fun ProfileScreen(
             HeroCard(Modifier.fillMaxWidth()) {
                 Column {
                     ToggleRow(Icons.Outlined.Notifications, HeroBlue, t(S.pushNotif), t(S.notifSubtitle), notificationsEnabled) { onToggleNotifications() }
-                    ToggleRow(Icons.Outlined.ChildCare, HeroGreen, t(S.campReminders), t(S.campReminderSub), campRemindersEnabled) { onToggleCampReminders() }
+                    ToggleRow(Icons.Outlined.ChildCare, HeroOrange, t(S.campReminders), t(S.campReminderSub), campRemindersEnabled) { onToggleCampReminders() }
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -207,7 +207,7 @@ fun ProfileScreen(
                             .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            IconBubble(Icons.Outlined.People, HeroGreen, size = 40.dp)
+                            IconBubble(Icons.Outlined.People, HeroOrange, size = 40.dp)
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
                                 Text(t(S.familySharing), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
@@ -274,7 +274,7 @@ private fun ToggleRow(icon: ImageVector, tint: Color, title: String, subtitle: S
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedTrackColor = HeroGreen)
+            colors = SwitchDefaults.colors(checkedTrackColor = HeroOrange)
         )
     }
 }

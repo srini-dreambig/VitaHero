@@ -37,8 +37,10 @@ import com.rork.vitahero.ui.screens.NotificationsScreen
 import com.rork.vitahero.ui.screens.OnboardingScreen
 import com.rork.vitahero.ui.screens.OtpScreen
 import com.rork.vitahero.ui.screens.SchoolsScreen
+import com.rork.vitahero.ui.screens.SplashScreen
 
 object Routes {
+    const val SPLASH = "splash"
     const val CONSENT = "consent"
     const val ONBOARDING = "onboarding"
     const val AUTH = "auth"
@@ -67,6 +69,7 @@ private val OnboardingImages = listOf(
 @Composable
 fun AppNavigation(
     onGoogleSignInRequest: () -> Unit = {},
+    invitePhone: String = "",
 ) {
     val navController = rememberNavController()
     val vms = rememberVitaHeroViewModels()
@@ -88,7 +91,7 @@ fun AppNavigation(
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) {
             navController.navigate(Routes.MAIN) {
-                popUpTo(Routes.CONSENT) { inclusive = true }
+                popUpTo(Routes.SPLASH) { inclusive = true }
                 launchSingleTop = true
             }
         }
@@ -108,12 +111,27 @@ fun AppNavigation(
 
     NavHost(
         navController = navController,
-        startDestination = startDest,
+        startDestination = Routes.SPLASH,
         enterTransition = { fadeIn(tween(220)) },
         exitTransition = { fadeOut(tween(180)) },
         popEnterTransition = { fadeIn(tween(220)) },
         popExitTransition = { fadeOut(tween(180)) }
     ) {
+        composable(Routes.SPLASH) {
+            SplashScreen(
+                onTimeout = {
+                    // If a session restored while the splash was showing, the top-level
+                    // effect already routed to MAIN and this destination is gone.
+                    if (!isLoggedIn) {
+                        navController.navigate(startDest) {
+                            popUpTo(Routes.SPLASH) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
+            )
+        }
+
         composable(Routes.CONSENT) {
             ConsentScreen(
                 onAccept = {
@@ -150,6 +168,7 @@ fun AppNavigation(
             AuthScreen(
                 isLoading = authLoading,
                 authError = authError,
+                prefilledPhone = invitePhone,
                 onSignInWithGoogle = { onGoogleSignInRequest() },
                 onSignUpWithEmail = { name, email, password ->
                     appViewModel.signUpWithEmail(name, email, password)

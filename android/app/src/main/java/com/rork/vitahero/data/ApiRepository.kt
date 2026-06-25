@@ -4,6 +4,7 @@ import io.ktor.client.call.body
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -419,6 +420,36 @@ class ApiRepository {
         if (resp.status.isSuccess()) {
             try { resp.body<AiDietTipDto>() } catch (_: Exception) { null }
         } else null
+    }
+
+    suspend fun recognizeFood(imageBase64: String, mime: String = "image/jpeg"): FoodRecognitionResponseDto? = onIo {
+        if (skipNetwork) return@onIo null
+        val resp = http.post("$base/api/food-recognition") {
+            authHeaders().forEach { (k, v) -> header(k, v) }
+            contentType(ContentType.Application.Json)
+            setBody(mapOf(
+                "image_base64" to imageBase64,
+                "mime" to mime,
+            ))
+        }
+        if (resp.status.isSuccess()) {
+            try { resp.body<FoodRecognitionResponseDto>() } catch (_: Exception) { null }
+        } else null
+    }
+
+    /** Resolve an invite token (from an SMS link) to the registered 10-digit phone. */
+    suspend fun resolveInvite(token: String): String? = onIo {
+        if (skipNetwork) return@onIo null
+        return@onIo try {
+            val resp = http.get("$base/api/invite/resolve") {
+                parameter("token", token)
+            }
+            if (!resp.status.isSuccess()) return@onIo null
+            val dto = resp.body<InviteResolveDto>()
+            if (dto.valid && !dto.last10.isNullOrBlank()) dto.last10 else null
+        } catch (_: Exception) {
+            null
+        }
     }
 
     suspend fun saveAiDietTip(kidId: String, content: AIDietContent) = onIo {

@@ -8,3 +8,15 @@ TWILIO_AUTH_TOKEN=
 # Rork Toolkit — used server-side for AI diet tips (NOT in the Android app)
 TOOLKIT_URL=https://toolkit.rork.app
 TOOLKIT_SECRET_KEY=
+
+# Closed-app admin import + invites
+# ADMIN_API_KEY doubles as a one-time admin credential for the web portal
+# (paste it into the portal's "Admin API Key" tab) and lets you create admin
+# accounts via POST /api/auth/signup with the X-Admin-Key header.
+ADMIN_API_KEY=
+# HMAC key used to sign stateless invite tokens (keep separate from ADMIN_API_KEY).
+INVITE_SIGNING_KEY=
+# Android App Links: comma-separated SHA-256 signing-cert fingerprints.
+ANDROID_CERT_SHA256=
+# Optional Play Store URL used as the install fallback on the invite landing page.
+APP_PLAY_URL=

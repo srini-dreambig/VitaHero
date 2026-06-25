@@ -72,7 +72,7 @@ import com.rork.vitahero.ui.components.SectionHeader
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroYellow
 
 private enum class DetailTab(val labelKey: String) {
@@ -166,11 +166,11 @@ fun KidDetailScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (isGeneratingReport) {
-                                    Text("Generating…", style = MaterialTheme.typography.labelSmall, color = HeroGreen)
+                                    Text("Generating…", style = MaterialTheme.typography.labelSmall, color = HeroOrange)
                                 } else {
-                                    Icon(Icons.Outlined.Share, contentDescription = "Share report", tint = HeroGreen, modifier = Modifier.size(18.dp))
+                                    Icon(Icons.Outlined.Share, contentDescription = "Share report", tint = HeroOrange, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Share Report", style = MaterialTheme.typography.labelSmall, color = HeroGreen, fontWeight = FontWeight.SemiBold)
+                                    Text("Share Report", style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
@@ -193,15 +193,33 @@ fun KidDetailScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             HeaderStat("Height", "${kid.heightCm.toInt()} cm")
                             HeaderStat("Weight", "${kid.weightKg.toInt()} kg")
-                            HeaderStat("BMI", "%.1f".format(kid.bmi))
                         }
                     }
                 }
             }
         }
 
-        // Add growth data entry
-        item {
+        // Add growth data entry — hidden for admin-provisioned kids (medical data is read-only).
+        if (kid.source == "ADMIN") {
+            item {
+                Spacer(Modifier.height(12.dp))
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Health camp data — managed by your school. Contact the camp organizer for changes.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else item {
             Spacer(Modifier.height(12.dp))
             if (showGrowthEntry) {
                 GrowthEntryCard(
@@ -218,15 +236,15 @@ fun KidDetailScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(HeroGreen.copy(alpha = 0.07f))
+                        .background(HeroOrange.copy(alpha = 0.07f))
                         .clickable { showGrowthEntry = true }
                         .padding(14.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Add, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.Add, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(t(S.logMeasurements), color = HeroGreen, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.logMeasurements), color = HeroOrange, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -289,7 +307,7 @@ fun KidDetailScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    IconBubble(Icons.Outlined.Refresh, HeroGreen)
+                    IconBubble(Icons.Outlined.Refresh, HeroOrange)
                 }
             }
             Spacer(Modifier.height(14.dp))
@@ -349,7 +367,7 @@ private fun GrowthEntryCard(
     HeroCard(Modifier.padding(horizontal = 20.dp), background = MaterialTheme.colorScheme.surface) {
         Column(Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.AutoMirrored.Outlined.TrendingUp, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(22.dp))
+                Icon(Icons.AutoMirrored.Outlined.TrendingUp, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(8.dp))
                 Text(t(S.newMeasurement), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 Box(
@@ -375,7 +393,7 @@ private fun GrowthEntryCard(
                         shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = HeroGreen,
+                            focusedBorderColor = HeroOrange,
                             unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                             focusedContainerColor = MaterialTheme.colorScheme.surface,
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -393,7 +411,7 @@ private fun GrowthEntryCard(
                         shape = RoundedCornerShape(12.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = HeroGreen,
+                            focusedBorderColor = HeroOrange,
                             unfocusedBorderColor = MaterialTheme.colorScheme.outline,
                             focusedContainerColor = MaterialTheme.colorScheme.surface,
                             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
@@ -439,12 +457,12 @@ private fun HeaderStat(label: String, value: String) {
 private fun GrowthTab(kid: Kid, assessment: GrowthAssessment?, onOpenClinicalCharts: () -> Unit) {
     Column(Modifier.padding(horizontal = 20.dp)) {
         assessment?.let { a ->
-            HeroCard(Modifier.fillMaxWidth(), background = HeroGreen.copy(alpha = 0.06f)) {
+            HeroCard(Modifier.fillMaxWidth(), background = HeroOrange.copy(alpha = 0.06f)) {
                 Column(Modifier.padding(16.dp)) {
                     Text(t(S.currentAssessment), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(8.dp))
                     Text("${t(S.heightPercentile)}: ${a.heightPercentile}% · ${a.heightStatus}", style = MaterialTheme.typography.bodySmall)
-                    Text("${t(S.bmiPercentile)}: ${a.bmiPercentile}% · ${a.bmiStatus}", style = MaterialTheme.typography.bodySmall)
+                    Text("${t(S.weightPercentile)}: ${a.weightPercentile}% · ${a.weightStatus}", style = MaterialTheme.typography.bodySmall)
                     Text("${t(S.referenceStandard)}: ${a.chartSource}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -469,7 +487,7 @@ private fun GrowthTab(kid: Kid, assessment: GrowthAssessment?, onOpenClinicalCha
                     FlagChip(HealthFlag.GOOD)
                 }
                 Spacer(Modifier.height(16.dp))
-                GrowthChart(kid.growth, HeroGreen)
+                GrowthChart(kid.growth, HeroOrange)
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     kid.growth.forEach {
@@ -578,7 +596,7 @@ private fun NutritionTab(kid: Kid, onOpenDiet: () -> Unit) {
         HeroCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconBubble(Icons.Outlined.Restaurant, HeroGreen)
+                    IconBubble(Icons.Outlined.Restaurant, HeroOrange)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f)) {
                         Text(t(S.dietStatus), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

@@ -104,14 +104,13 @@ object PdfReportGenerator {
         val stats = listOf(
             "Height" to "${k.heightCm.toInt()} cm",
             "Weight" to "${k.weightKg.toInt()} kg",
-            "BMI" to "%.1f".format(k.bmi),
             "Health Score" to "${k.overallScore}%"
         )
         var sx = MARGIN + 16f
         stats.forEach { (label, value) ->
             canvas.drawText(label, sx, y, smallLabelPaint)
             canvas.drawText(value, sx, y + 14f, smallValuePaint)
-            sx += (CONTENT_WIDTH - 32f) / 4
+            sx += (CONTENT_WIDTH - 32f) / 3
         }
         y += 100f
 

@@ -1,6 +1,7 @@
 package com.rork.vitahero.data
 
 import android.graphics.Bitmap
+import android.util.Base64
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.label.ImageLabel
 import com.google.mlkit.vision.label.ImageLabeling
@@ -8,175 +9,165 @@ import com.google.mlkit.vision.label.defaults.ImageLabelerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.util.Locale
 import kotlin.coroutines.resume
-import kotlin.math.abs
 
 /**
- * Food recognition using ML Kit Image Labeling, with colour-heuristic fallback.
- * Labels are mapped to common Indian meals for calorie estimates.
+ * Food recognition using ML Kit on-device Image Labeling.
+ *
+ * Primary path: an AI vision model via the backend worker (accurate, specific dish
+ * names + calorie estimates). Falls back to on-device ML Kit labeling when the backend
+ * is unconfigured, the user is signed out, or the vision call fails/returns nothing.
+ *
+ * The ML Kit default model returns broad labels (e.g. "Fruit", "Food", "Dessert"),
+ * not exact dish names. We map specific labels to a calorie dictionary and otherwise
+ * surface the actual detected label. Previously every photo was force-matched into a
+ * fixed Indian-meal list via the generic "food" keyword, so unrelated items (e.g. a
+ * cup of dates) were reported as "Rice & Dal". This keeps results relevant instead.
  */
 object FoodRecognitionService {
 
-    private data class FoodProfile(
+    private data class FoodEntry(
         val name: String,
-        val baseKcal: Int,
-        val keywords: Set<String>,
-        val dominantHueRanges: List<FloatRange> = emptyList(),
+        val kcal: Int,
+        val keywords: List<String>,
     )
 
-    private val foodProfiles = listOf(
-        FoodProfile("Rice & Dal", 380, setOf("rice", "food", "curry", "stew", "lentil", "dal")),
-        FoodProfile("Roti & Sabzi", 320, setOf("bread", "flatbread", "roti", "chapati", "vegetable")),
-        FoodProfile("Poha with Peanuts", 290, setOf("cereal", "breakfast", "oatmeal", "porridge")),
-        FoodProfile("Idli & Sambar", 250, setOf("dumpling", "steamed", "cake")),
-        FoodProfile("Dosa & Chutney", 340, setOf("pancake", "crepe", "dosa")),
-        FoodProfile("Paneer Bhurji with Roti", 420, setOf("cheese", "paneer", "cottage cheese")),
-        FoodProfile("Chicken Curry & Rice", 450, setOf("chicken", "meat", "poultry")),
-        FoodProfile("Khichdi with Curd", 350, setOf("mash", "gruel", "khichdi")),
-        FoodProfile("Sprouts Chaat", 180, setOf("salad", "sprout", "legume", "bean")),
-        FoodProfile("Fruit Bowl", 150, setOf("fruit", "banana", "apple", "orange", "berry", "mango")),
-        FoodProfile("Egg Bhurji & Toast", 300, setOf("egg", "omelette", "toast")),
-        FoodProfile("Mixed Vegetable Curry", 200, setOf("vegetable", "broccoli", "carrot", "greens")),
-        FoodProfile("Curd Rice", 280, setOf("yogurt", "curd", "dairy")),
-        FoodProfile("Paratha & Pickle", 380, setOf("paratha", "pastry", "pie")),
-        FoodProfile("Salad", 100, setOf("lettuce", "cucumber", "greens", "herb")),
-        FoodProfile("Banana", 105, setOf("banana")),
-        FoodProfile("Milk / Doodh", 160, setOf("milk", "beverage", "drink")),
-        FoodProfile("Paneer / Cottage Cheese", 265, setOf("paneer", "cheese")),
+    /** Ordered specific → general; the first entry that matches a label wins. */
+    private val dictionary = listOf(
+        FoodEntry("Dates", 280, listOf("date", "dates", "dried fruit", "dry fruit")),
+        FoodEntry("Banana", 105, listOf("banana")),
+        FoodEntry("Apple", 95, listOf("apple")),
+        FoodEntry("Orange", 62, listOf("orange", "tangerine", "citrus", "clementine")),
+        FoodEntry("Mango", 99, listOf("mango")),
+        FoodEntry("Grapes", 104, listOf("grape")),
+        FoodEntry("Berries", 85, listOf("berry", "strawberry", "blueberry", "raspberry")),
+        FoodEntry("Watermelon", 86, listOf("watermelon", "melon")),
+        FoodEntry("Nuts & Almonds", 200, listOf("almond", "cashew", "peanut", "walnut", "nut")),
+        FoodEntry("Fruit Bowl", 130, listOf("fruit", "produce")),
+        FoodEntry("Rice & Dal", 380, listOf("rice", "lentil", "dal", "biryani", "pilaf")),
+        FoodEntry("Roti / Bread", 260, listOf("roti", "chapati", "naan", "flatbread", "bread", "baked goods", "bun", "loaf", "toast")),
+        FoodEntry("Dosa / Pancake", 340, listOf("dosa", "pancake", "crepe", "waffle")),
+        FoodEntry("Idli / Steamed", 250, listOf("idli", "dumpling", "steamed")),
+        FoodEntry("Egg", 78, listOf("egg", "omelette")),
+        FoodEntry("Chicken / Meat", 320, listOf("chicken", "poultry", "steak", "mutton", "meat")),
+        FoodEntry("Fish", 240, listOf("fish", "seafood", "prawn", "shrimp")),
+        FoodEntry("Paneer / Cheese", 265, listOf("paneer", "cottage cheese", "cheese")),
+        FoodEntry("Curd / Yogurt", 100, listOf("yogurt", "yoghurt", "curd", "dairy")),
+        FoodEntry("Milk", 150, listOf("milk")),
+        FoodEntry("Salad / Veggies", 110, listOf("salad", "lettuce", "cucumber", "broccoli", "carrot", "tomato", "greens", "vegetable")),
+        FoodEntry("Soup / Curry", 200, listOf("soup", "curry", "stew", "gravy")),
+        FoodEntry("Noodles / Pasta", 350, listOf("noodle", "pasta", "spaghetti")),
+        FoodEntry("Pizza", 285, listOf("pizza")),
+        FoodEntry("Burger / Sandwich", 350, listOf("burger", "hamburger", "sandwich")),
+        FoodEntry("Sweet / Dessert", 250, listOf("dessert", "cake", "ice cream", "chocolate", "candy", "pastry", "pie", "cookie", "sweet")),
+        FoodEntry("Snack", 200, listOf("junk food", "chips", "fries", "popcorn", "snack")),
+        FoodEntry("Beverage", 90, listOf("juice", "smoothie", "tea", "coffee", "drink", "beverage")),
     )
 
-    private val colourHueProfiles = listOf(
-        FoodProfile("Rice & Dal", 380, emptySet(), listOf(FloatRange(25f, 45f), FloatRange(40f, 55f))),
-        FoodProfile("Roti & Sabzi", 320, emptySet(), listOf(FloatRange(20f, 40f), FloatRange(80f, 100f))),
-        FoodProfile("Poha with Peanuts", 290, emptySet(), listOf(FloatRange(40f, 55f))),
-        FoodProfile("Idli & Sambar", 250, emptySet(), listOf(FloatRange(35f, 50f), FloatRange(10f, 20f))),
-        FoodProfile("Dosa & Chutney", 340, emptySet(), listOf(FloatRange(25f, 40f), FloatRange(120f, 140f))),
-        FoodProfile("Fruit Bowl", 150, emptySet(), listOf(FloatRange(0f, 20f), FloatRange(50f, 70f), FloatRange(160f, 180f))),
-        FoodProfile("Salad", 100, emptySet(), listOf(FloatRange(80f, 140f), FloatRange(160f, 180f))),
-        FoodProfile("Banana", 105, emptySet(), listOf(FloatRange(40f, 55f))),
+    /** Generic labels that carry no nutrition meaning on their own. */
+    private val ignored = setOf(
+        "plant", "tree", "table", "tableware", "plate", "bowl", "cup", "mug", "glass",
+        "jar", "container", "kitchen", "person", "hand", "finger", "wood", "metal",
+        "textile", "pattern", "art", "still life", "circle", "close-up", "macro photography",
     )
+
+    /** Broad "this is food" labels we keep only as a last-resort fallback. */
+    private val genericFood = setOf("food", "dish", "meal", "cuisine", "cooking", "recipe", "ingredient")
+
+    private const val MIN_CONFIDENCE = 0.30f
+    private const val MAX_UPLOAD_DIM = 1024
+    private const val JPEG_QUALITY = 80
 
     suspend fun analyseBitmap(bitmap: Bitmap): List<DetectedFood> = withContext(Dispatchers.IO) {
-        val mlKitResults = runMlKitLabeling(bitmap)
-        if (mlKitResults.isNotEmpty()) return@withContext mlKitResults
-        analyseByColour(bitmap)
+        val remote = runCatching { analyseRemote(bitmap) }.getOrNull()
+        if (!remote.isNullOrEmpty()) return@withContext remote
+        mapLabelsToFoods(runMlKitLabeling(bitmap))
     }
 
-    private suspend fun runMlKitLabeling(bitmap: Bitmap): List<DetectedFood> {
+    /** AI vision via the backend worker. Returns null when unavailable so we fall back. */
+    private suspend fun analyseRemote(bitmap: Bitmap): List<DetectedFood>? {
+        if (!ApiService.isConfigured || ApiService.sessionToken.isNullOrBlank()) return null
+        val response = ApiRepositoryProvider.repository.recognizeFood(encodeJpeg(bitmap)) ?: return null
+        return response.items
+            .filter { it.name.isNotBlank() }
+            .map {
+                DetectedFood(
+                    name = it.name,
+                    confidence = it.confidence.coerceIn(0.4f, 0.99f),
+                    estimatedKcal = if (it.kcal > 0) it.kcal else 200,
+                )
+            }
+            .take(5)
+    }
+
+    private fun encodeJpeg(bitmap: Bitmap): String {
+        val largest = maxOf(bitmap.width, bitmap.height)
+        val scale = if (largest > MAX_UPLOAD_DIM) MAX_UPLOAD_DIM.toFloat() / largest else 1f
+        val scaled = if (scale < 1f) {
+            Bitmap.createScaledBitmap(
+                bitmap,
+                (bitmap.width * scale).toInt().coerceAtLeast(1),
+                (bitmap.height * scale).toInt().coerceAtLeast(1),
+                true,
+            )
+        } else {
+            bitmap
+        }
+        val stream = ByteArrayOutputStream()
+        scaled.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, stream)
+        if (scaled !== bitmap) scaled.recycle()
+        return Base64.encodeToString(stream.toByteArray(), Base64.NO_WRAP)
+    }
+
+    private suspend fun runMlKitLabeling(bitmap: Bitmap): List<ImageLabel> {
         val labeler = ImageLabeling.getClient(ImageLabelerOptions.DEFAULT_OPTIONS)
         val image = InputImage.fromBitmap(bitmap, 0)
-        val labels = suspendCancellableCoroutine { cont ->
+        return suspendCancellableCoroutine { cont ->
             labeler.process(image)
                 .addOnSuccessListener { cont.resume(it) }
                 .addOnFailureListener { cont.resume(emptyList()) }
         }
-        return mapLabelsToFoods(labels)
     }
 
     private fun mapLabelsToFoods(labels: List<ImageLabel>): List<DetectedFood> {
-        if (labels.isEmpty()) return emptyList()
+        val relevant = labels
+            .filter { it.confidence >= MIN_CONFIDENCE }
+            .sortedByDescending { it.confidence }
 
-        val scored = foodProfiles.mapNotNull { profile ->
-            var best = 0f
-            for (label in labels) {
-                val text = label.text.lowercase()
-                if (profile.keywords.any { text.contains(it) }) {
-                    best = maxOf(best, label.confidence)
-                }
+        val results = LinkedHashMap<String, DetectedFood>()
+        var sawGenericFood = false
+
+        for (label in relevant) {
+            if (results.size >= 4) break
+            val text = label.text.lowercase(Locale.ROOT)
+            if (text in ignored) continue
+            if (text in genericFood) {
+                sawGenericFood = true
+                continue
             }
-            if (best > 0.35f) profile to best else null
-        }.sortedByDescending { it.second }
-
-        return scored.take(4).mapIndexed { index, (profile, confidence) ->
-            DetectedFood(
-                name = profile.name,
-                confidence = confidence.coerceIn(0.4f, 0.95f),
-                estimatedKcal = profile.baseKcal + index * 40,
-            )
-        }
-    }
-
-    private fun analyseByColour(bitmap: Bitmap): List<DetectedFood> {
-        val sampleSize = 10
-        val w = bitmap.width / sampleSize
-        val h = bitmap.height / sampleSize
-        val scaled = Bitmap.createScaledBitmap(bitmap, w.coerceAtLeast(1), h.coerceAtLeast(1), true)
-
-        val hueBuckets = FloatArray(36)
-        var totalSamples = 0
-
-        for (y in 0 until scaled.height) {
-            for (x in 0 until scaled.width) {
-                val pixel = scaled.getPixel(x, y)
-                val r = android.graphics.Color.red(pixel) / 255f
-                val g = android.graphics.Color.green(pixel) / 255f
-                val b = android.graphics.Color.blue(pixel) / 255f
-
-                val max = maxOf(r, g, b)
-                val min = minOf(r, g, b)
-                val delta = max - min
-                val saturation = if (max > 0) delta / max else 0f
-
-                if (saturation < 0.08f || max < 0.15f) continue
-
-                val hue = when {
-                    delta == 0f -> 0f
-                    max == r -> 60f * (((g - b) / delta) % 6f)
-                    max == g -> 60f * (((b - r) / delta) + 2f)
-                    else -> 60f * (((r - g) / delta) + 4f)
-                }.let { if (it < 0) it + 360f else it }
-
-                val bucket = (hue / 10f).toInt().coerceIn(0, 35)
-                hueBuckets[bucket] += saturation
-                totalSamples++
+            val entry = dictionary.firstOrNull { e -> e.keywords.any { text.contains(it) } }
+            val food = if (entry != null) {
+                DetectedFood(entry.name, label.confidence.coerceIn(0.4f, 0.97f), entry.kcal)
+            } else {
+                // Identifiable but undictionaried label — show it as-is so the result stays relevant.
+                DetectedFood(
+                    label.text.replaceFirstChar { it.titlecase(Locale.ROOT) },
+                    label.confidence.coerceIn(0.4f, 0.95f),
+                    180,
+                )
             }
+            results.putIfAbsent(food.name, food)
         }
-        scaled.recycle()
 
-        if (totalSamples < 5) return emptyList()
-
-        for (i in hueBuckets.indices) { hueBuckets[i] /= totalSamples.toFloat() }
-
-        val dominantHues = hueBuckets
-            .mapIndexed { i, v -> i to v }
-            .filter { it.second > 0.008f }
-            .sortedByDescending { it.second }
-            .take(8)
-            .map { it.first * 10f }
-
-        val colourProfiles = colourHueProfiles.filter { it.dominantHueRanges.isNotEmpty() }
-        val matches = colourProfiles.map { profile ->
-            var bestOverlap = 0f
-            for (dominantHue in dominantHues) {
-                for (range in profile.dominantHueRanges) {
-                    val dist = minOf(
-                        abs(dominantHue - range.start),
-                        abs(dominantHue - range.endInclusive),
-                        360f - abs(dominantHue - range.start),
-                    )
-                    if (dist < 25f) {
-                        bestOverlap = maxOf(bestOverlap, 1f - dist / 50f)
-                    }
-                }
-            }
-            profile to bestOverlap
-        }.filter { it.second > 0.2f }
-            .sortedByDescending { it.second }
-            .take(4)
-
-        if (matches.isEmpty()) return emptyList()
-
-        return matches.mapIndexed { i, (profile, confidence) ->
-            DetectedFood(
-                name = profile.name,
-                confidence = (confidence * 0.7f + 0.25f).coerceAtMost(0.95f),
-                estimatedKcal = profile.baseKcal + i * 60,
-            )
+        // Nothing specific matched but the model is confident it's food — avoid a wrong dish guess.
+        if (results.isEmpty() && (sawGenericFood || relevant.isNotEmpty())) {
+            results["Mixed Meal"] = DetectedFood("Mixed Meal", 0.5f, 300)
         }
+        return results.values.toList()
     }
 }
-
-data class FloatRange(val start: Float, val endInclusive: Float)
 
 data class DetectedFood(
     val name: String,

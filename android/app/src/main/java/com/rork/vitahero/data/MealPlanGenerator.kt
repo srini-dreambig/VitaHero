@@ -3,7 +3,7 @@ package com.rork.vitahero.data
 import java.util.UUID
 
 /**
- * Generates an initial daily meal plan from a child's age, BMI, and nutrition flags.
+ * Generates an initial daily meal plan from a child's age and nutrition flags.
  * Plans sync to Neon via the standard meals API — not static demo data.
  */
 object MealPlanGenerator {
@@ -11,7 +11,7 @@ object MealPlanGenerator {
     fun initialPlanFor(kid: Kid): List<MealItem> {
         val isYoung = kid.age <= 6
         val needsIron = kid.nutrition == HealthFlag.WATCH || kid.nutrition == HealthFlag.ALERT
-        val needsWeight = kid.bmi < 14f
+        val needsWeight = kid.nutrition == HealthFlag.WATCH
 
         val breakfast = if (isYoung)
             meal("Breakfast", "Ragi Porridge + Milk", "Ragi cooked in milk with jaggery — calcium boost!", 290)

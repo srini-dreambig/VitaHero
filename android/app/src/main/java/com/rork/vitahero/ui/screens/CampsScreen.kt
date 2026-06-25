@@ -48,7 +48,7 @@ import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -132,7 +132,7 @@ fun CampsScreen(
 @Composable
 private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit, onOpenCamp: (String) -> Unit) {
     val upcoming = camp.status == CampStatus.UPCOMING
-    val accent = if (upcoming) HeroBlue else HeroGreen
+    val accent = if (upcoming) HeroBlue else HeroOrange
     HeroCard(
         Modifier
             .fillMaxWidth()
@@ -148,9 +148,9 @@ private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit, onOpenCamp: (String
                 Column(Modifier.weight(1f)) {
                     if (camp.isPartnerCamp) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroGreen, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(14.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text(t(S.partnerCamp), style = MaterialTheme.typography.labelSmall, color = HeroGreen, fontWeight = FontWeight.SemiBold)
+                            Text(t(S.partnerCamp), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(Modifier.height(4.dp))
                     }
@@ -201,10 +201,10 @@ private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit, onOpenCamp: (String
                     Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(HeroGreen.copy(alpha = 0.1f))
+                        .background(HeroOrange.copy(alpha = 0.1f))
                         .padding(12.dp)
                 ) {
-                    Text(camp.resultSummary, style = MaterialTheme.typography.bodySmall, color = HeroGreen, fontWeight = FontWeight.Medium)
+                    Text(camp.resultSummary, style = MaterialTheme.typography.bodySmall, color = HeroOrange, fontWeight = FontWeight.Medium)
                 }
             }
             Spacer(Modifier.height(14.dp))

@@ -6,7 +6,7 @@ package com.rork.vitahero.data
  */
 object GrowthStandards {
 
-    enum class Metric { HEIGHT, WEIGHT, BMI }
+    enum class Metric { HEIGHT, WEIGHT }
 
     private data class Ref(val age: Int, val p50: Float)
 
@@ -34,26 +34,12 @@ object GrowthStandards {
         Ref(12, 40.1f), Ref(13, 44.8f), Ref(14, 48.5f), Ref(15, 50.8f), Ref(16, 52.0f),
         Ref(17, 52.5f), Ref(18, 53.0f),
     )
-    private val bmiBoys = listOf(
-        Ref(2, 16.0f), Ref(3, 15.5f), Ref(4, 15.3f), Ref(5, 15.3f), Ref(6, 15.3f),
-        Ref(7, 15.4f), Ref(8, 15.5f), Ref(9, 15.7f), Ref(10, 16.0f), Ref(11, 16.4f),
-        Ref(12, 16.9f), Ref(13, 17.5f), Ref(14, 18.1f), Ref(15, 18.6f), Ref(16, 19.0f),
-        Ref(17, 19.2f), Ref(18, 19.3f),
-    )
-    private val bmiGirls = listOf(
-        Ref(2, 15.8f), Ref(3, 15.4f), Ref(4, 15.2f), Ref(5, 15.2f), Ref(6, 15.2f),
-        Ref(7, 15.3f), Ref(8, 15.5f), Ref(9, 15.8f), Ref(10, 16.2f), Ref(11, 16.7f),
-        Ref(12, 17.2f), Ref(13, 17.8f), Ref(14, 18.3f), Ref(15, 18.6f), Ref(16, 18.8f),
-        Ref(17, 18.9f), Ref(18, 19.0f),
-    )
-
     private fun isBoy(gender: String): Boolean =
         gender.lowercase().startsWith("b") || gender.lowercase() == "male"
 
     private fun refs(metric: Metric, isBoy: Boolean): List<Ref> = when (metric) {
         Metric.HEIGHT -> if (isBoy) heightBoys else heightGirls
         Metric.WEIGHT -> if (isBoy) weightBoys else weightGirls
-        Metric.BMI -> if (isBoy) bmiBoys else bmiGirls
     }
 
     /** Interpolate P50 at fractional age (years). */
@@ -71,7 +57,6 @@ object GrowthStandards {
         val spread = when (metric) {
             Metric.HEIGHT -> 0.045f
             Metric.WEIGHT -> 0.14f
-            Metric.BMI -> 0.12f
         }
         val z = when (percentile) {
             3 -> -1.88f
@@ -90,7 +75,6 @@ object GrowthStandards {
         val spread = when (metric) {
             Metric.HEIGHT -> 0.045f
             Metric.WEIGHT -> 0.14f
-            Metric.BMI -> 0.12f
         }
         val p50 = medianAtAge(ageYears, gender, metric)
         if (p50 <= 0f) return 50
@@ -121,25 +105,16 @@ object GrowthStandards {
             percentile <= 97 -> "High weight"
             else -> "Overweight"
         }
-        Metric.BMI -> when {
-            percentile < 5 -> "Underweight (IAP)"
-            percentile < 85 -> "Normal (IAP)"
-            percentile < 95 -> "Overweight (IAP)"
-            else -> "Obese (IAP)"
-        }
     }
 
     fun assess(kid: Kid): GrowthAssessment {
         val hPct = estimatePercentile(kid.heightCm, kid.age, kid.gender, Metric.HEIGHT)
         val wPct = estimatePercentile(kid.weightKg, kid.age, kid.gender, Metric.WEIGHT)
-        val bmiPct = estimatePercentile(kid.bmi, kid.age, kid.gender, Metric.BMI)
         return GrowthAssessment(
             heightPercentile = hPct,
             weightPercentile = wPct,
-            bmiPercentile = bmiPct,
             heightStatus = statusLabel(hPct, Metric.HEIGHT),
             weightStatus = statusLabel(wPct, Metric.WEIGHT),
-            bmiStatus = statusLabel(bmiPct, Metric.BMI),
         )
     }
 

@@ -47,7 +47,7 @@ import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 
 @Composable
@@ -141,7 +141,7 @@ fun HospitalsScreen(
                     Box(
                         Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(if (locationEnabled) HeroGreen.copy(alpha = 0.14f) else HeroPurple.copy(alpha = 0.14f))
+                            .background(if (locationEnabled) HeroOrange.copy(alpha = 0.14f) else HeroPurple.copy(alpha = 0.14f))
                             .clickable {
                                 if (LocationHelper.hasLocationPermission(context)) {
                                     onUseMyLocation()
@@ -155,14 +155,14 @@ fun HospitalsScreen(
                             Icon(
                                 Icons.Outlined.MyLocation,
                                 contentDescription = null,
-                                tint = if (locationEnabled) HeroGreen else HeroPurple,
+                                tint = if (locationEnabled) HeroOrange else HeroPurple,
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
                                 t(S.useMyLocation),
                                 style = MaterialTheme.typography.labelMedium,
-                                color = if (locationEnabled) HeroGreen else HeroPurple,
+                                color = if (locationEnabled) HeroOrange else HeroPurple,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -174,7 +174,7 @@ fun HospitalsScreen(
                 Text(
                     t(S.locationSorted),
                     style = MaterialTheme.typography.labelSmall,
-                    color = HeroGreen,
+                    color = HeroOrange,
                     fontWeight = FontWeight.SemiBold
                 )
             }

@@ -68,7 +68,7 @@ import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.components.tf2
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 import com.rork.vitahero.ui.theme.HeroYellow
 import kotlinx.coroutines.Dispatchers
@@ -166,7 +166,7 @@ fun FoodRecognitionScreen(
                         .background(
                             Brush.linearGradient(
                                 if (isAnalyzing) listOf(HeroPurple, HeroBlue)
-                                else listOf(HeroGreen, HeroBlue)
+                                else listOf(HeroOrange, HeroBlue)
                             )
                         )
                         .clickable { onCaptureClick() },
@@ -212,7 +212,7 @@ fun FoodRecognitionScreen(
                                     loggedItems = loggedItems + item.name
                                 }
                             },
-                        background = if (logged) HeroGreen.copy(alpha = 0.07f) else MaterialTheme.colorScheme.surface
+                        background = if (logged) HeroOrange.copy(alpha = 0.07f) else MaterialTheme.colorScheme.surface
                     ) {
                         Row(
                             Modifier.padding(16.dp),
@@ -229,7 +229,7 @@ fun FoodRecognitionScreen(
                                 )
                             }
                             if (logged) {
-                                Icon(Icons.Outlined.Check, contentDescription = "Logged", tint = HeroGreen, modifier = Modifier.size(24.dp))
+                                Icon(Icons.Outlined.Check, contentDescription = "Logged", tint = HeroOrange, modifier = Modifier.size(24.dp))
                             } else {
                                 Box(
                                     Modifier

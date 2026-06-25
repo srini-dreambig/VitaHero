@@ -51,7 +51,7 @@ import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
-import com.rork.vitahero.ui.theme.HeroGreen
+import com.rork.vitahero.ui.theme.HeroOrange
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,12 +96,12 @@ fun AddKidScreen(
                     Modifier
                         .size(96.dp)
                         .clip(CircleShape)
-                        .background(Brush.linearGradient(listOf(HeroGreen.copy(alpha = 0.18f), HeroBlue.copy(alpha = 0.18f))))
+                        .background(Brush.linearGradient(listOf(HeroOrange.copy(alpha = 0.18f), HeroBlue.copy(alpha = 0.18f))))
                         .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape)
                         .clickable { },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.AddAPhoto, contentDescription = "Add photo", tint = HeroGreen, modifier = Modifier.size(34.dp))
+                    Icon(Icons.Outlined.AddAPhoto, contentDescription = "Add photo", tint = HeroOrange, modifier = Modifier.size(34.dp))
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -180,10 +180,10 @@ private fun GenderChip(text: String, selected: Boolean, modifier: Modifier = Mod
         modifier = modifier
             .height(56.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(if (selected) HeroGreen.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
+            .background(if (selected) HeroOrange.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
             .border(
                 width = if (selected) 2.dp else 1.dp,
-                color = if (selected) HeroGreen else MaterialTheme.colorScheme.outline,
+                color = if (selected) HeroOrange else MaterialTheme.colorScheme.outline,
                 shape = RoundedCornerShape(14.dp)
             )
             .clickable(onClick = onClick),
@@ -192,7 +192,7 @@ private fun GenderChip(text: String, selected: Boolean, modifier: Modifier = Mod
         Text(
             text,
             style = MaterialTheme.typography.titleSmall,
-            color = if (selected) HeroGreen else MaterialTheme.colorScheme.onSurface,
+            color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.SemiBold
         )
     }

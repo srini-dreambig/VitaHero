@@ -20,6 +20,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
 import androidx.credentials.CredentialManager
@@ -34,6 +35,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
+import com.rork.vitahero.data.ApiRepositoryProvider
 import com.rork.vitahero.data.AppViewModel
 import com.rork.vitahero.data.HealthConnectPermissions
 import com.rork.vitahero.data.KidsViewModel
@@ -67,10 +69,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var appViewModel: AppViewModel
     private lateinit var kidsViewModel: KidsViewModel
 
+    // Phone resolved from an invite deep link (SMS), used to prefill the sign-in screen.
+    private val invitePhoneState = mutableStateOf("")
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         NotificationScheduler.createChannels(this)
+        handleInviteDeepLink(intent)
 
         setContent {
             val app = application as VitaHeroApplication
@@ -113,11 +119,38 @@ class MainActivity : ComponentActivity() {
                 AppTheme(darkTheme = state.darkTheme) {
                     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { _ ->
                         AppNavigation(
-                            onGoogleSignInRequest = { launchGoogleSignIn() }
+                            onGoogleSignInRequest = { launchGoogleSignIn() },
+                            invitePhone = invitePhoneState.value,
                         )
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleInviteDeepLink(intent)
+    }
+
+    /**
+     * Handles invite links from the SMS landing page:
+     *  - custom scheme: vitahero://invite?token=...
+     *  - app link:      https://<host>/i/<token>
+     * Resolves the token to the registered phone and prefills the sign-in screen.
+     */
+    private fun handleInviteDeepLink(intent: Intent?) {
+        val data = intent?.data ?: return
+        val token = when {
+            data.scheme == "vitahero" -> data.getQueryParameter("token")
+            data.path?.startsWith("/i/") == true -> data.lastPathSegment
+            else -> null
+        }
+        if (token.isNullOrBlank()) return
+        lifecycleScope.launch {
+            val phone = runCatching { ApiRepositoryProvider.repository.resolveInvite(token) }.getOrNull()
+            if (!phone.isNullOrBlank()) invitePhoneState.value = phone
         }
     }
 

@@ -43,10 +43,9 @@ object AIService {
             age <= 10 -> "At age $age, $name needs plenty of protein for growth spurts. Eggs, dal, paneer, and sprouts build muscle."
             else -> "Growing teens like $name need iron-rich foods. Include green leafy veggies, dates, and jaggery daily."
         }
-        val suggestion = when {
-            kid.nutrition == HealthFlag.WATCH -> "Try adding a boiled egg or a bowl of sprout chaat to $name's evening snack."
-            kid.bmi < 14f -> "Add a handful of nuts and a banana to $name's day."
-            kid.bmi > 19.5f -> "Swap packaged snacks with cucumber/carrot sticks and roasted chana."
+        val suggestion = when (kid.nutrition) {
+            HealthFlag.WATCH -> "Try adding a boiled egg or a bowl of sprout chaat to $name's evening snack."
+            HealthFlag.ALERT -> "Swap packaged snacks with cucumber/carrot sticks and roasted chana."
             else -> "Keep up the great balance! Rotate between dal-rice, khichdi, idli-sambar, and roti-sabzi."
         }
         val funFact = listOf(
