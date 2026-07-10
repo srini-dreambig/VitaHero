@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "483837792310",
+    "project_id": "vitahero-8c5c0",
+    "storage_bucket": "vitahero-8c5c0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:483837792310:android:0c16ea3483b6e1c0d28897",
+        "android_client_info": {
+          "package_name": "kallam.healthcare"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRkecFBarBe-Z1TOPxk9eeohHhL-ZF1Kk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

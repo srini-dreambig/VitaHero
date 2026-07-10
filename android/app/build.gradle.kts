@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 import java.util.Properties
@@ -25,7 +26,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.rork.vitahero"
+        applicationId = "kallam.healthcare"
         minSdk = 26
         targetSdk = 36
         versionCode = 1
@@ -111,6 +112,12 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.mlkit.image.labeling)
     implementation(libs.androidx.work.runtime.ktx)
+
+    // Firebase
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.analytics)
+    implementation(libs.firebase.auth)
+    implementation(libs.firebase.firestore)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

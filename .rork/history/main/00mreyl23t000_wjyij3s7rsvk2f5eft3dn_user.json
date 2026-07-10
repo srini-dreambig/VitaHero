@@ -1,0 +1,14 @@
+{
+  "id": "wjyij3s7rsvk2f5eft3dn",
+  "role": "user",
+  "content": "Add the plugin as a dependency to your project-level build.gradle.kts file:\r\n\r\nRoot-level (project-level) Gradle file (<project>/build.gradle.kts):\r\nplugins {\r\n  // ...\r\n\r\n  // Add the dependency for the Google services Gradle plugin\r\n  id(\"com.google.gms.google-services\") version \"4.5.0\" apply false\r\n\r\n}\r\nThen, in your module (app-level) build.gradle.kts file, add both the google-services plugin and any Firebase SDKs that you want to use in your app:\r\n\r\nModule (app-level) Gradle file (<project>/<app-module>/build.gradle.kts):\r\nplugins {\r\n  id(\"com.android.application\")\r\n\r\n  // Add the Google services Gradle plugin\r\n  id(\"com.google.gms.google-services\")\r\n\r\n  ...\r\n}\r\n\r\ndependencies {\r\n  // Import the Firebase BoM\r\n  implementation(platform(\"com.google.firebase:firebase-bom:34.15.0\"))\r\n\r\n\r\n  // TODO: Add the dependencies for Firebase products you want to use\r\n  // When using the BoM, don't specify versions in Firebase dependencies\r\n  implementation(\"com.google.firebase:firebase-analytics\")\r\n\r\n\r\n  // Add the dependencies for any other desired Firebase products\r\n  // https://firebase.google.com/docs/android/setup#available-libraries\r\n}\r\nBy using the Firebase Android BoM, your app will always use compatible Firebase library versions. Learn more\r\nAfter adding the plugin and the desired SDKs, sync your Android project with Gradle files.",
+  "attachments": [
+    {
+      "name": "google-services.json",
+      "url": "https://r2-pub.rork.com/attachments/qzc1rb7s38z2vj8tsj7bs.json",
+      "contentType": "application/json"
+    }
+  ],
+  "sourceAttachments": [],
+  "userId": "4f525364-b2a0-4100-97b2-101e6b2e63ad"
+}
