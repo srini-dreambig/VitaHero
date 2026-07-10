@@ -13,6 +13,7 @@ private val kidPalette = listOf(0xFF10B981, 0xFF2563EB, 0xFF8B5CF6, 0xFFFB7185, 
 
 /**
  * Kids, meals, streaks, diet AI, growth, gamification, and wearables.
+ * Uses FirestoreRepository for backend data operations.
  */
 class KidsViewModel(
     application: Application,
@@ -21,7 +22,7 @@ class KidsViewModel(
 
     private val state get() = container.state
     private val auth get() = container.auth
-    private val api get() = container.api
+    private val repo get() = container.repo
 
     val meals get() = state.meals
     val streaks get() = state.streaks
@@ -161,7 +162,7 @@ class KidsViewModel(
     fun deleteKid(kidId: String, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             try {
-                if (auth.isLoggedIn.value) api.deleteKid(kidId)
+                if (auth.isLoggedIn.value) repo.deleteKid(kidId)
             } catch (e: Exception) {
                 container.reportSyncError(e)
             }
@@ -202,8 +203,7 @@ class KidsViewModel(
         viewModelScope.launch {
             val streak = streakForKid(kidId)
             val eatenCount = mealsForKid(kidId).count { it.eaten }
-            val entries = LeaderboardService.fetchLeaderboard(
-                accessToken = auth.sessionToken.value,
+            val entries = repo.fetchLeaderboard(
                 currentKidId = kidId,
                 currentKidName = kid.name,
                 localEatenMeals = eatenCount,
@@ -252,7 +252,7 @@ class KidsViewModel(
             }
             state.aiContent.update { it + (kidId to content) }
             if (content.greeting.isNotBlank() && auth.isLoggedIn.value) {
-                try { api.saveAiDietTip(kidId, content) } catch (_: Exception) { }
+                try { repo.saveAiDietTip(kidId, content) } catch (_: Exception) { }
             }
         }
     }

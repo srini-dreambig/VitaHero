@@ -8,6 +8,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Profile settings, notifications preferences, in-app notifications, and family sharing.
+ * Uses FirestoreRepository for Firestore operations.
  */
 class ProfileViewModel(
     application: Application,
@@ -16,6 +17,7 @@ class ProfileViewModel(
 
     private val state get() = container.state
     private val auth get() = container.auth
+    private val repo get() = container.repo
 
     fun scheduleAllNotifications() {
         NotificationCoordinator.scheduleAll(getApplication(), state.uiState.value)
@@ -58,7 +60,7 @@ class ProfileViewModel(
         }
         if (ids.isNotEmpty() && auth.isLoggedIn.value) {
             viewModelScope.launch {
-                try { container.api.markNotificationsRead(ids) } catch (_: Exception) { }
+                try { repo.markNotificationsRead(ids) } catch (_: Exception) { }
             }
         }
     }
@@ -79,34 +81,25 @@ class ProfileViewModel(
 
     fun joinFamily(code: String, kidsViewModel: KidsViewModel) {
         viewModelScope.launch {
-            val token = auth.sessionToken.value ?: return@launch
             val locale = state.uiState.value.locale
-            FamilySharingService.validateCode(code, token).fold(
-                onSuccess = { validation ->
-                    if (!validation.valid) {
-                        state.syncMessage.value = validation.error ?: tr(S.familyInvalid, locale)
-                        return@launch
+            repo.validateFamilyCode(code).let { validation ->
+                if (!validation.valid) {
+                    state.syncMessage.value = validation.error ?: tr(S.familyInvalid, locale)
+                    return@launch
+                }
+                repo.joinFamily(
+                    code = code,
+                    coParentName = state.uiState.value.parentName,
+                    relation = tr(S.coParentRelation, locale),
+                ).let { result ->
+                    if (result.success) {
+                        container.fetchAndApplyBackendData(viewModelScope)
+                        fetchSharedKids(kidsViewModel)
+                    } else {
+                        state.syncMessage.value = result.error ?: tr(S.familyInvalid, locale)
                     }
-                    FamilySharingService.joinFamily(
-                        code = code,
-                        coParentName = state.uiState.value.parentName,
-                        relation = tr(S.coParentRelation, locale),
-                        accessToken = token,
-                    ).onSuccess { resp ->
-                        if (resp.success) {
-                            container.fetchAndApplyBackendData(viewModelScope)
-                            fetchSharedKids(kidsViewModel)
-                        } else {
-                            state.syncMessage.value = resp.error ?: tr(S.familyInvalid, locale)
-                        }
-                    }.onFailure { e ->
-                        state.syncMessage.value = e.message ?: tr(S.syncFailed, locale)
-                    }
-                },
-                onFailure = { e ->
-                    state.syncMessage.value = e.message ?: tr(S.syncFailed, locale)
-                },
-            )
+                }
+            }
         }
     }
 
@@ -114,10 +107,9 @@ class ProfileViewModel(
         val code = state.uiState.value.familyCode
         if (code.isBlank()) return
         viewModelScope.launch {
-            val token = auth.sessionToken.value ?: return@launch
-            FamilySharingService.fetchSharedKids(code, token).onSuccess { resp ->
+            repo.fetchSharedKids(code).let { resp ->
                 if (resp.kids.isNotEmpty() && !resp.isOwner) {
-                    val sharedKids = resp.kids.map { dto ->
+                    val sharedKids = resp.kids.filter { !it.isOwnerKid }.map { dto ->
                         Kid(
                             id = dto.id, name = dto.name, age = dto.age,
                             gender = dto.gender, school = dto.school, grade = dto.grade,

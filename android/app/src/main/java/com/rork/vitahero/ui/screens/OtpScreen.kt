@@ -43,12 +43,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rork.vitahero.data.S
@@ -59,24 +57,25 @@ import com.rork.vitahero.ui.theme.HeroOrange
 import kotlinx.coroutines.delay
 
 /**
- * OTP verification screen for phone OTP via the Cloudflare Worker.
+ * OTP verification screen for Firebase Phone Auth.
+ * The verificationId is provided by Firebase Auth callbacks and passed from the Activity.
  */
 @Composable
 fun OtpScreen(
     phone: String,
-    parentName: String,
+    verificationId: String?,
     onBack: () -> Unit,
     onVerified: (code: String) -> Unit,
     onResend: (() -> Unit)? = null,
     isVerifying: Boolean = false,
     error: String? = null,
+    parentName: String = "",
     devOtp: String? = null,
 ) {
     var code by remember { mutableStateOf("") }
     var seconds by remember { mutableIntStateOf(30) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    val clipboardManager = LocalClipboardManager.current
 
     LaunchedEffect(Unit) {
         focus.requestFocus()
@@ -137,53 +136,8 @@ fun OtpScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // Dev mode OTP banner — shown when backend returns dev_otp (DEV_MODE=true)
-        if (devOtp != null) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFFEF3C7))
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    Icons.Outlined.MarkEmailRead,
-                    contentDescription = null,
-                    tint = Color(0xFF92400E),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "DEV MODE — Your OTP",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF92400E)
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        devOtp,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF78350F)
-                    )
-                }
-                TextButton(onClick = {
-                    code = devOtp
-                    clipboardManager.setText(
-                        androidx.compose.ui.text.AnnotatedString(devOtp)
-                    )
-                }) {
-                    Text("Fill", color = Color(0xFF92400E), fontWeight = FontWeight.SemiBold)
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-
         // OTP input
         Box {
-            // Invisible text field for keyboard
             BasicTextField(
                 value = code,
                 onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
@@ -257,7 +211,7 @@ fun OtpScreen(
         Spacer(Modifier.weight(1f))
         PrimaryGradientButton(
             text = if (isVerifying) t(S.pleaseWait) else t(S.verify),
-            enabled = code.length == 6 && !isVerifying,
+            enabled = code.length == 6 && !isVerifying && verificationId != null,
             onClick = { onVerified(code) },
             modifier = Modifier
                 .fillMaxWidth()

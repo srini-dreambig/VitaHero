@@ -6,13 +6,12 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 /**
- * Encrypted persistence for session token and onboarding flag only.
- * All app data lives on Neon DB — not stored locally.
+ * Encrypted persistence for onboarding flag only.
+ * Session is managed by Firebase Auth SDK — no custom session tokens.
  */
 object SessionStore {
 
     private const val PREFS = "vitahero_session"
-    private const val KEY_TOKEN = "session_token"
     private const val KEY_ONBOARDING = "onboarding_complete"
     private const val KEY_RESCHEDULE = "needs_notification_reschedule"
 
@@ -37,17 +36,6 @@ object SessionStore {
         }
     }
 
-    fun saveToken(context: Context, token: String) {
-        prefs(context).edit().putString(KEY_TOKEN, token).apply()
-    }
-
-    fun getToken(context: Context): String? =
-        prefs(context).getString(KEY_TOKEN, null)?.takeIf { it.length >= 30 }
-
-    fun clearToken(context: Context) {
-        prefs(context).edit().remove(KEY_TOKEN).apply()
-    }
-
     fun setOnboardingComplete(context: Context, complete: Boolean) {
         prefs(context).edit().putBoolean(KEY_ONBOARDING, complete).apply()
     }
@@ -61,4 +49,9 @@ object SessionStore {
 
     fun needsNotificationReschedule(context: Context): Boolean =
         prefs(context).getBoolean(KEY_RESCHEDULE, false)
+
+    /** Clears all stored data. */
+    fun clearToken(context: Context) {
+        prefs(context).edit().clear().apply()
+    }
 }

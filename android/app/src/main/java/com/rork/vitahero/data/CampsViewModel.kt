@@ -4,8 +4,10 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
+
 /**
  * School camps, partner schools, and camp registration.
+ * Uses FirestoreRepository for Firestore operations.
  */
 class CampsViewModel(
     application: Application,
@@ -14,7 +16,7 @@ class CampsViewModel(
 
     private val state get() = container.state
     private val auth get() = container.auth
-    private val api get() = container.api
+    private val repo get() = container.repo
 
     fun campById(campId: String): Camp? =
         state.uiState.value.camps.firstOrNull { it.id == campId || it.schoolCampId == campId }
@@ -22,7 +24,7 @@ class CampsViewModel(
     fun enrollInSchool(partnerCode: String, kidId: String? = null) {
         viewModelScope.launch {
             val locale = state.uiState.value.locale
-            api.enrollSchool(partnerCode, kidId).fold(
+            repo.enrollSchool(partnerCode, kidId).fold(
                 onSuccess = {
                     container.fetchAndApplyBackendData(viewModelScope)
                     state.syncMessage.value = tr(S.schoolLinked, locale).replace("%s", it.schoolName ?: "")
@@ -38,7 +40,7 @@ class CampsViewModel(
         if (!camp.isPartnerCamp) return
         viewModelScope.launch {
             val locale = state.uiState.value.locale
-            api.registerForCamp(camp.schoolCampId.ifBlank { camp.id }, kidId).fold(
+            repo.registerForCamp(camp.schoolCampId.ifBlank { camp.id }, kidId).fold(
                 onSuccess = {
                     container.fetchAndApplyBackendData(viewModelScope)
                     onScheduled()

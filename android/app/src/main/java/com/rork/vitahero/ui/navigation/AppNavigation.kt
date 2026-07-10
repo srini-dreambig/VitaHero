@@ -8,6 +8,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
@@ -47,7 +48,7 @@ object Routes {
     const val CONSENT = "consent"
     const val ONBOARDING = "onboarding"
     const val AUTH = "auth"
-    const val OTP = "otp/{phone}/{name}"
+    const val OTP = "otp/{phone}"
     const val MAIN = "main"
     const val KID_DETAIL = "kid/{kidId}"
     const val DIET = "diet/{kidId}"
@@ -74,7 +75,8 @@ private val OnboardingImages = listOf(
 
 @Composable
 fun AppNavigation(
-    onGoogleSignInRequest: () -> Unit = {},
+    onSendPhoneOtp: (phone: String) -> Unit = {},
+    onResendOtp: (phone: String) -> Unit = {},
     invitePhone: String = "",
 ) {
     val navController = rememberNavController()
@@ -91,9 +93,9 @@ fun AppNavigation(
     val authLoading by appViewModel.authLoading.collectAsState()
     val authError by appViewModel.authError.collectAsState()
     val userRole by appViewModel.role.collectAsState()
+    val verificationId by appViewModel.verificationId.collectAsState()
 
     var phone by rememberSaveable { mutableStateOf("") }
-    var pendingName by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) {
@@ -128,8 +130,6 @@ fun AppNavigation(
         composable(Routes.SPLASH) {
             SplashScreen(
                 onTimeout = {
-                    // If a session restored while the splash was showing, the top-level
-                    // effect already routed to MAIN and this destination is gone.
                     if (!isLoggedIn) {
                         navController.navigate(startDest) {
                             popUpTo(Routes.SPLASH) { inclusive = true }
@@ -177,18 +177,12 @@ fun AppNavigation(
                 isLoading = authLoading,
                 authError = authError,
                 prefilledPhone = invitePhone,
-                onSignInWithGoogle = { onGoogleSignInRequest() },
-                onSignUpWithEmail = { name, email, password ->
-                    appViewModel.signUpWithEmail(name, email, password)
-                },
-                onSignInWithEmail = { email, password ->
-                    appViewModel.signInWithEmail(email, password)
-                },
                 onContinueWithPhone = { p ->
                     phone = p
-                    pendingName = "Parent"
-                    appViewModel.sendPhoneOtp(p)
-                    navController.navigate("otp/$p/$pendingName")
+                    appViewModel.clearAuthError()
+                    onSendPhoneOtp(p)
+                    // Navigate to OTP screen — verificationId will arrive via Firebase callback
+                    navController.navigate("otp/$p")
                 },
             )
         }
@@ -197,35 +191,35 @@ fun AppNavigation(
             Routes.OTP,
             arguments = listOf(
                 navArgument("phone") { type = NavType.StringType },
-                navArgument("name") { type = NavType.StringType }
             )
         ) { backStack ->
             val p = backStack.arguments?.getString("phone").orEmpty()
-            val n = backStack.arguments?.getString("name").orEmpty()
 
             LaunchedEffect(Unit) {
                 appViewModel.clearAuthError()
-                appViewModel.clearDevOtp()
             }
 
             val otpError by appViewModel.authError.collectAsState()
             val otpVerifying by appViewModel.authLoading.collectAsState()
-            val devOtp by appViewModel.devOtp.collectAsState()
 
             OtpScreen(
                 phone = p,
-                parentName = n,
-                devOtp = devOtp,
+                verificationId = verificationId,
                 onBack = {
                     appViewModel.clearAuthError()
                     appViewModel.clearAuthLoading()
-                    appViewModel.clearDevOtp()
                     navController.popBackStack()
                 },
                 onVerified = { code ->
-                    appViewModel.verifyPhoneOtp(p, code)
+                    // Use Firebase verificationId + code
+                    val vId = verificationId
+                    if (!vId.isNullOrBlank()) {
+                        appViewModel.verifyPhoneOtp(vId, code)
+                    }
                 },
-                onResend = { appViewModel.sendPhoneOtp(p) },
+                onResend = {
+                    onResendOtp(p)
+                },
                 isVerifying = otpVerifying,
                 error = otpError
             )

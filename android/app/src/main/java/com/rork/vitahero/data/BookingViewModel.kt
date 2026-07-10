@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * Hospital directory, doctor booking, appointments, and location.
+ * Uses FirestoreRepository for user data; booking directory via Worker.
  */
 class BookingViewModel(
     application: Application,
@@ -20,7 +21,7 @@ class BookingViewModel(
 
     private val state get() = container.state
     private val auth get() = container.auth
-    private val api get() = container.api
+    private val repo get() = container.repo
 
     val bookingSlots get() = state.bookingSlots
 
@@ -28,7 +29,7 @@ class BookingViewModel(
         if (doctorId.isBlank()) return
         viewModelScope.launch {
             try {
-                val slots = api.fetchBookingSlots(doctorId).map {
+                val slots = repo.fetchBookingSlots(doctorId).map {
                     BookingTimeSlot(label = it.label, date = it.date, time = it.time)
                 }
                 state.bookingSlots.update { it + (doctorId to slots) }
@@ -47,7 +48,7 @@ class BookingViewModel(
             val lat = state.uiState.value.userLat
             val lng = state.uiState.value.userLng
             try {
-                val dto = api.fetchBookingDirectory(targetCity, lat = lat, lng = lng) ?: return@launch
+                val dto = repo.fetchBookingDirectory(targetCity, lat = lat, lng = lng) ?: return@launch
                 val directory = mapBookingDirectory(dto)
                 val flatDoctors = directory.hospitals.flatMap { it.doctors }
                 withContext(Dispatchers.Main) {
@@ -116,7 +117,7 @@ class BookingViewModel(
     fun cancelAppointment(appointmentId: String) {
         viewModelScope.launch {
             try {
-                if (auth.isLoggedIn.value) api.deleteAppointment(appointmentId)
+                if (auth.isLoggedIn.value) repo.deleteAppointment(appointmentId)
             } catch (e: Exception) {
                 container.reportSyncError(e)
             }

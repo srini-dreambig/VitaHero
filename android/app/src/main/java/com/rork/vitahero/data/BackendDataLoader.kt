@@ -1,31 +1,31 @@
 package com.rork.vitahero.data
 
 import android.app.Application
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Pulls authenticated user data from Neon and applies it to [AppStateHolder].
+ * Pulls authenticated user data from Firestore and applies it to [AppStateHolder].
+ * Uses FirestoreRepository for direct Firestore reads (no Cloudflare Worker in the path).
  */
 class BackendDataLoader(
     private val app: Application,
     private val auth: AuthManager,
-    private val api: ApiRepository,
+    private val repo: FirestoreRepository,
     private val state: AppStateHolder,
 ) {
     suspend fun fetchAndApply(onKidIdsLoaded: suspend (List<String>) -> Unit = {}) {
-        if (!ApiService.isConfigured || !auth.isLoggedIn.value) return
+        if (!auth.isLoggedIn.value) return
         if (auth.profileId.value.isBlank()) return
 
-        val profile = api.fetchMyProfile()
-        val kidDtos = api.fetchKids()
+        val profile = repo.fetchMyProfile()
+        val kidDtos = repo.fetchKids()
         val kidsFromBackend = kidDtos.map { BackendDataMapper.mapKid(it) }
 
         var allGrowthPoints = emptyMap<String, List<GrowthPoint>>()
         for (kidDto in kidDtos) {
             try {
-                val gps = api.fetchGrowthPoints(kidDto.id)
+                val gps = repo.fetchGrowthPoints(kidDto.id)
                 allGrowthPoints = allGrowthPoints + (kidDto.id to gps.map(BackendDataMapper::mapGrowthPoint))
             } catch (_: Exception) { }
         }
@@ -34,18 +34,18 @@ class BackendDataLoader(
             if (gps != null && gps.isNotEmpty()) kid.copy(growth = gps) else kid
         }
 
-        val appointmentsFromBackend = api.fetchAppointments().map { dto ->
+        val appointmentsFromBackend = repo.fetchAppointments().map { dto ->
             Appointment(
                 dto.id, dto.doctorId.orEmpty(), dto.doctorName,
                 dto.specialty, dto.kidName, dto.date, dto.time,
             )
         }
 
-        val campsFromBackend = api.fetchCamps().map(BackendDataMapper::mapCamp)
-        val mySchools = api.fetchMySchools().map(BackendDataMapper::mapMySchool)
-        val browseSchools = api.fetchSchools().map(BackendDataMapper::mapPartnerSchool)
+        val campsFromBackend = repo.fetchCamps().map(BackendDataMapper::mapCamp)
+        val mySchools = repo.fetchMySchools().map(BackendDataMapper::mapMySchool)
+        val browseSchools = repo.fetchSchools().map(BackendDataMapper::mapPartnerSchool)
 
-        val mealsFromBackend: Map<String, List<MealItem>> = api.fetchAllMeals()
+        val mealsFromBackend: Map<String, List<MealItem>> = repo.fetchAllMeals()
             .groupBy { it.kidId }
             .mapValues { (_, list) -> list.map(BackendDataMapper::mapMeal) }
 
@@ -56,7 +56,7 @@ class BackendDataLoader(
                 mealsWithBootstrap[kid.id] = plan
                 if (auth.isLoggedIn.value) {
                     try {
-                        api.upsertMeals(plan.map { meal ->
+                        repo.upsertMeals(plan.map { meal ->
                             MealItemDto(
                                 id = meal.id,
                                 profileId = auth.profileId.value,
@@ -76,7 +76,7 @@ class BackendDataLoader(
 
         val streaksFromBackend = mutableMapOf<String, StreakInfo>()
         for (kidDto in kidDtos) {
-            api.fetchStreak(kidDto.id)?.let { streak ->
+            repo.fetchStreak(kidDto.id)?.let { streak ->
                 streaksFromBackend[kidDto.id] = StreakInfo(
                     streak.currentStreak, streak.bestStreak, streak.lastLogDate,
                 )
@@ -86,7 +86,7 @@ class BackendDataLoader(
         val aiFromBackend = mutableMapOf<String, AIDietContent>()
         for (kidDto in kidDtos) {
             try {
-                api.fetchAiDietTip(kidDto.id)?.content?.let { tip ->
+                repo.fetchAiDietTip(kidDto.id)?.content?.let { tip ->
                     if (tip.greeting.isNotBlank()) {
                         aiFromBackend[kidDto.id] = AIDietContent(
                             greeting = tip.greeting,
@@ -100,7 +100,7 @@ class BackendDataLoader(
             } catch (_: Exception) { }
         }
 
-        val coParentsFromBackend = api.fetchCoParents().map { dto ->
+        val coParentsFromBackend = repo.fetchCoParents().map { dto ->
             CoParent(dto.id, dto.name, dto.relation, dto.joinedDate)
         }
 
@@ -109,12 +109,12 @@ class BackendDataLoader(
         val lat = state.uiState.value.userLat
         val lng = state.uiState.value.userLng
 
-        val bookingDto = api.fetchBookingDirectory(bookingCity, lat = lat, lng = lng)
+        val bookingDto = repo.fetchBookingDirectory(bookingCity, lat = lat, lng = lng)
         val bookingDirectory = bookingDto?.let { mapBookingDirectory(it) }
         val doctorsFromBackend = bookingDirectory?.hospitals?.flatMap { it.doctors }
-            ?: api.fetchDoctors(bookingCity).map { mapDoctorDto(it) }
+            ?: repo.fetchDoctors(bookingCity).map { mapDoctorDto(it) }
 
-        val notifDtos = api.fetchNotifications()
+        val notifDtos = repo.fetchNotifications()
         val notificationsFromBackend = notifDtos.map { dto ->
             AppNotification(
                 id = dto.id, title = dto.title, body = dto.body, time = dto.time,

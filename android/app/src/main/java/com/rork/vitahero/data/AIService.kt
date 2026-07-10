@@ -5,16 +5,20 @@ import kotlinx.coroutines.withContext
 
 /**
  * AI Diet Coach — calls the backend worker (Toolkit secrets stay server-side).
+ * Uses FirestoreRepository for the backend AI diet tip generation.
  */
 object AIService {
+
+    private val repo: FirestoreRepository? get() = ApiRepositoryProvider.firestoreRepo
 
     suspend fun generateDietTip(
         kid: Kid,
         meals: List<MealItem>,
         streak: StreakInfo,
     ): AIDietContent = withContext(Dispatchers.IO) {
-        if (ApiService.isConfigured && !ApiService.sessionToken.isNullOrBlank()) {
-            ApiRepositoryProvider.repository.generateAiDietTip(kid.id)?.content?.let { tip ->
+        val repository = repo
+        if (repository != null) {
+            repository.generateAiDietTip(kid.id)?.content?.let { tip ->
                 if (tip.greeting.isNotBlank()) {
                     return@withContext AIDietContent(
                         greeting = tip.greeting,

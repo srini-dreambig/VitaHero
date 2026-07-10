@@ -668,7 +668,7 @@ private fun HealthCheckupReportsSection(kidId: String, onOpenCheckup: (String) -
         loading = true
         try {
             checkups = withContext(Dispatchers.IO) {
-                ApiRepositoryProvider.repository.fetchHealthCheckups(kidId)
+                ApiRepositoryProvider.firestoreRepo?.fetchHealthCheckups(kidId) ?: emptyList()
             }
         } catch (_: Exception) {
             checkups = emptyList()

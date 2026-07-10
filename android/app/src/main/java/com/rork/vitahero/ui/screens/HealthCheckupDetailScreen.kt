@@ -68,7 +68,7 @@ fun HealthCheckupDetailScreen(
         loading = true
         try {
             val result = withContext(Dispatchers.IO) {
-                ApiRepositoryProvider.repository.fetchHealthCheckup(checkupId)
+                ApiRepositoryProvider.firestoreRepo?.fetchHealthCheckup(checkupId)
             }
             checkup = result
             if (result == null) error = "Checkup not found"

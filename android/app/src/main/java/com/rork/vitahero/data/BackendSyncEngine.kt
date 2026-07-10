@@ -1,11 +1,17 @@
 package com.rork.vitahero.data
 
-import java.util.UUID
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
 
 /**
- * Pushes local state to the Neon backend. Used by AppViewModel and SyncRetryWorker.
+ * Pushes local state to Firestore. Used by AppViewModel.
+ * Firestore's built-in offline persistence handles retry/queue — no custom SyncQueue needed.
  */
 object BackendSyncEngine {
+
+    private val db: FirebaseFirestore get() = FirebaseFirestore.getInstance()
+    private val auth: FirebaseAuth get() = FirebaseAuth.getInstance()
+    private val currentUid: String get() = auth.currentUser?.uid ?: ""
 
     fun buildBatch(
         entities: Set<SyncEntity>,
@@ -67,7 +73,7 @@ object BackendSyncEngine {
             state.kids.flatMap { kid ->
                 kid.growth.map { gp ->
                     GrowthPointDto(
-                        id = gp.id.ifBlank { "${kid.id}_gp_${UUID.randomUUID().toString().take(8)}" },
+                        id = gp.id.ifBlank { "${kid.id}_gp_${java.util.UUID.randomUUID().toString().take(8)}" },
                         kidId = kid.id,
                         userId = userId,
                         label = gp.label,
@@ -167,35 +173,35 @@ object BackendSyncEngine {
 
     suspend fun push(
         batch: SyncBatch,
-        api: ApiRepository = ApiRepositoryProvider.repository,
+        repo: FirestoreRepository,
     ): Result<Unit> {
-        if (!ApiService.isConfigured) {
-            return Result.failure(IllegalStateException("Backend not configured"))
-        }
+        val uid = currentUid
+        if (uid.isBlank()) return Result.failure(IllegalStateException("Not authenticated"))
+
         val entities = batch.entities()
         if (entities.isEmpty()) return Result.success(Unit)
 
         return try {
             if (SyncEntity.PROFILE in entities && batch.profile != null) {
-                api.upsertProfile(batch.profile).getOrThrow()
+                repo.upsertProfile(batch.profile)
             }
             if (SyncEntity.KIDS in entities) {
-                batch.kids.forEach { api.upsertKid(it).getOrThrow() }
+                batch.kids.forEach { repo.upsertKid(it) }
             }
             if (SyncEntity.GROWTH in entities) {
-                batch.growthPoints.forEach { api.upsertGrowthPoint(it).getOrThrow() }
+                batch.growthPoints.forEach { repo.upsertGrowthPoint(it) }
             }
             if (SyncEntity.APPOINTMENTS in entities) {
-                batch.appointments.forEach { api.upsertAppointment(it).getOrThrow() }
+                batch.appointments.forEach { repo.upsertAppointment(it) }
             }
             if (SyncEntity.MEALS in entities && batch.meals.isNotEmpty()) {
-                api.upsertMeals(batch.meals).getOrThrow()
+                repo.upsertMeals(batch.meals)
             }
             if (SyncEntity.STREAKS in entities) {
-                batch.streaks.forEach { api.upsertStreak(it).getOrThrow() }
+                batch.streaks.forEach { repo.upsertStreak(it) }
             }
             if (SyncEntity.CAMPS in entities) {
-                batch.camps.forEach { api.upsertCamp(it).getOrThrow() }
+                batch.camps.forEach { repo.upsertCamp(it) }
             }
             Result.success(Unit)
         } catch (e: Exception) {

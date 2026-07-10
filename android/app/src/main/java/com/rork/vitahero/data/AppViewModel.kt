@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * App shell: auth, consent, onboarding, sync bootstrap, session lifecycle.
+ * Uses Firebase Auth for authentication — no custom session tokens.
  */
 class AppViewModel(
     application: Application,
@@ -29,6 +30,7 @@ class AppViewModel(
     val authError: StateFlow<String?> get() = auth.authError
     val authLoading: StateFlow<Boolean> get() = auth.authLoading
     val devOtp: StateFlow<String?> get() = auth.devOtp
+    val verificationId: StateFlow<String?> get() = auth.verificationId
     val sessionToken: StateFlow<String?> get() = auth.sessionToken
     val role: StateFlow<String> get() = auth.role
 
@@ -94,12 +96,19 @@ class AppViewModel(
 
     fun completeOnboarding() = auth.completeOnboarding()
 
-    fun signInWithGoogle(idToken: String) = auth.signInWithGoogle(idToken)
-    fun signUpWithEmail(name: String, email: String, password: String) =
-        auth.signUpWithEmail(name, email, password)
-    fun signInWithEmail(email: String, password: String) = auth.signInWithEmail(email, password)
-    fun sendPhoneOtp(phone: String) = auth.sendPhoneOtp(phone)
-    fun verifyPhoneOtp(phone: String, token: String) = auth.verifyPhoneOtp(phone, token)
+    // ─── Firebase Phone Auth ───────────────────────────────────
+
+    /** Verify the OTP code with the stored verificationId. */
+    fun verifyPhoneOtp(verificationId: String, code: String) {
+        auth.verifyPhoneOtp(verificationId, code)
+    }
+
+    /** Sign in with auto-verified credential. */
+    fun signInWithCredential(credential: com.google.firebase.auth.PhoneAuthCredential) {
+        auth.signInWithCredential(credential)
+    }
+
+    fun setVerificationId(id: String) = auth.setVerificationId(id)
     fun clearAuthError() = auth.clearAuthError()
     fun clearAuthLoading() = auth.clearAuthLoading()
     fun clearDevOtp() = auth.clearDevOtp()
