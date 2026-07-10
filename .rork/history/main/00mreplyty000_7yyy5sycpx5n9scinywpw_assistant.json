@@ -1,0 +1,1122 @@
+{
+  "id": "7yyy5sycpx5n9scinywpw",
+  "role": "assistant",
+  "responseMessageContents": [
+    {
+      "type": "reasoning",
+      "text": "The user wants me to run the admin portal and give them a working Admin API Key to login. Let me first understand the project structure - this is an Android app (VitaHero) synced from a GitHub repo. I need to find if there's an admin portal / backend functions setup.\n\nLet me look at the rork.json, the functions folder, and understand how the backend works. From the previous context, I saw there was a `functions/index.ts` in the source repo. Let me investigate the backend setup and find the admin portal.",
+      "id": "rsmzhb087i4v1vzy4flmm",
+      "createdAt": 1783674058373,
+      "completedAt": 1783674062656
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-898464462f62c105",
+      "toolName": "read",
+      "input": {
+        "filePath": "rork.json"
+      },
+      "output": {
+        "path": "rork.json",
+        "content": "     1|{\n     2|  \"apps\": [\n     3|    {\n     4|      \"name\": \"VitaHero\",\n     5|      \"path\": \"android\",\n     6|      \"framework\": \"kotlin\"\n     7|    }\n     8|  ],\n     9|  \"$schema\": \"https://rork.com/schema/rork.json\"\n    10|}\n\n(End of file - total 10 lines)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"rork.json\"}",
+      "createdAt": 1783674062656,
+      "completedAt": 1783674063391
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-b8575f158afba774",
+      "toolName": "read",
+      "input": {
+        "filePath": "rork-kidhero-health/functions/index.ts"
+      },
+      "output": {
+        "path": "rork-kidhero-health/functions/index.ts",
+        "content": "     1|const LOGO_DATA_URI = \"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAABQCAYAAADSm7GJAAAe8UlEQVR42u2dZ5RdxZXvf1Un3NQ3dG6lVksgCSEhiQwSOWcxgISJhmdsPOAHzOC85o0QnoexweNEztgmScgIk00QCAw2QgihhCSrFVtqdb5907nnnKqaD7cF2G9Y7631PkyLuf8vvXqtvqfr1L/23v+9a1ddqKKKKqqooooqqqiiiv8vLDAWC4xVnYgvI7F/A0GV6C8NsUYAWMBBj5dOOOQx/9jPmDXiy060+PK9khEsQDJXqD3Etj1UmO0J+d2ccWcKoFYGb9eibv/4isQf1N98Bg3CVAkelrwawU1YzBdh5VcjDvidP6cvMNflcGfliop6p6gN0KcSsi4uSYrg7YQxt6+/IjpENDDP2NyEQnw5iN77CZ5nJLwpmX98CPDLF03krh7/grzS1+eIHjpYUjTbBX3NVJtrZ0Sl1oY7Pg7Unat90asTMu1CmuDPSVv+cl7U/f3cucKvPHeJDcdp5gtdJfi/wloXIlmD2UPAWY8NNnwSuJcUlbl6QEQnFz1Fs11U1x7giGtnuNJX8OuVHjFH8o9TXYyBX68sq7s/LotuVSOTMZs0pbUJKe+b4PiPPX9JqufTBTQFwRz03mjVYu+zVuQeNyyBQx8vT+spc8VgoC7OWrFmv+AzNl5W35rhiq9PdaWnDHev8nl6S0gQtTHGEA80F423+PoUFwnct6qs714VmC3FiBWNRUir4u6UJZ6oi1sPL7s48rH+vPuGvcqqxd5DKmqPALpmwe6at0r1Zw6E4RV5X5+clTGLkseMhlBdN90VF+3nyF5Pc88qn8XbQsquRUNjBCduIW0I85rubo+4F3DBOJuvT4mQdgVPfuLrO1Z6ZlmvbcmaJCk/r1Ku9WpS8sgZdbEXbztX5D4VcvPetPYGFy72FhdsAdMf8Q/u1ebCfKDm5EWsreyBo3Oc0WaF/3OGY53Yaov1/Yp7Vvm80hHix1xSLVESGUgYSOd6Kfb10N84CR2BsgddPeAWDWeNhKsmC/bNwNIOzF3v9qo3ul07r6LEHIuELm6LS7Gw3hFPfnxV4gP19xrgpuOGpTATw9Jih0iVwKwFpXEdBevsklIXFgNmZomCV2ZsTaAunWRx1QGubMtIsXR7wP1rfP7SCzJmEW2JkUnD5L7VjPn4OdQHb9C1aRuF488nMfM0av0CNgFhJEmfqGVz3kXlQ85N7Wbyx48h6sax7xXzzP0f5vRv1yk2DdoWbpyEzlNjyfcSjnxqXEo+t+SSWLv+T8ZeJfiLLFcIM/vnmzPr60bOzgdckPfVCVkrFjeeoUYWOGmMDL9+gCtPabNkITA8td5n4YaAdWWXdMYhXQMqLTmkfwWH/OlO8ktfon3LbkraIjmihfqmBqK924noACEEjm3hCwsdcQhDQ/9Age2bBwhmX8/h3/4FF432SUcdXt8a6Ac+KuqXNod2XsUh4pLW+WLM4o24I58+yepZfN/V+2T3vEOV4C+w3KkPFI/sNPaTBeG0lkogwwKHNRNeOtkRF0ywrea44P1dIb9bF/D6zpCCkESbaxjn9lH0fGhq4eIVPyX9hzv5aGMX/URJxF0cKRBhgAoDsF2klNiWxBICV2rQhmKoKRmLvh1ddF7/KBsPuISa3iyzRrhctp/FYWNiDBQNiz4p6YdXFvX7ndo2JLCjFikRbBkhy3PX3NC4bDhZ8jAh2AgMzHuTyD3ri6v6rfi+Y2Q+uGJ/R1440ZYT6qTYltX8fqPPs+0Bm4qSSMIm0xCFOEzy2xnx4HUsn/tLrlr7cwYXPsTHeZdY1KHGlRijURoCZSiHqmK5UhBzJbUxGyEl/YWAbClkV3eO3PjplO78gHIIfhb6soa8LzhCbOe4sRnOnRhjfK3Fpl5lHltV0A+uLKudYdpNq+zHTx/WdPDxb96kmT+/SvDfW+8hvylPXV8...\n     2|\n     3|// VitaHero Neon DB Backend — Cloudflare Worker\n     4|// Admin panel & invite page redesigned to match app brand\n     5|// Connects to Neon Postgres (vita_hero schema) for all CRUD operations.\n     6|// Updated: 2026-07-03 — admin panel uses app icon logo\n     7|// Auth delegates to Neon Auth (Better Auth) for Google OAuth + email/password.\n     8|// Phone OTP via Plivo is independent.\n     9|// Updated: 2026-06-15 — email/password + Neon Auth social sign-in (idToken exchange, no callbackURL)\n    10|\n    11|import { neon } from \"@neondatabase/serverless\";\n    12|\n    13|const SCHEMA = \"vita_hero\";\n    14|const NEON_AUTH = \"https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth\";\n    15|const APP_ORIGIN = \"https://kidhero.rork.app\";\n    16|const APP_CALLBACK_URL = \"https://kidhero.rork.app/auth/callback\";\n    17|const PLIVO_API = \"https://api.plivo.com/v1/Account\";\n    18|// Plivo source number (your purchased Plivo phone number in E.164 format).\n    19|// Override at deploy time via the PLIVO_SRC_NUMBER env var if needed.\n    20|const PLIVO_SRC_NUMBER = \"+12562828337\";\n    21|const OTP_EXPIRY_MINUTES = 5;\n    22|const OTP_MAX_ATTEMPTS = 5;\n    23|\n    24|// ── Closed-app configuration ──\n    25|// VitaHero is a closed, admin-provisioned app: parents log in by phone only and\n    26|// must have been imported by an admin first. Public self-signup is disabled.\n    27|const ANDROID_PACKAGE = \"com.rork.vitahero\";\n    28|const DEFAULT_COUNTRY_CODE = \"91\"; // India\n    29|const INVITE_EXPIRY_DAYS = 30;\n    30|const INVITE_RESEND_COOLDOWN_HOURS = 24;\n    31|const IMPORT_MAX_ROWS = 2000;\n    32|\n    33|interface Env {\n    34|  DATABASE_URL: string;\n    35|  PLIVO_AUTH_ID: string;\n    36|  PLIVO_AUTH_TOKEN: string;\n    37|  // Optional override for the Plivo source (sender) number.\n    38|  PLIVO_SRC_NUMBER?: string;\n    39|  TOOLKIT_URL?: string;\n    40|  TOOLKIT_SECRET_KEY?: string;\n    41|  // Admin import portal auth (bootstrap key; role-based admins also supported).\n    42|  ADMIN_API_KEY?: string;\n    43|  // HMAC key for stateless invite tokens.\n    44|  INVITE_SIGNING_KEY?: string;\n    45|  // Android App Links: comma-separated SHA-256 signing-cert fingerprints.\n    46|  ANDROID_CERT_SHA256?: string;\n    47|  // Play Store listing URL used as install fallback in the invite landing page.\n    48|  APP_PLAY_URL?: string;\n    49|  // ── DEV MODE ──────────────────────────────────────────────\n    50|  // Set DEV_MODE=true to bypass Plivo SMS entirely:\n    51|  //  • Any phone number can request an OTP (no admin provisioning needed).\n    52|  //  • The OTP code is returned in the /phone/send response as `dev_otp`.\n    53|  //  • A test profile is auto-provisioned on first OTP request.\n    54|  //  • Invite SMS sends are skipped (the invite link is logged instead).\n    55|  // Never enable in production — the OTP is exposed in the API response.\n    56|  DEV_MODE?: string;\n    57|}\n    58|\n    59|// ─── Helpers ────────────────────────────────────────────────\n    60|\n    61|function cors(response: Response): Response {\n    62|  const headers = new Headers(response.headers);\n    63|  headers.set(\"Access-Control-Allow-Origin\", \"*\");\n    64|  headers.set(\"Access-Control-Allow-Methods\", \"GET,POST,PUT,PATCH,DELETE,OPTIONS\");\n    65|  headers.set(\"Access-Control-Allow-Headers\", \"Content-Type,Authorization,Origin,Referer,X-Requested-With,X-Admin-Key\");\n    66|  headers.set(\"Access-Control-Max-Age\", \"86400\");\n    67|  return new Response(response.body, { status: response.status, headers });\n    68|}\n    69|\n    70|function json(data: unknown, status = 200): Response {\n    71|  return cors(new Response(JSON.stringify(data), {\n    72|    status,\n    73|    headers: { \"Content-Type\": \"application/json\" },\n    74|  }));\n    75|}\n    76|\n    77|function extractToken(request: Request): string {\n    78|  return (request.headers.get(\"Authorization\") || \"\").replace(\"Bearer \", \"\");\n    79|}\n    80|\n    81|function generateToken(): string {\n    82|  return crypto.randomUUID().replace(/-/g, \"\") + crypto.randomUUID().replace(/-/g, \"\").slice(0, 16);\n    83|}\n    84|\n    85|function generateOtp(): string {\n    86|  const array = new Uint32Array(1);\n    87|  crypto.getRandomValues(array);\n    88|  return String(100000 + (array[0] % 900000));\n    89|}\n    90|\n    91|function sanitizeProfile(row: Record<string, unknown> | null | undefined): Record<string, unknown> | null {\n    92|  if (!row) return null;\n    93|  const copy = { ...row };\n    94|  delete copy.session_token;\n    95|  return copy;\n    96|}\n    97|\n    98|async function kidOwnedByProfile(\n    99|  sql: ReturnType<typeof neon>,\n   100|  kidId: string,\n   101|  profileId: string\n   102|): Promise<boolean> {\n   103|  const rows = await sql`\n   104|    SELECT id FROM ${sql.unsafe(SCHEMA)}.kids\n   105|    WHERE id = ${kidId} AND profile_id = ${profileId} LIMIT 1\n   106|  `;\n   107|  return rows.length > 0;\n   108|}\n   109|\n   110|async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {\n   111|  await sql`CREATE SCHEMA IF NOT EXISTS ${sql.unsafe(SCHEMA)}`;\n   112|\n   113|  await sql`\n   114|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.profiles (\n   115|      id TEXT PRIMARY KEY,\n   116|      user_id TEXT,\n   117|      phone TEXT,\n   118|      name TEXT NOT NULL DEFAULT '',\n   119|      email TEXT,\n   120|      session_token TEXT,\n   121|      auth_provider TEXT,\n   122|      onboarding_complete BOOLEAN DEFAULT false,\n   123|      is_logged_in BOOLEAN DEFAULT false,\n   124|      dark_theme BOOLEAN DEFAULT false,\n   125|      locale_code TEXT DEFAULT 'en',\n   126|      family_code TEXT DEFAULT '',\n   127|      notifications_enabled BOOLEAN DEFAULT true,\n   128|      camp_reminders_enabled BOOLEAN DEFAULT true,\n   129|      consent_accepted BOOLEAN DEFAULT false,\n   130|      consent_declined BOOLEAN DEFAULT false,\n   131|      read_notification_ids JSONB DEFAULT '[]'::jsonb\n   132|    )\n   133|  `;\n   134|\n   135|  await sql`\n   136|    ALTER TABLE ${sql.unsafe(SCHEMA)}.profiles\n   137|    ADD COLUMN IF NOT EXISTS read_notification_ids JSONB DEFAULT '[]'::jsonb\n   138|  `;\n   139|\n   140|  // Closed-app: roles + admin provisioning of parents.\n   141|  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'PARENT'`;\n   142|  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS provisioned BOOLEAN DEFAULT false`;\n   143|  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invited_at TIMESTAMPTZ`;\n   144|  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invite_count INT DEFAULT 0`;\n   145|  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS school_id TEXT`;\n   146|\n   147|  await sql`\n   148|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.phone_otps (\n   149|      phone TEXT PRIMARY KEY,\n   150|      otp TEXT NOT NULL,\n   151|      expires_at TIMESTAMPTZ NOT NULL,\n   152|      attempts INT DEFAULT 0,\n   153|      last_sent_at TIMESTAMPTZ\n   154|    )\n   155|  `;\n   156|\n   157|  await sql`\n   158|    ALTER TABLE ${sql.unsafe(SCHEMA)}.phone_otps\n   159|    ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMPTZ\n   160|  `;\n   161|\n   162|  await sql`\n   163|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.kids (\n   164|      id TEXT PRIMARY KEY,\n   165|      profile_id TEXT NOT NULL,\n   166|      user_id TEXT,\n   167|      name TEXT NOT NULL,\n   168|      age INT DEFAULT 0,\n   169|      gender TEXT DEFAULT '',\n   170|      school TEXT DEFAULT '',\n   171|      grade TEXT DEFAULT '',\n   172|      height_cm DOUBLE PRECISION DEFAULT 0,\n   173|      weight_kg DOUBLE PRECISION DEFAULT 0,\n   174|      avatar_color BIGINT DEFAULT 0,\n   175|      overall_score INT DEFAULT 80,\n   176|      dental TEXT DEFAULT 'GOOD',\n   177|      eyesight TEXT DEFAULT 'GOOD',\n   178|      nutrition TEXT DEFAULT 'GOOD',\n   179|      last_checkup TEXT DEFAULT 'Not yet'\n   180|    )\n   181|  `;\n   182|\n   183|  // Closed-app: stable identity for idempotent re-imports + provenance.\n   184|  await sql`ALTER TABLE vita_hero.kids ADD COLUMN IF NOT EXISTS student_ref TEXT`;\n   185|  await sql`ALTER TABLE vita_hero.kids ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'PARENT'`;\n   186|  await sql`\n   187|    CREATE UNIQUE INDEX IF NOT EXISTS kids_profile_studentref\n   188|    ON vita_hero.kids(profile_id, student_ref) WHERE student_ref IS NOT NULL\n   189|  `;\n   190|\n   191|  await sql`\n   192|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.appointments (\n   193|      id TEXT PRIMARY KEY,\n   194|      profile_id TEXT NOT NULL,\n   195|      user_id TEXT,\n   196|      doctor_name TEXT NOT NULL,\n   197|      doctor_id TEXT,\n   198|      specialty TEXT DEFAULT '',\n   199|      kid_name TEXT DEFAULT '',\n   200|      date TEXT NOT NULL,\n   201|      time TEXT NOT NULL\n   202|    )\n   203|  `;\n   204|\n   205|  await sql`ALTER TABLE ${sql.unsafe(SCHEMA)}.appointments ADD COLUMN IF NOT EXISTS doctor_id TEXT`;\n   206|\n   207|  await sql`\n   208|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.camps (\n   209|      id TEXT PRIMARY KEY,\n   210|      profile_id TEXT NOT NULL,\n   211|      user_id TEXT,\n   212|      title TEXT NOT NULL,\n   213|      school TEXT DEFAULT '',\n   214|      date TEXT NOT NULL,\n   215|      time TEXT DEFAULT '',\n   216|      status TEXT DEFAULT 'UPCOMING',\n   217|      checks JSONB DEFAULT '[]'::jsonb,\n   218|      result_summary TEXT\n   219|    )\n   220|  `;\n   221|\n   222|  await sql`\n   223|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.meal_items (\n   224|      id TEXT PRIMARY KEY,\n   225|      profile_id TEXT NOT NULL,\n   226|      user_id TEXT,\n   227|      kid_id TEXT NOT NULL,\n   228|      time_slot TEXT DEFAULT '',\n   229|      name TEXT NOT NULL,\n   230|      detail TEXT DEFAULT '',\n   231|      kcal INT DEFAULT 0,\n   232|      eaten BOOLEAN DEFAULT false\n   233|    )\n   234|  `;\n   235|\n   236|  await sql`\n   237|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.streaks (\n   238|      kid_id TEXT PRIMARY KEY,\n   239|      user_id TEXT,\n   240|      current_streak INT DEFAULT 0,\n   241|      best_streak INT DEFAULT 0,\n   242|      last_log_date TEXT DEFAULT ''\n   243|    )\n   244|  `;\n   245|\n   246|  await sql`\n   247|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.growth_points (\n   248|      id TEXT PRIMARY KEY,\n   249|      kid_id TEXT NOT NULL,\n   250|      user_id TEXT,\n   251|      label TEXT DEFAULT '',\n   252|      height DOUBLE PRECISION DEFAULT 0,\n   253|      weight DOUBLE PRECISION DEFAULT 0,\n   254|      recorded_at TIMESTAMPTZ DEFAULT NOW()\n   255|    )\n   256|  `;\n   257|\n   258|  await sql`\n   259|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.co_parents (\n   260|      id TEXT PRIMARY KEY,\n   261|      profile_id TEXT NOT NULL,\n   262|      user_id TEXT,\n   263|      name TEXT NOT NULL,\n   264|      relation TEXT DEFAULT '',\n   265|      joined_date TEXT DEFAULT ''\n   266|    )\n   267|  `;\n   268|\n   269|  await sql`\n   270|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.doctors (\n   271|      id TEXT PRIMARY KEY,\n   272|      name TEXT NOT NULL,\n   273|      specialty TEXT NOT NULL,\n   274|      hospital TEXT DEFAULT '',\n   275|      city TEXT DEFAULT 'Hyderabad',\n   276|      rating DOUBLE PRECISION DEFAULT 4.5,\n   277|      active BOOLEAN DEFAULT true\n   278|    )\n   279|  `;\n   280|\n   281|  const docCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql.unsafe(SCHEMA)}.doctors`;\n   282|  if ((docCount[0]?.c as number) === 0) {\n   283|    const doctors = [\n   284|      [\"d1\", \"Dr. Ananya Rao\", \"Paediatrics\", \"Rainbow Children's Hospital\", 4.9],\n   285|      [\"d2\", \"Dr. Vikram Reddy\", \"Dental\", \"Apollo Cradle\", 4.7],\n   286|      [\"d3\", \"Dr. Meera Iyer\", \"Ophthalmology\", \"LV Prasad Eye Institute\", 4.8],\n   287|      [\"d4\", \"Dr. Karthik Nair\", \"Nutrition\", \"KIMS Hospital\", 4.6],\n   288|      [\"d5\", \"Dr. Priya Sharma\", \"General Paediatrics\", \"Continental Hospitals\", 4.5],\n   289|    ] as const;\n   290|    for (const [id, name, specialty, hospital, rating] of doctors) {\n   291|      await sql`\n   292|        INSERT INTO ${sql.unsafe(SCHEMA)}.doctors (id, name, specialty, hospital, rating)\n   293|        VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})\n   294|        ON CONFLICT (id) DO NOTHING\n   295|      `;\n   296|    }\n   297|  }\n   298|\n   299|  await sql`\n   300|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.ai_diet_tips (\n   301|      kid_id TEXT PRIMARY KEY,\n   302|      profile_id TEXT NOT NULL,\n   303|      content JSONB NOT NULL,\n   304|      generated_at TIMESTAMPTZ DEFAULT NOW()\n   305|    )\n   306|  `;\n   307|\n   308|  await sql`\n   309|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.schools (\n   310|      id TEXT PRIMARY KEY,\n   311|      name TEXT NOT NULL,\n   312|      city TEXT DEFAULT 'Hyderabad',\n   313|      district TEXT DEFAULT '',\n   314|      partner_code TEXT NOT NULL UNIQUE,\n   315|      contact_email TEXT DEFAULT '',\n   316|      description TEXT DEFAULT '',\n   317|      active BOOLEAN DEFAULT true\n   318|    )\n   319|  `;\n   320|\n   321|  await sql`\n   322|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.school_enrollments (\n   323|      id TEXT PRIMARY KEY,\n   324|      profile_id TEXT NOT NULL,\n   325|      school_id TEXT NOT NULL,\n   326|      kid_id TEXT,\n   327|      status TEXT DEFAULT 'ACTIVE',\n   328|      enrolled_at TIMESTAMPTZ DEFAULT NOW(),\n   329|      UNIQUE (profile_id, school_id)\n   330|    )\n   331|  `;\n   332|\n   333|  await sql`\n   334|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.school_camps (\n   335|      id TEXT PRIMARY KEY,\n   336|      school_id TEXT NOT NULL,\n   337|      title TEXT NOT NULL,\n   338|      description TEXT DEFAULT '',\n   339|      date TEXT NOT NULL,\n   340|      time TEXT DEFAULT '',\n   341|      status TEXT DEFAULT 'UPCOMING',\n   342|      checks JSONB DEFAULT '[]'::jsonb,\n   343|      grades JSONB DEFAULT '[]'::jsonb,\n   344|      capacity INT DEFAULT 200,\n   345|      registered_count INT DEFAULT 0,\n   346|      result_summary TEXT,\n   347|      active BOOLEAN DEFAULT true\n   348|    )\n   349|  `;\n   350|\n   351|  await sql`\n   352|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.camp_registrations (\n   353|      id TEXT PRIMARY KEY,\n   354|      profile_id TEXT NOT NULL,\n   355|      school_camp_id TEXT NOT NULL,\n   356|      kid_id TEXT NOT NULL,\n   357|      registered_at TIMESTAMPTZ DEFAULT NOW(),\n   358|      UNIQUE (profile_id, school_camp_id, kid_id)\n   359|    )\n   360|  `;\n   361|\n   362|  await sql`\n   363|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.camp_kid_results (\n   364|      id TEXT PRIMARY KEY,\n   365|      profile_id TEXT NOT NULL,\n   366|      school_camp_id TEXT NOT NULL,\n   367|      kid_id TEXT NOT NULL,\n   368|      dental TEXT DEFAULT 'GOOD',\n   369|      eyesight TEXT DEFAULT 'GOOD',\n   370|      nutrition TEXT DEFAULT 'GOOD',\n   371|      height_cm DOUBLE PRECISION,\n   372|      weight_kg DOUBLE PRECISION,\n   373|      recorded_at TIMESTAMPTZ DEFAULT NOW(),\n   374|      UNIQUE (school_camp_id, kid_id)\n   375|    )\n   376|  `;\n   377|\n   378|  // Closed-app: admin import audit + SMS invite ledger.\n   379|  await sql`\n   380|    CREATE TABLE IF NOT EXISTS vita_hero.import_batches (\n   381|      id TEXT PRIMARY KEY,\n   382|      admin_id TEXT DEFAULT '',\n   383|      filename TEXT DEFAULT '',\n   384|      total INT DEFAULT 0,\n   385|      created INT DEFAULT 0,\n   386|      updated INT DEFAULT 0,\n   387|      skipped INT DEFAULT 0,\n   388|      errors INT DEFAULT 0,\n   389|      invited INT DEFAULT 0,\n   390|      dry_run BOOLEAN DEFAULT false,\n   391|      created_at TIMESTAMPTZ DEFAULT NOW()\n   392|    )\n   393|  `;\n   394|  await sql`\n   395|    CREATE TABLE IF NOT EXISTS vita_hero.sms_log (\n   396|      id TEXT PRIMARY KEY,\n   397|      phone TEXT NOT NULL,\n   398|      type TEXT DEFAULT 'INVITE',\n   399|      status TEXT DEFAULT 'SENT',\n   400|      sent_at TIMESTAMPTZ DEFAULT NOW()\n   401|    )\n   402|  `;\n   403|\n   404|  // ── Doctor system: per-camp credentials + health checkup forms ──\n   405|  // doctor_camp_assignments links a doctor profile to one or more camps.\n   406|  await sql`\n   407|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.doctor_camp_assignments (\n   408|      id TEXT PRIMARY KEY,\n   409|      doctor_profile_id TEXT NOT NULL,\n   410|      school_camp_id TEXT NOT NULL,\n   411|      role TEXT DEFAULT 'DOCTOR',\n   412|      status TEXT DEFAULT 'ACTIVE',\n   413|      assigned_at TIMESTAMPTZ DEFAULT NOW(),\n   414|      UNIQUE (doctor_profile_id, school_camp_id)\n   415|    )\n   416|  `;\n   417|\n   418|  // health_checkups stores comprehensive screening form data as JSONB.\n   419|  // One row per kid per camp (doctor can update an existing record).\n   420|  await sql`\n   421|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.health_checkups (\n   422|      id TEXT PRIMARY KEY,\n   423|      kid_id TEXT NOT NULL,\n   424|      school_camp_id TEXT NOT NULL,\n   425|      doctor_profile_id TEXT NOT NULL,\n   426|      doctor_name TEXT DEFAULT '',\n   427|      form_data JSONB NOT NULL DEFAULT '{}'::jsonb,\n   428|      summary TEXT DEFAULT '',\n   429|      referral_needed BOOLEAN DEFAULT false,\n   430|      referral_notes TEXT DEFAULT '',\n   431|      overall_status TEXT DEFAULT 'GOOD',\n   432|      recorded_at TIMESTAMPTZ DEFAULT NOW(),\n   433|      updated_at TIMESTAMPTZ DEFAULT NOW(),\n   434|      UNIQUE (kid_id, school_camp_id)\n   435|    )\n   436|  `;\n   437|\n   438|  await ensureHospitalPartnerships(sql);\n   439|  await seedPartnerSchools(sql);\n   440|  await linkCampHospitals(sql);\n   441|}\n   442|\n   443|function generateDoctorSlots(\n   444|  doctorId: string,\n   445|  bookedKeys: Set<string>,\n   446|): Array<{ date: string; time: string; label: string }> {\n   447|  const slots: Array<{ date: string; time: string; label: string }> = [];\n   448|  const now = new Date();\n   449|  const times = [\"10:00 AM\", \"11:00 AM\", \"04:30 PM\", \"05:15 PM\"];\n   450|  const dayNames = [\"Sun\", \"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\", \"Sat\"];\n   451|  const monthNames = [\"Jan\", \"Feb\", \"Mar\", \"Apr\", \"May\", \"Jun\", \"Jul\", \"Aug\", \"Sep\", \"Oct\", \"Nov\", \"Dec\"];\n   452|\n   453|  for (let offset = 1; offset <= 21 && slots.length < 12; offset++) {\n   454|    const day = new Date(now);\n   455|    day.setDate(day.getDate() + offset);\n   456|    if (day.getDay() === 0) continue;\n   457|    const dateStr = `${String(day.getDate()).padStart(2, \"0\")} ${monthNames[day.getMonth()]} ${day.getFullYear()}`;\n   458|    const dayLabel = dayNames[day.getDay()];\n   459|    for (const time of times) {\n   460|      const key = `${doctorId}|${dateStr}|${time}`;\n   461|      if (bookedKeys.has(key)) continue;\n   462|      slots.push({\n   463|        date: dateStr,\n   464|        time,\n   465|        label: `${dayLabel}, ${time}`,\n   466|      });\n   467|      if (slots.length >= 12) break;\n   468|    }\n   469|  }\n   470|  return slots;\n   471|}\n   472|\n   473|async function seedPartnerSchools(sql: ReturnType<typeof neon>): Promise<void> {\n   474|  const schoolCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql.unsafe(SCHEMA)}.schools`;\n   475|  if ((schoolCount[0]?.c as number) > 0) return;\n   476|\n   477|  const schools = [\n   478|    [\"sch_oak\", \"Oakridge International School\", \"Hyderabad\", \"Gachibowli\", \"OAK2026\", \"health@oakridge.in\", \"Partner since 2024 · Full annual screening programme\"],\n   479|    [\"sch_dps\", \"Delhi Public School Hyderabad\", \"Hyderabad\", \"Khajaguda\", \"DPS2026\", \"nurse@dpshyd.com\", \"Vision, dental & nutrition camps every term\"],\n   480|    [\"sch_jgs\", \"Johnson Grammar School\", \"Hyderabad\", \"Habsiguda\", \"JGS2026\", \"wellness@jgs.edu.in\", \"IAP-aligned growth monitoring\"],\n   481|    [\"sch_chirec\", \"CHIREC International School\", \"Hyderabad\", \"Kondapur\", \"CHI2026\", \"health@chirec.in\", \"WHO growth charts integrated with camp results\"],\n   482|  ] as const;\n   483|\n   484|  for (const [id, name, city, district, code, email, desc] of schools) {\n   485|    await sql`\n   486|      INSERT INTO ${sql.unsafe(SCHEMA)}.schools (id, name, city, district, partner_code, contact_email, description)\n   487|      VALUES (${id}, ${name}, ${city}, ${district}, ${code}, ${email}, ${desc})\n   488|      ON CONFLICT (id) DO NOTHING\n   489|    `;\n   490|  }\n   491|\n   492|  const now = new Date();\n   493|  const fmt = (d: Date) =>\n   494|    d.toLocaleDateString(\"en-GB\", { day: \"2-digit\", month: \"short\", year: \"numeric\" });\n   495|  const d14 = new Date(now); d14.setDate(d14.getDate() + 14);\n   496|  const d28 = new Date(now); d28.setDate(d28.getDate() + 28);\n   497|  const d45 = new Date(now); d45.setDate(d45.getDate() + 45);\n   498|  const d60 = new Date(now); d60.setDate(d60.getDate() - 30);\n   499|\n   500|  const campHospitalById: Record<string, string> = {\n   501|    sc_oak_1: \"hosp_rainbow\",\n   502|    sc_oak_2: \"hosp_kims\",\n   503|    sc_oak_past: \"hosp_rainbow\",\n   504|    sc_dps_1: \"hosp_lvp\",\n   505|    sc_jgs_1: \"hosp_rainbow\",\n   506|    sc_chirec_1: \"hosp_continental\",\n   507|  };\n   508|\n   509|  const camps = [\n   510|    [\"sc_oak_1\", \"sch_oak\", \"Annual Health & Growth Camp\", \"Full IAP screening: height, weight, BMI percentile, dental, vision, Hb\", fmt(d14), \"9:00 AM – 1:00 PM\", \"UPCOMING\", [\"Height & Weight\", \"BMI Percentile\", \"Dental\", \"Eye Test\", \"Hemoglobin\"], [\"Class 1\", \"Class 2\", \"Class 3\", \"Class 4\", \"Class 5\"], 250, null],\n   511|    [\"sc_oak_2\", \"sch_oak\", \"Nutrition & Anaemia Camp\", \"Focus on iron deficiency and BMI-for-age screening\", fmt(d45), \"10:00 AM – 12:30 PM\", \"UPCOMING\", [\"Nutrition\", \"Hemoglobin\", \"BMI\"], [\"Class 6\", \"Class 7\", \"Class 8\"], 180, null],\n   512|    [\"sc_dps_1\", \"sch_dps\", \"Vision & Dental Screening\", \"School-wide eye and dental check for primary grades\", fmt(d28), \"8:30 AM – 12:00 PM\", \"UPCOMING\", [\"Dental\", \"Eye Test\"], [\"Nursery\", \"Class 1\", \"Class 2\", \"Class 3\"], 300, null],\n   513|    [\"sc_jgs_1\", \"sch_jgs\", \"Growth Monitoring Day\", \"WHO/IAP growth charts with paediatrician review\", fmt(d45), \"9:00 AM – 2:00 PM\", \"UPCOMING\", [\"Height & Weight\", \"Growth Percentile\", \"Nutrition\"], [\"Class 4\", \"Class 5\", \"Class 6\"], 200, null],\n   514|    [\"sc_chirec_1\", \"sch_chirec\", \"Comprehensive Health Camp\", \"Multi-specialty camp with follow-up booking\", fmt(d14), \"9:00 AM – 3:00 PM\", \"UPCOMING\", [\"Height & Weight\", \"Dental\", \"Eye Test\", \"Nutrition\", \"General\"], [\"All grades\"], 400, null],\n   515|    [\"sc_oak_past\", \"sch_oak\", \"Mid-Term Dental Check\", \"Completed screening — 3 follow-ups recommended\", fmt(d60), \"10:00 AM – 12:00 PM\", \"COMPLETED\", [\"Dental\"], [\"Class 3\", \"Class 4\"], 120, \"142 children screened · 3 follow-ups recommended\"],\n   516|  ] as const;\n   517|\n   518|  for (const [id, schoolId, title, desc, date, time, status, checks, grades, cap, summary] of camps) {\n   519|    const hospitalId = campHospitalById[id] || null;\n   520|    await sql`\n   521|      INSERT INTO ${sql.unsafe(SCHEMA)}.school_camps\n   522|        (id, school_id, title, description, date, time, status, checks, grades, capacity, result_summary, hospital_id)\n   523|      VALUES (\n   524|        ${id}, ${schoolId}, ${title}, ${desc}, ${date}, ${time}, ${status},\n   525|        ${JSON.stringify(checks)}::jsonb, ${JSON.stringify(grades)}::jsonb,\n   526|        ${cap}, ${summary}, ${hospitalId}\n   527|      )\n   528|      ON CONFLICT (id) DO NOTHING\n   529|    `;\n   530|  }\n   531|}\n   532|\n   533|function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {\n   534|  const R = 6371;\n   535|  const toRad = (d: number) => (d * Math.PI) / 180;\n   536|  const dLat = toRad(lat2 - lat1);\n   537|  const dLng = toRad(lng2 - lng1);\n   538|  const a =\n   539|    Math.sin(dLat / 2) ** 2 +\n   540|    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;\n   541|  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));\n   542|}\n   543|\n   544|function kidBmi(heightCm: number, weightKg: number): number {\n   545|  const m = heightCm / 100;\n   546|  return m > 0 ? weightKg / (m * m) : 0;\n   547|}\n   548|\n   549|function stableHash(input: string): number {\n   550|  let h = 0;\n   551|  for (let i = 0; i < input.length; i++) {\n   552|    h = (Math.imul(31, h) + input.charCodeAt(i)) | 0;\n   553|  }\n   554|  return Math.abs(h);\n   555|}\n   556|\n   557|function nutritionFlagFromBmi(bmi: number): string {\n   558|  if (bmi <= 0) return \"GOOD\";\n   559|  if (bmi < 14) return \"WATCH\";\n   560|  if (bmi > 19.5) return \"ALERT\";\n   561|  if (bmi < 15 || bmi > 18) return \"WATCH\";\n   562|  return \"GOOD\";\n   563|}\n   564|\n   565|function deriveCampFlags(\n   566|  kid: Record<string, unknown>,\n   567|  checks: string[],\n   568|  campId: string,\n   569|  resultSummary: string | null\n   570|): { dental: string; eyesight: string; nutrition: string; height_cm: number; weight_kg: number } {\n   571|  const heightCm = Number(kid.height_cm) || 0;\n   572|  const weightKg = Number(kid.weight_kg) || 0;\n   573|  const bmi = kidBmi(heightCm, weightKg);\n   574|  const seed = stableHash(`${kid.id}:${campId}`);\n   575|  const checkText = checks.join(\" \").toLowerCase();\n   576|\n   577|  let dental = (kid.dental as string) || \"GOOD\";\n   578|  let eyesight = (kid.eyesight as string) || \"GOOD\";\n   579|  let nutrition = nutritionFlagFromBmi(bmi);\n   580|\n   581|  if (checkText.includes(\"dental\")) {\n   582|    if (resultSummary?.toLowerCase().includes(\"follow-up\")) {\n   583|      dental = seed % 7 === 0 ? \"ALERT\" : seed % 3 === 0 ? \"WATCH\" : \"GOOD\";\n   584|    } else {\n   585|      dental = seed % 11 === 0 ? \"WATCH\" : \"GOOD\";\n   586|    }\n   587|  }\n   588|  if (checkText.includes(\"eye\")) {\n   589|    eyesight = seed % 13 === 0 ? \"WATCH\" : \"GOOD\";\n   590|  }\n   591|  if (\n   592|    checkText.includes(\"nutrition\") ||\n   593|    checkText.includes(\"hemoglobin\") ||\n   594|    checkText.includes(\"bmi\")\n   595|  ) {\n   596|    if (bmi > 0 && bmi < 14) nutrition = \"WATCH\";\n   597|    if (bmi > 19.5) nutrition = \"ALERT\";\n   598|    else if (seed % 9 === 0 && nutrition === \"GOOD\") nutrition = \"WATCH\";\n   599|  }\n   600|\n   601|  const heightAdj = heightCm > 0 ? Math.round(heightCm + (seed % 3) - 1) : heightCm;\n   602|  const weightAdj =\n   603|    weightKg > 0 ? Math.round((weightKg + ((seed % 5) - 2) * 0.1) * 10) / 10 : weightKg;\n   604|\n   605|  return {\n   606|    dental,\n   607|    eyesight,\n   608|    nutrition,\n   609|    height_cm: heightAdj || heightCm,\n   610|    weight_kg: weightAdj || weightKg,\n   611|  };\n   612|}\n   613|\n   614|async function ensureCampKidResults(\n   615|  sql: ReturnType<typeof neon>,\n   616|  profileId: string\n   617|): Promise<void> {\n   618|  const pending = await sql`\n   619|    SELECT cr.kid_id, cr.school_camp_id, sc.checks, sc.date, sc.status, sc.result_summary\n   620|    FROM ${sql.unsafe(SCHEMA)}.camp_registrations cr\n   621|    JOIN ${sql.unsafe(SCHEMA)}.school_camps sc ON sc.id = cr.school_camp_id\n   622|    WHERE cr.profile_id = ${profileId}\n   623|      AND sc.status = 'COMPLETED'\n   624|      AND NOT EXISTS (\n   625|        SELECT 1 FROM ${sql.unsafe(SCHEMA)}.camp_kid_results ckr\n   626|        WHERE ckr.kid_id = cr.kid_id AND ckr.school_camp_id = cr.school_camp_id\n   627|      )\n   628|  `;\n   629|\n   630|  for (const row of pending) {\n   631|    const kidRows = await sql`\n   632|      SELECT * FROM ${sql.unsafe(SCHEMA)}.kids\n   633|      WHERE id = ${row.kid_id as string} AND profile_id = ${profileId}\n   634|      LIMIT 1\n   635|    `;\n   636|    if (kidRows.length === 0) continue;\n   637|\n   638|    const checks = Array.isArray(row.checks)\n   639|      ? (row.checks as string[])\n   640|      : JSON.parse(String(row.checks || \"[]\"));\n   641|    const flags = deriveCampFlags(\n   642|      kidRows[0] as Record<string, unknown>,\n   643|      checks,\n   644|      row.school_camp_id as string,\n   645|      (row.result_summary as string) || null\n   646|    );\n   647|    const resultId = `ckr_${row.school_camp_id}_${row.kid_id}`;\n   648|    await sql`\n   649|      INSERT INTO ${sql.unsafe(SCHEMA)}.camp_kid_results\n   650|        (id, profile_id, school_camp_id, kid_id, dental, eyesight, nutrition, height_cm, weight_kg)\n   651|      VALUES (\n   652|        ${resultId}, ${profileId}, ${row.school_camp_id}, ${row.kid_id},\n   653|        ${flags.dental}, ${flags.eyesight}, ${flags.nutrition},\n   654|        ${flags.height_cm}, ${flags.weight_kg}\n   655|      )\n   656|      ON CONFLICT (school_camp_id, kid_id) DO NOTHING\n   657|    `;\n   658|  }\n   659|}\n   660|\n   661|async function mergeCampResultsIntoKids(\n   662|  sql: ReturnType<typeof neon>,\n   663|  profileId: string\n   664|): Promise<void> {\n   665|  await ensureCampKidResults(sql, profileId);\n   666|  await sql`\n   667|    UPDATE ${sql.unsafe(SCHEMA)}.kids k SET\n   668|      dental = COALESCE(l.dental, k.dental),\n   669|      eyesight = COALESCE(l.eyesight, k.eyesight),\n   670|      nutrition = COALESCE(l.nutrition, k.nutrition),\n   671|      last_checkup = COALESCE(l.camp_date, k.last_checkup),\n   672|      height_cm = CASE WHEN l.height_cm > 0 THEN l.height_cm ELSE k.height_cm END,\n   673|      weight_kg = CASE WHEN l.weight_kg > 0 THEN l.weight_kg ELSE k.weight_kg END,\n   674|      overall_score = CASE\n   675|        WHEN l.dental = 'ALERT' OR l.eyesight = 'ALERT' OR l.nutrition = 'ALERT' THEN LEAST(k.overall_score, 58)\n   676|        WHEN l.dental = 'WATCH' OR l.eyesight = 'WATCH' OR l.nutrition = 'WATCH' THEN LEAST(k.overall_score, 72)\n   677|        ELSE GREATEST(k.overall_score, 80)\n   678|      END\n   679|    FROM (\n   680|      SELECT DISTINCT ON (ckr.kid_id)\n   681|        ckr.kid_id,\n   682|        ckr.dental,\n   683|        ckr.eyesight,\n   684|        ckr.nutrition,\n   685|        ckr.height_cm,\n   686|        ckr.weight_kg,\n   687|        sc.date AS camp_date\n   688|      FROM ${sql.unsafe(SCHEMA)}.camp_kid_results ckr\n   689|      JOIN ${sql.unsafe(SCHEMA)}.school_camps sc ON sc.id = ckr.school_camp_id\n   690|      WHERE ckr.profile_id = ${profileId}\n   691|      ORDER BY ckr.kid_id, ckr.recorded_at DESC\n   692|    ) l\n   693|    WHERE k.id = l.kid_id AND k.profile_id = ${profileId}\n   694|  `;\n   695|}\n   696|\n   697|async function callToolkitDietTip(\n   698|  env: Env,\n   699|  kid: Record<string, unknown>,\n   700|  meals: Record<string, unknown>[],\n   701|  streak: Record<string, unknown> | null\n   702|): Promise<Record<string, string> | null> {\n   703|  const toolkitUrl = (env.TOOLKIT_URL || \"\").replace(/\\/$/, \"\");\n   704|  const toolkitKey = env.TOOLKIT_SECRET_KEY || \"\";\n   705|  if (!toolkitUrl || !toolkitKey) return null;\n   706|\n   707|  const eatenCount = meals.filter((m) => m.eaten).length;\n   708|  const totalKcal = meals\n   709|    .filter((m) => m.eaten)\n   710|    .reduce((sum, m) => sum + (Number(m.kcal) || 0), 0);\n   711|  const mealNames = meals.map((m) => `${m.name} (${m.kcal} kcal)`).join(\", \");\n   712|  const heightCm = Number(kid.height_cm) || 0;\n   713|  const weightKg = Number(kid.weight_kg) || 0;\n   714|  const currentStreak = Number(streak?.current_streak) || 0;\n   715|  const bestStreak = Number(streak?.best_streak) || 0;\n   716|\n   717|  const systemPrompt = [\n   718|    \"You are a pediatric nutrition coach for VitaHero, an Indian child health app.\",\n   719|    \"Give culturally relevant, actionable diet tips for Indian parents.\",\n   720|    \"Focus on Indian foods: dal, roti, rice, sabzi, idli, dosa, poha, paneer, ragi, curd, sprouts.\",\n   721|    'Respond ONLY with valid JSON: {\"greeting\":\"...\", \"insight\":\"...\", \"suggestion\":\"...\", \"funFact\":\"...\"}',\n   722|    \"Keep each field 1-2 sentences max. No markdown, no extra text.\",\n   723|  ].join(\"\\n\");\n   724|\n   725|  const userLines = [\n   726|    `Child: ${kid.name}, ${kid.age} years, ${kid.gender}`,\n   727|    `Height: ${heightCm} cm, Weight: ${weightKg} kg, Health Score: ${kid.overall_score}/100`,\n   728|    `Dental: ${kid.dental}, Nutrition: ${kid.nutrition}`,\n   729|    `Meals (${eatenCount}/${meals.length} eaten, ${totalKcal} kcal): ${mealNames}`,\n   730|    `Streak: ${currentStreak} days (best ${bestStreak})`,\n   731|  ];\n   732|  if (kid.nutrition === \"WATCH\") {\n   733|    userLines.push(\"Nutrition needs attention — suggest calorie-dense, iron and protein rich Indian foods.\");\n   734|  }\n   735|  if (kid.nutrition === \"ALERT\") {\n   736|    userLines.push(\"Nutrition is a concern — recommend a balanced, fibre-rich Indian diet and a pediatric check-up.\");\n   737|  }\n   738|  userLines.push(\"Generate a personalised Indian diet coaching tip as JSON.\");\n   739|\n   740|  const resp = await fetch(`${toolkitUrl}/v2/vercel/v1/chat/completions`, {\n   741|    method: \"POST\",\n   742|    headers: {\n   743|      Authorization: `Bearer ${toolkitKey}`,\n   744|      \"Content-Type\": \"application/json\",\n   745|    },\n   746|    body: JSON.stringify({\n   747|      model: \"openai/gpt-4.1-nano\",\n   748|      messages: [\n   749|        { role: \"system\", content: systemPrompt },\n   750|        { role: \"user\", content: userLines.join(\"\\n\") },\n   751|      ],\n   752|      temperature: 0.7,\n   753|      max_tokens: 400,\n   754|    }),\n   755|  });\n   756|\n   757|  if (!resp.ok) return null;\n   758|  const data = (await resp.json()) as {\n   759|    choices?: Array<{ message?: { content?: string } }>;\n   760|  };\n   761|  const raw = data.choices?.[0]?.message?.content?.trim() || \"\";\n   762|  if (!raw) return null;\n   763|\n   764|  try {\n   765|    return JSON.parse(raw) as Record<string, string>;\n   766|  } catch {\n   767|    const jsonBlock = raw.includes(\"```\")\n   768|      ? raw.split(\"```json\").pop()?.split(\"```\")[0]?.trim() || raw\n   769|      : raw;\n   770|    try {\n   771|      return JSON.parse(jsonBlock) as Record<string, string>;\n   772|    } catch {\n   773|      return null;\n   774|    }\n   775|  }\n   776|}\n   777|\n   778|async function callToolkitFoodVision(\n   779|  env: Env,\n   780|  imageDataUrl: string\n   781|): Promise<Array<{ name: string; kcal: number; confidence: number }> | null> {\n   782|  const toolkitUrl = (env.TOOLKIT_URL || \"\").replace(/\\/$/, \"\");\n   783|  const toolkitKey = env.TOOLKIT_SECRET_KEY || \"\";\n   784|  if (!toolkitUrl || !toolkitKey) return null;\n   785|\n   786|  const systemPrompt = [\n   787|    \"You are a food recognition assistant for VitaHero, an Indian child-nutrition app.\",\n   788|    \"Identify the edible food and drink items visible in the photo.\",\n   789|    \"Prefer specific names (e.g. 'Dates', 'Banana', 'Idli & Sambar', 'Dal & Rice', 'Curd Rice').\",\n   790|    \"Estimate calories (kcal) for a typical child-sized serving of what is shown.\",\n   791|    \"Return ONLY valid JSON of this exact shape, up to 5 items, most likely first:\",\n   792|    '{\"items\":[{\"name\":\"...\",\"kcal\":123,\"confidence\":0.0}]}',\n   793|    'confidence is 0.0-1.0. If no food is visible, return {\"items\":[]}. No markdown, no extra text.',\n   794|  ].join(\"\\n\");\n   795|\n   796|  const resp = await fetch(`${toolkitUrl}/v2/vercel/v1/chat/completions`, {\n   797|    method: \"POST\",\n   798|    headers: {\n   799|      Authorization: `Bearer ${toolkitKey}`,\n   800|      \"Content-Type\": \"application/json\",\n   801|    },\n   802|    body: JSON.stringify({\n   803|      model: \"openai/gpt-4.1-mini\",\n   804|      messages: [\n   805|        { role: \"system\", content: systemPrompt },\n   806|        {\n   807|          role: \"user\",\n   808|          content: [\n   809|            {\n   810|              type: \"text\",\n   811|              text: \"Identify the foods in this photo and estimate calories. Respond as JSON only.\",\n   812|            },\n   813|            { type: \"image_url\", image_url: { url: imageDataUrl } },\n   814|          ],\n   815|        },\n   816|      ],\n   817|      temperature: 0.2,\n   818|      max_tokens: 500,\n   819|    }),\n   820|  });\n   821|\n   822|  if (!resp.ok) return null;\n   823|  const data = (await resp.json()) as {\n   824|    choices?: Array<{ message?: { content?: string } }>;\n   825|  };\n   826|  let raw = data.choices?.[0]?.message?.content?.trim() || \"\";\n   827|  if (!raw) return null;\n   828|  if (raw.includes(\"```\")) {\n   829|    raw =\n   830|      raw.split(\"```json\").pop()?.split(\"```\")[0]?.trim() ||\n   831|      raw.replace(/```/g, \"\").trim();\n   832|  }\n   833|  try {\n   834|    const parsed = JSON.parse(raw) as {\n   835|      items?: Array<{ name?: unknown; kcal?: unknown; confidence?: unknown }>;\n   836|    };\n   837|    const items = Array.isArray(parsed.items) ? parsed.items : [];\n   838|    return items\n   839|      .map((it) => ({\n   840|        name: String(it.name || \"\").trim(),\n   841|        kcal: Math.max(0, Math.round(Number(it.kcal) || 0)),\n   842|        confidence: Math.min(1, Math.max(0, Number(it.confidence) || 0.6)),\n   843|      }))\n   844|      .filter((it) => it.name.length > 0)\n   845|      .slice(0, 5);\n   846|  } catch {\n   847|    return null;\n   848|  }\n   849|}\n   850|\n   851|async function ensureHospitalPartnerships(sql: ReturnType<typeof neon>): Promise<void> {\n   852|  await sql`\n   853|    CREATE TABLE IF NOT EXISTS ${sql.unsafe(SCHEMA)}.hospitals (\n   854|      id TEXT PRIMARY KEY,\n   855|      name TEXT NOT NULL,\n   856|      city TEXT DEFAULT 'Hyderabad',\n   857|      district TEXT DEFAULT '',\n   858|      address TEXT DEFAULT '',\n   859|      lat DOUBLE PRECISION,\n   860|      lng DOUBLE PRECISION,\n   861|      phone TEXT DEFAULT '',\n   862|      rating DOUBLE PRECISION DEFAULT 4.5,\n   863|      is_camp_partner BOOLEAN DEFAULT false,\n   864|      active BOOLEAN DEFAULT true\n   865|    )\n   866|  `;\n   867|\n   868|  await sql`ALTER TABLE ${sql.unsafe(SCHEMA)}.doctors ADD COLUMN IF NOT EXISTS hospital_id TEXT`;\n   869|  await sql`ALTER TABLE ${sql.unsafe(SCHEMA)}.school_camps ADD COLUMN IF NOT EXISTS hospital_id TEXT`;\n   870|\n   871|  const hospitals = [\n   872|    [\"hosp_rainbow\", \"Rainbow Children's Hospital\", \"Hyderabad\", \"Gachibowli\", \"Road No. 2, Gachibowli\", 17.4401, 78.3489, \"+91 40 4244 2222\", 4.9, true],\n   873|    [\"hosp_apollo\", \"Apollo Cradle & Children's Hospital\", \"Hyderabad\", \"Jubilee Hills\", \"Road No. 36, Jubilee Hills\", 17.4239, 78.4738, \"+91 40 2355 1234\", 4.8, true],\n   874|    [\"hosp_lvp\", \"LV Prasad Eye Institute\", \"Hyderabad\", \"Banjara Hills\", \"Kallam Anji Reddy Campus, Banjara Hills\", 17.4125, 78.4482, \"+91 40 3061 2345\", 4.8, true],\n   875|    [\"hosp_kims\", \"KIMS Hospital\", \"Hyderabad\", \"Secunderabad\", \"1-112 / 86, Survey No 5, Kondapur\", 17.4399, 78.4983, \"+91 40 4488 5000\", 4.6, true],\n   876|    [\"hosp_continental\", \"Continental Hospitals\", \"Hyderabad\", \"Gachibowli\", \"Plot No. 3, Road No. 2, Gachibowli\", 17.4435, 78.3772, \"+91 40 6700 0000\", 4.7, true],\n   877|    [\"hosp_smile\", \"Smile Care Dental Clinic\", \"Hyderabad\", \"Banjara Hills\", \"Road No. 12, Banjara Hills\", 17.4158, 78.4487, \"+91 40 2335 6789\", 4.7, true],\n   878|    [\"hosp_care\", \"Care Hospital\", \"Hyderabad\", \"Banjara Hills\", \"Road No. 10, Banjara Hills\", 17.4122, 78.4489, \"+91 40 3041 4141\", 4.5, false],\n   879|    [\"hosp_yashoda\", \"Yashoda Hospitals\", \"Hyderabad\", \"Somajiguda\", \"Raj Bhavan Road, Somajiguda\", 17.4231, 78.4578, \"+91 40 4567 4567\", 4.6, false],\n   880|  ] as const;\n   881|\n   882|  for (const [id, name, city, district, address, lat, lng, phone, rating, isPartner] of hospitals) {\n   883|    await sql`\n   884|      INSERT INTO ${sql.unsafe(SCHEMA)}.hospitals\n   885|        (id, name, city, district, address, lat, lng, phone, rating, is_camp_partner)\n   886|      VALUES (${id}, ${name}, ${city}, ${district}, ${address}, ${lat}, ${lng}, ${phone}, ${rating}, ${isPartner})\n   887|      ON CONFLICT (id) DO UPDATE SET\n   888|        name = EXCLUDED.name,\n   889|        city = EXCLUDED.city,\n   890|        district = EXCLUDED.district,\n   891|        address = EXCLUDED.address,\n   892|        lat = EXCLUDED.lat,\n   893|        lng = EXCLUDED.lng,\n   894|        phone = EXCLUDED.phone,\n   895|        rating = EXCLUDED.rating,\n   896|        is_camp_partner = EXCLUDED.is_camp_partner\n   897|    `;\n   898|  }\n   899|\n   900|  const extraDoctors = [\n   901|    [\"d6\", \"Dr. Lakshmi Devi\", \"Paediatrics\", \"Rainbow Children's Hospital\", \"hosp_rainbow\", 4.8],\n   902|    [\"d7\", \"Dr. Rohit Verma\", \"Ophthalmology\", \"Continental Hospitals\", \"hosp_continental\", 4.7],\n   903|    [\"d8\", \"Dr. Anjali Mehta\", \"Dental\", \"Smile Care Dental Clinic\", \"hosp_smile\", 4.7],\n   904|    [\"d9\", \"Dr. Suresh Kumar\", \"Nutrition\", \"Apollo Cradle & Children's Hospital\", \"hosp_apollo\", 4.8],\n   905|    [\"d10\", \"Dr. Deepa Singh\", \"General Paediatrics\", \"Care Hospital\", \"hosp_care\", 4.5],\n   906|  ] as const;\n   907|\n   908|  for (const [id, name, specialty, hospital, hospitalId, rating] of extraDoctors) {\n   909|    await sql`\n   910|      INSERT INTO ${sql.unsafe(SCHEMA)}.doctors (id, name, specialty, hospital, hospital_id, rating)\n   911|      VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${hospitalId}, ${rating})\n   912|      ON CONFLICT (id) DO UPDATE SET\n   913|        hospital_id = EXCLUDED.hospital_id,\n   914|        hospital = EXCLUDED.hospital\n   915|    `;\n   916|  }\n   917|\n   918|  await sql`\n   919|    UPDATE ${sql.unsafe(SCHEMA)}.doctors SET hospital_id = 'hosp_rainbow'\n   920|    WHERE id = 'd1' AND (hospital_id IS NULL OR hospital_id = '')\n   921|  `;\n   922|  await sql`\n   923|    UPDATE ${sql.unsafe(SCHEMA)}.doctors SET hospital_id = 'hosp_apollo'\n   924|    WHERE id = 'd2' AND (hospital_id IS NULL OR hospital_id = '')\n   925|  `;\n   926|  await sql`\n   927|    UPDATE ${sql.unsafe(SCHEMA)}.doctors SET hospital_id = 'hosp_lvp'\n   928|    WHERE id = 'd3' AND (hospital_id IS NULL OR hospital_id = '')\n   929|  `;\n   930|  await sql`\n   931|    UPDATE ${sql.unsafe(SCHEMA)}.doctors SET hospital_id = 'hosp_kims'\n   932|    WHERE id = 'd4' AND (hospital_id IS NULL OR hospital_id = '')\n   933|  `;\n   934|  await sql`\n   935|    UPDATE ${sql.unsafe(SCHEMA)}.doctors SET hospital_id = 'hosp_continental'\n   936|    WHERE id = 'd5' AND (hospital_id IS NULL OR hospital_id = '')\n   937|  `;\n   938|}\n   939|\n   940|async function linkCampHospitals(sql: ReturnType<typeof neon>): Promise<void> {\n   941|  const campHospitalLinks: Record<string, string> = {\n   942|    sc_oak_1: \"hosp_rainbow\",\n   943|    sc_oak_2: \"hosp_kims\",\n   944|    sc_oak_past: \"hosp_rainbow\",\n   945|    sc_dps_1: \"hosp_lvp\",\n   946|    sc_jgs_1: \"hosp_rainbow\",\n   947|    sc_chirec_1: \"hosp_continental\",\n   948|  };\n   949|\n   950|  for (const [campId, hospitalId] of Object.entries(campHospitalLinks)) {\n   951|    await sql`\n   952|      UPDATE ${sql.unsafe(SCHEMA)}.school_camps\n   953|      SET hospital_id = ${hospitalId}\n   954|      WHERE id = ${campId} AND (hospital_id IS NULL OR hospital_id = '')\n   955|    `;\n   956|  }\n   957|}\n   958|\n   959|async function getFamilyOwnerId(\n   960|  sql: ReturnType<typeof neon>,\n   961|  familyCode: string,\n   962|  fallbackProfileId: string\n   963|): Promise<string> {\n   964|  if (!familyCode) return fallbackProfileId;\n   965|  const owners = await sql`\n   966|    SELECT p.id FROM ${sql.unsafe(SCHEMA)}.profiles p\n   967|    WHERE p.family_code = ${familyCode}\n   968|      AND EXISTS (SELECT 1 FROM ${sql.unsafe(SCHEMA)}.kids k WHERE k.profile_id = p.id)\n   969|    ORDER BY p.id\n   970|    LIMIT 1\n   971|  `;\n   972|  if (owners.length > 0) return owners[0].id as string;\n   973|  const any = await sql`\n   974|    SELECT id FROM ${sql.unsafe(SCHEMA)}.profiles\n   975|    WHERE family_code = ${familyCode}\n   976|    ORDER BY id\n   977|    LIMIT 1\n   978|  `;\n   979|  return (any[0]?.id as string) || fallbackProfileId;\n   980|}\n   981|\n   982|function anonymizeLeaderboardName(name: string, rank: number, isYou: boolean): string {\n   983|  if (isYou) return name;\n   984|  return `Hero #${rank}`;\n   985|}\n   986|\n   987|// ─── Session Auth ───────────────────────────────────────────\n   988|\n   989|async function authenticateSession(\n   990|  sql: ReturnType<typeof neon>,\n   991|  token: string\n   992|): Promise<{ profileId: string; userId: string; name: string; role: string } | null> {\n   993|  if (!token || token.length < 30) return null;\n   994|  try {\n   995|    const rows = await sql`\n   996|      SELECT id, user_id, name, role FROM ${sql.unsafe(SCHEMA)}.profiles\n   997|      WHERE session_token = ${token} LIMIT 1\n   998|    `;\n   999|    if (rows.length === 0) return null;\n  1000|    return {\n  1001|      profileId: rows[0].id,\n  1002|      userId: rows[0].user_id || \"\",\n  1003|      name: rows[0].name,\n  1004|      role: (rows[0].role as string) || \"PARENT\",\n  1005|    };\n  1006|  } catch {\n  1007|    return null;\n  1008|  }\n  1009|}\n  1010|\n  1011|// ─── Dev mode helper ───────────────────────────────────────\n  1012|\n  1013|/** True when DEV_MODE env var is set to \"true\" / \"1\" / \"yes\". */\n  1014|function isDevMode(env: Env): boolean {\n  1015|  const v = (env.DEV_MODE || \"\").trim().toLowerCase();\n  1016|  return v === \"true\" || v === \"1\" || v === \"yes\";\n  1017|}\n  1018|\n  1019|// ─── Plivo SMS ─────────────────────────────────────────────\n  1020|\n  1021|async function sendPlivoSms(\n  1022|  env: Env,\n  1023|  to: string,\n  1024|  text: string\n  1025|): Promise<boolean> {\n  1026|  // Dev mode: skip SMS delivery entirely, log the message.\n  1027|  if (isDevMode(env)) {\n  1028|    console.log(`[DEV_MODE] SMS to ${to}: ${text}`);\n  1029|    return true;\n  1030|  }\n  1031|  const authId = env.PLIVO_AUTH_ID;\n  1032|  const authToken = env.PLIVO_AUTH_TOKEN;\n  1033|  if (!authId || !authToken) {\n  1034|    console.error(\"Plivo credentials not configured\");\n  1035|    return false;\n  1036|  }\n  1037|  const src = env.PLIVO_SRC_NUMBER || PLIVO_SRC_NUMBER;\n  1038|  try {\n  1039|    const resp = await fetch(\n  1040|      `${PLIVO_API}/${authId}/Message/`,\n  1041|      {\n  1042|        method: \"POST\",\n  1043|        headers: {\n  1044|          Authorization: \"Basic \" + btoa(`${authId}:${authToken}`),\n  1045|          \"Content-Type\": \"application/json\",\n  1046|        },\n  1047|        body: JSON.stringify({\n  1048|          src,\n  1049|          dst: to,\n  1050|          text,\n  1051|        }),\n  1052|      }\n  1053|    );\n  1054|    if (!resp.ok) {\n  1055|      const errBody = await resp.text().catch(() => \"\");\n  1056|      console.error(`Plivo send failed (${resp.status}):`, errBody);\n  1057|    }\n  1058|    return resp.ok;\n  1059|  } catch (e) {\n  1060|    console.error(\"Plivo send error:\", e);\n  1061|    return false;\n  1062|  }\n  1063|}\n  1064|\n  1065|// ─── Closed-app helpers (provisioning, admin auth, invites) ──\n  1066|\n  1067|/** Normalize a raw phone string into E.164 + the 10-digit local key. */\n  1068|function normalizePhone(raw: string | undefined | null): { e164: string; last10: string } | null {\n  1069|  if (!raw) return null;\n  1070|  const hadPlus = raw.trim().startsWith(\"+\");\n  1071|  const digits = raw.replace(/\\D/g, \"\");\n  1072|  if (digits.length < 10) return null;\n  1073|  const last10 = digits.slice(-10);\n  1074|  // Preserve an explicit country code if one was provided, else default.\n  1075|  let cc = DEFAULT_COUNTRY_CODE;\n  1076|  if (digits.length > 10) cc = digits.slice(0, digits.length - 10);\n  1077|  else if (hadPlus) cc = \"\"; // already E.164-ish without national digits — unlikely\n  1078|  const e164 = `+${cc || DEFAULT_COUNTRY_CODE}${last10}`;\n  1079|  return { e164, last10 };\n  1080|}\n  1081|\n  1082|function profileIdForPhone(last10: string): string {\n  1083|  return `ph_${last10}`;\n  1084|}\n  1085|\n  1086|function slugify(s: string): string {\n  1087|  return (s || \"\").toLowerCase().replace(/[^a-z0-9]+/g, \"-\").replace(/^-+|-+$/g, \"\").slice(0, 40);\n  1088|}\n  1089|\n  1090|/** Stable per-child identity so re-imports across camps update the same kid row. */\n  1091|function buildStudentRef(\n  1092|  provided: string | undefined,\n  1093|  last10: string,\n  1094|  name: string,\n  1095|  dobOrAge: string\n  1096|): string {\n  1097|  const explicit = (provided || \"\").trim();\n  1098|  if (explicit) return `sid_${slugify(explicit)}`;\n  1099|  return `auto_${last10}_${slugify(name)}_${slugify(dobOrAge || \"na\")}`;\n  1100|}\n  1101|\n  1102|function b64urlEncode(bytes: ArrayBuffer | Uint8Array): string {\n  1103|  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);\n  1104|  let bin = \"\";\n  1105|  for (const b of arr) bin += String.fromCharCode(b);\n  1106|  return btoa(bin).replace(/\\+/g, \"-\").replace(/\\//g, \"_\").replace(/=+$/, \"\");\n  1107|}\n  1108|\n  1109|function b64urlToString(s: string): string {\n  1110|  const pad = s.length % 4 === 0 ? \"\" : \"=\".repeat(4 - (s.length % 4));\n  1111|  return atob(s.replace(/-/g, \"+\").replace(/_/g, \"/\") + pad);\n  1112|}\n  1113|\n\n(Output truncated at 50 KB. Use 'offset' parameter to read beyond line 1113)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"rork-kidhero-health/functions/index.ts\"}",
+      "createdAt": 1783674062659,
+      "completedAt": 1783674063395
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-b930e699b6a3a587",
+      "toolName": "bash",
+      "input": {
+        "command": "ls -la rork-kidhero-health/ && echo \"---FUNCTIONS---\" && ls -la rork-kidhero-health/functions/ 2>/dev/null && echo \"---ROOT---\" && ls -la"
+      },
+      "output": {
+        "stdout": "total 25\ndrwxr-xr-x 5 user user 4096 Jul 10 08:52 .\ndrwxr-xr-x 6 user user 4096 Jul 10 08:54 ..\n-rw-r--r-- 1 user user 1138 Jul 10 08:52 .env.example\n-rw-r--r-- 1 user user   44 Jul 10 08:52 .git\n-rw-r--r-- 1 user user  115 Jul 10 08:52 .gitignore\ndrwxr-xr-x 4 user user 4096 Jul 10 08:52 android\ndrwxr-xr-x 2 user user 4096 Jul 10 08:52 functions\n-rw-r--r-- 1 user user  260 Jul 10 08:52 rork.json\ndrwxr-xr-x 2 user user   60 Jul 10 08:52 tools\n---FUNCTIONS---\ntotal 324\ndrwxr-xr-x 2 user user   4096 Jul 10 08:52 .\ndrwxr-xr-x 5 user user   4096 Jul 10 08:52 ..\n-rw-r--r-- 1 user user   1577 Jul 10 08:52 .dev.vars.example\n-rw-r--r-- 1 user user    396 Jul 10 08:52 bun.lock\n-rw-r--r-- 1 user user 195412 Jul 10 08:52 index.ts\n-rw-r--r-- 1 user user    158 Jul 10 08:52 package.json\n-rw-r--r-- 1 user user 110660 Jul 10 08:52 vitahero_logo_512.base64.txt\n---ROOT---\ntotal 29\ndrwxr-xr-x  6 user user 4096 Jul 10 08:54 .\ndrwx------  7 user user 4096 Jul 10 09:00 ..\ndrwxr-xr-x 10 user user 4096 Jul 10 09:00 .git\n-rw-r--r--  1 user user   30 Jul 10 08:52 .gitignore\n-rw-r--r--  1 user user  142 Jul 10 08:52 .gitmodules\ndrwxr-xr-x  4 user user  128 Jul 10 09:00 .rork\ndrwxr-xr-x  6 user user 4096 Jul 10 09:00 android\ndrwxr-xr-x  5 user user 4096 Jul 10 08:52 rork-kidhero-health\n-rw-r--r--  1 user user  161 Jul 10 08:54 rork.json\n",
+        "stderr": "",
+        "exitCode": 0
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"command\": \"ls -la rork-kidhero-health/ && echo \\\"---FUNCTIONS---\\\" && ls -la rork-kidhero-health/functions/ 2>/dev/null && echo \\\"---ROOT---\\\" && ls -la\"}",
+      "createdAt": 1783674062662,
+      "completedAt": 1783674063423
+    },
+    {
+      "type": "reasoning",
+      "text": "The user wants me to run the admin portal and give them a working Admin API Key to login. Let me look at the backend functions more carefully to understand the admin portal and how the ADMIN_API_KEY works.\n\nLet me read more of the functions/index.ts file, specifically looking for the admin portal routes and how the ADMIN_API_KEY is used. Let me also check the backend skill to understand how to deploy this.\n\nLet me look at the admin portal section of the code and the .env.example file.",
+      "id": "wnce9045rxfgh49tsksuk",
+      "createdAt": 1783674066670,
+      "completedAt": 1783674068414
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-9bc62e313ee609b7",
+      "toolName": "read",
+      "input": {
+        "filePath": "rork-kidhero-health/.env.example"
+      },
+      "output": {
+        "path": "rork-kidhero-health/.env.example",
+        "content": "     1|# VitaHero environment variables\n     2|# ─────────────────────────────────────────────────────────────\n     3|# Android (android/local.properties or CI env)\n     4|# ─────────────────────────────────────────────────────────────\n     5|RORK_FUNCTIONS_URL=https://kidhero-health-backend.rork.app\n     6|GOOGLE_WEB_CLIENT_ID=\n     7|RORK_API_BASE_URL=\n     8|RORK_AUTH_URL=\n     9|PROJECT_ID=\n    10|TEAM_ID=\n    11|\n    12|# ─────────────────────────────────────────────────────────────\n    13|# Cloudflare Worker secrets (Rork dashboard / functions/.dev.vars)\n    14|# ─────────────────────────────────────────────────────────────\n    15|DATABASE_URL=\n    16|TWILIO_ACCOUNT_SID=\n    17|TWILIO_AUTH_TOKEN=\n    18|TOOLKIT_URL=https://toolkit.rork.app\n    19|TOOLKIT_SECRET_KEY=\n\n(End of file - total 19 lines)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"rork-kidhero-health/.env.example\"}",
+      "createdAt": 1783674068415,
+      "completedAt": 1783674069551
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-b062c1b281f02646",
+      "toolName": "read",
+      "input": {
+        "filePath": "rork-kidhero-health/functions/.dev.vars.example"
+      },
+      "output": {
+        "path": "rork-kidhero-health/functions/.dev.vars.example",
+        "content": "     1|# Cloudflare Worker secrets (set in Rork dashboard or `wrangler secret put`)\n     2|# Copy to functions/.dev.vars for local worker testing — never commit real values.\n     3|\n     4|DATABASE_URL=postgresql://user:pass@host/neondb?sslmode=require\n     5|PLIVO_AUTH_ID=\n     6|PLIVO_AUTH_TOKEN=\n     7|# Your purchased Plivo phone number in E.164 format (e.g. +12562828337)\n     8|PLIVO_SRC_NUMBER=\n     9|\n    10|# Rork Toolkit — used server-side for AI diet tips (NOT in the Android app)\n    11|TOOLKIT_URL=https://toolkit.rork.app\n    12|TOOLKIT_SECRET_KEY=\n    13|\n    14|# Closed-app admin import + invites\n    15|# ADMIN_API_KEY doubles as the login credential for the web admin portal\n    16|# (visit https://kidhero-health-backend.rork.app/admin and paste this key).\n    17|# It also lets you create admin accounts via POST /api/auth/signup with\n    18|# the X-Admin-Key header.\n    19|ADMIN_API_KEY=\n    20|# HMAC key used to sign stateless invite tokens (keep separate from ADMIN_API_KEY).\n    21|INVITE_SIGNING_KEY=\n    22|# Android App Links: comma-separated SHA-256 signing-cert fingerprints.\n    23|ANDROID_CERT_SHA256=\n    24|# Optional Play Store URL used as the install fallback on the invite landing page.\n    25|APP_PLAY_URL=\n    26|\n    27|# ── DEV MODE (testing without a purchased Plivo number) ──────\n    28|# Set DEV_MODE=true to bypass Plivo SMS entirely:\n    29|#  • Any phone number can request an OTP (no admin provisioning needed).\n    30|#  • The OTP code is returned in the /phone/send response as dev_otp.\n    31|#  • A test profile is auto-provisioned on first OTP request.\n    32|#  • Invite SMS sends are skipped (the invite link is logged instead).\n    33|# NEVER enable in production — the OTP is exposed in the API response.\n    34|DEV_MODE=\n\n(End of file - total 34 lines)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"rork-kidhero-health/functions/.dev.vars.example\"}",
+      "createdAt": 1783674068799,
+      "completedAt": 1783674069557
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-a3e64a299646adac",
+      "toolName": "grep",
+      "input": {
+        "pattern": "ADMIN_API_KEY|admin|/admin|adminLogin|admin-panel|adminPortal",
+        "path": "rork-kidhero-health/functions/index.ts"
+      },
+      "output": {
+        "pattern": "ADMIN_API_KEY|admin|/admin|adminLogin|admin-panel|adminPortal",
+        "results": [
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 6,
+            "line": "// Updated: 2026-07-03 — admin panel uses app icon logo"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 25,
+            "line": "// VitaHero is a closed, admin-provisioned app: parents log in by phone only and"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 26,
+            "line": "// must have been imported by an admin first. Public self-signup is disabled."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 41,
+            "line": "  // Admin import portal auth (bootstrap key; role-based admins also supported)."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 42,
+            "line": "  ADMIN_API_KEY?: string;"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 51,
+            "line": "  //  • Any phone number can request an OTP (no admin provisioning needed)."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 140,
+            "line": "  // Closed-app: roles + admin provisioning of parents."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 378,
+            "line": "  // Closed-app: admin import audit + SMS invite ledger."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 382,
+            "line": "      admin_id TEXT DEFAULT '',"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1065,
+            "line": "// ─── Closed-app helpers (provisioning, admin auth, invites) ──"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1128,
+            "line": "  const secret = env.INVITE_SIGNING_KEY || env.ADMIN_API_KEY;"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1140,
+            "line": "  const secret = env.INVITE_SIGNING_KEY || env.ADMIN_API_KEY;"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1154,
+            "line": "/** Admin gate: ADMIN_API_KEY header (bootstrap) OR a role=ADMIN session. */"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1159,
+            "line": "): Promise<{ adminId: string } | null> {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1161,
+            "line": "  if (env.ADMIN_API_KEY && headerKey && headerKey === env.ADMIN_API_KEY) {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1162,
+            "line": "    return { adminId: \"apikey\" };"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1166,
+            "line": "    return { adminId: session.profileId };"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1238,
+            "line": "  opts: { dryRun: boolean; sendInvites: boolean; filename: string; adminId: string; appOrigin: string }"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1326,
+            "line": "        // Provision the parent profile (no session, never downgrade an admin)."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1417,
+            "line": "        (id, admin_id, filename, total, created, updated, skipped, errors, invited, dry_run)"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1418,
+            "line": "      VALUES (${report.batchId}, ${opts.adminId}, ${opts.filename}, ${report.total},"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1580,
+            "line": "    if (path === \"/admin\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1740,
+            "line": "      <label class=\"field-label\" for=\"adminKeyInput\">Admin API Key</label>"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1741,
+            "line": "      <input type=\"password\" id=\"adminKeyInput\" placeholder=\"Enter your admin key\" onkeydown=\"if(event.key==='Enter')doLogin()\">"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1743,
+            "line": "      <div class=\"err\" id=\"loginErr\">Invalid admin key. Please try again.</div>"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1848,
+            "line": "var adminKey=localStorage.getItem('vitahero_admin_key')||'';"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1849,
+            "line": "function api(m,p,b){var o={method:m,headers:{'Content-Type':'application/json','X-Admin-Key':adminKey}};if(b)o.body=JSON.stringify(b);return fetch(p,o).then(function(r){if(!r.ok)return r.json().then(function(e){throw new Error(e.error||('HTTP '+r.status))});return r.json()})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1850,
+            "line": "function doLogin(){var k=document.getElementById('adminKeyInput').value.trim();if(!k)return;adminKey=k;api('GET','/api/admin/stats').then(function(){localStorage.setItem('vitahero_admin_key',adminKey);document.getElementById('loginScreen').style.display='none';document.getElementById('mainApp').style.display='block';loadOverview();checkDevMode()}).catch(function(){adminKey='';document.getElementById('loginErr').style.display='block'})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1851,
+            "line": "function doLogout(){localStorage.removeItem('vitahero_admin_key');adminKey='';location.reload()}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1852,
+            "line": "if(adminKey){api('GET','/api/admin/stats').then(function(){document.getElementById('loginScreen').style.display='none';document.getElementById('mainApp').style.display='block';loadOverview();checkDevMode()}).catch(function(){adminKey=''})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1855,
+            "line": "function loadOverview(){api('GET','/api/admin/stats').then(function(d){document.getElementById('stat-parents').textContent=d.provisionedParents||0;document.getElementById('stat-active').textContent=d.activeParents||0;document.getElementById('stat-kids').textContent=d.importedKids||0;document.getElementById('stat-invites').textContent=d.invitesSent||0}).catch(function(){})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1858,
+            "line": "function doImport(){var csv=document.getElementById('csvInput').value.trim();if(!csv){alert('Please paste CSV data first.');return}var rows=parseCSV(csv);if(rows.length===0){alert('No data rows found in CSV.');return}if(rows.length>2000){alert('Too many rows (max 2000). Split the file.');return}var dry=document.getElementById('dryRun').checked;var inv=document.getElementById('sendInvites').checked;if(!dry&&!confirm('Import '+rows.length+' rows'+(inv?' and send SMS invitations':'')+'?'))return;var btn=document.getElementById('importBtn');btn.disabled=true;btn.textContent=dry?'Processing (dry run)...':'Importing...';api('POST','/api/admin/import',{rows:rows,dryRun:dry,sendInvites:dry?false:inv,filename:'admin_panel_'+new Date().toISOString().slice(0,10)}).then(function(r){btn.disabled=false;btn.textContent='Import Data';showImportResults(r);if(!dry)loadOverview()}).catch(function(e){btn.disabled=false;btn.textContent='Import Data';alert('Import failed: '+e.message)})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1860,
+            "line": "function loadParents(){var s=document.getElementById('parentSearch').value.trim();var qs=s?('?q='+encodeURIComponent(s)):'';document.getElementById('parentsTable').innerHTML='<div class=\"loading\"><div class=\"spinner\"></div></div>';api('GET','/api/admin/parents'+qs).then(function(rows){if(!rows||rows.length===0){document.getElementById('parentsTable').innerHTML='<p style=\"text-align:center;padding:28px;color:var(--ink-soft)\">No provisioned parents found.</p>';return}var h='<table><thead><tr><th>Phone</th><th>Parent Name</th><th>School</th><th>Kids</th><th>Invited</th><th>Status</th><th>Action</th></tr></thead><tbody>';for(var i=0;i<rows.length;i++){var p=rows[i];var inv=p.invited_at?'<span class=\"badge green\">Yes ('+(p.invite_count||0)+')</span>':'<span class=\"badge gray\">No</span>';var st=p.is_logged_in?'<span class=\"badge green\">Active</span>':'<span class=\"badge amber\">Pending</span>';var btn=p.invited_at?'Re-send':'Send Invite';h+='<tr><td>'+(p.phone||'')+'</td><td>'+(p.name||'Parent')+'</td><td>'+(p.school_name||'-')+'</td><td>'+(p.kid_count||0)+'</td><td>'+inv+'</td><td>'+st+'</td><td><button class=\"btn-orange\" onclick=\"sendInvite(\\''+(p.phone||'')+'\\')\">'+btn+'</button></td></tr>'}h+='</tbody></table>';document.getElementById('parentsTable').innerHTML=h}).catch(function(e){document.getElementById('parentsTable').innerHTML='<p style=\"color:var(--alert);padding:14px;font-weight:500\">Error: '+e.message+'</p>'})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1861,
+            "line": "function sendInvite(phone){if(!phone)return;if(!confirm('Send invitation SMS to '+phone+'?'))return;api('POST','/api/admin/invite',{phones:[phone],force:true}).then(function(d){alert('Invitation sent: '+d.invited+' successful, '+d.skipped.length+' skipped.');loadParents()}).catch(function(e){alert('Failed to send invite: '+e.message)})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1862,
+            "line": "function loadHistory(){document.getElementById('historyTable').innerHTML='<div class=\"loading\"><div class=\"spinner\"></div></div>';api('GET','/api/admin/import-batches').then(function(rows){if(!rows||rows.length===0){document.getElementById('historyTable').innerHTML='<p style=\"text-align:center;padding:28px;color:var(--ink-soft)\">No import batches yet.</p>';return}var h='<table><thead><tr><th>Date</th><th>Filename</th><th>Total</th><th>Created</th><th>Updated</th><th>Errors</th><th>Invited</th><th>Type</th></tr></thead><tbody>';for(var i=0;i<rows.length;i++){var b=rows[i];var dt=b.created_at?new Date(b.created_at).toLocaleString():'-';var tp=b.dry_run?'<span class=\"badge amber\">Dry Run</span>':'<span class=\"badge green\">Live</span>';h+='<tr><td>'+dt+'</td><td>'+(b.filename||'-')+'</td><td>'+b.total+'</td><td>'+b.created+'</td><td>'+b.updated+'</td><td>'+b.errors+'</td><td>'+b.invited+'</td><td>'+tp+'</td></tr>'}h+='</tbody></table>';document.getElementById('historyTable').innerHTML=h}).catch(function(e){document.getElementById('historyTable').innerHTML='<p style=\"color:var(--alert);padding:14px;font-weight:500\">Error: '+e.message+'</p>'})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1864,
+            "line": "function loadCampOptions(){api('GET','/api/admin/camps').then(function(camps){var sel=document.getElementById('docCampSelect');if(!camps||camps.length===0){sel.innerHTML='<option value=\"\">No camps available — import data first</option>';return}var h='<option value=\"\">Select a camp...</option>';for(var i=0;i<camps.length;i++){var c=camps[i];h+='<option value=\"'+c.id+'\">'+(c.title||'Camp')+' — '+(c.school_name||'')+' ('+(c.date||'')+')</option>'}sel.innerHTML=h}).catch(function(){document.getElementById('docCampSelect').innerHTML='<option value=\"\">Failed to load camps</option>'})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1865,
+            "line": "function generateDoctor(){var name=document.getElementById('docName').value.trim();var phone=document.getElementById('docPhone').value.trim();var camp=document.getElementById('docCampSelect').value;var spec=document.getElementById('docSpecialty').value.trim();var hosp=document.getElementById('docHospital').value.trim();if(!name||!phone||!camp){document.getElementById('genDocResult').innerHTML='<div class=\"banner warn\" style=\"display:flex\">Please fill all required fields.</div>';return}var btn=document.getElementById('genDocBtn');btn.disabled=true;btn.textContent='Generating...';api('POST','/api/admin/doctors/generate',{doctor_name:name,phone:phone,school_camp_id:camp,specialty:spec,hospital:hosp}).then(function(r){btn.disabled=false;btn.textContent='Generate Credential';document.getElementById('genDocResult').innerHTML='<div class=\"banner info\" style=\"display:flex\"><span>&#10003;</span> '+r.message+'</div>';document.getElementById('docName').value='';document.getElementById('docPhone').value='';loadDoctors()}).catch(function(e){btn.disabled=false;btn.textContent='Generate Credential';document.getElementById('genDocResult').innerHTML='<div class=\"banner warn\" style=\"display:flex\">Error: '+e.message+'</div>'})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1866,
+            "line": "function loadDoctors(){document.getElementById('doctorsTable').innerHTML='<div class=\"loading\"><div class=\"spinner\"></div></div>';api('GET','/api/admin/doctors').then(function(rows){if(!rows||rows.length===0){document.getElementById('doctorsTable').innerHTML='<p style=\"text-align:center;padding:28px;color:var(--ink-soft)\">No doctor credentials generated yet.</p>';return}var h='<table><thead><tr><th>Doctor</th><th>Phone</th><th>Camp</th><th>School</th><th>Camp Date</th><th>Status</th><th>Login</th><th>Action</th></tr></thead><tbody>';for(var i=0;i<rows.length;i++){var d=rows[i];var st=d.assignment_status==='ACTIVE'?'<span class=\"badge green\">Active</span>':'<span class=\"badge red\">Revoked</span>';var lg=d.is_logged_in?'<span class=\"badge blue\">Logged In</span>':'<span class=\"badge gray\">Offline</span>';var rv=d.assignment_status==='ACTIVE'?'<button class=\"btn-sm\" style=\"color:var(--alert);border-color:rgba(239,68,68,.3)\" onclick=\"revokeDoctor(\\''+d.assignment_id+'\\')\">Revoke</button>':'-';h+='<tr><td><b>'+(d.doctor_name||'')+'</b></td><td>'+(d.phone||'')+'</td><td>'+(d.camp_title||'-')+'</td><td>'+(d.school_name||'-')+'</td><td>'+(d.camp_date||'-')+'</td><td>'+st+'</td><td>'+lg+'</td><td>'+rv+'</td></tr>'}h+='</tbody></table>';document.getElementById('doctorsTable').innerHTML=h}).catch(function(e){document.getElementById('doctorsTable').innerHTML='<p style=\"color:var(--alert);padding:14px;font-weight:500\">Error: '+e.message+'</p>'})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1867,
+            "line": "function revokeDoctor(id){if(!confirm('Revoke this doctor credential? They will lose access to the camp.'))return;api('POST','/api/admin/doctors/revoke/'+id,{}).then(function(){loadDoctors()}).catch(function(e){alert('Failed: '+e.message)})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1956,
+            "line": "      // Closed app: public self-signup is disabled. Only an existing admin"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1957,
+            "line": "      // (X-Admin-Key bootstrap or role=ADMIN session) may create new admin accounts."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1960,
+            "line": "          const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1961,
+            "line": "          if (!admin) {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2038,
+            "line": "      // Closed app: parents are phone-only, admins use email. Google is disabled."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2061,
+            "line": "          // Closed app: only admin-provisioned numbers (parents) or doctor"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2062,
+            "line": "          // profiles generated by an admin may receive an OTP."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2165,
+            "line": "        // Closed app: the parent must have been provisioned by an admin import."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2243,
+            "line": "      if (path === \"/api/admin/import\" && request.method === \"POST\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2244,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2245,
+            "line": "        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2258,
+            "line": "          adminId: admin.adminId,"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2264,
+            "line": "      if (path === \"/api/admin/import-batches\" && request.method === \"GET\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2265,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2266,
+            "line": "        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2268,
+            "line": "          SELECT id, admin_id, filename, total, created, updated, skipped, errors, invited, dry_run, created_at"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2274,
+            "line": "      if (path === \"/api/admin/invite\" && request.method === \"POST\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2275,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2276,
+            "line": "        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2295,
+            "line": "      if (path === \"/api/admin/stats\" && request.method === \"GET\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2296,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2297,
+            "line": "        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2311,
+            "line": "      if (path === \"/api/admin/parents\" && request.method === \"GET\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2312,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2313,
+            "line": "        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2351,
+            "line": "      if (path === \"/api/admin/doctors/generate\" && request.method === \"POST\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2352,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2353,
+            "line": "        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2368,
+            "line": "        // Upsert doctor profile — never downgrade an existing admin."
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2406,
+            "line": "      if (path === \"/api/admin/doctors\" && request.method === \"GET\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2407,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2408,
+            "line": "        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2425,
+            "line": "      if (path.startsWith(\"/api/admin/doctors/revoke/\") && request.method === \"POST\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2426,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2427,
+            "line": "        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2436,
+            "line": "      // ── List camps for the admin doctor tab dropdown ──"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2437,
+            "line": "      if (path === \"/api/admin/camps\" && request.method === \"GET\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2438,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2439,
+            "line": "        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);"
+          }
+        ],
+        "truncated": false,
+        "totalMatches": 78
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"pattern\": \"ADMIN_API_KEY|admin|/admin|adminLogin|admin-panel|adminPortal\", \"path\": \"rork-kidhero-health/functions/index.ts\"}",
+      "createdAt": 1783674068908,
+      "completedAt": 1783674069589
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-81c1480f9084bd2d",
+      "toolName": "read",
+      "input": {
+        "filePath": ".rork/skills/backend/SKILL.md"
+      },
+      "output": {
+        "path": ".rork/skills/backend/SKILL.md",
+        "content": "     1|---\n     2|name: backend\n     3|description: Add server-side capabilities to a Rork project — including\n     4|  Supabase, Cloudflare Workers, Durable Objects, realtime/multiplayer, webhooks,\n     5|  scheduled tasks, and edge functions. Routes between Cloudflare-first and\n     6|  Supabase-first internally.\n     7|aliases:\n     8|  - server\n     9|  - api\n    10|  - webhook\n    11|  - realtime\n    12|  - multiplayer\n    13|  - database\n    14|  - persistence\n    15|  - durable object\n    16|  - worker\n    17|  - supabase\n    18|---\n    19|\n    20|# Backend\n    21|\n    22|Use this skill for backend work in Rork projects. There are two modern services and one legacy stack:\n    23|\n    24|- **Cloudflare Workers + Durable Objects** — portable server-side code, realtime connection handling, and scoped durable SQLite storage. This is the default for APIs, webhooks, business logic, validation, third-party integrations, scheduled tasks, realtime, multiplayer, and per-room/per-project state. Read .rork/skills/backend/cloudflare/overview.md.\n    25|- **Supabase Postgres** — managed relational SQL storage with Row Level Security. Use it when the app needs global relational queries, RLS-protected client access, reporting, or data that should not be partitioned by Durable Object identity. Read .rork/skills/backend/supabase/overview.md.\n    26|- **Legacy Hono + tRPC** — only for projects that already have `backend/hono.ts`. Read .rork/skills/backend/legacy-hono/overview.md.\n    27|\n    28|\n    29|## Default to Cloudflare for Code\n    30|\n    31|If you are adding any server-side code, prefer Cloudflare Workers. The Worker is vanilla Cloudflare (`export default { fetch }`) and can be lifted into a normal Cloudflare account with a `wrangler.jsonc` if the project ever needs to migrate off Rork. That portability also makes future bug fixes and backwards-compatible API evolution easier: the code owns the API boundary instead of spreading behavior across client calls and database policies.\n    32|\n    33|Use Cloudflare for:\n    34|\n    35|- API endpoints called by React Native, Swift, or web apps.\n    36|- Webhook handlers (Stripe, Resend, GitHub, etc.).\n    37|- Business logic, validation, permissions beyond simple row ownership, third-party API calls, and response shaping.\n    38|- Realtime, multiplayer, chat, presence, collaborative state, WebSockets, and scheduled tasks via Durable Objects.\n    39|- Durable Object storage when the data naturally belongs to one room, one match, one user session, one document, or one project-scoped actor.\n    40|\n    41|\n    42|## Choose the Data Layer\n    43|\n    44|Cloudflare can be the database too. Durable Objects include per-object SQLite storage (`this.ctx.storage.sql`), so a Worker can own both the API and the durable state without adding Supabase.\n    45|\n    46|Use **Durable Object storage** when:\n    47|\n    48|- The app needs multiplayer rooms, presence, chat, matchmaking, collaborative documents, or any WebSocket fanout.\n    49|- State is naturally scoped to a stable id such as `roomId`, `matchId`, `documentId`, `userId`, or `projectId`.\n    50|- You want one colocated authority for connections plus data: the DO handles sockets, writes SQLite rows, runs periodic timers, and serves reads.\n    51|- The data is small to medium, local to that object, and does not need global SQL joins across every project/user.\n    52|\n    53|\n    54|Use **Supabase Postgres** when:\n    55|\n    56|- The app needs global relational queries, cross-user reporting, search/filtering across many records, SQL joins, or admin analytics.\n    57|- The client should read/write directly with Row Level Security.\n    58|- The data should live in one central relational database instead of being partitioned across Durable Object instances.\n    59|\n    60|\n    61|Common patterns:\n    62|\n    63|1. **Cloudflare Worker + Durable Object storage** (default for realtime and scoped state). The Worker/DO owns both API and data.\n    64|2. **Cloudflare Worker -> Supabase** (recommended for non-trivial logic over relational data). The Worker owns the public API and calls Supabase as the database.\n    65|3. **Client -> Supabase directly with RLS** (acceptable for thin CRUD like TODOs, profile editing, simple user-owned records). RLS guards rows, and there is little or no custom server-side behavior.\n    66|\n    67|\n    68|Move from direct client access to a Worker-owned API as soon as business logic grows. RLS is useful, but it is Supabase-specific; portable behavior belongs in Cloudflare code when possible.\n    69|\n    70|## Edge Function Choice\n    71|\n    72|Prefer Cloudflare Workers over Supabase Edge Functions. Use Supabase Edge Functions only when the function must run inside Supabase's environment with elevated database privileges or Supabase-specific auth context. For normal APIs and integrations, use Cloudflare.\n    73|\n    74|## Existing Projects\n    75|\n    76|Never migrate an existing Supabase-based project to Cloudflare just because Cloudflare is the default for new code. Continue the existing architecture unless the user explicitly asks for migration. The portability principle is for choosing where to put new behavior, not for creating churn.\n    77|\n    78|For legacy `backend/hono.ts` projects, extend the existing stack unless the user explicitly asks to migrate.\n\n(End of file - total 78 lines)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \".rork/skills/backend/SKILL.md\"}",
+      "createdAt": 1783674069537,
+      "completedAt": 1783674069590
+    },
+    {
+      "type": "reasoning",
+      "text": "Let me understand the situation. The user wants to run the admin portal and get a working Admin API Key to login. \n\nLooking at the code, the backend is a Cloudflare Worker that:\n1. Has an admin portal at `/admin` \n2. Requires `ADMIN_API_KEY` env var to login\n3. The backend URL is `https://kidhero-health-backend.rork.app`\n\nThe ADMIN_API_KEY is set as a Cloudflare Worker secret. Let me check if there's a way to find the existing key or set one. Let me look at the backend skill more and check the linked source skill for how to deploy/manage the backend.\n\nLet me check the linked source skill and find how the worker is deployed, and whether I can set the secret.",
+      "id": "3tfkjao4fzwod04vt0iju",
+      "createdAt": 1783674075096,
+      "completedAt": 1783674088199
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-8424de5ffcb027e3",
+      "toolName": "read",
+      "input": {
+        "filePath": ".rork/skills/backend/cloudflare/overview.md"
+      },
+      "output": {
+        "path": ".rork/skills/backend/cloudflare/overview.md",
+        "content": "     1|---\n     2|name: cloudflare-workers\n     3|description: Default backend path for portable server-side logic, APIs,\n     4|  webhooks, realtime, Durable Objects, and scheduled tasks.\n     5|---\n     6|\n     7|# Cloudflare Edge Functions\n     8|\n     9|Each Rork project gets the equivalent of its own Cloudflare account, scoped to a single Worker bundle. The user writes a vanilla Cloudflare Worker (`export default { fetch }`) and any Durable Object classes they want to reach from it. Rork bundles the lot, hosts it on a per-project subdomain, and routes inbound traffic.\n    10|\n    11|**No Rork-shaped programming model.** The source code is portable Cloudflare. Lifted into a normal CF account with a `wrangler.jsonc` it runs unchanged (the only Rork-specific bit is the `env.DO` service binding used to address user-declared DOs from the entrypoint — a few lines to rewrite into per-class `env.<CLASS>.get(idFromName(...))` calls).\n    12|\n    13|Durable Objects are both a connection layer and a database layer. Use them to keep WebSocket peers, room/match/document state, and per-object SQLite rows together behind one strongly consistent actor. For many multiplayer or project-scoped backends, the Cloudflare Worker + DO is the whole backend; Supabase is optional, not mandatory.\n    14|\n    15|## When to use\n    16|\n    17|- Webhook handlers (Stripe, Resend, GitHub, ...).\n    18|- Server-side API endpoints called from the React Native / Swift / Web app.\n    19|- Real-time multiplayer (chat rooms, presence, collaborative state) via WebSockets + Durable Objects. For joining, default to a rooms list (server browser) or auto-matchmaking — not manual room-code exchange; see `durable-objects.md` → \"Room discovery\".\n    20|- Per-room, per-match, per-document, per-user, or per-project persistence via Durable Object SQLite storage.\n    21|- Background processing: in-object timers while a DO is active, and durable scheduling via DO alarms (`env.DO.setAlarm(...)` + an `onAlarm()` handler — works unattended, even with no inbound traffic; see `durable-objects.md`).\n    22|\n    23|\n    24|## When NOT to use\n    25|\n    26|- Pure client-side data fetching (React Query, SWR) against public APIs.\n    27|- Static asset serving (use the project's existing storage).\n    28|- Anything that already has a vendor SDK with a managed client (Supabase, Firebase, etc.) — use the vendor SDK directly from the app instead.\n    29|\n    30|\n    31|## Project structure\n    32|\n    33|```\n    34|<project root>/\n    35|├── rork.json                       # gains { \"name\": \"Functions\", \"path\": \"functions\", \"framework\": \"cloudflare\" }\n    36|├── .gitignore                      # gains a \"# Cloudflare Functions\" block\n    37|└── functions/\n    38|    ├── package.json                # deps for the bundle, scoped away from the parent app\n    39|    ├── index.ts                    # export default { fetch } — the entrypoint\n    40|    └── chat-room.ts                # optional — any DO classes the user declares\n    41|\n    42|```\n    43|\n    44|`functions/index.ts` is the Worker entrypoint. Everything else is just JS modules the entrypoint imports. Routing inside the entrypoint is your call — vanilla `URL.pathname` switch, Hono, anything you prefer.\n    45|\n    46|Durable Object dispatch has exactly one mechanism: `env.DO.fetch(...)` with `X-Rork-DO-Class` and `X-Rork-DO-Id` headers. It serves public routes, **all WebSocket upgrades**, and DO-to-DO calls (inside a DO it's `this.env.DO`). The legacy `fetch(\"do://internal/...\")` scheme must never be used — it fails inside DOs with `Fetch API cannot load`.\n    47|\n    48|## Provisioning\n    49|\n    50|Call `provisionFunctions` once per project to create the `functions/` folder and the `rork.json` entry.\n    51|\n    52|After provisioning, `functions/index.ts` will contain the trivial seed:\n    53|\n    54|```ts\n    55|export default {\n    56|  async fetch(request: Request): Promise<Response> {\n    57|    return Response.json({ ok: true, hello: \"world\" });\n    58|  },\n    59|};\n    60|```\n    61|\n    62|## URL & deploy\n    63|\n    64|- The function is reachable at the URL exposed via `EXPO_PUBLIC_RORK_FUNCTIONS_URL` (production form: `https://<projectId>-backend.rork.app/<path>`).\n    65|- Deploy by running the `runChecks` tool with the cloudflare app path; we bundle `functions/index.ts` (with all its imports) and ship it sub-second.\n    66|- One bundle per project. Adding a DO class is the same operation as editing the entrypoint: edit, redeploy.\n    67|\n    68|\n    69|## Env vars and secrets\n    70|\n    71|The platform spreads the project's envs into the Worker's `env` as plain strings — read them as `env.STRIPE_SECRET_KEY`, `env.RESEND_API_KEY`, etc. Durable Object classes see the same values via `this.env.*`. Values come from the project envs UI (the same store that drives `EXPO_PUBLIC_*` for the RN/web builds); changes propagate to the running Worker without a redeploy. Do not hardcode secrets in `functions/` source. See `worker.md` for details.\n    72|\n    73|## Inspecting runtime logs\n    74|\n    75|Every invocation of the deployed Worker — entrypoint requests _and_ Durable Object dispatches — has its `console.log/warn/error/info/debug` output and any uncaught exception captured into a per-project ring buffer (most recent 10,000 entries). Read it with the `getCloudflareLogs` tool.\n    76|\n    77|When to reach for it:\n    78|\n    79|- The user says the backend is \"broken\", \"returning 500\", \"not working\", \"stuck\" — pull logs and read the stack instead of guessing from the source.\n    80|- You just deployed a new bundle and want to confirm the new code path is being hit.\n    81|- A webhook (Stripe, Resend, GitHub) silently isn't acting and you need to see what arrived.\n    82|\n    83|\n    84|What's captured per entry:\n    85|\n    86|- `level` — `log`, `warn`, `error`, `info`, `debug`. Uncaught throws and rejected promises land as synthetic `level: \"error\"` rows with `stack` populated.\n    87|- `message` — the `console.*` arguments (preserved as the parsed value) or, for exception rows, the plain `Error.message` string.\n    88|- `requestUrl`, `requestMethod`, `responseStatus` — populated when the originating event was a fetch.\n    89|- `id`, `timestamp` — id is monotonic for stable cursor-style paging; timestamp is ms since epoch.\n    90|\n    91|\n    92|Tail Workers run asynchronously after the response, so expect ~1–2 s lag between hitting the URL and the log row showing up.\n    93|\n    94|There is no `console` API or HTTP endpoint inside the user's Worker for fetching its own logs — `getCloudflareLogs` is the only path. Do not write code in `functions/` that tries to read logs.\n    95|\n    96|**Known dev-environment gap.** When `EXPO_PUBLIC_RORK_FUNCTIONS_URL` points at a `*.rorkdev.link` tunnel (a Rork developer's local laptop running the hosting Worker under `wrangler dev`), `getCloudflareLogs` will always return an empty array — miniflare's Worker Loader plugin does not propagate the tail-Worker binding, so `console.*` output and uncaught exceptions are never captured into the ring buffer even though the user Worker is running and serving requests correctly. This affects only local dev tunnels; on the production `<projectId>-backend.rork.app` host, logs flow normally. If the user URL is a `rorkdev.link` tunnel and `getCloudflareLogs` is empty after a confirmed-successful curl, treat that as the environment limitation — do not loop, redeploy, or wait longer. Surface the gap to the user and either test against the production URL or fall back to reading the Worker's response body for debugging.\n    97|\n    98|## Auth model — optional sugar, never gates\n    99|\n   100|The platform routes requests by the backend hostname (for example, `<projectId>-backend.rork.app`). Your function does not need any Rork routing headers.\n   101|\n   102|If the request additionally carries `Authorization: Bearer <rork-jwt>`, the platform verifies the token against Rork Auth's keys and stamps `X-Rork-User-Id`, `X-Rork-User-Email`, `X-Rork-User-Name` on the forwarded request. **On any failure** (missing, invalid signature, wrong audience, expired) the platform silently drops the token — never returns 401. Your function decides what to do with missing identity.\n   103|\n   104|```ts\n   105|const userId = request.headers.get(\"X-Rork-User-Id\"); // null = guest\n   106|```\n   107|\n   108|There is no `requireAuth` flag. Your function decides per-route whether `userId` is required.\n   109|\n   110|## Platform implementation guides\n   111|\n   112|| File                 | When to use                                                                               |\n   113|| -------------------- | ----------------------------------------------------------------------------------------- |\n   114|| `worker.md`          | Writing the Worker — entrypoint shape, routing, outbound fetch, `env.DO`                  |\n   115|| `durable-objects.md` | Declaring a Durable Object class, WebSockets, SQLite storage, timers, alarms via `env.DO` |\n   116|| `auth.md`            | Optional Rork Auth headers, inline JWT-verify snippet                                     |\n   117|| `react-native.md`    | Client wiring from a React Native / Expo app                                              |\n   118|| `swift.md`           | Client wiring from a Swift / iOS app                                                      |\n   119|| `web.md`             | Client wiring from the Next.js web app                                                    |\n   120|\n   121|## Examples\n   122|\n   123|Runnable end-to-end examples in `examples/` — all five are referenced by the platform implementation guides:\n   124|\n   125|- `example-stripe-webhook.ts` — webhook handler with signature verification\n   126|- `example-user-data.ts` — `/whoami`-style endpoint reading `X-Rork-User-Id`, with an inline JWT-verify alternative for projects that distrust platform headers\n   127|- `example-chat-room.ts` — chat DO + entrypoint dispatch via `env.DO.fetch(...)`\n   128|- `example-presence.ts` — presence DO with hibernation + timer-driven heartbeat + broadcast\n   129|- `example-matchmaking-game.ts` — FIFO matchmaking + one GameRoom DO per game, showing `env.DO` WebSocket routes and lazy room initialization\n   130|\n   131|\n   132|## Available tools\n   133|\n   134|### provisionFunctions\n   135|\n   136|Provision the per-project Cloudflare Worker backend. Idempotent — safe to call\n   137|multiple times.\n   138|\n   139|Effects:\n   140|  - Adds a `cloudflare` app entry to rork.json (path: `functions`).\n   141|  - Creates `functions/package.json` and a starter `functions/index.ts`.\n   142|  - Adds a \"Cloudflare Functions\" block to .gitignore.\n   143|\n   144|After provisioning, the function is reachable at the configured\n   145|`EXPO_PUBLIC_RORK_FUNCTIONS_URL`. Edit `functions/index.ts` and run the\n   146|build tool on the cloudflare app to deploy.\n   147|\n   148|```ts\n   149|type Input = {};\n   150|```\n   151|\n   152|### getCloudflareLogs\n   153|\n   154|Read recent runtime logs from the deployed Cloudflare Worker (the project's\n   155|`functions/` bundle). Captures every `console.log/warn/error/info/debug`\n   156|call the user-Worker made plus any uncaught exceptions (`throw`, rejected\n   157|promises) — exceptions land as synthetic `level: \"error\"` rows with the\n   158|stack populated.\n   159|\n   160|Default returns the 100 newest rows. Filters: `beforeId` for paging\n   161|further into history, `sinceTimestamp`/`untilTimestamp` (ms since\n   162|epoch) for a time window.\n   163|\n   164|Use this tool when:\n   165|  - The user reports the backend \"not working\" / \"broken\" / \"returning 500\" — pull logs to see what actually happened in the Worker.\n   166|  - A request through the function failed and you need the stack.\n   167|  - You want to confirm a code path you just deployed is being hit.\n   168|\n   169|Tail Workers run asynchronously after each request — expect a 1-2s lag\n   170|between hitting the URL and the log row appearing here.\n   171|\n   172|```ts\n   173|type Input = {\n   174|    /** Max rows to return. Default 100, hard cap 500. */\n   175|    limit?: number | undefined;\n   176|    /** Newest-first cursor. Pass the `id` of the oldest row from the previous call to scroll into older history. */\n   177|    beforeId?: number | undefined;\n   178|    /** Filter: only return rows with `timestamp >= this` (ms since epoch). */\n   179|    sinceTimestamp?: number | undefined;\n   180|    /** Filter: only return rows with `timestamp <= this` (ms since epoch). */\n   181|    untilTimestamp?: number | undefined;\n   182|};\n   183|```\n\n(End of file - total 183 lines)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \".rork/skills/backend/cloudflare/overview.md\"}",
+      "createdAt": 1783674088199,
+      "completedAt": 1783674088335
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-b1be09e4a3390094",
+      "toolName": "bash",
+      "input": {
+        "command": "ls -la rork-kidhero-health/tools/ 2>/dev/null && cat rork-kidhero-health/functions/package.json && echo \"---wrangler---\" && find rork-kidhero-health -name \"wrangler*\" -o -name \".dev.vars\" 2>/dev/null | head -20"
+      },
+      "output": {
+        "stdout": "total 12\ndrwxr-xr-x 2 user user   60 Jul 10 08:52 .\ndrwxr-xr-x 5 user user 4096 Jul 10 08:52 ..\n-rw-r--r-- 1 user user 1111 Jul 10 08:52 clear_text_fill.py\n-rw-r--r-- 1 user user 1425 Jul 10 08:52 make_transparent.py\n{\n  \"name\": \"rork-functions\",\n  \"version\": \"0.0.0\",\n  \"private\": true,\n  \"type\": \"module\",\n  \"dependencies\": {\n    \"@neondatabase/serverless\": \"^1.1.0\"\n  }\n}\n---wrangler---\n",
+        "stderr": "",
+        "exitCode": 0
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"command\": \"ls -la rork-kidhero-health/tools/ 2>/dev/null && cat rork-kidhero-health/functions/package.json && echo \\\"---wrangler---\\\" && find rork-kidhero-health -name \\\"wrangler*\\\" -o -name \\\".dev.vars\\\" 2>/dev/null | head -20\"}",
+      "createdAt": 1783674088202,
+      "completedAt": 1783674088366
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-a6849f4e3d377704",
+      "toolName": "grep",
+      "input": {
+        "pattern": "path === \"/admin\"|loginScreen|doLogin|adminKeyInput|requireAdmin",
+        "path": "rork-kidhero-health/functions/index.ts"
+      },
+      "output": {
+        "pattern": "path === \"/admin\"|loginScreen|doLogin|adminKeyInput|requireAdmin",
+        "results": [
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1155,
+            "line": "async function requireAdmin("
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1580,
+            "line": "    if (path === \"/admin\") {"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1720,
+            "line": "<div class=\"login-wrap\" id=\"loginScreen\">"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1740,
+            "line": "      <label class=\"field-label\" for=\"adminKeyInput\">Admin API Key</label>"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1741,
+            "line": "      <input type=\"password\" id=\"adminKeyInput\" placeholder=\"Enter your admin key\" onkeydown=\"if(event.key==='Enter')doLogin()\">"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1742,
+            "line": "      <button class=\"btn\" onclick=\"doLogin()\">Enter Admin Panel</button>"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1850,
+            "line": "function doLogin(){var k=document.getElementById('adminKeyInput').value.trim();if(!k)return;adminKey=k;api('GET','/api/admin/stats').then(function(){localStorage.setItem('vitahero_admin_key',adminKey);document.getElementById('loginScreen').style.display='none';document.getElementById('mainApp').style.display='block';loadOverview();checkDevMode()}).catch(function(){adminKey='';document.getElementById('loginErr').style.display='block'})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1852,
+            "line": "if(adminKey){api('GET','/api/admin/stats').then(function(){document.getElementById('loginScreen').style.display='none';document.getElementById('mainApp').style.display='block';loadOverview();checkDevMode()}).catch(function(){adminKey=''})}"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 1960,
+            "line": "          const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2244,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2265,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2275,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2296,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2312,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2352,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2407,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2426,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          },
+          {
+            "filePath": "rork-kidhero-health/functions/index.ts",
+            "lineNumber": 2438,
+            "line": "        const admin = await requireAdmin(request, sql, env);"
+          }
+        ],
+        "truncated": false,
+        "totalMatches": 18
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"path\": \"rork-kidhero-health/functions/index.ts\", \"pattern\": \"path === \\\"/admin\\\"|loginScreen|doLogin|adminKeyInput|requireAdmin\"}",
+      "createdAt": 1783674088294,
+      "completedAt": 1783674088371
+    },
+    {
+      "type": "reasoning",
+      "text": "The user wants to run the admin portal and get a working Admin API Key to login. Let me understand the situation:\n\n1. The backend is a Cloudflare Worker in `rork-kidhero-health/functions/index.ts`\n2. The admin portal is at `/admin` path\n3. Login requires `ADMIN_API_KEY` env var to be set on the Worker\n4. The Worker URL is `https://kidhero-health-backend.rork.app`\n\nBut wait - the `rork.json` only has the android app registered. The functions aren't registered as an app in the project's `rork.json`. The source repo `rork-kidhero-health/rork.json` has both. Let me check if the functions are deployed.\n\nThe project's `rork.json`:\n```json\n{\n  \"apps\": [\n    {\n      \"name\": \"VitaHero\",\n      \"path\": \"android\",\n      \"framework\": \"kotlin\"\n    }\n  ]\n}\n```\n\nThe source repo's `rork-kidhero-health/rork.json` has the functions entry too. But the project's rork.json only has android. So the functions aren't deployed yet in this project.\n\nI need to:\n1. Register the functions as a cloudflare app in the project's rork.json\n2. Copy/sync the functions code into the project's `functions/` directory\n3. Set the ADMIN_API_KEY env var\n4. Deploy the worker\n5. Then give the user the URL and key\n\nWait, actually let me re-read the structure. The `rork-kidhero-health` is a git submodule (from .gitmodules). The actual project has `android/` at the root. The functions live in `rork-kidhero-health/functions/`.\n\nI need to:\n1. Provision the functions app in the project (add to rork.json, copy functions to project root)\n2. Set env vars (DATABASE_URL, ADMIN_API_KEY, etc.)\n3. Deploy\n\nBut wait - I don't have the DATABASE_URL. The user needs to provide that. And PLIVO credentials. But the user just wants to run the admin portal and login. Let me think about what's needed.\n\nThe admin portal login just checks `ADMIN_API_KEY` env var via `/api/admin/stats` endpoint. The stats endpoint queries the database. So we need DATABASE_URL too.\n\nActually, let me check if the functions are already provisioned/deployed. The `EXPO_PUBLIC_RORK_FUNCTIONS_URL` is set as a public env var. Let me check what it's set to.\n\nThe public environment variables show:\n- EXPO_PUBLIC_RORK_FUNCTIONS_URL\n\nLet me check if there's already a functions directory at the project root, or if I need to provision one.\n\nActually, looking more carefully - the project root has:\n- `android/` (the app)\n- `rork-kidhero-health/` (the git submodule source)\n\nThe functions are in `rork-kidhero-health/functions/`. They're not in the project root `functions/` directory. So they haven't been provisioned for this project yet.\n\nLet me:\n1. Provision the Cloudflare functions app\n2. Copy the function code from the submodule\n3. Set the needed env vars (ADMIN_API_KEY, DATABASE_URL, etc.)\n4. Deploy\n\nBut I need the DATABASE_URL from the user. Let me check if there's already one set. The private env vars section is empty. So no DATABASE_URL is set.\n\nActually, let me just provision the functions, set a generated ADMIN_API_KEY, and ask the user for DATABASE_URL. Or better - let me check if DEV_MODE can help. In dev mode, the OTP is returned in the response, but the admin stats endpoint still queries the database.\n\nWait, let me look at the `/api/admin/stats` endpoint to see what it does.\n\nLet me read the relevant part of the function.",
+      "id": "96zn3v7915euq3xqhbbri",
+      "createdAt": 1783674092453,
+      "completedAt": 1783674114390
+    },
+    {
+      "type": "text",
+      "text": "Let me understand the full picture — the admin portal, the stats endpoint, and what env vars are needed.",
+      "id": "7ypyf7z52xs0wv1he9a7f",
+      "createdAt": 1783674114390
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-95612f37dc5d8a65",
+      "toolName": "read",
+      "input": {
+        "filePath": "rork-kidhero-health/functions/index.ts",
+        "offset": 1150,
+        "limit": 30
+      },
+      "output": {
+        "path": "rork-kidhero-health/functions/index.ts",
+        "content": "  1151|  }\n  1152|}\n  1153|\n  1154|/** Admin gate: ADMIN_API_KEY header (bootstrap) OR a role=ADMIN session. */\n  1155|async function requireAdmin(\n  1156|  request: Request,\n  1157|  sql: ReturnType<typeof neon>,\n  1158|  env: Env\n  1159|): Promise<{ adminId: string } | null> {\n  1160|  const headerKey = request.headers.get(\"X-Admin-Key\") || \"\";\n  1161|  if (env.ADMIN_API_KEY && headerKey && headerKey === env.ADMIN_API_KEY) {\n  1162|    return { adminId: \"apikey\" };\n  1163|  }\n  1164|  const session = await authenticateSession(sql, extractToken(request));\n  1165|  if (session && (session.role === \"ADMIN\" || session.role === \"SUPERADMIN\")) {\n  1166|    return { adminId: session.profileId };\n  1167|  }\n  1168|  return null;\n  1169|}\n  1170|\n  1171|// ─── Admin import (CSV/Excel rows → provisioned data) ────────\n  1172|\n  1173|/** Case-insensitive, punctuation-insensitive field accessor for a CSV/Excel row. */\n  1174|function rowField(row: Record<string, unknown>, ...wanted: string[]): string {\n  1175|  for (const k of Object.keys(row)) {\n  1176|    const norm = k.toLowerCase().replace(/[^a-z0-9]/g, \"\");\n  1177|    if (wanted.includes(norm)) {\n  1178|      const v = row[k];\n  1179|      return v == null ? \"\" : String(v).trim();\n  1180|    }\n\n(File has more lines. Use 'offset' parameter to read beyond line 1180)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"rork-kidhero-health/functions/index.ts\", \"offset\": 1150, \"limit\": 30}",
+      "createdAt": 1783674114756,
+      "completedAt": 1783674114766
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-9ddda487eef4ad28",
+      "toolName": "read",
+      "input": {
+        "filePath": "rork-kidhero-health/functions/index.ts",
+        "offset": 1570,
+        "limit": 30
+      },
+      "output": {
+        "path": "rork-kidhero-health/functions/index.ts",
+        "content": "  1571|        return json({ ok: true, db: rows[0], dev_mode: isDevMode(env) });\n  1572|      } catch (err) {\n  1573|        const message = err instanceof Error ? err.message : String(err);\n  1574|        console.error(\"Ping DB error:\", message);\n  1575|        return json({ ok: false, error: message }, 500);\n  1576|      }\n  1577|    }\n  1578|\n  1579|    // ── Admin Panel (HTML) ────────────────────────────\n  1580|    if (path === \"/admin\") {\n  1581|      const html = `<!doctype html>\n  1582|<html lang=\"en\">\n  1583|<head>\n  1584|<meta charset=\"utf-8\">\n  1585|<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n  1586|<title>VitaHero Admin Panel</title>\n  1587|<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n  1588|<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n  1589|<link href=\"https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap\" rel=\"stylesheet\">\n  1590|<style>\n  1591|*{margin:0;padding:0;box-sizing:border-box}\n  1592|:root{\n  1593|  --orange:#F47B20;--orange-d:#D9641A;--orange-soft:#FCE5D1;\n  1594|  --blue:#1FA2DD;--blue-d:#1380B8;--blue-soft:#D6EFFA;\n  1595|  --yellow:#FDB813;--yellow-soft:#FFF1CC;\n  1596|  --purple:#8B5CF6;\n  1597|  --ink:#0F172A;--ink-soft:#475569;--ink-faint:#94A3B8;\n  1598|  --canvas:#FAFCFE;--surface:#FFFFFF;--muted:#EEF4F8;\n  1599|  --hair:#E2E9EF;\n  1600|  --good:#10B981;--watch:#F59E0B;--alert:#EF4444;\n\n(File has more lines. Use 'offset' parameter to read beyond line 1600)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"rork-kidhero-health/functions/index.ts\", \"offset\": 1570, \"limit\": 30}",
+      "createdAt": 1783674114758,
+      "completedAt": 1783674114766
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-9c8e6378c9397bbc",
+      "toolName": "read",
+      "input": {
+        "filePath": "rork-kidhero-health/functions/index.ts",
+        "offset": 2280,
+        "limit": 50
+      },
+      "output": {
+        "path": "rork-kidhero-health/functions/index.ts",
+        "content": "  2281|        const skipped: string[] = [];\n  2282|        for (const raw of phones) {\n  2283|          const norm = normalizePhone(raw);\n  2284|          if (!norm) { skipped.push(raw); continue; }\n  2285|          const prof = await sql`\n  2286|            SELECT provisioned FROM vita_hero.profiles WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1\n  2287|          `;\n  2288|          if (prof.length === 0 || prof[0].provisioned !== true) { skipped.push(norm.e164); continue; }\n  2289|          const sent = await sendInviteForPhone(sql, env, norm.last10, norm.e164, url.origin, force);\n  2290|          if (sent) invited++; else skipped.push(norm.e164);\n  2291|        }\n  2292|        return json({ invited, skipped });\n  2293|      }\n  2294|\n  2295|      if (path === \"/api/admin/stats\" && request.method === \"GET\") {\n  2296|        const admin = await requireAdmin(request, sql, env);\n  2297|        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);\n  2298|        const parents = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true`;\n  2299|        const active = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true AND is_logged_in = true`;\n  2300|        const kids = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.kids WHERE source = 'ADMIN'`;\n  2301|        const invites = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.sms_log WHERE type = 'INVITE' AND status = 'SENT'`;\n  2302|        return json({\n  2303|          provisionedParents: parents[0].n,\n  2304|          activeParents: active[0].n,\n  2305|          importedKids: kids[0].n,\n  2306|          invitesSent: invites[0].n,\n  2307|        });\n  2308|      }\n  2309|\n  2310|      // ── List provisioned parents (with search) ──────\n  2311|      if (path === \"/api/admin/parents\" && request.method === \"GET\") {\n  2312|        const admin = await requireAdmin(request, sql, env);\n  2313|        if (!admin) return json({ error: \"Admin authorization required\", code: \"ADMIN_REQUIRED\" }, 403);\n  2314|        const search = (url.searchParams.get(\"q\") || \"\").trim();\n  2315|        const limit = Math.min(parseInt(url.searchParams.get(\"limit\") || \"100\", 10) || 100, 500);\n  2316|        const rows = search\n  2317|          ? await sql`\n  2318|              SELECT p.id, p.phone, p.name, p.school_id, p.invited_at, p.invite_count,\n  2319|                     p.is_logged_in, p.provisioned,\n  2320|                     (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.profile_id = p.id) AS kid_count,\n  2321|                     s.name AS school_name\n  2322|              FROM vita_hero.profiles p\n  2323|              LEFT JOIN vita_hero.schools s ON s.id = p.school_id\n  2324|              WHERE p.provisioned = true\n  2325|                AND (p.phone ILIKE ${\"%\" + search + \"%\"} OR p.name ILIKE ${\"%\" + search + \"%\"})\n  2326|              ORDER BY p.invited_at DESC NULLS LAST, p.name\n  2327|              LIMIT ${limit}\n  2328|            `\n  2329|          : await sql`\n  2330|              SELECT p.id, p.phone, p.name, p.school_id, p.invited_at, p.invite_count,\n\n(File has more lines. Use 'offset' parameter to read beyond line 2330)"
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"filePath\": \"rork-kidhero-health/functions/index.ts\", \"offset\": 2280, \"limit\": 50}",
+      "createdAt": 1783674114760,
+      "completedAt": 1783674114766
+    },
+    {
+      "type": "reasoning",
+      "text": "The user wants to run the admin portal and get a working Admin API Key to login. Let me understand what's needed:\n\n1. The admin portal is served at `/admin` path on the backend URL\n2. The backend URL is `https://kidhero-health-backend.rork.app` (from .env.example) or from `EXPO_PUBLIC_RORK_FUNCTIONS_URL`\n3. To login, the user needs an `ADMIN_API_KEY` env var set on the Cloudflare Worker\n\nLooking at the code:\n- The admin panel is at `/admin` (HTML page)\n- Login uses `X-Admin-Key` header matching `env.ADMIN_API_KEY`\n- The `ADMIN_API_KEY` is a private env var that needs to be set\n\nThe issue is:\n1. The backend functions exist in `rork-kidhero-health/functions/index.ts` but this is a submodule - the actual project functions folder needs to be at the project root\n2. I need to check if the functions are deployed and if `ADMIN_API_KEY` env var is set\n\nWait, let me re-examine. The project has:\n- `rork-kidhero-health/` - this is the GitHub source repo (a git submodule)\n- `android/` - this is the actual app that was scaffolded\n- `rork.json` - points to the android app\n\nLooking at `rork-kidhero-health/rork.json`, it might have a functions entry. Let me check.\n\nThe project root `rork.json` only has the android app. The `rork-kidhero-health` submodule has its own `rork.json` which might include the functions.\n\nBut the backend needs to be deployed at the project level. The functions need to be in the project's `functions/` directory and registered in the project's `rork.json`.\n\nWait - looking more carefully, the `EXPO_PUBLIC_RORK_FUNCTIONS_URL` is already set as a public env var, which means the backend might already be deployed. Let me check what the functions URL is.\n\nActually, the public env vars show `EXPO_PUBLIC_RORK_FUNCTIONS_URL` is set. Let me check what value it has by looking at the Android code or env.\n\nLet me think about this differently. The user wants:\n1. The admin portal to be running (accessible)\n2. A working ADMIN_API_KEY to login\n\nThe admin portal is part of the Cloudflare Worker backend. To make it work:\n1. The functions need to be deployed to the Rork backend\n2. The `ADMIN_API_KEY` env var needs to be set on the backend\n3. The `DATABASE_URL` needs to be set for the Neon Postgres connection\n\nThe functions are in `rork-kidhero-health/functions/index.ts`. But the project's rork.json doesn't have a functions entry. I need to:\n1. Copy/provision the functions into the project\n2. Set up the required env vars (DATABASE_URL, ADMIN_API_KEY, etc.)\n3. Deploy the backend\n\nLet me check what env vars are already set and what the functions URL is. Let me look at the Android code to find the backend URL.",
+      "id": "05rdl23n1hj7ae5t59ybi",
+      "createdAt": 1783674116203,
+      "completedAt": 1783674136773
+    },
+    {
+      "type": "text",
+      "text": "Let me check the current backend deployment status and env vars.",
+      "id": "vu3cao9aaqs3uhhs1559p",
+      "createdAt": 1783674136773
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-a4d01c5788e2421b",
+      "toolName": "grep",
+      "input": {
+        "pattern": "RORK_FUNCTIONS_URL|FUNCTIONS_URL|BASE_URL|backend",
+        "path": "android",
+        "include": "*.kt"
+      },
+      "output": {
+        "pattern": "RORK_FUNCTIONS_URL|FUNCTIONS_URL|BASE_URL|backend",
+        "results": [
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/Config.kt",
+            "lineNumber": 5,
+            "line": "    const val EXPO_PUBLIC_RORK_API_BASE_URL = \"\""
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/Config.kt",
+            "lineNumber": 7,
+            "line": "    const val EXPO_PUBLIC_RORK_FUNCTIONS_URL = \"\""
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/Config.kt",
+            "lineNumber": 14,
+            "line": "        \"EXPO_PUBLIC_RORK_API_BASE_URL\" to EXPO_PUBLIC_RORK_API_BASE_URL,"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/Config.kt",
+            "lineNumber": 16,
+            "line": "        \"EXPO_PUBLIC_RORK_FUNCTIONS_URL\" to EXPO_PUBLIC_RORK_FUNCTIONS_URL,"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/ui/screens/OtpScreen.kt",
+            "lineNumber": 140,
+            "line": "        // Dev mode OTP banner — shown when backend returns dev_otp (DEV_MODE=true)"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/AIService.kt",
+            "lineNumber": 7,
+            "line": " * AI Diet Coach — calls the backend worker (Toolkit secrets stay server-side)."
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/ApiService.kt",
+            "lineNumber": 14,
+            "line": " * (Neon DB backend)."
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/ApiService.kt",
+            "lineNumber": 27,
+            "line": "            // Set global headers that are required by the backend Auth proxy"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/ApiService.kt",
+            "lineNumber": 37,
+            "line": "     * Base URL for the Cloudflare Worker backend."
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/ApiService.kt",
+            "lineNumber": 40,
+            "line": "        BuildConfig.RORK_FUNCTIONS_URL.ifBlank {"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/ApiService.kt",
+            "lineNumber": 41,
+            "line": "            \"https://kidhero-health-backend.rork.app\""
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/AuthManager.kt",
+            "lineNumber": 41,
+            "line": "    /** Dev OTP returned by the backend when DEV_MODE is enabled (null in production). */"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/BackendSyncEngine.kt",
+            "lineNumber": 6,
+            "line": " * Pushes local state to the Neon backend. Used by AppViewModel and SyncRetryWorker."
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/FoodRecognitionService.kt",
+            "lineNumber": 19,
+            "line": " * Primary path: an AI vision model via the backend worker (accurate, specific dish"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/FoodRecognitionService.kt",
+            "lineNumber": 20,
+            "line": " * names + calorie estimates). Falls back to on-device ML Kit labeling when the backend"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/FoodRecognitionService.kt",
+            "lineNumber": 89,
+            "line": "    /** AI vision via the backend worker. Returns null when unavailable so we fall back. */"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LeaderboardService.kt",
+            "lineNumber": 18,
+            "line": " * Falls back to local-only ranking when the backend is unavailable"
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/LeaderboardService.kt",
+            "lineNumber": 24,
+            "line": "     * Fetch the global leaderboard from the Neon DB backend."
+          },
+          {
+            "filePath": "android/app/src/main/java/com/rork/vitahero/data/SyncCoordinator.kt",
+            "lineNumber": 23,
+            "line": " * Debounces backend writes and supports partial sync by entity type."
+          }
+        ],
+        "truncated": false,
+        "totalMatches": 19
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"path\": \"android\", \"pattern\": \"RORK_FUNCTIONS_URL|FUNCTIONS_URL|BASE_URL|backend\", \"include\": \"*.kt\"}",
+      "createdAt": 1783674137434,
+      "completedAt": 1783674139680
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-b2a51aa62d2522c0",
+      "toolName": "bash",
+      "input": {
+        "command": "cat rork-kidhero-health/rork.json && echo \"---\" && cat .gitmodules"
+      },
+      "output": {
+        "stdout": "{\n  \"$schema\": \"https://rork.com/schema/rork.json\",\n  \"apps\": [\n    {\n      \"name\": \"VitaHero\",\n      \"path\": \"android\",\n      \"framework\": \"kotlin\"\n    },\n    {\n      \"name\": \"Functions\",\n      \"path\": \"functions\",\n      \"framework\": \"cloudflare\"\n    }\n  ]\n}\n---\n[submodule \"rork-kidhero-health\"]\n\tpath = rork-kidhero-health\n\turl = https://github.com/srini-dreambig/rork-kidhero-health.git\n\tbranch = main\n",
+        "stderr": "",
+        "exitCode": 0
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"command\": \"cat rork-kidhero-health/rork.json && echo \\\"---\\\" && cat .gitmodules\"}",
+      "createdAt": 1783674138624,
+      "completedAt": 1783674139700
+    },
+    {
+      "type": "reasoning",
+      "text": "Let me understand the situation:\n\n1. The user has a GitHub-linked project (rork-kidhero-health) that contains a Cloudflare Worker backend (`functions/index.ts`) with an admin portal at `/admin`.\n2. The admin portal requires an `ADMIN_API_KEY` env var to login.\n3. The backend is deployed to `https://kidhero-health-backend.rork.app` based on the `.env.example` file.\n4. The main project `rork.json` only has the `android` app registered — NOT the `functions` cloudflare app. But the source `rork-kidhero-health/rork.json` has both apps.\n\nThe user wants to:\n1. Run/deploy the admin portal (the Cloudflare Worker backend)\n2. Get a working Admin API Key to login\n\nThe key issue: the `functions` directory from the source repo hasn't been synced to the main project. The main `rork.json` only lists `android`. I need to:\n1. Copy/provision the `functions` folder into the main project\n2. Register it in `rork.json` as a cloudflare app\n3. Deploy it via `runChecks`\n4. Set the `ADMIN_API_KEY` env var\n5. Also need `DATABASE_URL` (Neon Postgres) and other env vars\n\nBut wait — I need to check what env vars are already set. The public env vars show `EXPO_PUBLIC_RORK_FUNCTIONS_URL` etc. But the backend needs `DATABASE_URL`, `ADMIN_API_KEY`, etc. as private env vars.\n\nLet me look at the current state more carefully. The main project root has `rork.json` with only the android app. The source repo (`rork-kidhero-health/`) has the functions folder. I need to bring the functions into the main project and deploy them.\n\nLet me also check if there are already env vars set for the backend (DATABASE_URL, ADMIN_API_KEY, etc.).\n\nActually, looking at the private_environment_variables section — it's empty. So I need the user to provide DATABASE_URL and other secrets. But I can set the ADMIN_API_KEY myself by generating one.\n\nWait, let me re-read the task. The user says \"Run the admin portal and give me working Admin API Key to login.\" So they want:\n1. The admin portal deployed and running\n2. A working admin API key\n\nThe admin portal is served by the Cloudflare Worker at `/admin`. The Worker needs:\n- `DATABASE_URL` — Neon Postgres connection string (required for the DB)\n- `ADMIN_API_KEY` — the key to login to the admin portal\n- `PLIVO_AUTH_ID` / `PLIVO_AUTH_TOKEN` — for SMS (optional for admin panel)\n- `TOOLKIT_URL` / `TOOLKIT_SECRET_KEY` — for AI features (optional)\n- `INVITE_SIGNING_KEY` — for invite tokens (optional, falls back to ADMIN_API_KEY)\n\nThe critical ones are `DATABASE_URL` and `ADMIN_API_KEY`. The `TOOLKIT_URL` and `TOOLKIT_SECRET_KEY` are available from the public env vars (`EXPO_PUBLIC_TOOLKIT_URL` and `EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY`).\n\nBut I need to first get the functions folder into the main project and deploy it. Let me:\n\n1. Copy the `functions` folder from the source submodule to the project root\n2. Update `rork.json` to add the cloudflare app\n3. Set env vars (I need DATABASE_URL from the user, but I can generate ADMIN_API_KEY)\n4. Deploy via runChecks\n\nActually, wait. Let me look more carefully. The `EXPO_PUBLIC_RORK_FUNCTIONS_URL` is set as a public env var. That means the backend URL is already configured. Let me check what it resolves to.\n\nThe public env vars are:\n- EXPO_PUBLIC_PROJECT_ID = 8nhr0bsiv7h6qsxc1wc05\n- EXPO_PUBLIC_RORK_API_BASE_URL\n- EXPO_PUBLIC_RORK_APP_KEY\n- EXPO_PUBLIC_RORK_AUTH_URL\n- EXPO_PUBLIC_RORK_FUNCTIONS_URL\n- EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY\n- EXPO_PUBLIC_TEAM_ID\n- EXPO_PUBLIC_TOOLKIT_URL\n\nSo `EXPO_PUBLIC_RORK_FUNCTIONS_URL` is already set. The backend URL pattern is `https://<projectId>-backend.rork.app`. For this project it would be `https://8nhr0bsiv7h6qsxc1wc05-backend.rork.app`.\n\nBut the `.env.example` shows `RORK_FUNCTIONS_URL=https://kidhero-health-backend.rork.app` — this is a custom name. Let me check if the actual env var is already set.\n\nLet me think about this step by step:\n\n1. The functions need to be in the main project root (not in the submodule)\n2. The rork.json needs the cloudflare app entry\n3. I need to set up env vars: DATABASE_URL (from user), ADMIN_API_KEY (I generate), and optionally others\n4. Deploy with runChecks\n\nLet me first copy the functions folder and set up everything, then ask the user for the DATABASE_URL since that's a secret I can't generate.\n\nActually, let me check if maybe the functions are already deployed and I just need to test the admin portal and set the ADMIN_API_KEY. Let me curl the backend URL.\n\nLet me check the actual functions URL. The ApiService.kt says:\n```\nBuildConfig.RORK_FUNCTIONS_URL.ifBlank {\n    \"https://kidhero-health-backend.rork.app\"\n}\n```\n\nSo the fallback URL is `https://kidhero-health-backend.rork.app`. But the actual env var `EXPO_PUBLIC_RORK_FUNCTIONS_URL` might be different. Let me try to curl both.\n\nActually, I should just get this done:\n\n1. Copy functions folder to project root\n2. Update rork.json\n3. Generate an ADMIN_API_KEY\n4. Ask user for DATABASE_URL (required for the backend to work)\n5. Deploy\n\nLet me start by setting up the functions folder and checking if the backend is already running.",
+      "id": "1hxpv4heqfp77hx98kb6e",
+      "createdAt": 1783674144437,
+      "completedAt": 1783674168446
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-989ea76996f89678",
+      "toolName": "todoWrite",
+      "input": {
+        "tasks": [
+          {
+            "content": "Provision functions folder in project root from source repo",
+            "activeForm": "Provisioning functions folder from source repo",
+            "status": "in_progress"
+          },
+          {
+            "content": "Register cloudflare app in rork.json",
+            "activeForm": "Registering cloudflare app in rork.json",
+            "status": "pending"
+          },
+          {
+            "content": "Generate ADMIN_API_KEY and request DATABASE_URL from user",
+            "activeForm": "Generating ADMIN_API_KEY and requesting DATABASE_URL",
+            "status": "pending"
+          },
+          {
+            "content": "Deploy backend worker via runChecks",
+            "activeForm": "Deploying backend worker",
+            "status": "pending"
+          },
+          {
+            "content": "Verify admin portal is running and login works",
+            "activeForm": "Verifying admin portal and login",
+            "status": "pending"
+          }
+        ]
+      },
+      "output": {
+        "tasks": [
+          {
+            "content": "Provision functions folder in project root from source repo",
+            "activeForm": "Provisioning functions folder from source repo",
+            "status": "in_progress"
+          },
+          {
+            "content": "Register cloudflare app in rork.json",
+            "activeForm": "Registering cloudflare app in rork.json",
+            "status": "pending"
+          },
+          {
+            "content": "Generate ADMIN_API_KEY and request DATABASE_URL from user",
+            "activeForm": "Generating ADMIN_API_KEY and requesting DATABASE_URL",
+            "status": "pending"
+          },
+          {
+            "content": "Deploy backend worker via runChecks",
+            "activeForm": "Deploying backend worker",
+            "status": "pending"
+          },
+          {
+            "content": "Verify admin portal is running and login works",
+            "activeForm": "Verifying admin portal and login",
+            "status": "pending"
+          }
+        ]
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"tasks\": [{\"content\": \"Provision functions folder in project root from source repo\", \"activeForm\": \"Provisioning functions folder from source repo\", \"status\": \"in_progress\"}, {\"content\": \"Register cloudflare app in rork.json\", \"activeForm\": \"Registering cloudflare app in rork.json\", \"status\": \"pending\"}, {\"content\": \"Generate ADMIN_API_KEY and request DATABASE_URL from user\", \"activeForm\": \"Generating ADMIN_API_KEY and requesting DATABASE_URL\", \"status\": \"pending\"}, {\"content\": \"Deploy backend worker via runChecks\", \"activeForm\": \"Deploying backend worker\", \"status\": \"pending\"}, {\"content\": \"Verify admin portal is running and login works\", \"activeForm\": \"Verifying admin portal and login\", \"status\": \"pending\"}]}",
+      "createdAt": 1783674168446,
+      "completedAt": 1783674173475
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-9fcda7a2e385390f",
+      "toolName": "bash",
+      "input": {
+        "command": "echo \"=== Checking if functions already exist at root ===\" && ls -la functions/ 2>/dev/null || echo \"No functions/ at root\" && echo \"=== Source functions ===\" && ls -la rork-kidhero-health/functions/ && echo \"=== Try curl existing backend ===\" && curl -sS -m 10 -w \"\\nHTTP_STATUS:%{http_code}\\n\" \"https://kidhero-health-backend.rork.app/ping\" 2>&1 || echo \"curl failed\""
+      },
+      "output": {
+        "stdout": "=== Checking if functions already exist at root ===\nNo functions/ at root\n=== Source functions ===\ntotal 324\ndrwxr-xr-x 2 user user   4096 Jul 10 08:52 .\ndrwxr-xr-x 5 user user   4096 Jul 10 08:52 ..\n-rw-r--r-- 1 user user   1577 Jul 10 08:52 .dev.vars.example\n-rw-r--r-- 1 user user    396 Jul 10 08:52 bun.lock\n-rw-r--r-- 1 user user 195412 Jul 10 08:52 index.ts\n-rw-r--r-- 1 user user    158 Jul 10 08:52 package.json\n-rw-r--r-- 1 user user 110660 Jul 10 08:52 vitahero_logo_512.base64.txt\n=== Try curl existing backend ===\n{\"ok\":true,\"db\":{\"ok\":1,\"now\":\"2026-07-10T09:02:55.046Z\"},\"dev_mode\":true}\nHTTP_STATUS:200\n",
+        "stderr": "",
+        "exitCode": 0
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"command\": \"echo \\\"=== Checking if functions already exist at root ===\\\" && ls -la functions/ 2>/dev/null || echo \\\"No functions/ at root\\\" && echo \\\"=== Source functions ===\\\" && ls -la rork-kidhero-health/functions/ && echo \\\"=== Try curl existing backend ===\\\" && curl -sS -m 10 -w \\\"\\\\nHTTP_STATUS:%{http_code}\\\\n\\\" \\\"https://kidhero-health-backend.rork.app/ping\\\" 2>&1 || echo \\\"curl failed\\\"\"}",
+      "createdAt": 1783674170335,
+      "completedAt": 1783674175065
+    },
+    {
+      "type": "reasoning",
+      "text": "The backend is already deployed and running! The `/ping` endpoint returns successfully with `dev_mode: true`. So the admin portal should already be accessible at `https://kidhero-health-backend.rork.app/admin`.\n\nThe issue is that the user needs an `ADMIN_API_KEY` to log in. The backend reads this from env vars. Since the backend is already deployed and working (with DEV_MODE=true), I need to check if `ADMIN_API_KEY` is already set as an env var on the project.\n\nLooking at the public env vars listed:\n- EXPO_PUBLIC_PROJECT_ID\n- EXPO_PUBLIC_RORK_API_BASE_URL\n- EXPO_PUBLIC_RORK_AUTH_URL\n- EXPO_PUBLIC_RORK_APP_KEY\n- EXPO_PUBLIC_RORK_FUNCTIONS_URL\n- EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY\n- EXPO_PUBLIC_TEAM_ID\n- EXPO_PUBLIC_TOOLKIT_URL\n\nAnd private env vars: (none listed)\n\nSo `ADMIN_API_KEY` is NOT set. And `DATABASE_URL` is also not in the private env vars... but the backend is working and connecting to the database successfully (the `/ping` returned `db: {ok: 1}`). \n\nWait, the backend is already deployed at `https://kidhero-health-backend.rork.app`. This means it was deployed from the source repo `rork-kidhero-health` previously. The `DATABASE_URL` must already be configured on the platform.\n\nBut `ADMIN_API_KEY` is not set. Let me test the admin portal to see if it's accessible and what happens when trying to login.\n\nActually, looking more carefully - the functions are at `rork-kidhero-health/functions/` and the rork.json in the submodule has `\"path\": \"functions\"`. But the project root rork.json only has the android app. \n\nThe backend IS deployed though (curl to `https://kidhero-health-backend.rork.app/ping` works). So it was deployed previously from the submodule.\n\nThe user wants:\n1. The admin portal running - it's already running at `https://kidhero-health-backend.rork.app/admin`\n2. A working ADMIN_API_KEY to login\n\nThe `ADMIN_API_KEY` is a private env var that needs to be set. Looking at the env vars, there are no private env vars currently set. I need to set `ADMIN_API_KEY` as a private env var.\n\nBut wait - I can't directly set env vars. I need to use `requestEnvs` to ask the user, or... Actually, looking at the backend code:\n\n```typescript\nif (env.ADMIN_API_KEY && headerKey && headerKey === env.ADMIN_API_KEY) {\n    return { adminId: \"apikey\" };\n}\n```\n\nIf `ADMIN_API_KEY` is not set in env, then the admin login won't work via API key. The only other way is via a session with role=ADMIN, but that requires creating an admin account first (which also requires admin auth - chicken and egg).\n\nLet me check if DEV_MODE bypasses anything for admin... Looking at the code, DEV_MODE only affects SMS/OTP, not admin auth.\n\nSo I need to set the `ADMIN_API_KEY` env var. Let me check if I can use `requestEnvs` to set it. Actually, `requestEnvs` is for asking the user to provide env values. But I could generate one and set it.\n\nWait, actually - the user is asking me to \"give them a working Admin API Key\". So I need to:\n1. Generate a secure admin API key\n2. Set it as a private env var `ADMIN_API_KEY` on the project\n3. The backend needs to be redeployed or the env var needs to propagate\n\nActually, from the cloudflare overview: \"The platform spreads the project's envs into the Worker's `env` as plain strings... Values come from the project envs UI... changes propagate to the running Worker without a redeploy.\"\n\nSo if I set `ADMIN_API_KEY` as a private env var, it should propagate to the worker automatically. But I don't have a direct tool to set env vars... \n\nLet me look at `requestEnvs` - it asks the user to fill in env values. But I want to SET a value, not ask the user for one. \n\nActually, I can provide a value in the `requestEnvs` call using the `value` field. Let me generate a secure key and provide it.\n\nHmm, but `requestEnvs` shows a widget to the user for them to fill in. If I provide the value, it might be pre-filled. Let me think about this differently.\n\nThe backend is already deployed. The `ADMIN_API_KEY` env var is not set. I need to set it. \n\nLooking at the requestEnvs tool: \"If you already have the value, you can provide it here, otherwise leave it blank\". So I can provide a pre-filled value. The user just needs to confirm/save it.\n\nBut I also need `DATABASE_URL` - wait, the backend is already working with a database. So `DATABASE_URL` must already be set somewhere. Let me check...\n\nActually, looking at the private env vars section: it's empty. But the backend `/ping` works and connects to the DB. This is confusing. Maybe the env vars were set on the source repo project but not this cloned project?\n\nWait - the backend URL is `https://kidhero-health-backend.rork.app`. Let me check the `EXPO_PUBLIC_RORK_FUNCTIONS_URL`:\n\nFrom the .env.example: `RORK_FUNCTIONS_URL=https://kidhero-health-backend.rork.app`\n\nThe backend is working. Let me just test the admin portal directly.\n\nLet me curl the admin page and test the /api/admin/stats endpoint to see what's happening.",
+      "id": "1bzdilbck8rw5xgokr1p5",
+      "createdAt": 1783674176484,
+      "completedAt": 1783674225886
+    },
+    {
+      "type": "text",
+      "text": "The backend is already deployed and running. Let me verify the admin portal and test the login flow.",
+      "id": "oueb8z1ci97nnp6t3cm53",
+      "createdAt": 1783674225887
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-b982e2b568ae2e6f",
+      "toolName": "bash",
+      "input": {
+        "command": "echo \"=== Admin page ===\" && curl -sS -m 10 -w \"\\nHTTP_STATUS:%{http_code}\\n\" -o /dev/null \"https://kidhero-health-backend.rork.app/admin\" 2>&1 && echo \"=== Stats without key ===\" && curl -sS -m 10 \"https://kidhero-health-backend.rork.app/api/admin/stats\" 2>&1 && echo \"\" && echo \"=== Stats with test key ===\" && curl -sS -m 10 -H \"X-Admin-Key: test123\" \"https://kidhero-health-backend.rork.app/api/admin/stats\" 2>&1"
+      },
+      "output": {
+        "stdout": "=== Admin page ===\n\nHTTP_STATUS:200\n=== Stats without key ===\n{\"error\":\"Admin authorization required\",\"code\":\"ADMIN_REQUIRED\"}\n=== Stats with test key ===\n{\"error\":\"Admin authorization required\",\"code\":\"ADMIN_REQUIRED\"}",
+        "stderr": "",
+        "exitCode": 0
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"command\": \"echo \\\"=== Admin page ===\\\" && curl -sS -m 10 -w \\\"\\\\nHTTP_STATUS:%{http_code}\\\\n\\\" -o /dev/null \\\"https://kidhero-health-backend.rork.app/admin\\\" 2>&1 && echo \\\"=== Stats without key ===\\\" && curl -sS -m 10 \\\"https://kidhero-health-backend.rork.app/api/admin/stats\\\" 2>&1 && echo \\\"\\\" && echo \\\"=== Stats with test key ===\\\" && curl -sS -m 10 -H \\\"X-Admin-Key: test123\\\" \\\"https://kidhero-health-backend.rork.app/api/admin/stats\\\" 2>&1\"}",
+      "createdAt": 1783674226231,
+      "completedAt": 1783674226248
+    },
+    {
+      "type": "reasoning",
+      "text": "The backend is already deployed and running. The admin portal is up at `https://kidhero-health-backend.rork.app/admin`. The issue is that `ADMIN_API_KEY` isn't set as an env var, so no key works for login. I need to:\n\n1. Generate a secure admin API key\n2. Set it as an environment variable on the project (ADMIN_API_KEY)\n3. Verify login works\n\nThe backend is already running and the DATABASE_URL is already configured (since `/ping` returns a valid DB response). So I just need to set the `ADMIN_API_KEY` env var.\n\nLet me check what env vars are available. The public env vars listed are EXPO_PUBLIC_* ones. I need to set a private `ADMIN_API_KEY` env var.\n\nLooking at the source, the `Env` interface in the worker expects `ADMIN_API_KEY` as a secret. The platform spreads project envs into the Worker's `env`. So I need to set `ADMIN_API_KEY` as a project env var.\n\nI don't have a direct tool to set env vars — I can request them from the user via `requestEnvs`. But actually, I should generate a key and set it. Let me think about how to set env vars on the project.\n\nLooking at my tools, I have `requestEnvs` which asks the user for env vars. But I need to SET an env var, not just ask the user for one. \n\nActually, the platform spreads the project's envs into the Worker's `env`. So I need to set `ADMIN_API_KEY` in the project's environment variables. But I don't have a tool to directly set env vars on the project — the `requestEnvs` tool is for asking the user to provide values.\n\nWait, let me re-read. The `requestEnvs` tool description says \"Use this tool when you need environment variables (API keys, secrets, or configuration values) from the user to complete a task.\" It shows a widget where the user fills in values. This is for GETTING values from the user, not setting them.\n\nBut actually — in the Rork platform, when the user fills in env vars through the `requestEnvs` widget, those values get saved to the project's environment. So it does SET them. The user provides the value and it gets saved.\n\nBut I want to GENERATE a key and set it. I could:\n1. Generate a strong random key\n2. Use `requestEnvs` to ask the user to confirm/save it — but that's awkward since I'd be asking them to enter a value I already know\n\nActually, let me reconsider. The `requestEnvs` tool has a `value` field: \"If you already have the value, you can provide it here, otherwise leave it blank\". So I CAN provide the value! That means I can generate a key, provide it via `requestEnvs`, and the user just needs to confirm/save it.\n\nLet me generate a secure API key and use `requestEnvs` to set it. I also need to make sure `DEV_MODE` is set so the user can test without Plivo. Looking at the ping response, `dev_mode` is already `true`, so DEV_MODE is already set.\n\nThe DATABASE_URL is also already working (the ping succeeded with a DB response).\n\nSo the only missing piece is `ADMIN_API_KEY`. Let me generate one and set it via `requestEnvs`.\n\nActually wait — let me also check if I should also set `INVITE_SIGNING_KEY`. The code uses `env.INVITE_SIGNING_KEY || env.ADMIN_API_KEY` as fallback for signing invites. So ADMIN_API_KEY alone is sufficient for basic admin functionality.\n\nLet me generate a strong key.",
+      "id": "suck383515pbmw6ez8a8e",
+      "createdAt": 1783674229193,
+      "completedAt": 1783674253478
+    },
+    {
+      "type": "text",
+      "text": "The backend is already deployed and the database is connected (`/ping` returns valid DB response, `dev_mode: true`). The only missing piece is the `ADMIN_API_KEY` env var — that's why login fails. Let me generate a secure key and set it.",
+      "id": "x5rqwy2yomfz134nzwe5v",
+      "createdAt": 1783674253478
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-b0c896a50d676156",
+      "toolName": "bash",
+      "input": {
+        "command": "openssl rand -hex 32"
+      },
+      "output": {
+        "stdout": "1c46302fcd59f8eb4bc6d55b735e3764bdf1517dca03e78507ab0ed5bc3bba18\n",
+        "stderr": "",
+        "exitCode": 0
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"command\": \"openssl rand -hex 32\"}",
+      "createdAt": 1783674254269,
+      "completedAt": 1783674254272
+    },
+    {
+      "type": "reasoning",
+      "text": "The backend is already deployed at `https://kidhero-health-backend.rork.app`. The `/ping` endpoint works and the database is connected. The admin portal HTML is served at `/admin`. But login fails because `ADMIN_API_KEY` env var is not set — `/api/admin/stats` returns `ADMIN_REQUIRED` even with a test key.\n\nI need to set the `ADMIN_API_KEY` environment variable. This is a private env var for the Cloudflare Worker. I can set it through the requestEnvs tool, but actually — the env vars are set via the project envs UI. Let me think about this.\n\nLooking at the skill: \"Values come from the project envs UI (the same store that drives `EXPO_PUBLIC_*` for the RN/web builds); changes propagate to the running Worker without a redeploy.\"\n\nSo I need to set the `ADMIN_API_KEY` env var. The requestEnvs tool is for asking the user for env vars. But I can generate a key and set it myself... Actually, looking at the tools available, I don't have a direct \"setEnvVar\" tool. The requestEnvs tool asks the user to fill in values.\n\nWait, let me re-read. The system_context shows available apps only list \"android\" (kotlin). The rork.json in the source repo has a \"functions\" cloudflare app, but the project root rork.json only has the android app. \n\nBut the backend IS running at `https://kidhero-health-backend.rork.app` — it returned a successful ping with DB connection. So it's deployed. The issue is just that `ADMIN_API_KEY` isn't set as an env var.\n\nI need to set the `ADMIN_API_KEY` env var. I can use the requestEnvs tool to ask the user, but actually I should just set it. Let me check — is there a way to set env vars programmatically? \n\nLooking at the tools, I have `requestEnvs` which asks the user to provide values. But for ADMIN_API_KEY, I can generate a random one and the user doesn't need to provide it — I ",
+      "id": "jzylbwrkxnf43rwn8bltt",
+      "createdAt": 1783674258852
+    },
+    {
+      "type": "meta",
+      "id": "meta",
+      "meta": {
+        "isUserInputRequested": true
+      }
+    },
+    {
+      "type": "reasoning",
+      "text": "just need to set it in the environment.\n\nActually, the requestEnvs tool is designed to request env vars FROM the user. But I generated a key. I need to set it as a project env var. \n\nHmm, the public_environment_variables listed include `EXPO_PUBLIC_RORK_TOOLKIT_SECRET_KEY` and `EXPO_PUBLIC_RORK_FUNCTIONS_URL`. The private ones are empty. The ADMIN_API_KEY would be a private env var.\n\nI think the way this works is: I use `requestEnvs` to set env vars. I can provide the value I generated in the `value` field. Let me check the requestEnvs schema again — it has a `value` field: \"If you already have the value, you can provide it here, otherwise leave it blank\".\n\nSo I can use requestEnvs to set the ADMIN_API_KEY with the value I generated. But I also need DATABASE_URL — wait, the /ping already shows the DB is connected, so DATABASE_URL is already set. And DEV_MODE is already true.\n\nSo I just need to set ADMIN_API_KEY. Let me use requestEnvs with the value pre-filled.\n\nActually wait — I also need INVITE_SIGNING_KEY for invites to work. But the user only asked for admin portal login, so let me focus on ADMIN_API_KEY.\n\nLet me set ADMIN_API_KEY using requestEnvs with the value I generated.",
+      "id": "ahnl1nxcgwowae3ejn1iy",
+      "createdAt": 1783674269843,
+      "completedAt": 1783674273892
+    },
+    {
+      "type": "text",
+      "text": "The backend is already live — `/ping` confirms the database is connected and `dev_mode: true`. The only reason login fails is that `ADMIN_API_KEY` isn't set as a project env var yet. I generated a secure key; let me set it now.",
+      "id": "fs2cuztw29j75cw30dhsy",
+      "createdAt": 1783674273893
+    },
+    {
+      "type": "tool",
+      "id": "chatcmpl-tool-8925ccc317ed23ad",
+      "toolName": "requestEnvs",
+      "input": {
+        "envs": [
+          {
+            "name": "ADMIN_API_KEY",
+            "description": "Admin portal login key for the VitaHero Cloudflare Worker backend. This is the bootstrap key used to authenticate into the /admin web panel and all /api/admin/* endpoints. Paste it into the admin login screen at https://kidhero-health-backend.rork.app/admin",
+            "placeholder": "1c46302fcd59f8eb4bc6d55b735e3764bdf1517dca03e78507ab0ed5bc3bba18",
+            "value": "1c46302fcd59f8eb4bc6d55b735e3764bdf1517dca03e78507ab0ed5bc3bba18",
+            "isPublic": false
+          }
+        ],
+        "reason": "Setting the ADMIN_API_KEY env var so the VitaHero admin portal login works. The backend Worker reads this from env to authenticate the X-Admin-Key header. The key is pre-generated — just click Save & Continue."
+      },
+      "output": {
+        "status": "awaiting_user_input",
+        "requestedEnvs": [
+          {
+            "name": "ADMIN_API_KEY",
+            "description": "Admin portal login key for the VitaHero Cloudflare Worker backend. This is the bootstrap key used to authenticate into the /admin web panel and all /api/admin/* endpoints. Paste it into the admin login screen at https://kidhero-health-backend.rork.app/admin",
+            "placeholder": "1c46302fcd59f8eb4bc6d55b735e3764bdf1517dca03e78507ab0ed5bc3bba18",
+            "value": "1c46302fcd59f8eb4bc6d55b735e3764bdf1517dca03e78507ab0ed5bc3bba18",
+            "isPublic": false
+          }
+        ],
+        "reason": "Setting the ADMIN_API_KEY env var so the VitaHero admin portal login works. The backend Worker reads this from env to authenticate the X-Admin-Key header. The key is pre-generated — just click Save & Continue."
+      },
+      "error": null,
+      "state": "output-available",
+      "inputArgsStr": "{\"envs\": [{\"name\": \"ADMIN_API_KEY\", \"description\": \"Admin portal login key for the VitaHero Cloudflare Worker backend. This is the bootstrap key used to authenticate into the /admin web panel and all /api/admin/* endpoints. Paste it into the admin login screen at https://kidhero-health-backend.rork.app/admin\", \"placeholder\": \"1c46302fcd59f8eb4bc6d55b735e3764bdf1517dca03e78507ab0ed5bc3bba18\", \"value\": \"1c46302fcd59f8eb4bc6d55b735e3764bdf1517dca03e78507ab0ed5bc3bba18\", \"isPublic\": false}], \"reason\": \"Setting the ADMIN_API_KEY env var so the VitaHero admin portal login works. The backend Worker reads this from env to authenticate the X-Admin-Key header. The key is pre-generated — just click Save & Continue.\"}",
+      "createdAt": 1783674274700,
+      "completedAt": 1783674274708
+    }
+  ],
+  "snapshotId": "7yyy5sycpx5n9scinywpw"
+}
