@@ -1,0 +1,14 @@
+{
+  "id": "u3jlcvw1n4k8ez0e4hajo",
+  "role": "user",
+  "content": "Uncaught SyntaxError: Invalid or unexpected token\nadmin:162 Uncaught ReferenceError: doLogin is not defined\n    at HTMLButtonElement.onclick (admin:162:47)\nfavicon.ico:1  Failed to load resource: the server responded with a status of 404 ()\n\n\nI am not able to login to admin portal.",
+  "attachments": [
+    {
+      "name": "pasted-image-1783674728961.png",
+      "url": "https://r2-pub.rork.com/attachments/xfcsz91p2ultl95v4c64p.png",
+      "contentType": "image/png"
+    }
+  ],
+  "sourceAttachments": [],
+  "userId": "4f525364-b2a0-4100-97b2-101e6b2e63ad"
+}
