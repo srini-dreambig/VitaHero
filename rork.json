@@ -4,6 +4,11 @@
       "name": "VitaHero",
       "path": "android",
       "framework": "kotlin"
+    },
+    {
+      "name": "Functions",
+      "path": "functions",
+      "framework": "cloudflare"
     }
   ],
   "$schema": "https://rork.com/schema/rork.json"
