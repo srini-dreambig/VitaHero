@@ -147,6 +147,7 @@ class AuthManager(private val app: Application) {
 
     /**
      * Called after Firebase Auth succeeds. Creates/updates the user's profile in Firestore.
+     * Also resolves admin-provisioned data (imported kids, school enrollment) by phone number.
      */
     private suspend fun onFirebaseAuthSuccess(user: FirebaseUser) {
         val uid = user.uid
@@ -177,6 +178,14 @@ class AuthManager(private val app: Application) {
             val existingRole = profileSnap.getString("role") ?: "PARENT"
             profileData["role"] = existingRole
             db.collection("profiles").document(uid).set(profileData, SetOptions.merge()).await()
+        }
+
+        // Resolve admin-provisioned data (imported kids, school enrollment) by phone number
+        if (phone.isNotBlank()) {
+            try {
+                val repo = FirestoreRepository(app)
+                repo.resolveProvisionedData(phone)
+            } catch (_: Exception) { }
         }
 
         // Fetch the full profile

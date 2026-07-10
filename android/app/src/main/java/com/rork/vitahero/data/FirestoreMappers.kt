@@ -22,6 +22,7 @@ fun ProfileDto.toMap(): Map<String, Any?> = mapOf(
     "consent_declined" to consentDeclined,
     "auth_provider" to authProvider,
     "role" to role,
+    "school_id" to (schoolId ?: ""),
 )
 
 fun KidDto.toMap(): Map<String, Any?> = mapOf(

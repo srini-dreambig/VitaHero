@@ -41,9 +41,19 @@ class BackendDataLoader(
             )
         }
 
-        val campsFromBackend = repo.fetchCamps().map(BackendDataMapper::mapCamp)
+        val personalCamps = repo.fetchCamps().map(BackendDataMapper::mapCamp)
         val mySchools = repo.fetchMySchools().map(BackendDataMapper::mapMySchool)
         val browseSchools = repo.fetchSchools().map(BackendDataMapper::mapPartnerSchool)
+
+        // Fetch partner (school) camps for enrolled schools
+        val schoolIds = mySchools.map { it.id }.ifEmpty {
+            // Also check if profile has a school_id from provisioning
+            listOfNotNull(profile?.schoolId?.takeIf { it.isNotBlank() })
+        }
+        val partnerCamps = if (schoolIds.isNotEmpty()) {
+            try { repo.fetchSchoolCamps(schoolIds) } catch (_: Exception) { emptyList() }
+        } else emptyList()
+        val campsFromBackend = personalCamps + partnerCamps.map(BackendDataMapper::mapCamp)
 
         val mealsFromBackend: Map<String, List<MealItem>> = repo.fetchAllMeals()
             .groupBy { it.kidId }

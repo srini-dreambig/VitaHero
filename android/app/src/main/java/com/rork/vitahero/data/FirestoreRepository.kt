@@ -66,6 +66,77 @@ class FirestoreRepository(private val app: Application) {
         } catch (_: Exception) { null }
     }
 
+    /**
+     * Resolve provisioned parent data by phone number and link it to the Firebase UID.
+     * Called after Firebase Auth succeeds — finds the admin-provisioned parent record
+     * by phone number, copies kids/camp data into the user's profile, and marks the
+     * provisioned record as linked.
+     */
+    suspend fun resolveProvisionedData(phone: String): Boolean = withContext(Dispatchers.IO) {
+        val uid = currentUid
+        if (uid.isBlank() || phone.isBlank()) return@withContext false
+        try {
+            // Extract last 10 digits from phone number
+            val digits = phone.replace(Regex("\\D"), "")
+            val last10 = if (digits.length >= 10) digits.takeLast(10) else ""
+            if (last10.isBlank()) return@withContext false
+
+            // Check if provisioned parent exists
+            val provSnap = db.collection("provisioned_parents").document(last10).get().await()
+            if (!provSnap.exists()) return@withContext false
+
+            val provName = provSnap.getString("name") ?: "Parent"
+            val provSchoolId = provSnap.getString("school_id") ?: ""
+            val provSchoolName = provSnap.getString("school_name") ?: ""
+
+            // Mark provisioned parent as linked to this UID
+            db.collection("provisioned_parents").document(last10)
+                .set(mapOf(
+                    "uid" to uid,
+                    "is_logged_in" to true,
+                ), SetOptions.merge()).await()
+
+            // Copy provisioned kids into the user's profile subcollection
+            val kidsSnap = db.collection("provisioned_parents").document(last10)
+                .collection("kids").get().await()
+            for (kidDoc in kidsSnap.documents) {
+                val kidData = kidDoc.data ?: continue
+                val kidId = kidDoc.id
+                // Write kid into user's profile subcollection
+                db.collection("profiles").document(uid)
+                    .collection("kids").document(kidId)
+                    .set(kidData + mapOf(
+                        "profile_id" to uid,
+                        "user_id" to uid,
+                    ), SetOptions.merge()).await()
+            }
+
+            // Update profile with school info if not already set
+            val profileSnap = db.collection("profiles").document(uid).get().await()
+            val existingName = profileSnap.getString("name") ?: ""
+            if (existingName.isBlank() || existingName == "Parent") {
+                db.collection("profiles").document(uid)
+                    .set(mapOf(
+                        "name" to provName,
+                        "school_id" to provSchoolId,
+                    ), SetOptions.merge()).await()
+            }
+
+            // Auto-enroll in school if provisioned with a school_id
+            if (provSchoolId.isNotBlank()) {
+                val enrollId = "${uid}_$provSchoolId"
+                db.collection("school_enrollments").document(enrollId)
+                    .set(mapOf(
+                        "user_id" to uid,
+                        "school_id" to provSchoolId,
+                        "enrolled_at" to System.currentTimeMillis().toString(),
+                    ), SetOptions.merge()).await()
+            }
+
+            true
+        } catch (_: Exception) { false }
+    }
+
     suspend fun upsertProfile(dto: ProfileDto) = withContext(Dispatchers.IO) {
         val uid = currentUid
         if (uid.isBlank()) return@withContext
@@ -292,6 +363,52 @@ class FirestoreRepository(private val app: Application) {
         try {
             db.collection("schools").whereEqualTo("active", true).get().await()
                 .documents.mapNotNull { it.toObject(SchoolDto::class.java)?.copy(id = it.id) }
+        } catch (_: Exception) { emptyList() }
+    }
+
+    // ─── School Camps (partner camps) ───────────────────────────
+
+    suspend fun fetchSchoolCamps(schoolIds: List<String>): List<CampDto> = withContext(Dispatchers.IO) {
+        if (schoolIds.isEmpty()) return@withContext emptyList()
+        try {
+            val result = mutableListOf<CampDto>()
+            for (schoolId in schoolIds) {
+                val snaps = db.collection("school_camps")
+                    .whereEqualTo("school_id", schoolId)
+                    .whereEqualTo("active", true).get().await()
+                for (doc in snaps.documents) {
+                    val title = doc.getString("title") ?: continue
+                    val schoolName = try {
+                        db.collection("schools").document(schoolId).get().await().getString("name") ?: ""
+                    } catch (_: Exception) { "" }
+                    val regKidIds = try {
+                        db.collection("camp_registrations")
+                            .whereEqualTo("school_camp_id", doc.id)
+                            .whereEqualTo("user_id", currentUid)
+                            .get().await().documents.mapNotNull { it.getString("kid_id") }
+                    } catch (_: Exception) { emptyList() }
+                    result.add(CampDto(
+                        id = doc.id,
+                        profileId = currentUid,
+                        userId = currentUid,
+                        title = title,
+                        school = schoolName,
+                        date = doc.getString("date") ?: "",
+                        time = doc.getString("time") ?: "",
+                        status = doc.getString("status") ?: "UPCOMING",
+                        checks = (doc.get("checks") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                        resultSummary = doc.getString("result_summary"),
+                        isPartner = true,
+                        schoolId = schoolId,
+                        schoolCampId = doc.id,
+                        description = doc.getString("description") ?: "",
+                        grades = (doc.get("grades") as? List<*>)?.filterIsInstance<String>() ?: emptyList(),
+                        capacity = (doc.getLong("capacity")?.toInt() ?: 200),
+                        registeredKidIds = regKidIds,
+                    ))
+                }
+            }
+            result.sortedBy { it.date }
         } catch (_: Exception) { emptyList() }
     }
 

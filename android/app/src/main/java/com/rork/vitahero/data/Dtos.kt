@@ -30,6 +30,7 @@ data class ProfileDto(
     @SerialName("consent_declined") val consentDeclined: Boolean = false,
     @SerialName("auth_provider") val authProvider: String? = null,
     val role: String = "PARENT",
+    @SerialName("school_id") val schoolId: String? = null,
 )
 
 @Serializable
