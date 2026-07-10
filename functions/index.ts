@@ -2114,6 +2114,74 @@ a.btn.secondary{background:#0F172A}
         });
       }
 
+      // ── Batch generate doctor credentials ──
+      if (path === "/api/admin/doctors/generate-batch" && request.method === "POST") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const body: Record<string, unknown> = await request.json();
+        const doctors = body.doctors as Array<Record<string, string>> | undefined;
+        const schoolCampId = (body.school_camp_id as string)?.trim();
+        if (!Array.isArray(doctors) || doctors.length === 0) {
+          return json({ error: "doctors array is required" }, 400);
+        }
+        if (!schoolCampId) {
+          return json({ error: "school_camp_id is required" }, 400);
+        }
+        if (doctors.length > 50) {
+          return json({ error: "Max 50 doctors per batch" }, 400);
+        }
+        const results: Array<Record<string, unknown>> = [];
+        let created = 0;
+        let errors = 0;
+        for (let i = 0; i < doctors.length; i++) {
+          const doc = doctors[i];
+          const doctorName = (doc.doctor_name as string)?.trim();
+          const phone = (doc.phone as string)?.trim();
+          const specialty = (doc.specialty as string)?.trim() || "General Paediatrics";
+          const hospital = (doc.hospital as string)?.trim() || "";
+          if (!doctorName || !phone) {
+            results.push({ row: i + 1, doctor_name: doctorName || "", phone: phone || "", status: "error", message: "Missing name or phone" });
+            errors++;
+            continue;
+          }
+          const norm = normalizePhone(phone);
+          if (!norm) {
+            results.push({ row: i + 1, doctor_name: doctorName, phone, status: "error", message: "Invalid phone number" });
+            errors++;
+            continue;
+          }
+          try {
+            const profileId = profileIdForPhone(norm.last10);
+            await sql`
+              INSERT INTO vita_hero.profiles (id, phone, name, user_id, auth_provider, role, provisioned, is_logged_in)
+              VALUES (${profileId}, ${norm.e164}, ${doctorName}, ${profileId}, 'PHONE', 'DOCTOR', true, false)
+              ON CONFLICT (id) DO UPDATE SET
+                name = CASE WHEN vita_hero.profiles.role = 'DOCTOR' THEN EXCLUDED.name ELSE vita_hero.profiles.name END,
+                phone = EXCLUDED.phone,
+                role = CASE WHEN vita_hero.profiles.role IN ('ADMIN','SUPERADMIN') THEN vita_hero.profiles.role ELSE 'DOCTOR' END
+            `;
+            const assignId = `dca_${profileId}_${schoolCampId}`;
+            await sql`
+              INSERT INTO vita_hero.doctor_camp_assignments (id, doctor_profile_id, school_camp_id, role, status)
+              VALUES (${assignId}, ${profileId}, ${schoolCampId}, 'DOCTOR', 'ACTIVE')
+              ON CONFLICT (doctor_profile_id, school_camp_id) DO UPDATE SET status = 'ACTIVE'
+            `;
+            const docDirId = `doc_${norm.last10}`;
+            await sql`
+              INSERT INTO vita_hero.doctors (id, name, specialty, hospital, city, rating, active)
+              VALUES (${docDirId}, ${doctorName}, ${specialty}, ${hospital}, 'Hyderabad', 4.5, true)
+              ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, specialty = EXCLUDED.specialty
+            `;
+            results.push({ row: i + 1, doctor_name: doctorName, phone: norm.e164, status: "created", profile_id: profileId });
+            created++;
+          } catch (err) {
+            results.push({ row: i + 1, doctor_name: doctorName, phone, status: "error", message: (err as Error).message });
+            errors++;
+          }
+        }
+        return json({ success: true, total: doctors.length, created, errors, results });
+      }
+
       // ── List all doctor credentials ──
       if (path === "/api/admin/doctors" && request.method === "GET") {
         const admin = await requireAdmin(request, sql, env);
