@@ -1,0 +1,14 @@
+{
+  "id": "deheumziesgrqbf4hl6qt",
+  "role": "user",
+  "content": "When Credential created, it needs to give a 6 digit OTP for doctor to login with given mobile number. If created and not showing anything then how can they use credentials to login?\n\nAlso loading data is taking an eternity which will fraustrate the admin. please fix",
+  "attachments": [
+    {
+      "name": "pasted-image-1783687038361.png",
+      "url": "https://r2-pub.rork.com/attachments/qefnzy6hb7ppkvk565hcd.png",
+      "contentType": "image/png"
+    }
+  ],
+  "sourceAttachments": [],
+  "userId": "4f525364-b2a0-4100-97b2-101e6b2e63ad"
+}

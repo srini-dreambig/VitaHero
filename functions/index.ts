@@ -22,6 +22,7 @@ const PLIVO_API = "https://api.plivo.com/v1/Account";
 const PLIVO_SRC_NUMBER = "+12562828337";
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
+const DOCTOR_SETUP_OTP_EXPIRY_MINUTES = 30;
 
 // ── Closed-app configuration ──
 // VitaHero is a closed, admin-provisioned app: parents log in by phone only and
@@ -88,6 +89,28 @@ function generateOtp(): string {
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
   return String(100000 + (array[0] % 900000));
+}
+
+async function generateAndSendOtp(
+  sql: ReturnType<typeof neon>,
+  env: Env,
+  phone: string,
+  template?: string
+): Promise<{ otp: string; sent: boolean }> {
+  const otp = generateOtp();
+  const expiresAt = new Date(Date.now() + DOCTOR_SETUP_OTP_EXPIRY_MINUTES * 60_000);
+  await sql`
+    INSERT INTO ${sql.unsafe(SCHEMA)}.phone_otps (phone, otp, expires_at, attempts, last_sent_at)
+    VALUES (${phone}, ${otp}, ${expiresAt.toISOString()}, 0, NOW())
+    ON CONFLICT (phone) DO UPDATE SET
+      otp = EXCLUDED.otp,
+      expires_at = EXCLUDED.expires_at,
+      attempts = 0,
+      last_sent_at = NOW()
+  `;
+  const text = (template || "Your VitaHero verification code is: {otp}").replace("{otp}", otp);
+  const sent = await sendPlivoSms(env, phone, text);
+  return { otp, sent };
 }
 
 function sanitizeProfile(row: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
@@ -440,6 +463,15 @@ async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
   await ensureHospitalPartnerships(sql);
   await seedPartnerSchools(sql);
   await linkCampHospitals(sql);
+
+  // Performance indexes for admin panel queries.
+  await sql`CREATE INDEX IF NOT EXISTS idx_profiles_provisioned ON ${sql.unsafe(SCHEMA)}.profiles(provisioned, invited_at DESC NULLS LAST, name, phone)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_profiles_role ON ${sql.unsafe(SCHEMA)}.profiles(role, id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_kids_profile_id ON ${sql.unsafe(SCHEMA)}.kids(profile_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_doctor_camp_assignments_profile ON ${sql.unsafe(SCHEMA)}.doctor_camp_assignments(doctor_profile_id, assigned_at DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_school_camps_date ON ${sql.unsafe(SCHEMA)}.school_camps(date DESC)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_sms_log_type_status ON ${sql.unsafe(SCHEMA)}.sms_log(type, status)`;
+  await sql`CREATE INDEX IF NOT EXISTS idx_import_batches_created_at ON ${sql.unsafe(SCHEMA)}.import_batches(created_at DESC)`;
 }
 
 function generateDoctorSlots(
@@ -2005,13 +2037,21 @@ a.btn.secondary{background:#0F172A}
         return json({ invited, skipped });
       }
 
+      if (path === "/api/admin/verify" && request.method === "GET") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        return json({ valid: true });
+      }
+
       if (path === "/api/admin/stats" && request.method === "GET") {
         const admin = await requireAdmin(request, sql, env);
         if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
-        const parents = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true`;
-        const active = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true AND is_logged_in = true`;
-        const kids = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.kids WHERE source = 'ADMIN'`;
-        const invites = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.sms_log WHERE type = 'INVITE' AND status = 'SENT'`;
+        const [parents, active, kids, invites] = await Promise.all([
+          sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true`,
+          sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true AND is_logged_in = true`,
+          sql`SELECT COUNT(*)::int AS n FROM vita_hero.kids WHERE source = 'ADMIN'`,
+          sql`SELECT COUNT(*)::int AS n FROM vita_hero.sms_log WHERE type = 'INVITE' AND status = 'SENT'`,
+        ]);
         return json({
           provisionedParents: parents[0].n,
           activeParents: active[0].n,
@@ -2026,30 +2066,24 @@ a.btn.secondary{background:#0F172A}
         if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
         const search = (url.searchParams.get("q") || "").trim();
         const limit = Math.min(parseInt(url.searchParams.get("limit") || "100", 10) || 100, 500);
-        const rows = search
-          ? await sql`
-              SELECT p.id, p.phone, p.name, p.school_id, p.invited_at, p.invite_count,
-                     p.is_logged_in, p.provisioned,
-                     (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.profile_id = p.id) AS kid_count,
-                     s.name AS school_name
-              FROM vita_hero.profiles p
-              LEFT JOIN vita_hero.schools s ON s.id = p.school_id
-              WHERE p.provisioned = true
-                AND (p.phone ILIKE ${"%" + search + "%"} OR p.name ILIKE ${"%" + search + "%"})
-              ORDER BY p.invited_at DESC NULLS LAST, p.name
-              LIMIT ${limit}
-            `
-          : await sql`
-              SELECT p.id, p.phone, p.name, p.school_id, p.invited_at, p.invite_count,
-                     p.is_logged_in, p.provisioned,
-                     (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.profile_id = p.id) AS kid_count,
-                     s.name AS school_name
-              FROM vita_hero.profiles p
-              LEFT JOIN vita_hero.schools s ON s.id = p.school_id
-              WHERE p.provisioned = true
-              ORDER BY p.invited_at DESC NULLS LAST, p.name
-              LIMIT ${limit}
-            `;
+        const searchPattern = search ? "%" + search + "%" : null;
+        const rows = await sql`
+          SELECT p.id, p.phone, p.name, p.school_id, p.invited_at, p.invite_count,
+                 p.is_logged_in, p.provisioned,
+                 COALESCE(k.kid_count, 0) AS kid_count,
+                 s.name AS school_name
+          FROM vita_hero.profiles p
+          LEFT JOIN (
+            SELECT profile_id, COUNT(*)::int AS kid_count
+            FROM vita_hero.kids
+            GROUP BY profile_id
+          ) k ON k.profile_id = p.id
+          LEFT JOIN vita_hero.schools s ON s.id = p.school_id
+          WHERE p.provisioned = true
+            ${search ? sql`AND (p.phone ILIKE ${searchPattern} OR p.name ILIKE ${searchPattern})` : sql``}
+          ORDER BY p.invited_at DESC NULLS LAST, p.name
+          LIMIT ${limit}
+        `;
         return json(rows);
       }
 
@@ -2104,6 +2138,9 @@ a.btn.secondary{background:#0F172A}
           ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, specialty = EXCLUDED.specialty
         `;
 
+        // Generate and send the initial login OTP.
+        const otpResult = await generateAndSendOtp(sql, env, norm.e164, "Your VitaHero doctor verification code is: {otp}");
+
         return json({
           success: true,
           doctor_profile_id: profileId,
@@ -2111,6 +2148,8 @@ a.btn.secondary{background:#0F172A}
           doctor_name: doctorName,
           school_camp_id: schoolCampId,
           specialty,
+          otp: otpResult.otp,
+          sms_sent: otpResult.sent,
           message: `Doctor credential created for ${doctorName}. They can now log in with ${norm.e164} via OTP.`,
         });
       }
@@ -2173,7 +2212,9 @@ a.btn.secondary{background:#0F172A}
               VALUES (${docDirId}, ${doctorName}, ${specialty}, ${hospital}, 'Hyderabad', 4.5, true)
               ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, specialty = EXCLUDED.specialty
             `;
-            results.push({ row: i + 1, doctor_name: doctorName, phone: norm.e164, status: "created", profile_id: profileId });
+
+            const otpResult = await generateAndSendOtp(sql, env, norm.e164, "Your VitaHero doctor verification code is: {otp}");
+            results.push({ row: i + 1, doctor_name: doctorName, phone: norm.e164, status: "created", profile_id: profileId, otp: otpResult.otp, sms_sent: otpResult.sent });
             created++;
           } catch (err) {
             results.push({ row: i + 1, doctor_name: doctorName, phone, status: "error", message: (err as Error).message });
@@ -2187,9 +2228,10 @@ a.btn.secondary{background:#0F172A}
       if (path === "/api/admin/doctors" && request.method === "GET") {
         const admin = await requireAdmin(request, sql, env);
         if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const limit = Math.min(parseInt(url.searchParams.get("limit") || "100", 10) || 100, 500);
         const rows = await sql`
           SELECT p.id AS doctor_profile_id, p.phone, p.name AS doctor_name, p.is_logged_in,
-                 dca.school_camp_id, dca.status AS assignment_status, dca.assigned_at,
+                 dca.id AS assignment_id, dca.school_camp_id, dca.status AS assignment_status, dca.assigned_at,
                  sc.title AS camp_title, sc.date AS camp_date,
                  s.name AS school_name
           FROM vita_hero.profiles p
@@ -2198,8 +2240,22 @@ a.btn.secondary{background:#0F172A}
           LEFT JOIN vita_hero.schools s ON s.id = sc.school_id
           WHERE p.role = 'DOCTOR'
           ORDER BY dca.assigned_at DESC
+          LIMIT ${limit}
         `;
         return json(rows);
+      }
+
+      // ── Resend/view doctor login OTP ──
+      if (path === "/api/admin/doctors/resend-otp" && request.method === "POST") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const body: Record<string, unknown> = await request.json();
+        const phone = (body.phone as string)?.trim();
+        if (!phone) return json({ error: "phone is required" }, 400);
+        const norm = normalizePhone(phone);
+        if (!norm) return json({ error: "Invalid phone number" }, 400);
+        const otpResult = await generateAndSendOtp(sql, env, norm.e164, "Your VitaHero doctor verification code is: {otp}");
+        return json({ success: true, phone: norm.e164, otp: otpResult.otp, sms_sent: otpResult.sent });
       }
 
       // ── Revoke a doctor's camp assignment ──
