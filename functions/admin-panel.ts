@@ -248,6 +248,10 @@ td{padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12px}tr:hover 
         <span class="ico"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>
         <span class="label">Import Data</span>
       </a>
+      <a id="tab-camps" onclick="switchTab('camps')">
+        <span class="ico"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.527a4 4 0 0 1-.95 2.594L4.5 18h15l-4.55-5.879a4 4 0 0 1-.95-2.594V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/><path d="M2 22h20"/></svg></span>
+        <span class="label">Camps</span>
+      </a>
       <a id="tab-parents" onclick="switchTab('parents')">
         <span class="ico"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         <span class="label">Parents</span>
@@ -341,6 +345,73 @@ td{padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12px}tr:hover 
       </div>
     </div>
 
+    <div class="tab-content" id="content-camps">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.527a4 4 0 0 1-.95 2.594L4.5 18h15l-4.55-5.879a4 4 0 0 1-.95-2.594V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/><path d="M2 22h20"/></svg> Add New Camp</div>
+        </div>
+        <p class="helper-text" id="campFormHint">Create a new health camp linked to a school. Fields marked with * are required.</p>
+        <div id="campFormArea">
+          <div class="form-group" style="margin-bottom:12px">
+            <label>School *</label>
+            <select id="campSchoolSelect"><option value="">Loading schools...</option></select>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Camp Title *</label>
+            <input type="text" id="campTitle" placeholder="e.g. Annual Health & Growth Camp">
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="form-group" style="margin:0">
+              <label>Date *</label>
+              <input type="date" id="campDate">
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Time</label>
+              <input type="text" id="campTime" placeholder="9:00 AM - 1:00 PM" value="9:00 AM - 1:00 PM">
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+            <div class="form-group" style="margin:0">
+              <label>Status</label>
+              <select id="campStatus"><option value="UPCOMING">Upcoming</option><option value="ACTIVE">Active</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select>
+            </div>
+            <div class="form-group" style="margin:0">
+              <label>Capacity</label>
+              <input type="number" id="campCapacity" value="200" min="1">
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Description</label>
+            <input type="text" id="campDescription" placeholder="Brief description of the camp">
+          </div>
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Checks (comma-separated)</label>
+            <input type="text" id="campChecks" placeholder="Height & Weight, Dental, Eye Test, Hemoglobin">
+          </div>
+          <div class="form-group" style="margin-bottom:14px">
+            <label>Grades (comma-separated)</label>
+            <input type="text" id="campGrades" placeholder="Class 1, Class 2, Class 3">
+          </div>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn-primary" id="campSaveBtn" onclick="saveCamp()">Create Camp</button>
+            <button class="btn-secondary" id="campCancelBtn" onclick="cancelCampEdit()" style="display:none">Cancel</button>
+          </div>
+          <div id="campResult" style="margin-top:10px"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16V9"/><path d="M11 16V5"/><path d="M15 16v-3"/><path d="M19 16V8"/></svg> All Camps</div>
+          <button class="btn-sm" onclick="loadCamps()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg> Refresh</button>
+        </div>
+        <div class="search-row">
+          <input type="text" id="campSearch" placeholder="Search by title or school..." onkeydown="if(event.key==='Enter')loadCamps()">
+          <button class="btn-sm" onclick="loadCamps()">Search</button>
+        </div>
+        <div class="table-wrap"><div id="campsTable"><div class="empty-state"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.527a4 4 0 0 1-.95 2.594L4.5 18h15l-4.55-5.879a4 4 0 0 1-.95-2.594V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/><path d="M2 22h20"/></svg><p>Click Search to load camps</p></div></div></div>
+      </div>
+    </div>
+
     <div class="tab-content" id="content-parents">
       <div class="card">
         <div class="card-header"><div class="card-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Provisioned Parents</div></div>
@@ -412,7 +483,7 @@ function doLogout(){localStorage.removeItem('vitahero_admin_key');adminKey='';lo
 if(adminKey){api('GET','/api/admin/stats').then(function(){document.getElementById('loginScreen').style.display='none';document.getElementById('mainApp').style.display='block';var sb=document.getElementById('sidebar');if(localStorage.getItem('vitahero_sidebar_collapsed')==='1')sb.classList.add('collapsed');loadOverview();checkDevMode()}).catch(function(){adminKey=''})}
 function toggleSidebar(){var sb=document.getElementById('sidebar');sb.classList.toggle('collapsed');localStorage.setItem('vitahero_sidebar_collapsed',sb.classList.contains('collapsed')?'1':'0')}
 function checkDevMode(){fetch('/ping').then(function(r){return r.json()}).then(function(d){if(d.dev_mode)document.getElementById('devModeBanner').style.display='flex'}).catch(function(){})}
-function switchTab(t){var ts=['overview','import','parents','doctors','history'];for(var i=0;i<ts.length;i++){document.getElementById('tab-'+ts[i]).classList.toggle('active',ts[i]===t);document.getElementById('content-'+ts[i]).classList.toggle('active',ts[i]===t)}var titles={overview:'Overview',import:'Import Data',parents:'Parents',doctors:'Doctors',history:'Import History'};document.getElementById('pageTitle').textContent=titles[t];if(t==='overview')loadOverview();if(t==='parents')loadParents();if(t==='doctors')loadDoctorsTab();if(t==='history')loadHistory()}
+function switchTab(t){var ts=['overview','import','camps','parents','doctors','history'];for(var i=0;i<ts.length;i++){document.getElementById('tab-'+ts[i]).classList.toggle('active',ts[i]===t);document.getElementById('content-'+ts[i]).classList.toggle('active',ts[i]===t)}var titles={overview:'Overview',import:'Import Data',camps:'Camps',parents:'Parents',doctors:'Doctors',history:'Import History'};document.getElementById('pageTitle').textContent=titles[t];if(t==='overview')loadOverview();if(t==='camps')loadCampsTab();if(t==='parents')loadParents();if(t==='doctors')loadDoctorsTab();if(t==='history')loadHistory()}
 function loadOverview(){api('GET','/api/admin/stats').then(function(d){document.getElementById('stat-parents').textContent=d.provisionedParents||0;document.getElementById('stat-active').textContent=d.activeParents||0;document.getElementById('stat-kids').textContent=d.importedKids||0;document.getElementById('stat-invites').textContent=d.invitesSent||0}).catch(function(){})}
 function parseCSVLine(l){var r=[],c='',q=false;for(var i=0;i<l.length;i++){var ch=l[i];if(ch=='"')q=!q;else if(ch===','&&!q){r.push(c);c=''}else c+=ch}r.push(c);return r}
 function parseCSV(t){var lines=t.trim().split(String.fromCharCode(10));if(lines.length<2)return[];var headers=parseCSVLine(lines[0]);var rows=[];for(var i=1;i<lines.length;i++){var line=lines[i].trim();if(!line)continue;var vals=parseCSVLine(line);var row={};for(var j=0;j<headers.length;j++)row[headers[j]]=(vals[j]||'').trim();rows.push(row)}return rows}
@@ -423,6 +494,14 @@ function loadParents(){var s=document.getElementById('parentSearch').value.trim(
 function sendInvite(phone){if(!phone)return;if(!confirm('Send invitation SMS to '+phone+'?'))return;api('POST','/api/admin/invite',{phones:[phone],force:true}).then(function(d){alert('Invitation sent: '+d.invited+' successful, '+d.skipped.length+' skipped.');loadParents()}).catch(function(e){alert('Failed to send invite: '+e.message)})}
 function loadHistory(){document.getElementById('historyTable').innerHTML='<div class="loading"><div class="spinner"></div></div>';api('GET','/api/admin/import-batches').then(function(rows){if(!rows||rows.length===0){document.getElementById('historyTable').innerHTML='<div class="empty-state"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5l5 0"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg><p>No import batches yet.</p></div>';return}var h='<table><thead><tr><th>Date</th><th>Filename</th><th>Total</th><th>Created</th><th>Updated</th><th>Errors</th><th>Invited</th><th>Type</th></tr></thead><tbody>';for(var i=0;i<rows.length;i++){var b=rows[i];var dt=b.created_at?new Date(b.created_at).toLocaleString():'-';var tp=b.dry_run?'<span class="badge amber">Dry Run</span>':'<span class="badge green">Live</span>';h+='<tr><td>'+dt+'</td><td>'+(b.filename||'-')+'</td><td>'+b.total+'</td><td>'+b.created+'</td><td>'+b.updated+'</td><td>'+b.errors+'</td><td>'+b.invited+'</td><td>'+tp+'</td></tr>'}h+='</tbody></table>';document.getElementById('historyTable').innerHTML=h}).catch(function(e){document.getElementById('historyTable').innerHTML='<p style="color:var(--alert);padding:12px;font-weight:500;font-size:12px">Error: '+e.message+'</p>'})}
 function loadDoctorsTab(){loadCampOptions();loadDoctors()}
+function loadCampsTab(){loadCampSchools();loadCamps()}
+function loadCampSchools(){api('GET','/api/admin/schools').then(function(schools){var sel=document.getElementById('campSchoolSelect');if(!schools||schools.length===0){sel.innerHTML='<option value="">No schools available - import data first</option>';return}var h='<option value="">Select a school...</option>';for(var i=0;i<schools.length;i++){var s=schools[i];h+='<option value="'+s.id+'">'+(s.name||'School')+(s.city?' - '+(s.city||''):'')+'</option>'}sel.innerHTML=h}).catch(function(){document.getElementById('campSchoolSelect').innerHTML='<option value="">Failed to load schools</option>'})}
+function loadCamps(){var s=document.getElementById('campSearch').value.trim();var qs=s?('?q='+encodeURIComponent(s)):'';document.getElementById('campsTable').innerHTML='<div class="loading"><div class="spinner"></div></div>';api('GET','/api/admin/camps'+qs).then(function(rows){var search=(document.getElementById('campSearch').value||'').toLowerCase();if(search){rows=rows.filter(function(c){return((c.title||'')+' '+(c.school_name||'')).toLowerCase().indexOf(search)>=0})}if(!rows||rows.length===0){document.getElementById('campsTable').innerHTML='<div class="empty-state"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.527a4 4 0 0 1-.95 2.594L4.5 18h15l-4.55-5.879a4 4 0 0 1-.95-2.594V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/><path d="M2 22h20"/></svg><p>No camps found. Create one above.</p></div>';return}var h='<table><thead><tr><th>Title</th><th>School</th><th>Date</th><th>Time</th><th>Status</th><th>Capacity</th><th>Registered</th><th>Actions</th></tr></thead><tbody>';for(var i=0;i<rows.length;i++){var c=rows[i];var stCls=c.status==='UPCOMING'?'blue':c.status==='COMPLETED'?'green':c.status==='CANCELLED'?'red':'amber';var stLabel=(c.status||'UPCOMING').charAt(0)+(c.status||'UPCOMING').slice(1).toLowerCase();var checks=c.checks||[];var grades=c.grades||[];var titleTooltip=(c.description||'')+(checks.length>0?String.fromCharCode(10)+'Checks: '+checks.join(', '):'')+(grades.length>0?String.fromCharCode(10)+'Grades: '+grades.join(', '):'');h+='<tr><td><b title="'+titleTooltip.replace(/"/g,'')+'" style="cursor:help">'+(c.title||'')+'</b></td><td>'+(c.school_name||'-')+'</td><td>'+(c.date||'-')+'</td><td>'+(c.time||'-')+'</td><td><span class="badge '+stCls+'">'+stLabel+'</span></td><td>'+(c.capacity||0)+'</td><td>'+(c.registered_count||0)+'</td><td style="white-space:nowrap"><button class="btn-sm" onclick="editCamp(\''+c.id+'\')" style="margin-right:4px">Edit</button><button class="btn-sm" style="color:var(--alert);border-color:rgba(239,68,68,.3)" onclick="deleteCamp(\''+c.id+'\',\''+(c.title||'').replace(/'/g,'\\\'')+'\')">Delete</button></td></tr>'}h+='</tbody></table>';document.getElementById('campsTable').innerHTML=h}).catch(function(e){document.getElementById('campsTable').innerHTML='<p style="color:var(--alert);padding:12px;font-weight:500;font-size:12px">Error: '+e.message+'</p>'})}
+function saveCamp(){var schoolId=document.getElementById('campSchoolSelect').value;var title=document.getElementById('campTitle').value.trim();var date=document.getElementById('campDate').value;var time=document.getElementById('campTime').value.trim();var status=document.getElementById('campStatus').value;var capacity=parseInt(document.getElementById('campCapacity').value,10)||200;var description=document.getElementById('campDescription').value.trim();var checksRaw=document.getElementById('campChecks').value.trim();var gradesRaw=document.getElementById('campGrades').value.trim();var checks=checksRaw?checksRaw.split(',').map(function(s){return s.trim()}).filter(Boolean):[];var grades=gradesRaw?gradesRaw.split(',').map(function(s){return s.trim()}).filter(Boolean):[];if(!title||!date||!schoolId){document.getElementById('campResult').innerHTML='<div class="banner warn" style="display:flex">Please fill all required fields (School, Title, Date).</div>';return}var btn=document.getElementById('campSaveBtn');var editId=btn.getAttribute('data-edit-id');btn.disabled=true;btn.textContent=editId?'Updating...':'Creating...';var payload={school_id:schoolId,title:title,date:date,time:time,status:status,capacity:capacity,description:description,checks:checks,grades:grades};var method=editId?'PUT':'POST';var url=editId?('/api/admin/camps/'+editId):'/api/admin/camps';api(method,url,payload).then(function(r){btn.disabled=false;btn.textContent='Create Camp';btn.removeAttribute('data-edit-id');document.getElementById('campCancelBtn').style.display='none';document.getElementById('campFormHint').textContent='Create a new health camp linked to a school. Fields marked with * are required.';document.getElementById('campResult').innerHTML='<div class="banner info" style="display:flex"><span>&#10003;</span> Camp '+(editId?'updated':'created')+': <b>'+(r.title||title)+'</b></div>';resetCampForm();loadCamps()}).catch(function(e){btn.disabled=false;btn.textContent=editId?'Update Camp':'Create Camp';document.getElementById('campResult').innerHTML='<div class="banner warn" style="display:flex">Error: '+e.message+'</div>'})}
+function editCamp(id){api('GET','/api/admin/camps').then(function(rows){var c=null;for(var i=0;i<rows.length;i++){if(rows[i].id===id){c=rows[i];break}}if(!c)return;document.getElementById('campSchoolSelect').value=c.school_id||'';document.getElementById('campTitle').value=c.title||'';document.getElementById('campDate').value=c.date||'';document.getElementById('campTime').value=c.time||'';document.getElementById('campStatus').value=c.status||'UPCOMING';document.getElementById('campCapacity').value=c.capacity||200;document.getElementById('campDescription').value=c.description||'';var checks=c.checks||[];var grades=c.grades||[];document.getElementById('campChecks').value=checks.join(', ');document.getElementById('campGrades').value=grades.join(', ');var btn=document.getElementById('campSaveBtn');btn.textContent='Update Camp';btn.setAttribute('data-edit-id',id);document.getElementById('campCancelBtn').style.display='inline-flex';document.getElementById('campFormHint').textContent='Editing camp: '+(c.title||'')+'. Make changes and click Update Camp.';document.getElementById('campResult').innerHTML='';window.scrollTo({top:0,behavior:'smooth'})}).catch(function(e){alert('Failed to load camp: '+e.message)})}
+function cancelCampEdit(){resetCampForm();var btn=document.getElementById('campSaveBtn');btn.removeAttribute('data-edit-id');btn.textContent='Create Camp';document.getElementById('campCancelBtn').style.display='none';document.getElementById('campFormHint').textContent='Create a new health camp linked to a school. Fields marked with * are required.';document.getElementById('campResult').innerHTML=''}
+function resetCampForm(){document.getElementById('campSchoolSelect').value='';document.getElementById('campTitle').value='';document.getElementById('campDate').value='';document.getElementById('campTime').value='9:00 AM - 1:00 PM';document.getElementById('campStatus').value='UPCOMING';document.getElementById('campCapacity').value='200';document.getElementById('campDescription').value='';document.getElementById('campChecks').value='';document.getElementById('campGrades').value=''}
+function deleteCamp(id,title){if(!confirm('Delete camp "'+title+'"? This will deactivate it. It can be reactivated from the database if needed.'))return;api('DELETE','/api/admin/camps/'+id,{}).then(function(){loadCamps()}).catch(function(e){alert('Failed to delete: '+e.message)})}
 function loadCampOptions(){api('GET','/api/admin/camps').then(function(camps){var sel=document.getElementById('docCampSelect');if(!camps||camps.length===0){sel.innerHTML='<option value="">No camps available - import data first</option>';return}var h='<option value="">Select a camp...</option>';for(var i=0;i<camps.length;i++){var c=camps[i];h+='<option value="'+c.id+'">'+(c.title||'Camp')+' - '+(c.school_name||'')+' ('+(c.date||'')+')</option>'}sel.innerHTML=h}).catch(function(){document.getElementById('docCampSelect').innerHTML='<option value="">Failed to load camps</option>'})}
 function addDoctorRow(){docRowCounter++;var container=document.getElementById('doctorRowsContainer');var div=document.createElement('div');div.className='doc-row';div.setAttribute('data-row',docRowCounter);div.innerHTML='<div class="form-group"><input type="text" class="doc-name" placeholder="Dr. ..."></div><div class="form-group"><input type="text" class="doc-phone" placeholder="9876543210"></div><div class="form-group"><input type="text" class="doc-specialty" placeholder="General Paediatrics" value="General Paediatrics"></div><div class="form-group"><input type="text" class="doc-hospital" placeholder="Hospital / Clinic"></div><button class="btn-remove" onclick="removeDoctorRow(this)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>';container.appendChild(div);updateRemoveButtons();updateDocCount()}
 function removeDoctorRow(btn){var row=btn.closest('.doc-row');if(row)row.remove();updateRemoveButtons();updateDocCount()}

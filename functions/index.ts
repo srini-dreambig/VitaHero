@@ -2218,13 +2218,114 @@ a.btn.secondary{background:#0F172A}
         const admin = await requireAdmin(request, sql, env);
         if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
         const rows = await sql`
-          SELECT sc.id, sc.title, sc.date, sc.status, s.name AS school_name
+          SELECT sc.id, sc.title, sc.date, sc.time, sc.status, sc.description,
+                 sc.checks, sc.grades, sc.capacity, sc.registered_count,
+                 sc.result_summary, sc.active, sc.school_id, s.name AS school_name,
+                 s.city AS school_city
           FROM vita_hero.school_camps sc
           LEFT JOIN vita_hero.schools s ON s.id = sc.school_id
-          WHERE sc.active = true
           ORDER BY sc.date DESC
         `;
         return json(rows);
+      }
+
+      // ── List schools for admin camp form dropdown ──
+      if (path === "/api/admin/schools" && request.method === "GET") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const rows = await sql`
+          SELECT id, name, city, partner_code, active
+          FROM vita_hero.schools
+          WHERE active = true
+          ORDER BY name
+        `;
+        return json(rows);
+      }
+
+      // ── Create a new camp ──
+      if (path === "/api/admin/camps" && request.method === "POST") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const body: Record<string, unknown> = await request.json();
+        const schoolId = (body.school_id as string)?.trim();
+        const title = (body.title as string)?.trim();
+        const date = (body.date as string)?.trim();
+        const time = (body.time as string)?.trim() || "9:00 AM – 1:00 PM";
+        const description = (body.description as string)?.trim() || "";
+        const status = (body.status as string)?.trim() || "UPCOMING";
+        const capacity = parseInt(String(body.capacity || 200), 10) || 200;
+        const checks = Array.isArray(body.checks) ? body.checks : [];
+        const grades = Array.isArray(body.grades) ? body.grades : [];
+        if (!title || !date || !schoolId) {
+          return json({ error: "title, date, and school_id are required" }, 400);
+        }
+        const campId = `sc_${schoolId}_${crypto.randomUUID().slice(0, 8)}`;
+        await sql`
+          INSERT INTO vita_hero.school_camps
+            (id, school_id, title, description, date, time, status, checks, grades, capacity, registered_count, active)
+          VALUES (
+            ${campId}, ${schoolId}, ${title}, ${description},
+            ${date}, ${time}, ${status},
+            ${JSON.stringify(checks)}::jsonb, ${JSON.stringify(grades)}::jsonb,
+            ${capacity}, 0, true
+          )
+        `;
+        const created = await sql`
+          SELECT sc.*, s.name AS school_name, s.city AS school_city
+          FROM vita_hero.school_camps sc
+          LEFT JOIN vita_hero.schools s ON s.id = sc.school_id
+          WHERE sc.id = ${campId}
+        `;
+        return json(created[0]);
+      }
+
+      // ── Update a camp ──
+      if (path.startsWith("/api/admin/camps/") && request.method === "PUT") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const campId = path.split("/")[4];
+        const body: Record<string, unknown> = await request.json();
+        const title = (body.title as string)?.trim();
+        const date = (body.date as string)?.trim();
+        const time = (body.time as string)?.trim();
+        const description = (body.description as string)?.trim();
+        const status = (body.status as string)?.trim();
+        const capacity = body.capacity != null ? parseInt(String(body.capacity), 10) : undefined;
+        const checks = body.checks !== undefined ? (Array.isArray(body.checks) ? body.checks : []) : undefined;
+        const grades = body.grades !== undefined ? (Array.isArray(body.grades) ? body.grades : []) : undefined;
+        const active = body.active !== undefined ? !!body.active : undefined;
+        if (!title || !date) {
+          return json({ error: "title and date are required" }, 400);
+        }
+        await sql`
+          UPDATE vita_hero.school_camps SET
+            title = ${title},
+            date = ${date},
+            time = ${time || ""},
+            description = ${description || ""},
+            status = ${status || "UPCOMING"},
+            capacity = ${capacity ?? 200},
+            checks = ${JSON.stringify(checks || [])}::jsonb,
+            grades = ${JSON.stringify(grades || [])}::jsonb,
+            active = ${active ?? true}
+          WHERE id = ${campId}
+        `;
+        const updated = await sql`
+          SELECT sc.*, s.name AS school_name, s.city AS school_city
+          FROM vita_hero.school_camps sc
+          LEFT JOIN vita_hero.schools s ON s.id = sc.school_id
+          WHERE sc.id = ${campId}
+        `;
+        return json(updated[0] || { success: true });
+      }
+
+      // ── Delete / deactivate a camp ──
+      if (path.startsWith("/api/admin/camps/") && request.method === "DELETE") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const campId = path.split("/")[4];
+        await sql`UPDATE vita_hero.school_camps SET active = false WHERE id = ${campId}`;
+        return json({ success: true, deactivated: campId });
       }
 
       // ═══════════════════════════════════════════════════
