@@ -2,6 +2,7 @@ const LOGO_DATA_URI = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAABQCAY
 
 // VitaHero Neon DB Backend — Cloudflare Worker
 // Admin panel & invite page redesigned to match app brand
+// Fix: eliminated template-literal quote escaping in admin JS
 // Connects to Neon Postgres (vita_hero schema) for all CRUD operations.
 // Updated: 2026-07-03 — admin panel uses app icon logo
 // Auth delegates to Neon Auth (Better Auth) for Google OAuth + email/password.

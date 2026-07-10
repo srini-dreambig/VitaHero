@@ -1,0 +1,8 @@
+{
+  "id": "8regxgs4jh0x9jqld6v1m",
+  "role": "user",
+  "content": "Uncaught SyntaxError: Unexpected string\nadmin:223 Uncaught ReferenceError: doLogin is not defined\n    at HTMLButtonElement.onclick (admin:223:47)\n\nFailed to Sign in again and earlier it was taking long time to login now failing to login.\n\nLooks like you are creating bugs to eat up my tokens if not the issue fixed is showing up again",
+  "attachments": [],
+  "sourceAttachments": [],
+  "userId": "4f525364-b2a0-4100-97b2-101e6b2e63ad"
+}
