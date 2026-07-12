@@ -68,6 +68,7 @@ fun OtpScreen(
     onVerified: (code: String) -> Unit,
     onResend: (() -> Unit)? = null,
     isVerifying: Boolean = false,
+    isSending: Boolean = false,
     error: String? = null,
     parentName: String = "",
     devOtp: String? = null,
@@ -136,11 +137,40 @@ fun OtpScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // OTP input
+        // Sending OTP state — waiting for Firebase to send the SMS
+        if (isSending && verificationId.isNullOrBlank()) {
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = HeroOrange
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        "Sending OTP to +91 $phone...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+
+        // OTP input — only show if verificationId is ready (SMS sent)
+        val otpReady = !verificationId.isNullOrBlank()
         Box {
             BasicTextField(
                 value = code,
                 onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
+                enabled = otpReady,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 modifier = Modifier
                     .focusRequester(focus)
@@ -156,13 +186,16 @@ fun OtpScreen(
             ) {
                 repeat(6) { i ->
                     val char = code.getOrNull(i)?.toString() ?: ""
-                    val active = i == code.length
+                    val active = i == code.length && otpReady
                     Box(
                         Modifier
                             .weight(1f)
                             .height(58.dp)
                             .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surface)
+                            .background(
+                                if (otpReady) MaterialTheme.colorScheme.surface
+                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            )
                             .border(
                                 width = if (active) 2.dp else 1.dp,
                                 color = if (active) HeroOrange else MaterialTheme.colorScheme.outline,
@@ -177,7 +210,13 @@ fun OtpScreen(
                                 color = HeroOrange
                             )
                         } else {
-                            Text(char, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                char,
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (otpReady) MaterialTheme.colorScheme.onSurface
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
                         }
                     }
                 }
@@ -210,8 +249,12 @@ fun OtpScreen(
 
         Spacer(Modifier.weight(1f))
         PrimaryGradientButton(
-            text = if (isVerifying) t(S.pleaseWait) else t(S.verify),
-            enabled = code.length == 6 && !isVerifying && verificationId != null,
+            text = when {
+                isVerifying -> t(S.pleaseWait)
+                isSending && verificationId.isNullOrBlank() -> "Sending OTP..."
+                else -> t(S.verify)
+            },
+            enabled = code.length == 6 && !isVerifying && !isSending && !verificationId.isNullOrBlank(),
             onClick = { onVerified(code) },
             modifier = Modifier
                 .fillMaxWidth()

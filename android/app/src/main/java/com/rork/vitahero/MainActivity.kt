@@ -152,18 +152,44 @@ class MainActivity : ComponentActivity() {
 
     private val phoneCallbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
         override fun onVerificationCompleted(credential: PhoneAuthCredential) {
+            android.util.Log.d("VitaHeroAuth", "onVerificationCompleted (auto-verified)")
+            appViewModel.setOtpSending(false)
+            appViewModel.setAuthLoading(false)
             appViewModel.signInWithCredential(credential)
         }
 
         override fun onVerificationFailed(e: FirebaseException) {
-            appViewModel.clearAuthLoading()
+            android.util.Log.e("VitaHeroAuth", "onVerificationFailed: ${e.message}", e)
+            appViewModel.setOtpSending(false)
+            appViewModel.setAuthLoading(false)
+            val rawMsg = e.message ?: "Verification failed"
             val msg = when {
-                e.message?.contains("NETWORK") == true -> "Network error. Check your connection."
-                e.message?.contains("quota") == true -> "SMS quota exceeded. Try again later."
-                e.message?.contains("INVALID") == true -> "Invalid phone number."
-                else -> e.message ?: "Verification failed"
+                rawMsg.contains("NETWORK", ignoreCase = true) ->
+                    "Network error. Check your internet connection and try again."
+                rawMsg.contains("quota", ignoreCase = true) ->
+                    "SMS quota exceeded. Please try again later."
+                rawMsg.contains("INVALID_PHONE", ignoreCase = true) ->
+                    "Invalid phone number. Please check and try again."
+                rawMsg.contains("TOO_SHORT", ignoreCase = true) ->
+                    "Phone number is too short. Please enter a valid 10-digit number."
+                rawMsg.contains("MISSING_CLIENT_IDENTIFIER", ignoreCase = true) ||
+                rawMsg.contains("SHA-1", ignoreCase = true) ||
+                rawMsg.contains("sha-1", ignoreCase = true) ->
+                    "App not authorized for Firebase. SHA-1 fingerprint must be added to Firebase Console."
+                rawMsg.contains("credential-manager", ignoreCase = true) ||
+                rawMsg.contains("PLAY_SERVICES", ignoreCase = true) ->
+                    "Google Play Services required for OTP verification."
+                rawMsg.contains("MISSING_MFA_ENROLLMENT", ignoreCase = true) ||
+                rawMsg.contains("CAPTCHA", ignoreCase = true) ->
+                    "Verification blocked by reCAPTCHA. Please try again."
+                rawMsg.contains("OPERATION_NOT_ALLOWED", ignoreCase = true) ->
+                    "Phone Auth is not enabled in Firebase Console. Please enable it."
+                rawMsg.contains("BILLING", ignoreCase = true) ||
+                rawMsg.contains("quota exceeded", ignoreCase = true) ->
+                    "Firebase billing limit reached. Contact admin."
+                else -> rawMsg
             }
-            Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+            appViewModel.setAuthError(msg)
         }
 
         override fun onCodeSent(
@@ -171,13 +197,20 @@ class MainActivity : ComponentActivity() {
             token: PhoneAuthProvider.ForceResendingToken,
         ) {
             super.onCodeSent(verificationId, token)
+            android.util.Log.d("VitaHeroAuth", "onCodeSent: verificationId received")
             resendToken = token
+            appViewModel.setOtpSending(false)
+            appViewModel.setAuthLoading(false)
             appViewModel.setVerificationId(verificationId)
         }
     }
 
     private fun startFirebasePhoneVerification(phone: String) {
         val formatted = if (phone.startsWith("+")) phone else "+91$phone"
+        android.util.Log.d("VitaHeroAuth", "Starting Phone verification for: $formatted")
+        appViewModel.setAuthError(null)
+        appViewModel.setAuthLoading(true)
+        appViewModel.setOtpSending(true)
         val options = PhoneAuthOptions.newBuilder()
             .setPhoneNumber(formatted)
             .setTimeout(60L, TimeUnit.SECONDS)
@@ -189,6 +222,9 @@ class MainActivity : ComponentActivity() {
 
     private fun resendFirebasePhoneVerification(phone: String) {
         val formatted = if (phone.startsWith("+")) phone else "+91$phone"
+        android.util.Log.d("VitaHeroAuth", "Resending Phone verification for: $formatted")
+        appViewModel.setAuthError(null)
+        appViewModel.setOtpSending(true)
         val builder = PhoneAuthOptions.newBuilder()
             .setPhoneNumber(formatted)
             .setTimeout(60L, TimeUnit.SECONDS)

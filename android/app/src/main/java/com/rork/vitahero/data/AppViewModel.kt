@@ -31,6 +31,7 @@ class AppViewModel(
     val authLoading: StateFlow<Boolean> get() = auth.authLoading
     val devOtp: StateFlow<String?> get() = auth.devOtp
     val verificationId: StateFlow<String?> get() = auth.verificationId
+    val otpSending: StateFlow<Boolean> get() = auth.otpSending
     val sessionToken: StateFlow<String?> get() = auth.sessionToken
     val role: StateFlow<String> get() = auth.role
 
@@ -112,6 +113,10 @@ class AppViewModel(
     fun clearAuthError() = auth.clearAuthError()
     fun clearAuthLoading() = auth.clearAuthLoading()
     fun clearDevOtp() = auth.clearDevOtp()
+    fun setAuthLoading(loading: Boolean) = auth.setAuthLoading(loading)
+    fun setAuthError(msg: String?) = auth.setAuthError(msg)
+    fun setOtpSending(sending: Boolean) = auth.setOtpSending(sending)
+    fun clearVerificationId() = auth.clearVerificationId()
 
     fun onBackendLogin(userId: String, email: String, phone: String, name: String) {
         val userRole = auth.role.value

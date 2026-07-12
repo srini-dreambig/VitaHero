@@ -58,6 +58,10 @@ class AuthManager(private val app: Application) {
     private val _verificationId = MutableStateFlow("")
     val verificationId: StateFlow<String> = _verificationId.asStateFlow()
 
+    /** Whether an OTP is currently being sent (Phone Auth verification in progress). */
+    private val _otpSending = MutableStateFlow(false)
+    val otpSending: StateFlow<Boolean> = _otpSending.asStateFlow()
+
     /** Firebase Auth UID — the primary user identifier. */
     private val _uid = MutableStateFlow("")
     val uid: StateFlow<String> = _uid.asStateFlow()
@@ -305,6 +309,18 @@ class AuthManager(private val app: Application) {
     fun clearAuthError() { _authError.value = null }
     fun clearAuthLoading() { _authLoading.value = false }
     fun clearDevOtp() { _devOtp.value = null }
+
+    /** Set loading state — used by Activity when starting Phone Auth verification. */
+    fun setAuthLoading(loading: Boolean) { _authLoading.value = loading }
+
+    /** Set an auth error message — used by Activity when Phone Auth fails. */
+    fun setAuthError(msg: String?) { _authError.value = msg }
+
+    /** Set OTP sending state — used by Activity when starting/resending Phone Auth. */
+    fun setOtpSending(sending: Boolean) { _otpSending.value = sending }
+
+    /** Clear the verification ID (e.g. when going back from OTP screen). */
+    fun clearVerificationId() { _verificationId.value = "" }
     fun setOnboardingComplete(v: Boolean) {
         _onboardingComplete.value = v
         SessionStore.setOnboardingComplete(app, v)

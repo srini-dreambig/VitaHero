@@ -174,7 +174,7 @@ fun AppNavigation(
             LaunchedEffect(Unit) { appViewModel.clearAuthError() }
 
             AuthScreen(
-                isLoading = authLoading,
+                isLoading = authLoading || appViewModel.otpSending.collectAsState().value,
                 authError = authError,
                 prefilledPhone = invitePhone,
                 onContinueWithPhone = { p ->
@@ -201,26 +201,33 @@ fun AppNavigation(
 
             val otpError by appViewModel.authError.collectAsState()
             val otpVerifying by appViewModel.authLoading.collectAsState()
+            val otpSending by appViewModel.otpSending.collectAsState()
+            val currentVerificationId by appViewModel.verificationId.collectAsState()
 
             OtpScreen(
                 phone = p,
-                verificationId = verificationId,
+                verificationId = currentVerificationId,
                 onBack = {
                     appViewModel.clearAuthError()
                     appViewModel.clearAuthLoading()
+                    appViewModel.setOtpSending(false)
+                    appViewModel.clearVerificationId()
                     navController.popBackStack()
                 },
                 onVerified = { code ->
                     // Use Firebase verificationId + code
-                    val vId = verificationId
+                    val vId = currentVerificationId
                     if (!vId.isNullOrBlank()) {
                         appViewModel.verifyPhoneOtp(vId, code)
                     }
                 },
                 onResend = {
+                    appViewModel.clearAuthError()
+                    appViewModel.clearVerificationId()
                     onResendOtp(p)
                 },
                 isVerifying = otpVerifying,
+                isSending = otpSending,
                 error = otpError
             )
         }
