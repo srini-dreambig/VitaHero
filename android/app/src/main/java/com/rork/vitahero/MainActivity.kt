@@ -184,10 +184,9 @@ class MainActivity : ComponentActivity() {
                     "Verification blocked by reCAPTCHA. Please try again."
                 rawMsg.contains("OPERATION_NOT_ALLOWED", ignoreCase = true) ->
                     "Phone Auth is not enabled in Firebase Console. Please enable it."
-                rawMsg.contains("BILLING", ignoreCase = true) ||
-                rawMsg.contains("quota exceeded", ignoreCase = true) ->
-                    "Firebase billing limit reached. Contact admin."
-                else -> rawMsg
+                rawMsg.contains("BILLING", ignoreCase = true) ->
+                    "Firebase billing issue: $rawMsg"
+                else -> "Verification failed: $rawMsg"
             }
             appViewModel.setAuthError(msg)
         }
