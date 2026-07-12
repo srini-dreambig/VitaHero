@@ -261,6 +261,7 @@ data class PhoneVerifyDto(
     val valid: Boolean = false,
     @SerialName("is_doctor") val is_doctor: Boolean = false,
     @SerialName("doctor_name") val doctor_name: String? = null,
+    val specialty: String? = null,
     @SerialName("allowed_screens") val allowed_screens: List<String>? = null,
     val error: String? = null,
 )
@@ -270,6 +271,7 @@ data class PhoneVerifyResult(
     val valid: Boolean,
     val isDoctor: Boolean = false,
     val doctorName: String = "",
+    val specialty: String = "",
     val allowedScreens: List<String> = emptyList(),
     val error: String? = null,
 )

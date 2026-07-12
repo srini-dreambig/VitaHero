@@ -708,6 +708,7 @@ class FirestoreRepository(private val app: Application) {
                         valid = true,
                         isDoctor = dto.is_doctor,
                         doctorName = dto.doctor_name ?: "",
+                        specialty = dto.specialty ?: "",
                         allowedScreens = dto.allowed_screens ?: emptyList(),
                     )
                 } else {

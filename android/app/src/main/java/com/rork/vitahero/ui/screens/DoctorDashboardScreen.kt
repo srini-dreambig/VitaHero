@@ -61,6 +61,7 @@ import com.rork.vitahero.ui.theme.FlagAlert
 fun DoctorDashboardScreen(
     doctorViewModel: DoctorViewModel,
     doctorName: String,
+    doctorSpecialty: String = "",
     allowedScreens: List<String> = emptyList(),
     onBack: () -> Unit,
     onOpenCheckup: (DoctorCampKidDto, DoctorCampDto) -> Unit,
@@ -118,7 +119,7 @@ fun DoctorDashboardScreen(
                             fontWeight = FontWeight.Bold,
                         )
                         Text(
-                            "Doctor Portal",
+                            if (doctorSpecialty.isNotBlank()) "$doctorSpecialty · Doctor Portal" else "Doctor Portal",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

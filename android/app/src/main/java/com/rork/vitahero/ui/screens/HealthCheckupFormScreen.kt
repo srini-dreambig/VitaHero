@@ -150,11 +150,26 @@ fun HealthCheckupFormScreen(
     doctorViewModel: DoctorViewModel,
     kid: DoctorCampKidDto,
     camp: DoctorCampDto,
+    doctorSpecialty: String = "",
     onBack: () -> Unit,
     onSubmitted: () -> Unit,
 ) {
     val state by doctorViewModel.uiState.collectAsState()
     val form = remember { CheckupFormState() }
+
+    // Determine which form sections to show based on doctor specialty
+    // Paediatrics / General Paediatrics / blank → all sections
+    val showAll = doctorSpecialty.isBlank() ||
+        doctorSpecialty.equals("Paediatrics", ignoreCase = true) ||
+        doctorSpecialty.equals("General Paediatrics", ignoreCase = true)
+    val showVitals = true // Always show vitals
+    val showDental = showAll || doctorSpecialty.equals("Dental", ignoreCase = true)
+    val showVision = showAll || doctorSpecialty.equals("Ophthalmology", ignoreCase = true)
+    val showNutrition = showAll || doctorSpecialty.equals("Nutrition", ignoreCase = true)
+    val showGeneral = showAll ||
+        doctorSpecialty.equals("ENT", ignoreCase = true) ||
+        doctorSpecialty.equals("Dermatology", ignoreCase = true)
+    val showReferral = true // Always show referral & summary
 
     // Pre-fill from existing kid data
     LaunchedEffect(kid.kidId) {
@@ -245,7 +260,7 @@ fun HealthCheckupFormScreen(
         }
 
         // ── Section: Vitals ──
-        item {
+        if (showVitals) item {
             FormSection(
                 title = "Vitals & Anthropometry",
                 expanded = expandedSection == "vitals",
@@ -266,7 +281,7 @@ fun HealthCheckupFormScreen(
         }
 
         // ── Section: Dental ──
-        item {
+        if (showDental) item {
             FormSection(
                 title = "Dental Check",
                 expanded = expandedSection == "dental",
@@ -286,7 +301,7 @@ fun HealthCheckupFormScreen(
         }
 
         // ── Section: Vision ──
-        item {
+        if (showVision) item {
             FormSection(
                 title = "Vision Screening",
                 expanded = expandedSection == "vision",
@@ -306,7 +321,7 @@ fun HealthCheckupFormScreen(
         }
 
         // ── Section: Nutrition ──
-        item {
+        if (showNutrition) item {
             FormSection(
                 title = "Nutrition & Anaemia",
                 expanded = expandedSection == "nutrition",
@@ -325,7 +340,7 @@ fun HealthCheckupFormScreen(
         }
 
         // ── Section: General Physical ──
-        item {
+        if (showGeneral) item {
             FormSection(
                 title = "General Physical Examination",
                 expanded = expandedSection == "general",
@@ -342,7 +357,7 @@ fun HealthCheckupFormScreen(
         }
 
         // ── Section: Referral & Summary ──
-        item {
+        if (showReferral) item {
             FormSection(
                 title = "Referral & Summary",
                 expanded = expandedSection == "referral",

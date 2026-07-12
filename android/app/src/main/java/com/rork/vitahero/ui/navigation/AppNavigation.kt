@@ -106,6 +106,7 @@ fun AppNavigation(
     val authError by appViewModel.authError.collectAsState()
     val userRole by appViewModel.role.collectAsState()
     val allowedScreens by appViewModel.allowedScreens.collectAsState()
+    val doctorSpecialty by appViewModel.doctorSpecialty.collectAsState()
     val verificationId by appViewModel.verificationId.collectAsState()
 
     var phone by rememberSaveable { mutableStateOf("") }
@@ -533,6 +534,7 @@ fun AppNavigation(
                 DoctorDashboardScreen(
                     doctorViewModel = vms.doctor,
                     doctorName = state.parentName.ifBlank { "Doctor" },
+                    doctorSpecialty = doctorSpecialty,
                     allowedScreens = allowedScreens,
                     onBack = {
                         appViewModel.logout()
@@ -577,6 +579,7 @@ fun AppNavigation(
                     doctorViewModel = vms.doctor,
                     kid = kid,
                     camp = camp,
+                    doctorSpecialty = doctorSpecialty,
                     onBack = { navController.popBackStack() },
                     onSubmitted = { navController.popBackStack() },
                 )

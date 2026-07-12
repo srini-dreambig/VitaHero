@@ -36,6 +36,7 @@ class AppViewModel(
     val role: StateFlow<String> get() = auth.role
     val allowedScreens: StateFlow<List<String>> get() = auth.allowedScreens
     val isDoctor: StateFlow<Boolean> get() = auth.isDoctor
+    val doctorSpecialty: StateFlow<String> get() = auth.doctorSpecialty
 
     private var initComplete = false
 
@@ -133,10 +134,11 @@ class AppViewModel(
             auth.setDoctorVerification(
                 isDoctor = true,
                 doctorName = result.doctorName,
+                specialty = result.specialty,
                 allowedScreens = result.allowedScreens,
             )
         } else if (result.valid) {
-            auth.setDoctorVerification(false, "", emptyList())
+            auth.setDoctorVerification(false, "", "", emptyList())
         }
         return result
     }

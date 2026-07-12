@@ -902,6 +902,7 @@ a.btn.secondary{background:#0F172A}
           phone: norm.e164,
           doctor_name: doctorName,
           specialty,
+          doctor_type: specialty,
           hospital,
           camp_id: schoolCampId,
           assignment_status: "ACTIVE",
@@ -925,6 +926,7 @@ a.btn.secondary{background:#0F172A}
           doctor_name: doctorName,
           school_camp_id: schoolCampId,
           specialty,
+          doctor_type: specialty,
           allowed_screens: allowedScreens,
           message: `Doctor credential created for ${doctorName}. They can log in via the VitaHero app with ${norm.e164}.`,
         });
@@ -968,6 +970,7 @@ a.btn.secondary{background:#0F172A}
               phone: norm.e164,
               doctor_name: doctorName,
               specialty,
+              doctor_type: specialty,
               hospital,
               camp_id: schoolCampId,
               assignment_status: "ACTIVE",
@@ -984,7 +987,7 @@ a.btn.secondary{background:#0F172A}
               rating: 4.5,
               active: true,
             });
-            results.push({ row: i + 1, doctor_name: doctorName, phone: norm.e164, status: "created", allowed_screens: docScreens });
+            results.push({ row: i + 1, doctor_name: doctorName, phone: norm.e164, status: "created", specialty: specialty, allowed_screens: docScreens });
             created++;
           } catch (err) {
             results.push({ row: i + 1, doctor_name: doctorName, phone, status: "error", message: (err as Error).message });
@@ -1021,6 +1024,7 @@ a.btn.secondary{background:#0F172A}
             doctor_name: a.doctor_name,
             phone: a.phone,
             specialty: a.specialty,
+            doctor_type: a.doctor_type || a.specialty || "General Paediatrics",
             hospital: a.hospital,
             camp_id: campId,
             camp_title: campTitle,
@@ -1074,6 +1078,7 @@ a.btn.secondary{background:#0F172A}
             valid: true,
             is_doctor: true,
             doctor_name: doctorAssignments[0].doctor_name as string || "Doctor",
+            specialty: doctorAssignments[0].doctor_type as string || doctorAssignments[0].specialty as string || "General Paediatrics",
             allowed_screens: [...allScreens],
             assignment_count: doctorAssignments.length,
           });
