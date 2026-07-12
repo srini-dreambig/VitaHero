@@ -242,7 +242,7 @@ fun OtpScreen(
                     seconds = 30
                     onResend?.invoke()
                 }) {
-                    Text(t(S.resend).take(10), color = HeroOrange, fontWeight = FontWeight.SemiBold)
+                    Text(t(S.resend), color = HeroOrange, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

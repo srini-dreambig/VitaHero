@@ -172,10 +172,6 @@ class MainActivity : ComponentActivity() {
                     "Invalid phone number. Please check and try again."
                 rawMsg.contains("TOO_SHORT", ignoreCase = true) ->
                     "Phone number is too short. Please enter a valid 10-digit number."
-                rawMsg.contains("MISSING_CLIENT_IDENTIFIER", ignoreCase = true) ||
-                rawMsg.contains("SHA-1", ignoreCase = true) ||
-                rawMsg.contains("sha-1", ignoreCase = true) ->
-                    "App not authorized for Firebase. SHA-1 fingerprint must be added to Firebase Console."
                 rawMsg.contains("credential-manager", ignoreCase = true) ||
                 rawMsg.contains("PLAY_SERVICES", ignoreCase = true) ->
                     "Google Play Services required for OTP verification."
