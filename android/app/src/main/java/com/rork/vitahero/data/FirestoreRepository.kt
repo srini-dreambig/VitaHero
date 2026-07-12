@@ -687,6 +687,48 @@ class FirestoreRepository(private val app: Application) {
         }
     }
 
+    // ─── Phone Pre-Verification (Worker) ─────────────────────
+
+    /**
+     * Pre-check a phone number before sending Firebase OTP.
+     * Verifies the phone is registered as an active doctor or provisioned parent.
+     * Returns null if valid (proceed with OTP), or an error message string if denied.
+     */
+    suspend fun verifyPhoneForLogin(phone: String): PhoneVerifyResult = withContext(Dispatchers.IO) {
+        if (skipNetwork) return@withContext PhoneVerifyResult(valid = true, isDoctor = false)
+        try {
+            val resp = http.post("$base/api/doctor/verify-phone") {
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("phone" to phone))
+            }
+            if (resp.status.isSuccess()) {
+                val dto = resp.body<PhoneVerifyDto>()
+                if (dto.valid) {
+                    PhoneVerifyResult(
+                        valid = true,
+                        isDoctor = dto.is_doctor,
+                        doctorName = dto.doctor_name ?: "",
+                        allowedScreens = dto.allowed_screens ?: emptyList(),
+                    )
+                } else {
+                    PhoneVerifyResult(
+                        valid = false,
+                        error = dto.error ?: "This phone number is not registered.",
+                    )
+                }
+            } else {
+                try {
+                    val errBody = resp.body<PhoneVerifyDto>()
+                    PhoneVerifyResult(valid = false, error = errBody.error ?: "Verification failed. Please try again.")
+                } catch (_: Exception) {
+                    PhoneVerifyResult(valid = false, error = "Could not verify phone number. Check your connection.")
+                }
+            }
+        } catch (e: Exception) {
+            PhoneVerifyResult(valid = false, error = "Network error. Check your connection and try again.")
+        }
+    }
+
     // ─── Worker-backed endpoints (still via HTTP) ──────────────
 
     suspend fun fetchBookingDirectory(

@@ -893,6 +893,9 @@ a.btn.secondary{background:#0F172A}
         }
         const norm = normalizePhone(phone);
         if (!norm) return json({ error: "Invalid phone number" }, 400);
+        const allowedScreens = Array.isArray(body.allowed_screens)
+          ? body.allowed_screens.filter((s: string) => typeof s === "string" && s.trim())
+          : ["DASHBOARD", "CHECKUP"];
         const assignId = `dca_${norm.last10}_${schoolCampId}`;
         await fs.setDoc("doctor_assignments", assignId, {
           id: assignId,
@@ -902,6 +905,7 @@ a.btn.secondary{background:#0F172A}
           hospital,
           camp_id: schoolCampId,
           assignment_status: "ACTIVE",
+          allowed_screens: allowedScreens,
           assigned_at: new Date().toISOString(),
         });
         // Also create/update doctor directory entry
@@ -921,6 +925,7 @@ a.btn.secondary{background:#0F172A}
           doctor_name: doctorName,
           school_camp_id: schoolCampId,
           specialty,
+          allowed_screens: allowedScreens,
           message: `Doctor credential created for ${doctorName}. They can log in via the VitaHero app with ${norm.e164}.`,
         });
       }
@@ -954,6 +959,9 @@ a.btn.secondary{background:#0F172A}
             continue;
           }
           try {
+            const docScreens = Array.isArray(doc.allowed_screens)
+              ? doc.allowed_screens.filter((s: string) => typeof s === "string" && s.trim())
+              : ["DASHBOARD", "CHECKUP"];
             const assignId = `dca_${norm.last10}_${schoolCampId}`;
             await fs.setDoc("doctor_assignments", assignId, {
               id: assignId,
@@ -963,6 +971,7 @@ a.btn.secondary{background:#0F172A}
               hospital,
               camp_id: schoolCampId,
               assignment_status: "ACTIVE",
+              allowed_screens: docScreens,
               assigned_at: new Date().toISOString(),
             });
             const docDirId = `doc_${norm.last10}`;
@@ -975,7 +984,7 @@ a.btn.secondary{background:#0F172A}
               rating: 4.5,
               active: true,
             });
-            results.push({ row: i + 1, doctor_name: doctorName, phone: norm.e164, status: "created" });
+            results.push({ row: i + 1, doctor_name: doctorName, phone: norm.e164, status: "created", allowed_screens: docScreens });
             created++;
           } catch (err) {
             results.push({ row: i + 1, doctor_name: doctorName, phone, status: "error", message: (err as Error).message });
@@ -1018,6 +1027,7 @@ a.btn.secondary{background:#0F172A}
             camp_date: campDate,
             school_name: schoolName,
             assignment_status: a.assignment_status,
+            allowed_screens: a.allowed_screens || ["DASHBOARD", "CHECKUP"],
             is_logged_in: isLoggedIn,
           });
         }
@@ -1030,6 +1040,60 @@ a.btn.secondary{background:#0F172A}
         const assignmentId = path.split("/").pop() || "";
         await fs.mergeDoc("doctor_assignments", assignmentId, { assignment_status: "REVOKED" });
         return json({ success: true });
+      }
+
+      // ── Verify phone for login (public, no auth required) ──
+      // Checks if a phone number is registered as an active doctor or provisioned parent.
+      // Used by the app BEFORE sending Firebase OTP to prevent unauthorized logins.
+      if (path === "/api/doctor/verify-phone" && request.method === "POST") {
+        const body: Record<string, unknown> = await request.json();
+        const phoneRaw = (body.phone as string)?.trim();
+        if (!phoneRaw) return json({ valid: false, error: "Phone number required" }, 400);
+        const norm = normalizePhone(phoneRaw);
+        if (!norm) return json({ valid: false, error: "Invalid phone number" }, 400);
+
+        // Check if this phone has an ACTIVE doctor assignment
+        const doctorAssignments = await fs.query("doctor_assignments", [
+          { field: "phone", op: "EQUAL", value: norm.e164 },
+          { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
+        ], undefined, 50);
+
+        if (doctorAssignments.length > 0) {
+          // Collect all allowed_screens from all active assignments
+          const allScreens = new Set<string>();
+          for (const a of doctorAssignments) {
+            const screens = a.allowed_screens as string[] | undefined;
+            if (Array.isArray(screens)) {
+              screens.forEach(s => allScreens.add(s));
+            } else {
+              allScreens.add("DASHBOARD");
+              allScreens.add("CHECKUP");
+            }
+          }
+          return json({
+            valid: true,
+            is_doctor: true,
+            doctor_name: doctorAssignments[0].doctor_name as string || "Doctor",
+            allowed_screens: [...allScreens],
+            assignment_count: doctorAssignments.length,
+          });
+        }
+
+        // Check if this phone is a provisioned parent
+        const provParent = await fs.getDoc("provisioned_parents", norm.last10);
+        if (provParent && provParent.provisioned === true) {
+          return json({
+            valid: true,
+            is_doctor: false,
+          });
+        }
+
+        // Not registered — deny login
+        return json({
+          valid: false,
+          is_doctor: false,
+          error: "This phone number is not registered. Please contact your administrator to get access.",
+        });
       }
 
       // ── Resend OTP (not applicable with Firebase Auth — return info message) ──

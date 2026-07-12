@@ -255,6 +255,25 @@ data class AiDietTipContentDto(
     @SerialName("generatedAt") val generatedAt: String = "",
 )
 
+/** DTO for the /api/doctor/verify-phone endpoint. */
+@Serializable
+data class PhoneVerifyDto(
+    val valid: Boolean = false,
+    @SerialName("is_doctor") val is_doctor: Boolean = false,
+    @SerialName("doctor_name") val doctor_name: String? = null,
+    @SerialName("allowed_screens") val allowed_screens: List<String>? = null,
+    val error: String? = null,
+)
+
+/** Result of phone pre-verification before sending OTP. */
+data class PhoneVerifyResult(
+    val valid: Boolean,
+    val isDoctor: Boolean = false,
+    val doctorName: String = "",
+    val allowedScreens: List<String> = emptyList(),
+    val error: String? = null,
+)
+
 @Serializable
 data class FoodRecognitionResponseDto(
     val items: List<DetectedFoodDto> = emptyList(),

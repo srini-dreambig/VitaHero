@@ -85,6 +85,18 @@ class AuthManager(private val app: Application) {
     private val _role = MutableStateFlow("PARENT")
     val role: StateFlow<String> = _role.asStateFlow()
 
+    /** Screens the doctor is allowed to access (from admin panel). */
+    private val _allowedScreens = MutableStateFlow<List<String>>(emptyList())
+    val allowedScreens: StateFlow<List<String>> = _allowedScreens.asStateFlow()
+
+    /** Doctor name from admin panel (pre-verified). */
+    private val _doctorName = MutableStateFlow("")
+    val doctorName: StateFlow<String> = _doctorName.asStateFlow()
+
+    /** Whether the current login is a pre-verified doctor. */
+    private val _isDoctor = MutableStateFlow(false)
+    val isDoctor: StateFlow<Boolean> = _isDoctor.asStateFlow()
+
     /** Kept for compatibility — Firebase manages the real session token internally. */
     private val _sessionToken = MutableStateFlow<String?>(null)
     val sessionToken: StateFlow<String?> = _sessionToken.asStateFlow()
@@ -157,7 +169,7 @@ class AuthManager(private val app: Application) {
         val uid = user.uid
         val phone = user.phoneNumber ?: ""
 
-        val profileData = mutableMapOf(
+        val profileData = mutableMapOf<String, Any>(
             "id" to uid,
             "user_id" to uid,
             "phone" to phone,
@@ -168,8 +180,11 @@ class AuthManager(private val app: Application) {
         // Check if profile already exists
         val profileSnap = db.collection("profiles").document(uid).get().await()
         if (!profileSnap.exists()) {
-            profileData["name"] = "Parent"
-            profileData["role"] = "PARENT"
+            // If this was pre-verified as a doctor, set role=DOCTOR
+            val initialRole = if (_isDoctor.value) "DOCTOR" else "PARENT"
+            val initialName = if (_isDoctor.value && _doctorName.value.isNotBlank()) _doctorName.value else "Parent"
+            profileData["name"] = initialName
+            profileData["role"] = initialRole
             profileData["onboarding_complete"] = false
             profileData["dark_theme"] = false
             profileData["locale_code"] = "en"
@@ -177,10 +192,23 @@ class AuthManager(private val app: Application) {
             profileData["camp_reminders_enabled"] = true
             profileData["consent_accepted"] = false
             profileData["consent_declined"] = false
+            if (_isDoctor.value) {
+                profileData["allowed_screens"] = _allowedScreens.value
+            }
             db.collection("profiles").document(uid).set(profileData).await()
         } else {
             val existingRole = profileSnap.getString("role") ?: "PARENT"
-            profileData["role"] = existingRole
+            // If pre-verified as doctor, override role to DOCTOR
+            val finalRole = if (_isDoctor.value) "DOCTOR" else existingRole
+            profileData["role"] = finalRole
+            if (_isDoctor.value) {
+                profileData["allowed_screens"] = _allowedScreens.value
+                // Update name if doctor name is available and profile name is default
+                val existingName = profileSnap.getString("name") ?: ""
+                if (existingName.isBlank() || existingName == "Parent") {
+                    profileData["name"] = _doctorName.value
+                }
+            }
             db.collection("profiles").document(uid).set(profileData, SetOptions.merge()).await()
         }
 
@@ -240,6 +268,13 @@ class AuthManager(private val app: Application) {
             val phone = profileSnap.getString("phone") ?: user.phoneNumber ?: ""
             val email = profileSnap.getString("email") ?: ""
             val onboardingDone = profileSnap.getBoolean("onboarding_complete") ?: false
+            // Restore doctor allowed screens if present
+            val restoredScreens = (profileSnap.get("allowed_screens") as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+            if (restoredScreens.isNotEmpty()) {
+                _allowedScreens.value = restoredScreens
+                _isDoctor.value = role == "DOCTOR"
+                _doctorName.value = name
+            }
 
             withContext(Dispatchers.Main) {
                 _uid.value = uid
@@ -291,6 +326,9 @@ class AuthManager(private val app: Application) {
         _email.value = ""
         _phone.value = ""
         _role.value = "PARENT"
+        _allowedScreens.value = emptyList()
+        _doctorName.value = ""
+        _isDoctor.value = false
         _verificationId.value = ""
     }
 
@@ -304,6 +342,23 @@ class AuthManager(private val app: Application) {
         _profileId.value = ""
         _userId.value = ""
         _role.value = "PARENT"
+        _allowedScreens.value = emptyList()
+        _doctorName.value = ""
+        _isDoctor.value = false
+    }
+
+    /** Set doctor pre-verification info (from phone pre-check before OTP). */
+    fun setDoctorVerification(isDoctor: Boolean, doctorName: String, allowedScreens: List<String>) {
+        _isDoctor.value = isDoctor
+        _doctorName.value = doctorName
+        _allowedScreens.value = allowedScreens
+    }
+
+    /** Check if a screen is allowed for the current doctor. */
+    fun isScreenAllowed(screen: String): Boolean {
+        val screens = _allowedScreens.value
+        if (screens.isEmpty()) return true // No restriction set
+        return screens.contains(screen)
     }
 
     fun clearAuthError() { _authError.value = null }

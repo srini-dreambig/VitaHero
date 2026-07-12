@@ -3,6 +3,14 @@ package com.rork.vitahero.ui.navigation
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -11,7 +19,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -93,6 +105,7 @@ fun AppNavigation(
     val authLoading by appViewModel.authLoading.collectAsState()
     val authError by appViewModel.authError.collectAsState()
     val userRole by appViewModel.role.collectAsState()
+    val allowedScreens by appViewModel.allowedScreens.collectAsState()
     val verificationId by appViewModel.verificationId.collectAsState()
 
     var phone by rememberSaveable { mutableStateOf("") }
@@ -478,25 +491,70 @@ fun AppNavigation(
 
         // ── Doctor Dashboard ──
         composable(Routes.DOCTOR_DASHBOARD) {
-            DoctorDashboardScreen(
-                doctorViewModel = vms.doctor,
-                doctorName = state.parentName.ifBlank { "Doctor" },
-                onBack = {
-                    appViewModel.logout()
-                    navController.navigate(Routes.AUTH) {
-                        popUpTo(Routes.DOCTOR_DASHBOARD) { inclusive = true }
+            // Check if doctor has DASHBOARD screen access
+            val hasDashboardAccess = allowedScreens.isEmpty() || allowedScreens.contains("DASHBOARD")
+            if (!hasDashboardAccess) {
+                // Doctor doesn't have dashboard access — show access denied
+                Box(
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            "Access Denied",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        Text(
+                            "You do not have access to the Doctor Dashboard.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "Contact your administrator.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "Logout",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = androidx.compose.ui.graphics.Color(0xFFF47B20),
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.clickable {
+                                appViewModel.logout()
+                                navController.navigate(Routes.AUTH) {
+                                    popUpTo(Routes.DOCTOR_DASHBOARD) { inclusive = true }
+                                }
+                            }.padding(16.dp)
+                        )
                     }
-                },
-                onOpenCheckup = { kid, camp ->
-                    navController.navigate("doctorCheckup/${camp.campId}/${kid.kidId}")
-                },
-                onLogout = {
-                    appViewModel.logout()
-                    navController.navigate(Routes.AUTH) {
-                        popUpTo(Routes.DOCTOR_DASHBOARD) { inclusive = true }
-                    }
-                },
-            )
+                }
+            } else {
+                DoctorDashboardScreen(
+                    doctorViewModel = vms.doctor,
+                    doctorName = state.parentName.ifBlank { "Doctor" },
+                    allowedScreens = allowedScreens,
+                    onBack = {
+                        appViewModel.logout()
+                        navController.navigate(Routes.AUTH) {
+                            popUpTo(Routes.DOCTOR_DASHBOARD) { inclusive = true }
+                        }
+                    },
+                    onOpenCheckup = { kid, camp ->
+                        // Gate checkup screen by allowed_screens
+                        val hasCheckupAccess = allowedScreens.isEmpty() || allowedScreens.contains("CHECKUP")
+                        if (hasCheckupAccess) {
+                            navController.navigate("doctorCheckup/${camp.campId}/${kid.kidId}")
+                        }
+                    },
+                    onLogout = {
+                        appViewModel.logout()
+                        navController.navigate(Routes.AUTH) {
+                            popUpTo(Routes.DOCTOR_DASHBOARD) { inclusive = true }
+                        }
+                    },
+                )
+            }
         }
 
         // ── Doctor Health Checkup Form ──
@@ -512,7 +570,9 @@ fun AppNavigation(
             val docState by vms.doctor.uiState.collectAsState()
             val camp = docState.selectedCamp ?: docState.camps.firstOrNull { it.campId == campId }
             val kid = docState.campKids.firstOrNull { it.kidId == kidId }
-            if (camp != null && kid != null) {
+            // Gate by allowed_screens
+            val hasCheckupAccess = allowedScreens.isEmpty() || allowedScreens.contains("CHECKUP")
+            if (camp != null && kid != null && hasCheckupAccess) {
                 HealthCheckupFormScreen(
                     doctorViewModel = vms.doctor,
                     kid = kid,
@@ -520,6 +580,13 @@ fun AppNavigation(
                     onBack = { navController.popBackStack() },
                     onSubmitted = { navController.popBackStack() },
                 )
+            } else if (!hasCheckupAccess) {
+                Box(
+                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Access Denied: You do not have checkup access.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
 

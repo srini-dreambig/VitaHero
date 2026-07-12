@@ -34,6 +34,8 @@ class AppViewModel(
     val otpSending: StateFlow<Boolean> get() = auth.otpSending
     val sessionToken: StateFlow<String?> get() = auth.sessionToken
     val role: StateFlow<String> get() = auth.role
+    val allowedScreens: StateFlow<List<String>> get() = auth.allowedScreens
+    val isDoctor: StateFlow<Boolean> get() = auth.isDoctor
 
     private var initComplete = false
 
@@ -117,6 +119,30 @@ class AppViewModel(
     fun setAuthError(msg: String?) = auth.setAuthError(msg)
     fun setOtpSending(sending: Boolean) = auth.setOtpSending(sending)
     fun clearVerificationId() = auth.clearVerificationId()
+
+    // ─── Phone Pre-Verification ────────────────────────────────
+
+    /**
+     * Pre-verify a phone number before sending Firebase OTP.
+     * Returns a [PhoneVerifyResult] — if invalid, shows error and blocks OTP.
+     * If valid and doctor, stores doctor info for post-auth role assignment.
+     */
+    suspend fun verifyPhoneForLogin(phone: String): PhoneVerifyResult {
+        val result = container.repo.verifyPhoneForLogin(phone)
+        if (result.valid && result.isDoctor) {
+            auth.setDoctorVerification(
+                isDoctor = true,
+                doctorName = result.doctorName,
+                allowedScreens = result.allowedScreens,
+            )
+        } else if (result.valid) {
+            auth.setDoctorVerification(false, "", emptyList())
+        }
+        return result
+    }
+
+    /** Check if a screen is allowed for the current doctor. */
+    fun isScreenAllowed(screen: String): Boolean = auth.isScreenAllowed(screen)
 
     fun onBackendLogin(userId: String, email: String, phone: String, name: String) {
         val userRole = auth.role.value

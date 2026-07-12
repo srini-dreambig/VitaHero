@@ -61,11 +61,15 @@ import com.rork.vitahero.ui.theme.FlagAlert
 fun DoctorDashboardScreen(
     doctorViewModel: DoctorViewModel,
     doctorName: String,
+    allowedScreens: List<String> = emptyList(),
     onBack: () -> Unit,
     onOpenCheckup: (DoctorCampKidDto, DoctorCampDto) -> Unit,
     onLogout: () -> Unit,
 ) {
     val state by doctorViewModel.uiState.collectAsState()
+
+    // Determine screen access
+    val hasCheckupAccess = allowedScreens.isEmpty() || allowedScreens.contains("CHECKUP")
 
     LaunchedEffect(Unit) { doctorViewModel.loadCamps() }
 
@@ -263,6 +267,7 @@ fun DoctorDashboardScreen(
                 items(state.campKids, key = { it.kidId }) { kid ->
                     DoctorKidCard(
                         kid = kid,
+                        canStartCheckup = hasCheckupAccess,
                         onClick = { onOpenCheckup(kid, camp) },
                     )
                     Spacer(Modifier.height(12.dp))
@@ -321,14 +326,15 @@ private fun DoctorCampCard(camp: DoctorCampDto, onClick: () -> Unit) {
 }
 
 @Composable
-private fun DoctorKidCard(kid: DoctorCampKidDto, onClick: () -> Unit) {
+private fun DoctorKidCard(kid: DoctorCampKidDto, canStartCheckup: Boolean = true, onClick: () -> Unit) {
     val isChecked = kid.checkupId != null
     val statusColor = when {
         kid.referralNeeded == true -> FlagAlert
         isChecked -> FlagGood
         else -> FlagWatch
     }
-    HeroCard(modifier = Modifier.clickable(onClick = onClick)) {
+    val isClickable = canStartCheckup || isChecked
+    HeroCard(modifier = Modifier.clickable(enabled = isClickable, onClick = onClick)) {
         Row(
             Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -368,21 +374,30 @@ private fun DoctorKidCard(kid: DoctorCampKidDto, onClick: () -> Unit) {
                         color = FlagGood,
                         fontWeight = FontWeight.Medium,
                     )
-                } else {
+                } else if (canStartCheckup) {
                     Text(
                         "Pending checkup",
                         style = MaterialTheme.typography.labelSmall,
                         color = FlagWatch,
                         fontWeight = FontWeight.Medium,
                     )
+                } else {
+                    Text(
+                        "View only — no checkup access",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium,
+                    )
                 }
             }
-            Text(
-                if (isChecked) "View" else "Start",
-                style = MaterialTheme.typography.labelLarge,
-                color = HeroOrange,
-                fontWeight = FontWeight.Bold,
-            )
+            if (canStartCheckup || isChecked) {
+                Text(
+                    if (isChecked) "View" else "Start",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = HeroOrange,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
         }
     }
 }

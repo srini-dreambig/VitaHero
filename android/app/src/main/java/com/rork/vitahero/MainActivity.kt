@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
                     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { _ ->
                         AppNavigation(
                             onSendPhoneOtp = { phone ->
-                                startFirebasePhoneVerification(phone)
+                                preVerifyAndStartOtp(phone)
                             },
                             onResendOtp = { phone ->
                                 resendFirebasePhoneVerification(phone)
@@ -201,6 +201,27 @@ class MainActivity : ComponentActivity() {
             appViewModel.setOtpSending(false)
             appViewModel.setAuthLoading(false)
             appViewModel.setVerificationId(verificationId)
+        }
+    }
+
+    private fun preVerifyAndStartOtp(phone: String) {
+        val formatted = if (phone.startsWith("+")) phone else "+91$phone"
+        android.util.Log.d("VitaHeroAuth", "Pre-verifying phone: $formatted")
+        appViewModel.setAuthError(null)
+        appViewModel.setAuthLoading(true)
+        appViewModel.setOtpSending(true)
+
+        lifecycleScope.launch {
+            val result = appViewModel.verifyPhoneForLogin(formatted)
+            if (!result.valid) {
+                android.util.Log.d("VitaHeroAuth", "Phone pre-verification denied: ${result.error}")
+                appViewModel.setAuthLoading(false)
+                appViewModel.setOtpSending(false)
+                appViewModel.setAuthError(result.error ?: "This phone number is not registered. Please contact your administrator.")
+                return@launch
+            }
+            android.util.Log.d("VitaHeroAuth", "Phone pre-verified. isDoctor=${result.isDoctor}, screens=${result.allowedScreens}")
+            startFirebasePhoneVerification(phone)
         }
     }
 
