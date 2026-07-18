@@ -235,6 +235,10 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 .export-progress .bar > span{display:block;height:100%;background:linear-gradient(95deg,var(--orange),var(--orange-d));width:0%;transition:width .25s ease}
 @media print{ .export-btn,.export-progress,.foot{display:none !important} }
 
+/* ─── Inline SVG icon system (matches product's Material Outlined icons) ─── */
+.ic-svg{width:1em;height:1em;display:inline-block;vertical-align:-.125em;flex-shrink:0}
+.ic-svg svg{display:block}
+
 /* ═══════════════════════════════════════════════════════════════
    PPT 16:9 + Official Logo overrides
    ═══════════════════════════════════════════════════════════════ */
@@ -359,6 +363,52 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 </style>
 </head>
 <body>
+
+<!-- ─── SVG icon sprite (Material Symbols Outlined style, matches the app) ─── -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-school" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 22v-4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v4"/><path d="m18 10 4 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-8l4-2"/><path d="M6 10V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-medical" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .2.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></symbol>
+<symbol id="i-hospital" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6v12"/><path d="M9 9v6"/><path d="M15 9v6"/><path d="M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></symbol>
+<symbol id="i-cal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+<symbol id="i-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/></symbol>
+<symbol id="i-phone" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2"/><path d="M12 18h.01"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></symbol>
+<symbol id="i-meal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2s2-.9 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2s2-.9 2-2z"/><path d="M18 22V2"/></symbol>
+<symbol id="i-trophy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></symbol>
+<symbol id="i-award" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M15.477 12.89 17 22l-5-3-5 3 1.523-9.11"/></symbol>
+<symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+<symbol id="i-note" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></symbol>
+<symbol id="i-tooth" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5.5c-2-1.5-4.5-1.5-6 0-1.5 1.5-1 4-.5 6s.5 4 .5 7c0 1.5.5 3 1.5 3s1-2 1.5-4 1.5-3 2.5-3 2 1 2.5 3 .5 4 1.5 4 1.5-1.5 1.5-3c0-3 0-5 .5-7s1-4.5-.5-6c-1.5-1.5-4-1.5-6 0z"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-ear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8.5a6.5 6.5 0 1 1 13 0c0 6-6 6-6 10A3.5 3.5 0 0 1 9.5 22"/><path d="M6 15a3 3 0 1 0 0-6"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></symbol>
+<symbol id="i-dl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></symbol>
+<symbol id="i-laptop" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16V7a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v9m16 0H4m16 0 1.28 2.55a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45L4 16"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+<symbol id="i-trend" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" x2="12" y1="2" y2="15"/></symbol>
+<symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/><path d="M4 17v2"/><path d="M5 18H3"/></symbol>
+<symbol id="i-cam" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.801 10A10 10 0 1 1 17 3.335"/><path d="m9 11 3 3L22 4"/></symbol>
+<symbol id="i-pending" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 22h14"/><path d="M5 2h14"/><path d="M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22"/><path d="M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+<symbol id="i-nutri" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.72C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path d="M10 2c1 .5 2 2 2 5"/></symbol>
+<symbol id="i-baby" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12h.01M15 12h.01"/><path d="M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5"/><path d="M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 4 .5 5.5 1.5"/><path d="m12 3 1.9-2"/><path d="m12 3-1.9-2"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></symbol>
+<symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></symbol>
+<symbol id="i-wave" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v8"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="m8 6 4-4 4 4"/><path d="M16 18a4 4 0 0 0-8 0"/></symbol>
+<symbol id="i-person" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+</defs></svg>
+
 <div class="deck" id="deck">
 
 <!-- ═══════════════ SLIDE 1 — TITLE ═══════════════ -->
@@ -444,23 +494,23 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
     <h2 class="h2 center" style="margin-top:14px;max-width:760px;align-self:center">VitaHero connects <span class="gradient-text">Schools</span>, <span class="gradient-blue">Parents</span> & <span class="gradient-text">Doctors</span> — so no child's health falls through the cracks.</h2>
     <div class="row gap-md" style="margin-top:48px;align-items:stretch">
       <div class="featurecard" style="border-top:4px solid var(--blue)">
-        <div class="fc-icon" style="background:var(--blue-soft);color:var(--blue-d)">🏫</div>
+        <div class="fc-icon" style="background:var(--blue-soft);color:var(--blue-d)"><svg class="ic-svg"><use href="#i-school"/></svg></div>
         <div class="fc-title">Schools & Camps</div>
         <div class="fc-body">Organise health camps, register children, assign partner doctors by specialty — all from a single admin portal.</div>
       </div>
       <div class="featurecard" style="border-top:4px solid var(--orange)">
-        <div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d)">👨‍👩‍👧</div>
+        <div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d)"><svg class="ic-svg"><use href="#i-users"/></svg></div>
         <div class="fc-title">Parents</div>
         <div class="fc-body">Track each child's growth, dental, vision, nutrition. Receive camp reports instantly. Book follow-ups. All on a phone.</div>
       </div>
       <div class="featurecard" style="border-top:4px solid var(--purple)">
-        <div class="fc-icon" style="background:#EDE9FE;color:var(--purple)">🩺</div>
+        <div class="fc-icon" style="background:#EDE9FE;color:var(--purple)"><svg class="ic-svg"><use href="#i-medical"/></svg></div>
         <div class="fc-title">Doctors — You</div>
         <div class="fc-body">Log in with a phone-verified account, see only your assigned camps and specialty forms, record findings, refer — and reach every parent.</div>
       </div>
     </div>
     <div style="margin-top:38px;background:linear-gradient(120deg,var(--blue-soft),var(--orange-soft));border-radius:20px;padding:24px 28px;display:flex;align-items:center;gap:24px">
-      <div style="font-size:34px">💡</div>
+      <div style="font-size:34px;color:var(--orange)"><svg class="ic-svg"><use href="#i-bulb"/></svg></div>
       <div>
         <div class="fc-title" style="font-size:17px">Why it's different</div>
         <div class="fc-body" style="font-size:14px">It isn't a camp register. It isn't a hospital app. It's the connective tissue between them — built for India, works on any Android phone, multilingual.</div>
@@ -478,31 +528,31 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
     <h2 class="h2 center" style="margin-top:14px;align-self:center">From a school camp to a parent's pocket — in <span class="gradient-text">five steps</span>.</h2>
     <div class="flow" style="margin-top:42px">
       <div class="flow-step">
-        <div class="ic" style="background:var(--blue-soft);color:var(--blue-d)">📅</div>
+        <div class="ic" style="background:var(--blue-soft);color:var(--blue-d)"><svg class="ic-svg"><use href="#i-cal"/></svg></div>
         <div class="t">Camp scheduled</div>
         <div class="d">School organises a health camp and registers children through VitaHero.</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
-        <div class="ic" style="background:var(--orange-soft);color:var(--orange-d)">🩺</div>
+        <div class="ic" style="background:var(--orange-soft);color:var(--orange-d)"><svg class="ic-svg"><use href="#i-medical"/></svg></div>
         <div class="t">Doctor assigned</div>
         <div class="d">Partner doctors are assigned by specialty — Dental, ENT, Ophthalmology, Nutrition, Paediatrics.</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
-        <div class="ic" style="background:#EDE9FE;color:var(--purple)">📋</div>
+        <div class="ic" style="background:#EDE9FE;color:var(--purple)"><svg class="ic-svg"><use href="#i-clip"/></svg></div>
         <div class="t">You screen & record</div>
         <div class="d">Log in on your phone, see only the children registered for your camp, fill your specialty form.</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
-        <div class="ic" style="background:var(--yellow-soft);color:#B27D00">📲</div>
+        <div class="ic" style="background:var(--yellow-soft);color:#B27D00"><svg class="ic-svg"><use href="#i-phone"/></svg></div>
         <div class="t">Parent notified</div>
         <div class="d">The report lands in the parent's app instantly — readable, with your summary and referral notes.</div>
       </div>
       <div class="flow-arrow">→</div>
       <div class="flow-step">
-        <div class="ic" style="background:#D1FAE5;color:#047857">🔁</div>
+        <div class="ic" style="background:#D1FAE5;color:#047857"><svg class="ic-svg"><use href="#i-refresh"/></svg></div>
         <div class="t">Follow-up</div>
         <div class="d">Parent books a follow-up with you in one tap. The child's record stays with them — for life.</div>
       </div>
@@ -537,7 +587,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
             <div style="display:flex;align-items:center;gap:8px"><div class="logo" style="width:28px;height:28px;font-size:15px;border-radius:8px"></div><span style="font-family:var(--font-display);font-weight:800;font-size:14px">VitaHero</span></div>
             <span style="color:var(--ink-soft);font-size:12px;font-weight:600">Skip</span>
           </div>
-          <div class="m-ill">👨‍👩‍👧‍👦</div>
+          <div class="m-ill" style="font-size:0"><svg class="ic-svg" style="width:72px;height:72px;color:var(--orange-d)"><use href="#i-users"/></svg></div>
           <h3 style="text-align:center;font-family:var(--font-display);font-weight:800;font-size:22px;padding:18px 20px 6px;letter-spacing:-.5px">Your child's health, <span style="color:var(--orange)">all in one place</span></h3>
           <p style="text-align:center;color:var(--ink-soft);font-size:13px;padding:0 24px;line-height:1.5">Track growth, dental, vision and nutrition. Get camp reports the moment a doctor completes them.</p>
           <div style="display:flex;justify-content:center;gap:6px;padding:22px 0 8px">
@@ -563,10 +613,10 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
       <h2 class="h2" style="margin-top:14px">A dashboard parents <span class="gradient-text">actually understand</span>.</h2>
       <p class="lead" style="margin-top:18px">The home screen shows what matters most: each child's health score at a glance, the next camp, and one-tap actions for diet plan, booking, and rewards.</p>
       <div class="row gap-md" style="margin-top:24px;align-items:stretch">
-        <div class="featurecard" style="padding:18px"><div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d);width:40px;height:40px;font-size:18px;margin-bottom:10px">🎯</div><div class="fc-title" style="font-size:15px">Health score per child</div><div class="fc-body" style="font-size:13px">A single number — derived from your camp data — that tells a parent where their child stands.</div></div>
-        <div class="featurecard" style="padding:18px"><div class="fc-icon" style="background:var(--blue-soft);color:var(--blue-d);width:40px;height:40px;font-size:18px;margin-bottom:10px">📅</div><div class="fc-title" style="font-size:15px">Next camp, front and centre</div><div class="fc-body" style="font-size:13px">Parents never miss a screening — the upcoming camp banner is the first thing they see.</div></div>
+        <div class="featurecard" style="padding:18px"><div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d);width:40px;height:40px;font-size:18px;margin-bottom:10px"><svg class="ic-svg"><use href="#i-target"/></svg></div><div class="fc-title" style="font-size:15px">Health score per child</div><div class="fc-body" style="font-size:13px">A single number — derived from your camp data — that tells a parent where their child stands.</div></div>
+        <div class="featurecard" style="padding:18px"><div class="fc-icon" style="background:var(--blue-soft);color:var(--blue-d);width:40px;height:40px;font-size:18px;margin-bottom:10px"><svg class="ic-svg"><use href="#i-cal"/></svg></div><div class="fc-title" style="font-size:15px">Next camp, front and centre</div><div class="fc-body" style="font-size:13px">Parents never miss a screening — the upcoming camp banner is the first thing they see.</div></div>
       </div>
-      <div class="anno" style="right:-40px;top:60px">👇 This score is <strong>your</strong> camp data, translated for parents</div>
+      <div class="anno" style="right:-40px;top:60px">This score is <strong>your</strong> camp data, translated for parents</div>
     </div>
     <!-- Phone: Home -->
     <div class="phone lg">
@@ -575,9 +625,9 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         <div class="statusbar"><span>9:41</span><span class="right"><span class="sb-dots">●●●●</span><span class="sb-batt"></span></span></div>
         <div class="scroll">
           <div class="m-row" style="padding:8px 18px;justify-content:space-between">
-            <div class="col"><span style="font-size:11px;color:var(--ink-soft)">Good morning</span><span style="font-family:var(--font-display);font-weight:800;font-size:17px">Hi, Priya 👋</span></div>
-            <div style="width:38px;height:38px;border-radius:50%;background:var(--muted);display:flex;align-items:center;justify-content:center;position:relative">
-              <span style="font-size:16px">🔔</span>
+            <div class="col"><span style="font-size:11px;color:var(--ink-soft)">Good morning</span><span style="font-family:var(--font-display);font-weight:800;font-size:17px">Hi, Priya</span></div>
+            <div style="width:38px;height:38px;border-radius:50%;background:var(--muted);display:flex;align-items:center;justify-content:center;position:relative;color:var(--ink-soft)">
+              <svg class="ic-svg" style="width:18px;height:18px"><use href="#i-bell"/></svg>
               <span style="position:absolute;top:-2px;right:-2px;width:16px;height:16px;background:var(--alert);color:#fff;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center">2</span>
             </div>
           </div>
@@ -607,9 +657,9 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
             </div>
           </div>
           <div style="display:flex;gap:10px;padding:14px 14px 8px">
-            <div class="m-qa"><div class="ic" style="background:var(--orange-soft);color:var(--orange-d)">🍽</div><div class="l">Diet Plan</div></div>
-            <div class="m-qa"><div class="ic" style="background:var(--blue-soft);color:var(--blue-d)">🩺</div><div class="l">Book Visit</div></div>
-            <div class="m-qa"><div class="ic" style="background:var(--yellow-soft);color:#B27D00">🏆</div><div class="l">Badges</div></div>
+            <div class="m-qa"><div class="ic" style="background:var(--orange-soft);color:var(--orange-d)"><svg class="ic-svg"><use href="#i-meal"/></svg></div><div class="l">Diet Plan</div></div>
+            <div class="m-qa"><div class="ic" style="background:var(--blue-soft);color:var(--blue-d)"><svg class="ic-svg"><use href="#i-medical"/></svg></div><div class="l">Book Visit</div></div>
+            <div class="m-qa"><div class="ic" style="background:var(--yellow-soft);color:#B27D00"><svg class="ic-svg"><use href="#i-trophy"/></svg></div><div class="l">Badges</div></div>
           </div>
           <div class="m-sec-h"><div class="t">Upcoming Camp</div><div class="a">All camps</div></div>
           <div class="m-banner">
@@ -620,7 +670,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
           </div>
           <div class="m-sec-h"><div class="t">Upcoming Appointments</div></div>
           <div class="m-card tight"><div class="m-row">
-            <div style="width:38px;height:38px;border-radius:12px;background:var(--blue-soft);display:flex;align-items:center;justify-content:center;font-size:16px">📅</div>
+            <div style="width:38px;height:38px;border-radius:12px;background:var(--blue-soft);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--blue-d)"><svg class="ic-svg"><use href="#i-cal"/></svg></div>
             <div class="grow"><div class="m-title" style="font-size:13px">Dr. Mehta · Paediatrics</div><div class="m-sub">Follow-up · for Aarav</div></div>
             <div style="text-align:right"><div style="font-size:11px;font-weight:700;color:var(--blue)">15 Aug</div><div class="m-sub">10:30 AM</div></div>
           </div></div>
@@ -640,9 +690,9 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
       <h2 class="h2" style="margin-top:14px">A health record that <span class="gradient-text">follows the child</span>.</h2>
       <p class="lead" style="margin-top:18px">Each child has a profile with growth trends (WHO percentile-referenced), dental, vision, nutrition tabs, wearable activity, and — most importantly — every camp report you've ever filed for them.</p>
       <div class="numlist" style="margin-top:20px">
-        <div class="numitem"><div class="n" style="background:linear-gradient(135deg,var(--blue),var(--blue-d))">📈</div><div class="b"><div class="t">Growth tracked against WHO standards</div><div class="d">Parents see height & weight percentiles, with a clear status — not raw numbers they can't interpret.</div></div></div>
-        <div class="numitem"><div class="n" style="background:linear-gradient(135deg,var(--orange),var(--orange-d))">📋</div><div class="b"><div class="t">Your camp reports, listed here</div><div class="d">Every checkup you submit appears as a tappable report card — with referral alerts in red.</div></div></div>
-        <div class="numitem"><div class="n" style="background:linear-gradient(135deg,var(--purple),#A78BFA)">📤</div><div class="b"><div class="t">Share with any doctor</div><div class="d">Parents can share a full PDF report with you or any specialist in one tap — perfect for follow-ups.</div></div></div>
+        <div class="numitem"><div class="n" style="background:linear-gradient(135deg,var(--blue),var(--blue-d));color:#fff;font-size:0"><svg class="ic-svg" style="width:18px;height:18px"><use href="#i-trend"/></svg></div><div class="b"><div class="t">Growth tracked against WHO standards</div><div class="d">Parents see height & weight percentiles, with a clear status — not raw numbers they can't interpret.</div></div></div>
+        <div class="numitem"><div class="n" style="background:linear-gradient(135deg,var(--orange),var(--orange-d));color:#fff;font-size:0"><svg class="ic-svg" style="width:18px;height:18px"><use href="#i-clip"/></svg></div><div class="b"><div class="t">Your camp reports, listed here</div><div class="d">Every checkup you submit appears as a tappable report card — with referral alerts in red.</div></div></div>
+        <div class="numitem"><div class="n" style="background:linear-gradient(135deg,var(--purple),#A78BFA);color:#fff;font-size:0"><svg class="ic-svg" style="width:18px;height:18px"><use href="#i-share"/></svg></div><div class="b"><div class="t">Share with any doctor</div><div class="d">Parents can share a full PDF report with you or any specialist in one tap — perfect for follow-ups.</div></div></div>
       </div>
     </div>
     <!-- Phone: Kid Detail -->
@@ -654,7 +704,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
           <div style="background:linear-gradient(180deg,rgba(244,123,32,.16),transparent);padding-bottom:6px">
             <div class="m-row" style="padding:8px 14px;justify-content:space-between">
               <div style="width:32px;height:32px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:14px">←</div>
-              <div style="background:#fff;border-radius:10px;padding:6px 12px;font-size:10px;font-weight:700;color:var(--orange)">📤 Share Report</div>
+              <div style="background:#fff;border-radius:10px;padding:6px 12px;font-size:10px;font-weight:700;color:var(--orange);display:inline-flex;align-items:center;gap:4px"><svg class="ic-svg" style="width:12px;height:12px"><use href="#i-share"/></svg> Share Report</div>
             </div>
             <div style="text-align:center;padding:6px 0 12px">
               <div class="m-av lg" style="margin:0 auto;background:linear-gradient(135deg,var(--orange),var(--coral))">A</div>
@@ -682,12 +732,12 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
           <div class="m-card">
             <div style="font-family:var(--font-display);font-weight:700;font-size:13px;margin-bottom:8px">Health Checkup Reports</div>
             <div class="m-row" style="padding:8px 0;border-top:1px solid var(--hair)">
-              <div style="width:34px;height:34px;border-radius:10px;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--good)">🩺</div>
+              <div style="width:34px;height:34px;border-radius:10px;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--good)"><svg class="ic-svg"><use href="#i-medical"/></svg></div>
               <div class="grow"><div style="font-size:12px;font-weight:700">Dental & Vision Camp</div><div class="m-sub">Greenfield · 12 Aug · Dr. Mehta</div></div>
               <span class="m-chip chip-good">All Clear</span>
             </div>
             <div class="m-row" style="padding:8px 0;border-top:1px solid var(--hair)">
-              <div style="width:34px;height:34px;border-radius:10px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--alert)">🩺</div>
+              <div style="width:34px;height:34px;border-radius:10px;background:#FEE2E2;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--alert)"><svg class="ic-svg"><use href="#i-medical"/></svg></div>
               <div class="grow"><div style="font-size:12px;font-weight:700">Annual Health Camp</div><div class="m-sub">Greenfield · 04 Mar · Dr. Rao</div></div>
               <span class="m-chip chip-alert">Referral</span>
             </div>
@@ -711,19 +761,19 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         <div class="scroll">
           <div style="padding:10px 18px 8px"><div style="font-family:var(--font-display);font-weight:800;font-size:22px">School Camps</div><div class="m-sub">Health screenings at your child's school</div></div>
           <div class="m-card tight" style="display:flex;align-items:center;gap:12px">
-            <div style="width:36px;height:36px;border-radius:11px;background:var(--blue-soft);display:flex;align-items:center;justify-content:center;font-size:16px">🏫</div>
+            <div style="width:36px;height:36px;border-radius:11px;background:var(--blue-soft);display:flex;align-items:center;justify-content:center;font-size:16px;color:var(--blue-d)"><svg class="ic-svg"><use href="#i-school"/></svg></div>
             <div class="grow"><div style="font-size:12px;font-weight:700">Link your school partner</div><div class="m-sub">See camps for your child automatically</div></div>
           </div>
           <div style="padding:14px 18px 6px;font-family:var(--font-display);font-weight:700;font-size:15px">Upcoming</div>
           <div class="m-card">
             <div class="m-row" style="justify-content:space-between">
               <div style="display:flex;align-items:center;gap:8px">
-                <div style="width:40px;height:40px;border-radius:13px;background:var(--blue-soft);color:var(--blue-d);display:flex;align-items:center;justify-content:center;font-size:18px">📅</div>
-                <div class="grow"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:11px;color:var(--orange);font-weight:700">✓ Partner</span></div><div style="font-size:13px;font-weight:700;margin-top:2px">Dental & Vision Camp</div><div class="m-sub">📍 Greenfield School</div></div>
+                <div style="width:40px;height:40px;border-radius:13px;background:var(--blue-soft);color:var(--blue-d);display:flex;align-items:center;justify-content:center;font-size:18px"><svg class="ic-svg"><use href="#i-cal"/></svg></div>
+                <div class="grow"><div style="display:flex;align-items:center;gap:4px"><span style="font-size:11px;color:var(--orange);font-weight:700;display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-check"/></svg> Partner</span></div><div style="font-size:13px;font-weight:700;margin-top:2px">Dental & Vision Camp</div><div class="m-sub" style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:10px;height:10px"><use href="#i-pin"/></svg> Greenfield School</div></div>
               </div>
               <span class="m-chip chip-blue" style="background:var(--blue-soft);color:var(--blue-d)">Upcoming</span>
             </div>
-            <div class="m-row" style="gap:6px;margin-top:10px;color:var(--blue);font-size:11px;font-weight:600">🕒 Sat, 12 Aug · 9:00 AM</div>
+            <div class="m-row" style="gap:6px;margin-top:10px;color:var(--blue);font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:4px"><svg class="ic-svg" style="width:12px;height:12px"><use href="#i-clock"/></svg> Sat, 12 Aug · 9:00 AM</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"><span class="m-chip chip-muted">Dental</span><span class="m-chip chip-muted">Vision</span><span class="m-chip chip-muted">Nutrition</span></div>
             <div style="background:var(--muted);border-radius:12px;text-align:center;padding:11px;margin-top:12px;font-size:12px;font-weight:600">Add to Reminders</div>
           </div>
@@ -731,12 +781,12 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
           <div class="m-card">
             <div class="m-row" style="justify-content:space-between">
               <div style="display:flex;align-items:center;gap:8px">
-                <div style="width:40px;height:40px;border-radius:13px;background:var(--orange-soft);color:var(--orange-d);display:flex;align-items:center;justify-content:center;font-size:18px">✓</div>
-                <div class="grow"><div style="font-size:13px;font-weight:700;margin-top:2px">Annual Health Camp</div><div class="m-sub">📍 Greenfield School</div></div>
+                <div style="width:40px;height:40px;border-radius:13px;background:var(--orange-soft);color:var(--orange-d);display:flex;align-items:center;justify-content:center;font-size:18px"><svg class="ic-svg"><use href="#i-check"/></svg></div>
+                <div class="grow"><div style="font-size:13px;font-weight:700;margin-top:2px">Annual Health Camp</div><div class="m-sub" style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:10px;height:10px"><use href="#i-pin"/></svg> Greenfield School</div></div>
               </div>
               <span class="m-chip" style="background:var(--orange-soft);color:var(--orange-d)">Completed</span>
             </div>
-            <div style="background:var(--orange-soft);border-radius:12px;padding:10px;margin-top:10px;font-size:11px;color:var(--orange-d);font-weight:600">📈 Vision referral completed · Glasses prescribed</div>
+            <div style="background:var(--orange-soft);border-radius:12px;padding:10px;margin-top:10px;font-size:11px;color:var(--orange-d);font-weight:600;display:inline-flex;align-items:center;gap:5px"><svg class="ic-svg" style="width:13px;height:13px"><use href="#i-trend"/></svg> Vision referral completed · Glasses prescribed</div>
             <div style="background:var(--orange);color:#fff;border-radius:12px;text-align:center;padding:11px;margin-top:10px;font-size:12px;font-weight:700">Book Follow-up</div>
           </div>
         </div>
@@ -766,8 +816,8 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
       <h2 class="h2" style="margin-top:14px">Your findings, <span class="gradient-text">in a parent's hands</span>.</h2>
       <p class="lead" style="margin-top:18px">This is the slide that matters most. The moment you tap "Save Health Checkup", this report appears in the parent's app — your summary, the referral alert, every section you filled, in plain language.</p>
       <div class="row gap-md" style="margin-top:22px;align-items:stretch">
-        <div class="featurecard" style="padding:18px"><div class="fc-icon" style="background:#FEE2E2;color:var(--alert);width:40px;height:40px;font-size:18px;margin-bottom:10px">⚠️</div><div class="fc-title" style="font-size:15px">Referrals in red</div><div class="fc-body" style="font-size:13px">When you flag a referral, it surfaces at the top — parents cannot miss it.</div></div>
-        <div class="featurecard" style="padding:18px"><div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d);width:40px;height:40px;font-size:18px;margin-bottom:10px">📝</div><div class="fc-title" style="font-size:15px">Your summary, verbatim</div><div class="fc-body" style="font-size:13px">The "Doctor's Summary" section is exactly what you typed — your voice, your judgement.</div></div>
+        <div class="featurecard" style="padding:18px"><div class="fc-icon" style="background:#FEE2E2;color:var(--alert);width:40px;height:40px;font-size:18px;margin-bottom:10px"><svg class="ic-svg"><use href="#i-warn"/></svg></div><div class="fc-title" style="font-size:15px">Referrals in red</div><div class="fc-body" style="font-size:13px">When you flag a referral, it surfaces at the top — parents cannot miss it.</div></div>
+        <div class="featurecard" style="padding:18px"><div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d);width:40px;height:40px;font-size:18px;margin-bottom:10px"><svg class="ic-svg"><use href="#i-note"/></svg></div><div class="fc-title" style="font-size:15px">Your summary, verbatim</div><div class="fc-body" style="font-size:13px">The "Doctor's Summary" section is exactly what you typed — your voice, your judgement.</div></div>
       </div>
       <p class="muted" style="margin-top:24px;font-size:14px;line-height:1.55">This is the moment a paper register becomes <strong style="color:var(--ink)">a parent taking their child to get glasses</strong>. That's the impact you're signing up for.</p>
     </div>
@@ -780,14 +830,14 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
           <div class="m-row" style="padding:8px 18px;gap:10px"><div style="width:32px;height:32px;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;border:1px solid var(--hair)">←</div><span style="font-family:var(--font-display);font-weight:800;font-size:15px">Health Checkup Report</span></div>
           <div class="m-card">
             <div class="m-row" style="gap:10px">
-              <div style="width:44px;height:44px;border-radius:13px;background:var(--orange-soft);color:var(--orange-d);display:flex;align-items:center;justify-content:center;font-size:20px">🩺</div>
+              <div style="width:44px;height:44px;border-radius:13px;background:var(--orange-soft);color:var(--orange-d);display:flex;align-items:center;justify-content:center;font-size:20px"><svg class="ic-svg"><use href="#i-medical"/></svg></div>
               <div class="grow"><div style="font-family:var(--font-display);font-weight:800;font-size:14px">Aarav</div><div class="m-sub">Dental & Vision Camp</div></div>
             </div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:10px;color:var(--ink-soft)"> <span>📅 12 Aug</span> <span>🏫 Greenfield</span> <span>👤 Dr. Mehta</span></div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:10px;color:var(--ink-soft)"> <span style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-cal"/></svg> 12 Aug</span> <span style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-school"/></svg> Greenfield</span> <span style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-person"/></svg> Dr. Mehta</span></div>
             <div style="display:flex;align-items:center;gap:8px;background:#D1FAE5;color:#047857;padding:7px 14px;border-radius:50px;margin-top:12px;width:fit-content"><span class="dot-ic" style="background:var(--good)"></span><span style="font-weight:700;font-size:11px">All Clear</span></div>
           </div>
           <div class="m-card" style="background:#FEE2E2;border-color:#FECACA">
-            <div style="font-family:var(--font-display);font-weight:800;font-size:13px;color:var(--alert)">⚠ Referral Required</div>
+            <div style="font-family:var(--font-display);font-weight:800;font-size:13px;color:var(--alert);display:inline-flex;align-items:center;gap:5px"><svg class="ic-svg" style="width:14px;height:14px"><use href="#i-warn"/></svg> Referral Required</div>
             <div style="font-size:11px;margin-top:4px;line-height:1.4">Refer to Ophthalmology — suspected myopia, right eye.</div>
           </div>
           <div class="m-sec-card" style="margin-top:4px"><div class="hd"><span class="t">Doctor's Summary</span></div><div class="body" style="padding-top:0"><div style="font-size:12px;line-height:1.5;color:var(--ink-soft)">Healthy overall. Mild dental caries on lower molars — fluoride treatment given. Vision screening shows right eye 6/9, recommend ophthalmology review for glasses.</div></div></div>
@@ -823,13 +873,13 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
           <div class="scroll">
             <div style="display:flex;align-items:center;gap:8px;padding:8px 16px"><div style="width:28px;height:28px;border-radius:9px;background:#fff;border:1px solid var(--hair);display:flex;align-items:center;justify-content:center;font-size:13px">←</div><span style="font-family:var(--font-display);font-weight:800;font-size:15px">Diet Plan · Aarav</span></div>
             <div class="m-card" style="background:linear-gradient(120deg,#FFF7ED,#FFEDD5)">
-              <div style="display:flex;align-items:center;gap:8px"><span style="font-size:18px">✨</span><span style="font-family:var(--font-display);font-weight:700;font-size:12px">AI Personalised Plan</span></div>
+              <div style="display:flex;align-items:center;gap:8px;color:var(--orange-d)"><svg class="ic-svg" style="width:18px;height:18px"><use href="#i-spark"/></svg><span style="font-family:var(--font-display);font-weight:700;font-size:12px">AI Personalised Plan</span></div>
               <div style="font-size:10px;color:var(--ink-soft);margin-top:4px;line-height:1.4">Based on Aarav's nutrition screening — iron-rich, balanced.</div>
             </div>
-            <div class="m-card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700">🌅 Breakfast</span><span class="m-chip chip-good">✓ Done</span></div><div style="font-size:11px;margin-top:6px;color:var(--ink-soft)">Poha with peanuts · Banana · Milk</div></div>
-            <div class="m-card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700">🍱 Lunch</span><span class="m-chip chip-muted">Mark done</span></div><div style="font-size:11px;margin-top:6px;color:var(--ink-soft)">Rice, dal, spinach, curd</div></div>
-            <div class="m-card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700">🍎 Snack</span><span class="m-chip chip-muted">Mark done</span></div><div style="font-size:11px;margin-top:6px;color:var(--ink-soft)">Seasonal fruit · Roasted chana</div></div>
-            <div style="background:var(--blue-soft);margin:0 14px 12px;border-radius:14px;padding:12px;text-align:center"><div style="font-size:16px">📷</div><div style="font-size:11px;font-weight:700;color:var(--blue-d);margin-top:4px">Recognise a meal</div></div>
+            <div class="m-card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:5px"><svg class="ic-svg" style="width:13px;height:13px;color:var(--orange-d)"><use href="#i-sun"/></svg> Breakfast</span><span class="m-chip chip-good" style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:10px;height:10px"><use href="#i-check"/></svg> Done</span></div><div style="font-size:11px;margin-top:6px;color:var(--ink-soft)">Poha with peanuts · Banana · Milk</div></div>
+            <div class="m-card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700">Lunch</span><span class="m-chip chip-muted">Mark done</span></div><div style="font-size:11px;margin-top:6px;color:var(--ink-soft)">Rice, dal, spinach, curd</div></div>
+            <div class="m-card"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:12px;font-weight:700">Snack</span><span class="m-chip chip-muted">Mark done</span></div><div style="font-size:11px;margin-top:6px;color:var(--ink-soft)">Seasonal fruit · Roasted chana</div></div>
+            <div style="background:var(--blue-soft);margin:0 14px 12px;border-radius:14px;padding:12px;text-align:center"><div style="color:var(--blue-d);font-size:0"><svg class="ic-svg" style="width:18px;height:18px"><use href="#i-cam"/></svg></div><div style="font-size:11px;font-weight:700;color:var(--blue-d);margin-top:4px">Recognise a meal</div></div>
           </div>
         </div>
       </div>
@@ -839,16 +889,16 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         <div class="phone-screen">
           <div class="statusbar"><span>9:41</span><span class="right"><span class="sb-dots">●●●●</span><span class="sb-batt"></span></span></div>
           <div class="scroll">
-            <div style="text-align:center;padding:12px 16px"><div style="font-family:var(--font-display);font-weight:800;font-size:18px">Health Heroes 🏆</div><div class="m-sub">Aarav's badges & leaderboard</div></div>
+            <div style="text-align:center;padding:12px 16px"><div style="font-family:var(--font-display);font-weight:800;font-size:18px;display:inline-flex;align-items:center;gap:6px;justify-content:center">Health Heroes <svg class="ic-svg" style="width:18px;height:18px;color:var(--yellow)"><use href="#i-trophy"/></svg></div><div class="m-sub">Aarav's badges & leaderboard</div></div>
             <div class="m-card" style="text-align:center">
               <div style="width:72px;height:72px;border-radius:50%;margin:0 auto;background:conic-gradient(var(--yellow) 0 60%,#F1F5F9 60% 100%);display:flex;align-items:center;justify-content:center;position:relative"><div style="position:absolute;inset:8px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:800;font-size:18px;color:var(--orange)">3/5</div></div>
               <div style="font-size:12px;font-weight:700;margin-top:8px">Badges earned</div>
               <div class="m-sub">Keep logging meals to earn more!</div>
             </div>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:0 14px">
-              <div style="background:var(--yellow-soft);border-radius:14px;padding:10px 4px;text-align:center"><div style="font-size:22px">🥇</div><div style="font-size:9px;font-weight:700;margin-top:4px;color:#B27D00">First Camp</div></div>
-              <div style="background:var(--orange-soft);border-radius:14px;padding:10px 4px;text-align:center"><div style="font-size:22px">🦷</div><div style="font-size:9px;font-weight:700;margin-top:4px;color:var(--orange-d)">Dental Star</div></div>
-              <div style="background:var(--muted);border-radius:14px;padding:10px 4px;text-align:center;opacity:.5"><div style="font-size:22px">🔒</div><div style="font-size:9px;font-weight:700;margin-top:4px;color:var(--ink-soft)">Veggie Hero</div></div>
+              <div style="background:var(--yellow-soft);border-radius:14px;padding:10px 4px;text-align:center"><div style="font-size:0;color:#B27D00"><svg class="ic-svg" style="width:22px;height:22px"><use href="#i-award"/></svg></div><div style="font-size:9px;font-weight:700;margin-top:4px;color:#B27D00">First Camp</div></div>
+              <div style="background:var(--orange-soft);border-radius:14px;padding:10px 4px;text-align:center"><div style="font-size:0;color:var(--orange-d)"><svg class="ic-svg" style="width:22px;height:22px"><use href="#i-tooth"/></svg></div><div style="font-size:9px;font-weight:700;margin-top:4px;color:var(--orange-d)">Dental Star</div></div>
+              <div style="background:var(--muted);border-radius:14px;padding:10px 4px;text-align:center;opacity:.5"><div style="font-size:0;color:var(--ink-soft)"><svg class="ic-svg" style="width:22px;height:22px"><use href="#i-lock"/></svg></div><div style="font-size:9px;font-weight:700;margin-top:4px;color:var(--ink-soft)">Veggie Hero</div></div>
             </div>
             <div class="m-sec-h" style="padding-top:14px"><div class="t">Leaderboard</div></div>
             <div class="m-card tight"><div class="m-row" style="justify-content:space-between"><span style="font-size:11px;font-weight:700">1. Maya</span><span class="m-chip chip-good">98%</span></div></div>
@@ -858,8 +908,8 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         </div>
       </div>
       <div class="col" style="flex:1;justify-content:center">
-        <div class="featurecard" style="margin-bottom:16px"><div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d)">🍽</div><div class="fc-title">AI Diet Plans</div><div class="fc-body">Personalised to the child's nutrition screening — iron-rich for anaemia, balanced for healthy growth. Food recognition helps parents log meals.</div></div>
-        <div class="featurecard"><div class="fc-icon" style="background:var(--yellow-soft);color:#B27D00">🏆</div><div class="fc-title">Health Heroes & Leaderboards</div><div class="fc-body">Gamified badges keep kids and parents engaged with their health all year — not just at camp time.</div></div>
+        <div class="featurecard" style="margin-bottom:16px"><div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d)"><svg class="ic-svg"><use href="#i-meal"/></svg></div><div class="fc-title">AI Diet Plans</div><div class="fc-body">Personalised to the child's nutrition screening — iron-rich for anaemia, balanced for healthy growth. Food recognition helps parents log meals.</div></div>
+        <div class="featurecard"><div class="fc-icon" style="background:var(--yellow-soft);color:#B27D00"><svg class="ic-svg"><use href="#i-trophy"/></svg></div><div class="fc-title">Health Heroes & Leaderboards</div><div class="fc-body">Gamified badges keep kids and parents engaged with their health all year — not just at camp time.</div></div>
       </div>
     </div>
   </div>
@@ -889,26 +939,26 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         <div class="scroll">
           <div class="m-row" style="padding:8px 18px;justify-content:space-between"><div style="width:32px"></div><span style="color:var(--orange);font-size:12px;font-weight:700">Logout</span></div>
           <div style="padding:6px 18px 16px;display:flex;align-items:center;gap:12px">
-            <div style="width:48px;height:48px;border-radius:14px;background:var(--orange-soft);color:var(--orange-d);display:flex;align-items:center;justify-content:center;font-size:22px">🩺</div>
+            <div style="width:48px;height:48px;border-radius:14px;background:var(--orange-soft);color:var(--orange-d);display:flex;align-items:center;justify-content:center;font-size:22px"><svg class="ic-svg"><use href="#i-medical"/></svg></div>
             <div><div style="font-family:var(--font-display);font-weight:800;font-size:16px">Welcome, Dr. Mehta</div><div class="m-sub">Dental · Doctor Portal</div></div>
           </div>
           <div style="padding:0 18px 12px;font-family:var(--font-display);font-weight:800;font-size:15px">Your Assigned Camps</div>
           <div class="m-card">
             <div class="m-row" style="gap:10px">
-              <div style="width:40px;height:40px;border-radius:13px;background:var(--blue-soft);color:var(--blue-d);display:flex;align-items:center;justify-content:center;font-size:18px">🏥</div>
+              <div style="width:40px;height:40px;border-radius:13px;background:var(--blue-soft);color:var(--blue-d);display:flex;align-items:center;justify-content:center;font-size:18px"><svg class="ic-svg"><use href="#i-hospital"/></svg></div>
               <div class="grow"><div style="font-family:var(--font-display);font-weight:800;font-size:13px">Dental & Vision Camp</div><div class="m-sub">Greenfield School</div></div>
             </div>
             <div style="display:flex;gap:14px;margin-top:12px;font-size:10px;color:var(--ink-soft)">
-              <span>🕒 12 Aug</span><span>👥 48 kids</span><span style="color:var(--good)">✓ 32 done</span>
+              <span style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-clock"/></svg> 12 Aug</span><span style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-users"/></svg> 48 kids</span><span style="color:var(--good);display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-check"/></svg> 32 done</span>
             </div>
           </div>
           <div class="m-card">
             <div class="m-row" style="gap:10px">
-              <div style="width:40px;height:40px;border-radius:13px;background:var(--blue-soft);color:var(--blue-d);display:flex;align-items:center;justify-content:center;font-size:18px">🏥</div>
+              <div style="width:40px;height:40px;border-radius:13px;background:var(--blue-soft);color:var(--blue-d);display:flex;align-items:center;justify-content:center;font-size:18px"><svg class="ic-svg"><use href="#i-hospital"/></svg></div>
               <div class="grow"><div style="font-family:var(--font-display);font-weight:800;font-size:13px">Annual Health Camp</div><div class="m-sub">Sunrise Public School</div></div>
             </div>
             <div style="display:flex;gap:14px;margin-top:12px;font-size:10px;color:var(--ink-soft)">
-              <span>🕒 20 Aug</span><span>👥 62 kids</span><span style="color:var(--watch)">⏳ 0 done</span>
+              <span style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-clock"/></svg> 20 Aug</span><span style="display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-users"/></svg> 62 kids</span><span style="color:var(--watch);display:inline-flex;align-items:center;gap:3px"><svg class="ic-svg" style="width:11px;height:11px"><use href="#i-pending"/></svg> 0 done</span>
             </div>
           </div>
           <!-- Inside camp view -->
@@ -919,12 +969,12 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
             <div><div style="font-family:var(--font-display);font-weight:800;font-size:16px;color:var(--watch)">16</div><div style="font-size:9px;color:var(--ink-soft)">Pending</div></div>
           </div>
           <div class="m-card tight"><div class="m-row" style="gap:12px">
-            <div style="width:42px;height:42px;border-radius:12px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--watch)">⏳</div>
+            <div style="width:42px;height:42px;border-radius:12px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--watch)"><svg class="ic-svg"><use href="#i-pending"/></svg></div>
             <div class="grow"><div style="font-size:12px;font-weight:700">Aarav Sharma</div><div class="m-sub">7y · Male · Grade 2</div><div style="font-size:10px;color:var(--watch);font-weight:600;margin-top:2px">Pending checkup</div></div>
             <span style="color:var(--orange);font-size:12px;font-weight:800">Start</span>
           </div></div>
           <div class="m-card tight"><div class="m-row" style="gap:12px">
-            <div style="width:42px;height:42px;border-radius:12px;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--good)">✓</div>
+            <div style="width:42px;height:42px;border-radius:12px;background:#D1FAE5;display:flex;align-items:center;justify-content:center;font-size:18px;color:var(--good)"><svg class="ic-svg"><use href="#i-check"/></svg></div>
             <div class="grow"><div style="font-size:12px;font-weight:700">Saanvi Patel</div><div class="m-sub">5y · Female · Grade 1</div><div style="font-size:10px;color:var(--good);font-weight:600;margin-top:2px">Checkup completed</div></div>
             <span style="color:var(--orange);font-size:12px;font-weight:800">View</span>
           </div></div>
@@ -945,14 +995,14 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
       <p class="lead" style="margin:16px auto 0;max-width:680px">In the admin portal, each doctor is tagged — Dentist, ENT specialist, Ophthalmologist, Nutritionist, or Paediatrician. The login, the screens, and the form sections are all filtered by that tag. Safe. Clean. Compliant.</p>
     </div>
     <div class="spec-grid">
-      <div class="spec" style="border-top:4px solid var(--orange)"><div class="ic" style="background:var(--orange-soft);color:var(--orange-d)">🦷</div><div class="n">Dentist</div><div class="f">Dental Check section only</div></div>
-      <div class="spec" style="border-top:4px solid var(--blue)"><div class="ic" style="background:var(--blue-soft);color:var(--blue-d)">👁</div><div class="n">Ophthalmologist</div><div class="f">Vision Screening only</div></div>
-      <div class="spec" style="border-top:4px solid var(--purple)"><div class="ic" style="background:#EDE9FE;color:var(--purple)">👂</div><div class="n">ENT</div><div class="f">Hearing & General Physical</div></div>
-      <div class="spec" style="border-top:4px solid var(--yellow)"><div class="ic" style="background:var(--yellow-soft);color:#B27D00">🥗</div><div class="n">Nutritionist</div><div class="f">Nutrition & Anaemia only</div></div>
-      <div class="spec" style="border-top:4px solid var(--coral)"><div class="ic" style="background:#FFE4E6;color:var(--coral)">🩺</div><div class="n">Paediatrician</div><div class="f">All sections</div></div>
+      <div class="spec" style="border-top:4px solid var(--orange)"><div class="ic" style="background:var(--orange-soft);color:var(--orange-d)"><svg class="ic-svg"><use href="#i-tooth"/></svg></div><div class="n">Dentist</div><div class="f">Dental Check section only</div></div>
+      <div class="spec" style="border-top:4px solid var(--blue)"><div class="ic" style="background:var(--blue-soft);color:var(--blue-d)"><svg class="ic-svg"><use href="#i-eye"/></svg></div><div class="n">Ophthalmologist</div><div class="f">Vision Screening only</div></div>
+      <div class="spec" style="border-top:4px solid var(--purple)"><div class="ic" style="background:#EDE9FE;color:var(--purple)"><svg class="ic-svg"><use href="#i-ear"/></svg></div><div class="n">ENT</div><div class="f">Hearing & General Physical</div></div>
+      <div class="spec" style="border-top:4px solid var(--yellow)"><div class="ic" style="background:var(--yellow-soft);color:#B27D00"><svg class="ic-svg"><use href="#i-nutri"/></svg></div><div class="n">Nutritionist</div><div class="f">Nutrition & Anaemia only</div></div>
+      <div class="spec" style="border-top:4px solid var(--coral)"><div class="ic" style="background:#FFE4E6;color:var(--coral)"><svg class="ic-svg"><use href="#i-medical"/></svg></div><div class="n">Paediatrician</div><div class="f">All sections</div></div>
     </div>
     <div style="margin-top:32px;background:#fff;border:1.5px solid var(--orange-soft);border-radius:18px;padding:22px 26px;display:flex;align-items:center;gap:20px">
-      <div style="font-size:30px">🔐</div>
+      <div style="font-size:30px;color:var(--orange-d)"><svg class="ic-svg" style="width:30px;height:30px"><use href="#i-key"/></svg></div>
       <div><div style="font-family:var(--font-display);font-weight:700;font-size:16px">No unauthorised access — ever</div><div style="font-size:14px;color:var(--ink-soft);margin-top:4px;line-height:1.5">A dentist cannot enter vision readings. An ENT specialist cannot fill dental findings. A doctor who isn't registered in the admin portal <strong style="color:var(--ink)">cannot log in at all</strong> — even with a valid OTP. The phone number must match a doctor record.</div></div>
     </div>
   </div>
@@ -970,8 +1020,8 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         <div class="statusbar"><span>9:41</span><span class="right"><span class="sb-dots">●●●●</span><span class="sb-batt"></span></span></div>
         <div class="scroll">
           <div class="m-row" style="padding:8px 18px;gap:10px"><div style="width:32px;height:32px;border-radius:10px;background:#fff;border:1px solid var(--hair);display:flex;align-items:center;justify-content:center;font-size:14px">←</div><div><div style="font-family:var(--font-display);font-weight:800;font-size:14px">Aarav Sharma</div><div class="m-sub">7y · Male · Grade 2</div><div style="font-size:9px;color:var(--ink-faint)">Dental & Vision Camp · Greenfield</div></div></div>
-          <div class="m-card tight" style="display:flex;align-items:center;gap:10px"><div style="width:36px;height:36px;border-radius:11px;background:var(--blue-soft);display:flex;align-items:center;justify-content:center;font-size:15px">🩺</div><div class="grow"><div style="font-size:11px;font-weight:700">Parent: Priya Sharma</div><div class="m-sub">Phone: +91 98840 73888</div></div></div>
-          <div class="m-sec-card"><div class="hd"><span class="t">🦷 Dental Check</span><span class="arrow">▴</span></div>
+          <div class="m-card tight" style="display:flex;align-items:center;gap:10px"><div style="width:36px;height:36px;border-radius:11px;background:var(--blue-soft);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--blue-d)"><svg class="ic-svg"><use href="#i-medical"/></svg></div><div class="grow"><div style="font-size:11px;font-weight:700">Parent: Priya Sharma</div><div class="m-sub">Phone: +91 98840 73888</div></div></div>
+          <div class="m-sec-card"><div class="hd"><span class="t" style="display:inline-flex;align-items:center;gap:6px"><svg class="ic-svg" style="width:14px;height:14px;color:var(--orange-d)"><use href="#i-tooth"/></svg> Dental Check</span><span class="arrow">▴</span></div>
             <div class="body">
               <div><div style="font-size:10px;color:var(--ink-soft);font-weight:600;margin-bottom:6px">Overall Dental Status</div><div class="m-flagsel"><div class="on" style="background:#FEF3C7;color:#B45309">● WATCH</div><div>GOOD</div><div>ALERT</div></div></div>
               <div class="m-toggle"><span>Caries Present</span><span class="v" style="color:var(--alert)">Yes ●</span></div>
@@ -982,7 +1032,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
               <div class="m-field"><div class="l">Dental Notes</div><div class="v" style="font-weight:400;color:var(--ink-soft);font-size:11px">Caries on lower molars (#36, #46). Topical fluoride applied.</div></div>
             </div>
           </div>
-          <div class="m-sec-card"><div class="hd"><span class="t">📋 Referral & Summary</span><span class="arrow">▾</span></div></div>
+          <div class="m-sec-card"><div class="hd"><span class="t" style="display:inline-flex;align-items:center;gap:6px"><svg class="ic-svg" style="width:14px;height:14px;color:var(--ink-faint)"><use href="#i-clip"/></svg> Referral & Summary</span><span class="arrow">▾</span></div></div>
           <div class="m-btn">Save Health Checkup</div>
         </div>
       </div>
@@ -1023,8 +1073,8 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         <div class="statusbar"><span>9:41</span><span class="right"><span class="sb-dots">●●●●</span><span class="sb-batt"></span></span></div>
         <div class="scroll">
           <div class="m-row" style="padding:8px 18px;gap:10px"><div style="width:32px;height:32px;border-radius:10px;background:#fff;border:1px solid var(--hair);display:flex;align-items:center;justify-content:center;font-size:14px">←</div><div><div style="font-family:var(--font-display);font-weight:800;font-size:14px">Aarav Sharma</div><div class="m-sub">7y · Male · Grade 2</div><div style="font-size:9px;color:var(--ink-faint)">Dental & Vision Camp · Greenfield</div></div></div>
-          <div class="m-sec-card"><div class="hd"><span class="t">📋 Vitals & Anthropometry</span><span class="arrow">▾</span></div></div>
-          <div class="m-sec-card"><div class="hd"><span class="t">👁 Vision Screening</span><span class="arrow">▴</span></div>
+          <div class="m-sec-card"><div class="hd"><span class="t" style="display:inline-flex;align-items:center;gap:6px"><svg class="ic-svg" style="width:14px;height:14px;color:var(--ink-faint)"><use href="#i-clip"/></svg> Vitals & Anthropometry</span><span class="arrow">▾</span></div></div>
+          <div class="m-sec-card"><div class="hd"><span class="t" style="display:inline-flex;align-items:center;gap:6px"><svg class="ic-svg" style="width:14px;height:14px;color:var(--blue-d)"><use href="#i-eye"/></svg> Vision Screening</span><span class="arrow">▴</span></div>
             <div class="body">
               <div><div style="font-size:10px;color:var(--ink-soft);font-weight:600;margin-bottom:6px">Overall Vision Status</div><div class="m-flagsel"><div class="on" style="background:#FEF3C7;color:#B45309">● WATCH</div><div>GOOD</div><div>ALERT</div></div></div>
               <div style="display:flex;gap:10px"><div class="m-field" style="flex:1"><div class="l">Right Eye (6/x)</div><div class="v">6/9</div></div><div class="m-field" style="flex:1"><div class="l">Left Eye (6/x)</div><div class="v">6/6</div></div></div>
@@ -1034,7 +1084,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
               <div class="m-field"><div class="l">Vision Notes</div><div class="v" style="font-weight:400;color:var(--ink-soft);font-size:11px">Right eye myopia suspected. Recommend full ophthalmology review.</div></div>
             </div>
           </div>
-          <div class="m-sec-card" style="background:#FEE2E2;border-color:#FECACA"><div class="hd"><span class="t" style="color:var(--alert)">⚠ Referral & Summary</span><span class="arrow">▴</span></div>
+          <div class="m-sec-card" style="background:#FEE2E2;border-color:#FECACA"><div class="hd"><span class="t" style="color:var(--alert);display:inline-flex;align-items:center;gap:6px"><svg class="ic-svg" style="width:14px;height:14px"><use href="#i-warn"/></svg> Referral & Summary</span><span class="arrow">▴</span></div>
             <div class="body"><div class="m-toggle"><span>Referral Needed</span><span class="v" style="color:var(--alert)">Yes ●</span></div><div class="m-field"><div class="l">Refer To Specialty</div><div class="v">Ophthalmology ▾</div></div></div>
           </div>
           <div class="m-btn">Save Health Checkup</div>
@@ -1056,8 +1106,8 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         <div class="statusbar"><span>9:41</span><span class="right"><span class="sb-dots">●●●●</span><span class="sb-batt"></span></span></div>
         <div class="scroll">
           <div class="m-row" style="padding:8px 18px;gap:10px"><div style="width:32px;height:32px;border-radius:10px;background:#fff;border:1px solid var(--hair);display:flex;align-items:center;justify-content:center;font-size:14px">←</div><div><div style="font-family:var(--font-display);font-weight:800;font-size:14px">Aarav Sharma</div><div class="m-sub">7y · Male · Grade 2</div><div style="font-size:9px;color:var(--ink-faint)">ENT Camp · Greenfield</div></div></div>
-          <div class="m-sec-card"><div class="hd"><span class="t">📋 Vitals & Anthropometry</span><span class="arrow">▾</span></div></div>
-          <div class="m-sec-card"><div class="hd"><span class="t">👂 General Physical Examination</span><span class="arrow">▴</span></div>
+          <div class="m-sec-card"><div class="hd"><span class="t" style="display:inline-flex;align-items:center;gap:6px"><svg class="ic-svg" style="width:14px;height:14px;color:var(--ink-faint)"><use href="#i-clip"/></svg> Vitals & Anthropometry</span><span class="arrow">▾</span></div></div>
+          <div class="m-sec-card"><div class="hd"><span class="t" style="display:inline-flex;align-items:center;gap:6px"><svg class="ic-svg" style="width:14px;height:14px;color:var(--purple)"><use href="#i-ear"/></svg> General Physical Examination</span><span class="arrow">▴</span></div>
             <div class="body">
               <div class="m-field"><div class="l">Skin Condition</div><div class="v">Normal ▾</div></div>
               <div class="m-field"><div class="l">Lymph Nodes</div><div class="v">Normal ▾</div></div>
@@ -1067,7 +1117,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
               <div class="m-field"><div class="l">General Notes</div><div class="v" style="font-weight:400;color:var(--ink-soft);font-size:11px">Hearing clear bilaterally. No lymphadenopathy. Development appropriate for age.</div></div>
             </div>
           </div>
-          <div class="m-sec-card"><div class="hd"><span class="t">📋 Referral & Summary</span><span class="arrow">▾</span></div></div>
+          <div class="m-sec-card"><div class="hd"><span class="t" style="display:inline-flex;align-items:center;gap:6px"><svg class="ic-svg" style="width:14px;height:14px;color:var(--ink-faint)"><use href="#i-clip"/></svg> Referral & Summary</span><span class="arrow">▾</span></div></div>
           <div class="m-btn">Save Health Checkup</div>
         </div>
       </div>
@@ -1077,9 +1127,9 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
       <h2 class="h2" style="margin-top:14px">For ENT, paediatrics, dermatology — the <span class="gradient-text">General Physical</span> section.</h2>
       <p class="lead" style="margin-top:18px">An ENT specialist sees Vitals + General Physical Examination: skin, lymph nodes, hearing screening, immunization, developmental milestones. The hearing field uses the standard Pass / Refer / Not Tested terminology you already use in practice.</p>
       <div class="row gap-md" style="margin-top:22px;align-items:stretch;flex-wrap:wrap">
-        <div class="featurecard" style="padding:18px;flex:1;min-width:200px"><div class="fc-icon" style="background:#EDE9FE;color:var(--purple);width:40px;height:40px;font-size:18px;margin-bottom:10px">👂</div><div class="fc-title" style="font-size:15px">Hearing: Pass / Refer / NT</div><div class="fc-body" style="font-size:13px">Matches NHF screening protocols. A "Refer" flags the referral section automatically.</div></div>
-        <div class="featurecard" style="padding:18px;flex:1;min-width:200px"><div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d);width:40px;height:40px;font-size:18px;margin-bottom:10px">🍼</div><div class="fc-title" style="font-size:15px">Immunization & milestones</div><div class="fc-body" style="font-size:13px">Capture developmental red flags at the camp itself — early intervention starts here.</div></div>
-        <div class="featurecard" style="padding:18px;flex:1;min-width:200px"><div class="fc-icon" style="background:var(--blue-soft);color:var(--blue-d);width:40px;height:40px;font-size:18px;margin-bottom:10px">📝</div><div class="fc-title" style="font-size:15px">Free-text notes</div><div class="fc-body" style="font-size:13px">Every section has a notes field. Your clinical judgement is never constrained by dropdowns.</div></div>
+        <div class="featurecard" style="padding:18px;flex:1;min-width:200px"><div class="fc-icon" style="background:#EDE9FE;color:var(--purple);width:40px;height:40px;font-size:18px;margin-bottom:10px"><svg class="ic-svg"><use href="#i-ear"/></svg></div><div class="fc-title" style="font-size:15px">Hearing: Pass / Refer / NT</div><div class="fc-body" style="font-size:13px">Matches NHF screening protocols. A "Refer" flags the referral section automatically.</div></div>
+        <div class="featurecard" style="padding:18px;flex:1;min-width:200px"><div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d);width:40px;height:40px;font-size:18px;margin-bottom:10px"><svg class="ic-svg"><use href="#i-baby"/></svg></div><div class="fc-title" style="font-size:15px">Immunization & milestones</div><div class="fc-body" style="font-size:13px">Capture developmental red flags at the camp itself — early intervention starts here.</div></div>
+        <div class="featurecard" style="padding:18px;flex:1;min-width:200px"><div class="fc-icon" style="background:var(--blue-soft);color:var(--blue-d);width:40px;height:40px;font-size:18px;margin-bottom:10px"><svg class="ic-svg"><use href="#i-note"/></svg></div><div class="fc-title" style="font-size:15px">Free-text notes</div><div class="fc-body" style="font-size:13px">Every section has a notes field. Your clinical judgement is never constrained by dropdowns.</div></div>
       </div>
     </div>
   </div>
@@ -1097,13 +1147,13 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
       <h2 class="h2" style="margin-top:12px;max-width:760px;margin-left:auto;margin-right:auto">One tap from you becomes <span class="gradient-text">action from a parent</span>.</h2>
     </div>
     <div style="margin-top:40px;display:flex;align-items:center;justify-content:center;gap:20px;flex-wrap:wrap">
-      <div style="background:#fff;border:1.5px solid var(--hair);border-radius:18px;padding:18px;width:200px;text-align:center"><div style="font-size:30px;margin-bottom:8px">🩺</div><div style="font-family:var(--font-display);font-weight:700;font-size:14px">You tap "Save"</div><div style="font-size:11px;color:var(--ink-soft);margin-top:4px">Checkup submitted at camp</div></div>
+      <div style="background:#fff;border:1.5px solid var(--hair);border-radius:18px;padding:18px;width:200px;text-align:center"><div style="font-size:30px;margin-bottom:8px;color:var(--orange-d)"><svg class="ic-svg" style="width:30px;height:30px"><use href="#i-medical"/></svg></div><div style="font-family:var(--font-display);font-weight:700;font-size:14px">You tap "Save"</div><div style="font-size:11px;color:var(--ink-soft);margin-top:4px">Checkup submitted at camp</div></div>
       <div style="font-size:24px;color:var(--orange)">→</div>
-      <div style="background:#fff;border:1.5px solid var(--hair);border-radius:18px;padding:18px;width:200px;text-align:center"><div style="font-size:30px;margin-bottom:8px">📲</div><div style="font-family:var(--font-display);font-weight:700;font-size:14px">Parent notified</div><div style="font-size:11px;color:var(--ink-soft);margin-top:4px">Report appears in their app</div></div>
+      <div style="background:#fff;border:1.5px solid var(--hair);border-radius:18px;padding:18px;width:200px;text-align:center"><div style="font-size:30px;margin-bottom:8px;color:#B27D00"><svg class="ic-svg" style="width:30px;height:30px"><use href="#i-phone"/></svg></div><div style="font-family:var(--font-display);font-weight:700;font-size:14px">Parent notified</div><div style="font-size:11px;color:var(--ink-soft);margin-top:4px">Report appears in their app</div></div>
       <div style="font-size:24px;color:var(--orange)">→</div>
-      <div style="background:#fff;border:1.5px solid var(--orange);border-radius:18px;padding:18px;width:200px;text-align:center"><div style="font-size:30px;margin-bottom:8px">⚠️</div><div style="font-family:var(--font-display);font-weight:700;font-size:14px">Referral flagged</div><div style="font-size:11px;color:var(--ink-soft);margin-top:4px">Red alert — cannot miss</div></div>
+      <div style="background:#fff;border:1.5px solid var(--orange);border-radius:18px;padding:18px;width:200px;text-align:center"><div style="font-size:30px;margin-bottom:8px;color:var(--alert)"><svg class="ic-svg" style="width:30px;height:30px"><use href="#i-warn"/></svg></div><div style="font-family:var(--font-display);font-weight:700;font-size:14px">Referral flagged</div><div style="font-size:11px;color:var(--ink-soft);margin-top:4px">Red alert — cannot miss</div></div>
       <div style="font-size:24px;color:var(--orange)">→</div>
-      <div style="background:linear-gradient(135deg,var(--orange),var(--orange-d));color:#fff;border-radius:18px;padding:18px;width:200px;text-align:center;box-shadow:0 14px 30px rgba(244,123,32,.3)"><div style="font-size:30px;margin-bottom:8px">📅</div><div style="font-family:var(--font-display);font-weight:700;font-size:14px">Follow-up booked</div><div style="font-size:11px;opacity:.9;margin-top:4px">One tap — with you</div></div>
+      <div style="background:linear-gradient(135deg,var(--orange),var(--orange-d));color:#fff;border-radius:18px;padding:18px;width:200px;text-align:center;box-shadow:0 14px 30px rgba(244,123,32,.3)"><div style="font-size:30px;margin-bottom:8px"><svg class="ic-svg" style="width:30px;height:30px"><use href="#i-cal"/></svg></div><div style="font-family:var(--font-display);font-weight:700;font-size:14px">Follow-up booked</div><div style="font-size:11px;opacity:.9;margin-top:4px">One tap — with you</div></div>
     </div>
     <p class="lead center" style="margin:40px auto 0;max-width:680px">Paper camps end at the register. <strong style="color:var(--ink)">VitaHero camps end with a child in your clinic.</strong> That's the difference. That's the impact you're partnering for.</p>
   </div>
@@ -1120,32 +1170,32 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
     </div>
     <div class="row gap-md" style="margin-top:40px;align-items:stretch;flex-wrap:wrap">
       <div class="featurecard" style="flex:1;min-width:240px;border-top:4px solid var(--orange)">
-        <div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d)">🌍</div>
+        <div class="fc-icon" style="background:var(--orange-soft);color:var(--orange-d)"><svg class="ic-svg"><use href="#i-globe"/></svg></div>
         <div class="fc-title">Reach more children</div>
         <div class="fc-body">VitaHero partner doctors get assigned to school camps across their region — access to hundreds of families you'd never reach from a clinic alone.</div>
       </div>
       <div class="featurecard" style="flex:1;min-width:240px;border-top:4px solid var(--blue)">
-        <div class="fc-icon" style="background:var(--blue-soft);color:var(--blue-d)">📥</div>
+        <div class="fc-icon" style="background:var(--blue-soft);color:var(--blue-d)"><svg class="ic-svg"><use href="#i-dl"/></svg></div>
         <div class="fc-title">Referrals flow back to you</div>
         <div class="fc-body">When you flag a referral, parents book follow-ups with <em>you</em> directly from the app. Your camp work becomes your clinic pipeline.</div>
       </div>
       <div class="featurecard" style="flex:1;min-width:240px;border-top:4px solid var(--purple)">
-        <div class="fc-icon" style="background:#EDE9FE;color:var(--purple)">💻</div>
+        <div class="fc-icon" style="background:#EDE9FE;color:var(--purple)"><svg class="ic-svg"><use href="#i-laptop"/></svg></div>
         <div class="fc-title">Digitise your practice — free</div>
         <div class="fc-body">No software cost, no setup. Your phone is your clinic. Structured records, automatic reports, searchable history — all built in.</div>
       </div>
       <div class="featurecard" style="flex:1;min-width:240px;border-top:4px solid var(--yellow)">
-        <div class="fc-icon" style="background:var(--yellow-soft);color:#B27D00">🏆</div>
+        <div class="fc-icon" style="background:var(--yellow-soft);color:#B27D00"><svg class="ic-svg"><use href="#i-trophy"/></svg></div>
         <div class="fc-title">Be a VitaHero partner</div>
         <div class="fc-body">A recognisable credential. Parents trust doctors associated with VitaHero — your name carries the platform's reputation.</div>
       </div>
       <div class="featurecard" style="flex:1;min-width:240px;border-top:4px solid var(--coral)">
-        <div class="fc-icon" style="background:#FFE4E6;color:var(--coral)">⚡</div>
+        <div class="fc-icon" style="background:#FFE4E6;color:var(--coral)"><svg class="ic-svg"><use href="#i-bolt"/></svg></div>
         <div class="fc-title">Less paperwork, more patients</div>
         <div class="fc-body">A checkup that took 5 minutes on paper now takes 90 seconds on VitaHero. Screen more kids, finish camps faster, go home earlier.</div>
       </div>
       <div class="featurecard" style="flex:1;min-width:240px;border-top:4px solid var(--good)">
-        <div class="fc-icon" style="background:#D1FAE5;color:var(--good)">🔒</div>
+        <div class="fc-icon" style="background:#D1FAE5;color:var(--good)"><svg class="ic-svg"><use href="#i-shield"/></svg></div>
         <div class="fc-title">Secure & verified</div>
         <div class="fc-body">Your login is phone-verified against your doctor record. You only see patients in camps assigned to you. HIPAA-style access control, built in.</div>
       </div>
@@ -1167,7 +1217,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         <div class="numitem"><div class="n">3</div><div class="b"><div class="t">You see your camps & forms</div><div class="d">Your dashboard loads with the camps assigned to your specialty. Your form shows only your sections. You're ready to screen.</div></div></div>
       </div>
       <div style="margin-top:26px;background:linear-gradient(120deg,var(--blue-soft),var(--orange-soft));border-radius:18px;padding:22px 26px;display:flex;align-items:center;gap:20px">
-        <div style="font-size:30px">🛡️</div>
+        <div style="font-size:30px;color:var(--blue-d)"><svg class="ic-svg" style="width:30px;height:30px"><use href="#i-shield"/></svg></div>
         <div><div style="font-family:var(--font-display);font-weight:700;font-size:16px">If you're not in the admin portal, you can't log in.</div><div style="font-size:14px;color:var(--ink-soft);margin-top:4px;line-height:1.5">Even with a correct OTP, an unregistered phone number is rejected. This is how we keep unauthorised people out of children's health records.</div></div>
       </div>
     </div>
@@ -1189,7 +1239,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
             <div style="text-align:center;font-size:11px;color:var(--ink-soft);margin-top:12px">Resend code in 0:28</div>
           </div>
           <div class="m-card" style="background:#D1FAE5;border-color:#A7F3D0;text-align:center;padding:14px">
-            <div style="font-size:11px;color:#047857;font-weight:700">✓ Verified — Dr. Mehta, Dental</div>
+            <div style="font-size:11px;color:#047857;font-weight:700;display:inline-flex;align-items:center;gap:4px"><svg class="ic-svg" style="width:12px;height:12px"><use href="#i-check"/></svg> Verified — Dr. Mehta, Dental</div>
           </div>
         </div>
       </div>
