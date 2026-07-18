@@ -34,11 +34,10 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 /* ─── Chrome ─── */
 .brandbar{position:absolute;top:32px;left:64px;display:flex;align-items:center;gap:12px;z-index:5}
-.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--orange),var(--orange-d));
-  display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-family:var(--font-display);font-size:22px;
-  box-shadow:0 6px 18px rgba(244,123,32,.35)}
-.logo .heart{display:block;line-height:1}
-.brandbar .name{font-family:var(--font-display);font-weight:800;font-size:20px;letter-spacing:-.3px}
+.logo{width:180px;height:120px;border-radius:0;background:transparent;
+  display:block;box-shadow:none}
+.logo .heart{display:none !important;line-height:1}
+.brandbar .name{display:none}
 .slide-num{position:absolute;top:32px;right:64px;font-size:13px;color:var(--ink-faint);font-weight:600;letter-spacing:.5px;z-index:5}
 .foot{position:absolute;bottom:28px;left:0;right:0;display:flex;justify-content:center;align-items:center;gap:18px;z-index:5}
 .nav-btn{width:42px;height:42px;border-radius:50%;border:1.5px solid var(--hair);background:#fff;color:var(--ink-soft);
@@ -161,7 +160,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 /* Splash */
 .splash{height:100%;background:linear-gradient(160deg,var(--orange),var(--orange-d) 50%,#C9530F);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:14px}
-.splash .lgo{width:90px;height:90px;border-radius:24px;background:rgba(255,255,255,.18);backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;font-size:46px}
+.splash .lgo{width:240px;height:160px;display:block;backdrop-filter:none}
 .splash h1{font-family:var(--font-display);font-weight:800;font-size:30px;letter-spacing:-.5px}
 .splash p{font-size:13px;opacity:.92}
 
@@ -268,7 +267,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
   box-shadow: none !important;
   backdrop-filter: none !important;
 }
-.logo .heart { display: none !important; }
+.logo .heart, .lgo .heart { display: none !important; }
 /* Phone mockups sized for 16:9 PPT slides */
 .phone { width: 255px; height: 530px; padding: 10px; border-radius: 40px; }
 .phone.lg { width: 280px; height: 590px; }
@@ -405,7 +404,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 <section class="slide active">
   <div class="blob blob-o" style="width:420px;height:420px;top:-120px;right:-120px"></div>
   <div class="blob blob-b" style="width:380px;height:380px;bottom:-140px;left:-100px"></div>
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">01 / 19</div>
   <div class="maxw row" style="gap:56px">
     <div class="col grow">
@@ -429,7 +428,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
       <div class="phone-notch"></div>
       <div class="phone-screen">
         <div class="splash">
-          <div class="lgo"><span class="heart">V</span></div>
+          <div class="lgo"></div>
           <h1>VitaHero</h1>
           <p>Every child's health, in good hands</p>
           <div style="margin-top:40px;display:flex;gap:6px">
@@ -446,7 +445,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 <!-- ═══════════════ SLIDE 2 — THE PROBLEM ═══════════════ -->
 <section class="slide">
   <div class="blob blob-o" style="width:340px;height:340px;top:-100px;left:-80px"></div>
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">02 / 19</div>
   <div class="maxw col">
     <span class="eyebrow center" style="align-self:center">The silent problem</span>
@@ -477,7 +476,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 <!-- ═══════════════ SLIDE 3 — THE SOLUTION ═══════════════ -->
 <section class="slide">
   <div class="blob blob-b" style="width:360px;height:360px;bottom:-120px;right:-100px"></div>
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">03 / 19</div>
   <div class="maxw col">
     <span class="eyebrow center" style="align-self:center">One platform, three heroes</span>
@@ -511,7 +510,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 4 — THE FLOW ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">04 / 19</div>
   <div class="maxw col">
     <span class="eyebrow center" style="align-self:center">How it works</span>
@@ -554,7 +553,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 <!-- ═══════════════ SLIDE 5 — PARENT APP: ONBOARDING ═══════════════ -->
 <section class="slide">
   <div class="blob blob-o" style="width:300px;height:300px;top:-80px;right:-60px"></div>
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">05 / 19</div>
   <div class="maxw row" style="gap:50px">
     <div class="col grow">
@@ -574,7 +573,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
         <div class="statusbar"><span>9:41</span><span class="right"><span class="sb-dots">●●●●</span><span class="sb-batt"></span></span></div>
         <div class="scroll">
           <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 16px 16px">
-            <div style="display:flex;align-items:center;gap:8px"><div class="logo" style="width:28px;height:28px;font-size:15px;border-radius:8px"><span class="heart">V</span></div><span style="font-family:var(--font-display);font-weight:800;font-size:14px">VitaHero</span></div>
+            <div class="logo" style="width:70px;height:47px"></div>
             <span style="color:var(--ink-soft);font-size:12px;font-weight:600">Skip</span>
           </div>
           <div class="m-ill" style="font-size:0"><svg class="ic-svg" style="width:72px;height:72px;color:var(--orange-d)"><use href="#i-users"/></svg></div>
@@ -595,7 +594,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 6 — PARENT: HOME DASHBOARD ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">06 / 19</div>
   <div class="maxw row" style="gap:50px">
     <div class="col grow">
@@ -672,7 +671,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 7 — PARENT: KIDS & GROWTH ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">07 / 19</div>
   <div class="maxw row" style="gap:40px">
     <div class="col grow">
@@ -740,9 +739,9 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 8 — PARENT: HEALTH CAMPS ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">08 / 19</div>
-  <div class="maxw row" style="gap:50px">
+  <div class="maxw row" style="gap:50px;flex-direction:row-reverse">
     <!-- Phone: Camps -->
     <div class="phone lg">
       <div class="phone-notch"></div>
@@ -798,7 +797,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 <!-- ═══════════════ SLIDE 9 — PARENT: HEALTH REPORT ═══════════════ -->
 <section class="slide">
   <div class="blob blob-p" style="width:300px;height:300px;top:-80px;left:-60px"></div>
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">09 / 19</div>
   <div class="maxw row" style="gap:50px">
     <div class="col grow">
@@ -846,7 +845,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 10 — PARENT: DIET & REWARDS ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">10 / 19</div>
   <div class="maxw col">
     <div style="text-align:center">
@@ -908,7 +907,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 <!-- ═══════════════ SLIDE 11 — DOCTOR PORTAL: DASHBOARD ═══════════════ -->
 <section class="slide">
   <div class="blob blob-o" style="width:340px;height:340px;bottom:-100px;right:-100px"></div>
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">11 / 19</div>
   <div class="maxw row" style="gap:50px">
     <div class="col grow">
@@ -976,7 +975,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 12 — SPECIALTY ACCESS ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">12 / 19</div>
   <div class="maxw col">
     <div style="text-align:center">
@@ -1000,9 +999,9 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 13 — DENTAL FORM ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">13 / 19</div>
-  <div class="maxw row" style="gap:50px">
+  <div class="maxw row" style="gap:50px;flex-direction:row-reverse">
     <!-- Phone: Dental form -->
     <div class="phone lg">
       <div class="phone-notch"></div>
@@ -1043,7 +1042,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 14 — VISION / OPHTHALMOLOGY FORM ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">14 / 19</div>
   <div class="maxw row" style="gap:50px">
     <div class="col grow">
@@ -1086,7 +1085,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 15 — ENT / GENERAL FORM ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">15 / 19</div>
   <div class="maxw row" style="gap:50px">
     <!-- Phone: ENT / General form -->
@@ -1129,7 +1128,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 <section class="slide">
   <div class="blob blob-o" style="width:340px;height:340px;top:-100px;right:-100px"></div>
   <div class="blob blob-b" style="width:300px;height:300px;bottom:-100px;left:-80px"></div>
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">16 / 19</div>
   <div class="maxw col">
     <div style="text-align:center">
@@ -1151,7 +1150,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 17 — WHY PARTNER ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">17 / 19</div>
   <div class="maxw col">
     <div style="text-align:center">
@@ -1195,7 +1194,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 <!-- ═══════════════ SLIDE 18 — ONBOARDING A DOCTOR ═══════════════ -->
 <section class="slide">
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">18 / 19</div>
   <div class="maxw row" style="gap:50px">
     <div class="col grow">
@@ -1217,7 +1216,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
       <div class="phone-screen">
         <div class="statusbar"><span>9:41</span><span class="right"><span class="sb-dots">●●●●</span><span class="sb-batt"></span></span></div>
         <div class="scroll">
-          <div style="padding:30px 22px 16px;text-align:center"><div class="logo" style="margin:0 auto;width:60px;height:60px;font-size:28px;border-radius:18px"><span class="heart">V</span></div><div style="font-family:var(--font-display);font-weight:800;font-size:22px;margin-top:14px">VitaHero</div><div class="m-sub">Doctor Portal</div></div>
+          <div style="padding:30px 22px 16px;text-align:center"><div class="logo" style="margin:0 auto;width:120px;height:80px"></div><div class="m-sub">Doctor Portal</div></div>
           <div class="m-card" style="padding:20px">
             <div style="font-family:var(--font-display);font-weight:700;font-size:14px;margin-bottom:14px">Enter your registered phone</div>
             <div class="m-field" style="font-size:14px;padding:12px"><span style="color:var(--ink-soft)">🇮🇳 +91</span> &nbsp; <span class="v">98840 73888</span></div>
@@ -1241,7 +1240,7 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 <section class="slide">
   <div class="blob blob-o" style="width:420px;height:420px;top:-140px;left:-120px"></div>
   <div class="blob blob-p" style="width:380px;height:380px;bottom:-140px;right:-120px"></div>
-  <div class="brandbar"><div class="logo"><span class="heart">V</span></div><div class="name">VitaHero</div></div>
+  <div class="brandbar"><div class="logo"></div></div>
   <div class="slide-num">19 / 19</div>
   <div class="maxw col" style="align-items:center;text-align:center">
     <span class="eyebrow">The invitation</span>
