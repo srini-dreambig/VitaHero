@@ -235,6 +235,127 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 .export-progress .bar > span{display:block;height:100%;background:linear-gradient(95deg,var(--orange),var(--orange-d));width:0%;transition:width .25s ease}
 @media print{ .export-btn,.export-progress,.foot{display:none !important} }
 
+/* ═══════════════════════════════════════════════════════════════
+   PPT 16:9 + Official Logo overrides
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Deck centers a single 16:9 slide */
+.deck { display: flex; align-items: center; justify-content: center; }
+
+/* Slide locks to 16:9 and fits within the viewport */
+.slide {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  max-width: 177.78vh;
+  max-height: 56.25vw;
+  padding: 38px 58px 78px 58px;
+}
+
+/* Official VitaHero logo on every slide and in every mockup */
+.logo {
+  background: url('vitahero_logo.png') center / contain no-repeat;
+  color: transparent;
+  font-size: 0 !important;
+  text-indent: -9999px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+.logo .heart { display: none; }
+.brandbar { top: 24px; left: 58px; gap: 10px; }
+.brandbar .name { font-size: 18px; }
+.slide-num { top: 24px; right: 58px; }
+
+/* Splash screen logo inside the phone mockup */
+.splash .lgo {
+  background: url('vitahero_logo.png') center / contain no-repeat;
+  color: transparent;
+  font-size: 0;
+  text-indent: -9999px;
+  border-radius: 24px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.25);
+}
+
+/* Phone mockups sized for 16:9 PPT slides */
+.phone { width: 255px; height: 530px; padding: 10px; border-radius: 40px; }
+.phone.lg { width: 280px; height: 590px; }
+.phone-notch { width: 100px; height: 24px; top: 10px; }
+
+/* Typography scaled for 16:9 */
+.h1 { font-size: clamp(28px, 3.6vw, 44px); letter-spacing: -1.2px; }
+.h2 { font-size: clamp(22px, 2.7vw, 34px); letter-spacing: -0.8px; }
+.h3 { font-size: clamp(17px, 1.5vw, 21px); }
+.lead { font-size: clamp(12px, 1.0vw, 15px); }
+.eyebrow { font-size: 12px; letter-spacing: 1.8px; }
+
+/* Cards */
+.pill { padding: 6px 12px; font-size: 11px; }
+.statcard { padding: 16px; border-radius: 16px; }
+.statnum { font-size: 34px; }
+.statlabel { font-size: 12px; }
+.featurecard { padding: 16px; border-radius: 16px; }
+.featurecard:hover { transform: translateY(-3px); }
+.fc-icon { width: 42px; height: 42px; border-radius: 12px; font-size: 20px; margin-bottom: 12px; }
+.fc-title { font-size: 15px; }
+.fc-body { font-size: 12px; }
+
+/* Lists & flows */
+.numlist { gap: 14px; }
+.numitem { gap: 14px; }
+.numitem .n { width: 30px; height: 30px; border-radius: 9px; font-size: 13px; }
+.numitem .b .t { font-size: 14px; }
+.numitem .b .d { font-size: 12px; }
+.flow { margin-top: 10px; }
+.flow-step { padding: 14px; border-radius: 14px; }
+.flow-step .ic { width: 36px; height: 36px; border-radius: 10px; font-size: 16px; margin-bottom: 10px; }
+.flow-step .t { font-size: 13px; }
+.flow-step .d { font-size: 11px; }
+.flow-arrow { font-size: 18px; }
+
+/* Specialty grid */
+.spec-grid { gap: 12px; margin-top: 10px; }
+.spec { padding: 14px 8px; border-radius: 14px; }
+.spec .ic { width: 38px; height: 38px; border-radius: 11px; font-size: 18px; margin-bottom: 8px; }
+.spec .n { font-size: 12px; }
+.spec .f { font-size: 10px; }
+
+/* CTA */
+.cta-card { padding: 34px; border-radius: 22px; }
+.cta-card .b1 { font-size: clamp(22px, 2.5vw, 32px); }
+.cta-card .b2 { font-size: 13px; margin-top: 10px; }
+.cta-card .btn { padding: 14px 26px; font-size: 14px; margin-top: 22px; }
+
+/* Annotations */
+.anno { padding: 7px 11px; font-size: 11px; max-width: 160px; }
+
+/* Mockup UI primitives */
+.m-card { border-radius: 16px; padding: 12px; margin: 0 12px 10px; }
+.m-ill { height: 160px; font-size: 52px; }
+.m-banner { border-radius: 18px; padding: 14px; margin: 0 12px 12px; }
+.m-banner h4 { font-size: 15px; margin-top: 8px; }
+.m-banner .meta { font-size: 10px; }
+.m-banner .cta { padding: 6px 10px; font-size: 10px; }
+.m-btn { padding: 11px; margin: 6px 12px 14px; border-radius: 12px; }
+.m-sec-h { padding: 6px 16px 6px; }
+.m-sec-h .t { font-size: 14px; }
+.m-sec-card { border-radius: 14px; margin: 0 12px 8px; }
+.m-sec-card .hd { padding: 11px 14px; }
+.m-sec-card .hd .t { font-size: 12px; }
+.m-sec-card .body { padding: 0 14px 12px; gap: 8px; }
+.m-field { padding: 8px 10px; border-radius: 10px; font-size: 11px; }
+.m-toggle { padding: 5px 0; }
+.m-qa { padding: 10px 4px; border-radius: 12px; }
+.m-qa .ic { width: 32px; height: 32px; border-radius: 9px; font-size: 15px; }
+.m-qa .l { font-size: 9px; }
+.m-flagsel div { padding: 4px 8px; font-size: 9px; }
+
+/* Responsive */
+@media (max-width: 1000px) {
+  .phone { width: 230px; height: 480px; }
+  .phone.lg { width: 250px; height: 540px; }
+  .slide { padding: 34px 42px 70px 42px; }
+  .brandbar { left: 42px; }
+  .slide-num { right: 42px; }
+}
 </style>
 </head>
 <body>
