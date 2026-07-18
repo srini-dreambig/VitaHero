@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --orange:#F47B20; --orange-d:#D9641A; --orange-soft:#FCE5D1;
@@ -201,6 +203,37 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 /* Annotation */
 .anno{position:absolute;background:#fff;border:1.5px solid var(--orange);color:var(--ink);padding:9px 14px;border-radius:12px;font-size:12px;font-weight:600;box-shadow:0 10px 24px rgba(15,23,42,.1);max-width:200px;line-height:1.4}
 .anno::before{content:'';position:absolute;width:14px;height:14px;background:#fff;border-left:1.5px solid var(--orange);border-top:1.5px solid var(--orange);transform:rotate(-45deg)}
+
+/* ─── Export PDF button ─── */
+.export-btn{
+  position:fixed;top:28px;right:28px;z-index:50;
+  display:inline-flex;align-items:center;gap:9px;
+  background:linear-gradient(95deg,var(--orange),var(--orange-d));
+  color:#fff;border:none;cursor:pointer;
+  padding:11px 18px;border-radius:50px;
+  font-family:var(--font-display);font-weight:700;font-size:13px;letter-spacing:.2px;
+  box-shadow:0 8px 22px rgba(244,123,32,.38);
+  transition:transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+}
+.export-btn:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 12px 28px rgba(244,123,32,.5)}
+.export-btn:active{transform:translateY(0) scale(.99)}
+.export-btn:disabled{opacity:.7;cursor:wait;transform:none}
+.export-btn .ic{width:16px;height:16px;display:inline-block}
+.export-btn .spinner{
+  width:15px;height:15px;border:2px solid rgba(255,255,255,.45);border-top-color:#fff;
+  border-radius:50%;animation:spin .8s linear infinite;display:inline-block;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.export-progress{
+  position:fixed;top:74px;right:28px;z-index:50;
+  background:#fff;border:1px solid var(--hair);border-radius:12px;
+  padding:8px 14px;font-size:12px;font-weight:600;color:var(--ink-soft);
+  box-shadow:0 8px 22px rgba(15,23,42,.12);display:none;min-width:160px;
+}
+.export-progress.show{display:block}
+.export-progress .bar{height:4px;background:var(--muted);border-radius:4px;margin-top:7px;overflow:hidden}
+.export-progress .bar > span{display:block;height:100%;background:linear-gradient(95deg,var(--orange),var(--orange-d));width:0%;transition:width .25s ease}
+@media print{ .export-btn,.export-progress,.foot{display:none !important} }
 
 </style>
 </head>
@@ -1069,6 +1102,16 @@ html,body{height:100%;font-family:var(--font-ui);color:var(--ink);background:#0B
 
 </div>
 
+<!-- ─── Export PDF button ─── -->
+<button class="export-btn" id="exportBtn" onclick="exportPDF()" title="Export the full deck as a high-quality PDF">
+  <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>
+  <span id="exportBtnLabel">Export PDF</span>
+</button>
+<div class="export-progress" id="exportProgress">
+  <div id="exportProgressText">Preparing…</div>
+  <div class="bar"><span id="exportProgressBar"></span></div>
+</div>
+
 <!-- ─── Nav ─── -->
 <div class="foot">
   <button class="nav-btn" onclick="go(-1)">‹</button>
@@ -1083,7 +1126,108 @@ const dots=document.getElementById('dots');
 slides.forEach((_,n)=>{const d=document.createElement('div');d.className='dot'+(n===0?' active':'');d.onclick=()=>goTo(n);dots.appendChild(d)});
 function goTo(n){i=Math.max(0,Math.min(slides.length-1,n));slides.forEach((s,k)=>s.classList.toggle('active',k===i));[...dots.children].forEach((d,k)=>d.classList.toggle('active',k===i));}
 function go(d){goTo(i+d)}
-document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')go(1);if(e.key==='ArrowLeft')go(-1)});
+document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key===' ')go(1);if(e.key==='ArrowLeft')go(-1);if((e.key==='e'||e.key==='E')&&!e.metaKey&&!e.ctrlKey){exportPDF()}});
+
+/* ─── High-quality PDF export ─── */
+let _exporting=false;
+async function exportPDF(){
+  if(_exporting) return;
+  if(typeof html2canvas==='undefined' || !(window.jspdf&&window.jspdf.jsPDF)){
+    alert('PDF libraries are still loading — please wait a moment and try again.');
+    return;
+  }
+  _exporting=true;
+  const btn=document.getElementById('exportBtn');
+  const label=document.getElementById('exportBtnLabel');
+  const prog=document.getElementById('exportProgress');
+  const progText=document.getElementById('exportProgressText');
+  const progBar=document.getElementById('exportProgressBar');
+  btn.disabled=true;
+  label.textContent='Exporting…';
+  prog.classList.add('show');
+  progText.textContent='Starting…';
+  progBar.style.width='0%';
+
+  const foot=document.querySelector('.foot');
+  const exportBtnEl=document.getElementById('exportBtn');
+  const origFoot=foot.style.display;
+  const origBtn=exportBtnEl.style.display;
+  foot.style.display='none';
+  exportBtnEl.style.display='none';
+  const origActive=i;
+
+  // Ensure web fonts are ready so text renders crisply
+  try{ await document.fonts.ready; }catch(e){}
+  // Small pause to let layout settle
+  await new Promise(r=>setTimeout(r,60));
+
+  const SCALE=2; // 2x render → crisp on print/email
+  const total=slides.length;
+  const { jsPDF }=window.jspdf;
+  let pdf=null;
+  let pageW=0, pageH=0;
+
+  try{
+    for(let n=0;n<total;n++){
+      // Show only the current slide, bypassing the .active animation for a clean capture
+      slides.forEach((s,k)=>{s.style.display=(k===n?'flex':'none'); s.classList.remove('active');});
+      // Allow a paint cycle so fonts/layout resolve
+      await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+
+      const slide=slides[n];
+      const canvas=await html2canvas(slide,{
+        scale:SCALE,
+        useCORS:true,
+        allowTaint:false,
+        backgroundColor:'#FAFCFE',
+        logging:false,
+        windowWidth:slide.clientWidth,
+        windowHeight:slide.clientHeight
+      });
+
+      const imgW=canvas.width, imgH=canvas.height;
+      const imgData=canvas.toDataURL('image/jpeg',0.96);
+
+      if(n===0){
+        pageW=imgW; pageH=imgH;
+        pdf=new jsPDF({
+          orientation: imgW>=imgH?'landscape':'portrait',
+          unit:'px',
+          format:[pageW,pageH],
+          compress:true
+        });
+      } else {
+        // Keep a consistent page size; add a page with the same dimensions
+        pdf.addPage([pageW,pageH], imgW>=imgH?'landscape':'portrait');
+      }
+      // If this slide's aspect differs slightly, fit it onto the uniform page
+      pdf.addImage(imgData,'JPEG',0,0,pageW,pageH,undefined,'FAST');
+
+      const pct=Math.round(((n+1)/total)*100);
+      progText.textContent='Slide '+(n+1)+' of '+total;
+      progBar.style.width=pct+'%';
+    }
+
+    progText.textContent='Saving PDF…';
+    progBar.style.width='100%';
+    pdf.save('VitaHero-Partner-Doctor-Presentation.pdf');
+    progText.textContent='Done ✓';
+    setTimeout(()=>prog.classList.remove('show'),1400);
+  } catch(err){
+    console.error('PDF export failed:',err);
+    alert('Sorry, PDF export failed. Please try again.');
+    prog.classList.remove('show');
+  } finally {
+    // Restore the deck to its interactive state
+    slides.forEach(s=>{s.style.display='';});
+    foot.style.display=origFoot;
+    exportBtnEl.style.display=origBtn;
+    goTo(origActive);
+    btn.disabled=false;
+    label.textContent='Export PDF';
+    _exporting=false;
+  }
+}
 </script>
 </body>
 </html>
