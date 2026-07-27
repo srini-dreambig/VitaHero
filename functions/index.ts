@@ -7,6 +7,7 @@
 import { FirestoreClient, decodeFirebaseToken } from "./firestore";
 import { renderAdminPanel } from "./admin-panel";
 import { LOGO_DATA_URI } from "./logo";
+import { PLAYSTORE_ASSETS } from "./playstore-assets";
 import { SEED_SCHOOLS, SEED_HOSPITALS, SEED_DOCTORS } from "./seed-data";
 
 const APP_ORIGIN = "https://kidhero.rork.app";
@@ -745,6 +746,32 @@ export default {
           },
         },
       ]), { status: 200, headers: { "Content-Type": "application/json" } }));
+    }
+
+    // ── Play Store listing assets (public downloads for Play Console upload) ──
+    if (path.startsWith("/playstore/")) {
+      const name = decodeURIComponent(path.slice("/playstore/".length));
+      const asset = PLAYSTORE_ASSETS[name];
+      if (!asset) return cors(new Response("Not found", { status: 404 }));
+      const bin = atob(asset.b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new Response(bytes, {
+        status: 200,
+        headers: {
+          "Content-Type": asset.mime,
+          "Cache-Control": "public, max-age=86400, immutable",
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
+    }
+    // ── Play Store assets index (HTML list of all assets with download links) ──
+    if (path === "/playstore") {
+      const items = Object.keys(PLAYSTORE_ASSETS)
+        .map((n) => `<li><a href="/playstore/${encodeURIComponent(n)}">${n}</a></li>`)
+        .join("");
+      const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VitaHero — Play Store Assets</title><style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#0F172A}h1{color:#F47B20}ul{list-style:none;padding:0}li{padding:10px 0;border-bottom:1px solid #eee}a{color:#1FA2DD;text-decoration:none;font-weight:600}a:hover{text-decoration:underline}</style></head><body><h1>VitaHero Play Store Assets</h1><p>Right-click any link and choose “Save link as…” to download.</p><ul>${items}</ul></body></html>`;
+      return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
     }
 
     // ── Invite token resolution ──
