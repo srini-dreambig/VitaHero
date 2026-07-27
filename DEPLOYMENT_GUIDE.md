@@ -11,66 +11,139 @@
 
 ---
 
-## What you must do manually (Google Play / Rork)
+## Current status (updated 27 Jul 2026)
 
-### 1. Connect Google Play in Rork
-- Open the **Rork Publish** dialog for this project.
-- Connect your Google Play developer account under the **Android / Google Play** section.
-- Without this, the automated publish flow cannot run. **Do this first.**
+| Task | Status |
+|------|--------|
+| Google Play connected in Rork | ✅ Done |
+| Android app source + local build | ✅ Updated with the real VitaHero logo; `runChecks` passed |
+| Play Store icon, banner, screenshots | ✅ Regenerated with the real VitaHero logo and real app UI colours/layout |
+| Play Store listing text (en-US) | ✅ Verified correct (title, short + full description) |
+| New Play Store AAB with updated launcher icon | ✅ Published to internal testing — version code `1785160584`, submission `2649460e-14c3-4ca7-9804-e91ce4162fcb` |
+| Upload icon, banner, screenshots to Play Console | 🛑 Must be done manually in Play Console (see exact steps below) |
+| Play Console initial setup + policy forms | 🛑 Must be completed manually (see checklist below) |
+| Promote to closed testing / production | 🛑 Blocked until Play Console setup is complete and closed-test criteria are met |
 
-### 2. Play Console app setup (if not already complete)
-- Sign in to [Google Play Console](https://play.google.com/console).
-- Select the app with package `kallam.healthcare` (or create it if missing).
-- Go to **Release → Setup → App integrity** and opt in to **Google Play App Signing**.
-- Upload the Play Console app's SHA-256 fingerprint to the worker secret `ANDROID_CERT_SHA256` (Rork can help once connected).
-- Set the Play Store URL as `APP_PLAY_URL` in worker secrets (e.g. `https://play.google.com/store/apps/details?id=kallam.healthcare`).
+---
 
-### 3. Required Play Console policy declarations
-Because this is a health app, complete these before requesting production:
+## What you must do manually in Play Console
 
-- **Data Safety** (`Policy → Data safety`)
-  - Data collected: phone number, health info, approximate location, photos/videos, app interactions, diagnostics.
-  - Data shared: phone number (SMS), health info (with school/hospital), crash data.
-  - Data processed ephemerally: OTP codes.
-  - Required encryption in transit: **Yes**.
-  - Account deletion mechanism provided: **Yes** (link to `/data-deletion`).
-- **Content rating** (`Grow → Store presence → Content ratings`)
-- **Target audience** (`Policy → App content → Target audience`). Default is **13+ / parents**; not a children-only app.
-- **Ads declaration** (`Policy → Ads`): **No ads**.
-- **Privacy policy URL:** paste `https://kidhero-health-sync-backend.rork.app/privacy`
-- **Support email:** set to `support@vitahero.app` (or create a Gmail alias you control).
-- **App category:** **Health & Fitness** (or **Medical** if you prefer).
-- **Countries / distribution:** set the regions you want to launch in.
+### 1. Upload the new store listing images
 
-### 4. Upload listing graphics in Play Console
-Generated assets are in the Rork project asset library. I also created exact-size Play Store-ready files in the `play-store-assets/` folder:
+The ready files are in `play-store-assets/`. The Play Store API cannot upload arbitrary local files; these exact-size files must be dropped into Play Console manually.
 
-| Slot | Exact-size file | Project asset ID (for automated upload) | Size / note |
-|------|-----------------|----------------------------------------|-------------|
-| App icon | `play-store-assets/icon_512.png` | `2c7640fe-d9b5-415d-8599-735216b699de` | 512 x 512 px, regenerated with official VitaHero branding |
-| Feature graphic | `play-store-assets/banner_1024x500.png` | `58beac76-5783-49f2-beba-d4906449130f` | 1024 x 500 px, regenerated with official VitaHero branding |
-| Phone screenshot 1 | `play-store-assets/screenshot_home.png` | `c59ed813-ebae-4366-bdec-bc29f19cf82e` | 1024 x 1536 px, home dashboard (uploaded via API) |
-| Phone screenshot 2 | `play-store-assets/screenshot_report.png` | `6170fbf8-877d-4355-8c3d-fcedd5e23f56` | 1024 x 1536 px, health report (uploaded via API) |
-| Phone screenshot 3 | `play-store-assets/screenshot_diet.png` | `1a34ebee-42b6-4461-a9dc-9417f1f55b46` | 1024 x 1536 px, diet & AI tips (uploaded via API) |
-| Phone screenshot 4 | `play-store-assets/screenshot_growth.png` | `4181b95b-9cec-456e-bd66-190620eb5ad6` | 1024 x 1536 px, growth chart (uploaded via API) |
+1. Sign in to [Google Play Console](https://play.google.com/console) and select **VitaHero** (`kallam.healthcare`).
+2. Go to **Grow → Store presence → Main store listing**.
+3. Upload each file to the correct slot:
 
-- **App icon:** 512 x 512 px 32-bit PNG with alpha (must be ≤ 1 MB) — ready file is in `play-store-assets/icon_512.png`.
-- **Feature graphic:** 1024 x 500 px JPEG or 24-bit PNG — ready file is in `play-store-assets/banner_1024x500.png`.
-- **Phone screenshots:** 2–8 images, 320–3840 px per side, longest side ≤ 2x shortest side — ready files are in `play-store-assets/screenshot_*.png`.
+| Slot | File to upload | Exact size | Format |
+|------|----------------|------------|--------|
+| App icon | `play-store-assets/icon_512.png` | 512 x 512 px | 32-bit PNG with alpha (≤ 1 MB) |
+| Feature graphic | `play-store-assets/banner_1024x500.png` | 1024 x 500 px | PNG/JPEG |
+| Phone screenshot 1 | `play-store-assets/screenshot_home.png` | 1080 x 2400 px | PNG/JPEG |
+| Phone screenshot 2 | `play-store-assets/screenshot_diet.png` | 1080 x 2400 px | PNG/JPEG |
+| Phone screenshot 3 | `play-store-assets/screenshot_growth.png` | 1080 x 2400 px | PNG/JPEG |
+| Phone screenshot 4 | `play-store-assets/screenshot_report.png` | 1080 x 2400 px | PNG/JPEG |
 
-> **Status:** The 4 phone screenshots were uploaded successfully via the API. The app icon and feature graphic must be uploaded manually in Play Console because the Play Store API requires exact dimensions (512 x 512 for the icon, 1024 x 500 for the banner) and the asset-generation tool cannot produce those exact sizes. Use the exact-size files in `play-store-assets/icon_512.png` and `play-store-assets/banner_1024x500.png`, which have been regenerated with the official VitaHero logo and brand colors.
+> **Why these are correct now:** the icon uses the real `vitahero_logo.png` from the app; the banner uses the same logo and brand orange; the screenshots reproduce the actual app screens (Home, Diet Plan, Growth Charts, Health Checkup Report) using the real Host Grotesk fonts, HeroOrange (#F47B20), HeroBlue (#1FA2DD), and Material 3-style layout from the source code.
 
-### 5. Production readiness checklist
-- [x] Google Play connected in Rork
-- [ ] Play Console app created and app signing opted in (required for first release)
-- [ ] Data Safety form completed
-- [ ] Content rating completed
-- [ ] Privacy policy + data deletion URLs set
-- [ ] Support email set
-- [ ] Listing icon and feature graphic uploaded manually (screenshots uploaded via API)
-- [ ] Target audience and ads declarations completed
-- [ ] Countries / distribution selected
-- [ ] You have a rollout plan (e.g. staged 20% → 100%)
+### 2. Finish the Play Console app setup checklist
+
+Google will not let you apply for production until every item below is completed. Work through the left-hand menu in Play Console for the `kallam.healthcare` app.
+
+#### Internal testing (optional, but quickest for your own QA)
+
+- **Select testers**
+  - Go to **Testing → Internal testing → Testers**.
+  - Add your Google account email and any trusted QA emails as internal testers.
+- **Create and roll out a release**
+  - Go to **Testing → Internal testing**.
+  - Click **Create release**.
+  - Upload the latest App Bundle (AAB) or use the one already published via Rork.
+  - Add release notes:
+    ```
+    First release of VitaHero. View school health camp reports, track growth, get diet tips, scan meals, and book doctor appointments — all in one secure app for parents.
+    ```
+  - Click **Review release** and then **Start rollout to Internal testing**.
+
+#### Finish setting up your app (required for every release)
+
+- **Provide app information and create your store listing**
+  - **App category and contact details:** Go to **Grow → Store presence → Store listing** → scroll to **Categorization**. Set **App category** to **Health & Fitness** (or **Medical**). Set **Contact email** to `support@vitahero.app` (or a Gmail alias you control). Optionally add a **Contact phone** and **Website**.
+  - **Store listing:** Confirm the title, short description, and full description are already set. If not, use the copy in the **Proposed Play Store listing copy** section below.
+  - **Upload listing images:** as described in step 1 above.
+
+- **Let us know about the content of your app**
+  - **Privacy policy:** Go to **Policy → App content → Privacy policy**. Enter `https://kidhero-health-sync-backend.rork.app/privacy`.
+  - **Sign in details:** Go to **Policy → App content → App access**. If any feature requires login, provide test credentials. VitaHero uses phone-OTP login, so you can provide a test phone number and note that OTP is sent via SMS.
+  - **Ads:** Go to **Policy → App content → Ads**. Select **No, this app does not contain ads**.
+  - **Content rating:** Go to **Grow → Store presence → Content ratings**. Fill the questionnaire. For a health app for parents, the rating is typically **PEGI 3 / ESRB Everyone** with the **Health** category selected. This is quick and takes about 5 minutes.
+  - **Target audience:** Go to **Policy → App content → Target audience**. Select **13+ / Parents**. Do **not** mark the app as primarily for children under 13, because parents are the actual users even though the data is about children.
+  - **Data safety:** Go to **Policy → Data safety**. Complete every section. Because VitaHero is a health app, be precise and honest. Use the answers below:
+
+    **Data collection:**
+    - Phone number (required for Firebase Phone Auth and SMS invites)
+    - Health info (height, weight, BMI, vision, dental, general checkup notes)
+    - Approximate location (used for nearby hospital/doctor search)
+    - Photos/videos (only when the parent chooses to scan a meal)
+    - App interactions (analytics, crash diagnostics)
+    - Diagnostics (Firebase crash logs, ANR logs)
+
+    **Data sharing:**
+    - Phone number shared with SMS provider (Plivo/Twilio) to send invites and OTP.
+    - Health info shared with the authorised school/hospital/camp administrator and the doctor who performed the check-up.
+    - Crash data shared with Firebase Crashlytics.
+
+    **Data processing:**
+    - OTP codes are processed ephemerally and not stored.
+    - Required encryption in transit: **Yes**.
+    - Account deletion mechanism: **Yes**, via `https://kidhero-health-sync-backend.rork.app/data-deletion`.
+
+  - **Government apps:** Not applicable — leave as **No**.
+  - **Financial features:** Not applicable — leave as **No**.
+  - **Health:** Go to **Policy → App content → Health**. This app provides health-related information and services but is not a medical device. It connects parents with school health camps and partner doctors. Do not make diagnosis/treatment claims.
+
+- **Countries and distribution**
+  - Go to **Grow → Store presence → Pricing & distribution**.
+  - Select the countries/regions where you want the app to be available. For an India-first launch, select **India**; you can add more later.
+
+#### Closed testing (required before production)
+
+You **must** run a closed test before Google Play allows production access.
+
+- **Set up your closed test track**
+  - Go to **Testing → Closed testing**.
+  - Create a closed test track (or use the default **Alpha** track).
+- **Select countries and regions**
+  - Pick the same countries as your planned production launch (e.g., India).
+- **Select testers**
+  - Build a list of at least **20 testers** to be safe (Google requires at least 12 opted-in for 14 days, but some drop off). Common sources:
+    - School parents from your pilot school
+    - Hospital/camp staff and their family members
+    - Friends and colleagues with Android devices
+  - Add their Google account emails or create a Google Group / Google Workspace group and link it.
+- **Create and roll out a release**
+  - Promote the internal build to the closed test track, or upload the same AAB directly.
+  - Use the same release notes as above.
+  - Click **Review release** and **Start rollout to Closed testing**.
+- **Send the release to Google for review**
+  - Play Console will send the closed test for review automatically. Wait for the review to complete (usually a few hours to a few days).
+- **Meet the production criteria**
+  - Have at least **12 testers opted-in** to the closed test.
+  - Run the closed test for at least **14 days**.
+  - Monitor the **Pre-launch report** and **User feedback** for crashes or policy issues.
+
+#### Production
+
+- **Apply for access to production**
+  - After the closed test has run for 14 days with 12+ testers, go to **Production → Create release** (or **Production → Apply for production** if prompted).
+  - Answer Google's questions about your closed test honestly.
+  - Google Play will then review the production release.
+
+- **Staged rollout (recommended)**
+  - Start with **20% rollout** for the first 24–48 hours.
+  - Watch the **Android vitals** and **user reviews** in Play Console.
+  - Increase to 50%, then 100% if no issues.
 
 ---
 
@@ -126,7 +199,7 @@ First release of VitaHero. View school health camp reports, track growth, get di
 
 ## Admin portal setup
 
-The admin portal is already live as part of the Cloudflare worker. It is a single-page HTML app served by the same backend, not a separate Vercel deployment. This keeps it simple and avoids splitting the backend and admin UI.
+The admin portal is already live as part of the Cloudflare worker. It is a single-page HTML app served by the same backend, not a separate Vercel deployment.
 
 ### Access the admin panel
 ```
@@ -148,31 +221,23 @@ https://kidhero-health-sync-backend.rork.app/admin
 
 ---
 
-## Automated publish flow (what I will run once you connect Google Play)
+## What I can automate next
 
-After you connect Google Play in Rork, I will execute:
+After you complete the manual Play Console steps above, tell me to continue and I will:
 
-1. `setupGooglePlay` — verify the connection.
-2. `ensurePlayAppRecord({ packageName: "kallam.healthcare", appName: "VitaHero" })` — confirm Play Console API access.
-3. `generatePlayAab` — build a signed App Bundle for the current source.
-4. `publishInternalBuild` with `validateOnly: true` first, then commit to internal testing.
-5. `promotePlayRelease` with `targetTrack: "production"` (or staged rollout if you prefer).
-6. `updatePlayListing` — apply the metadata above.
-7. `replacePlayListingImages` — apply the generated icon, feature graphic, and screenshots. If Play Console rejects the source asset sizes, fall back to the exact-size files in `play-store-assets/` and upload them manually.
+1. Build and publish a new signed Play AAB with the updated VitaHero launcher icon (currently queued).
+2. Promote the release from internal testing → closed testing → production (or to a specific track you choose).
+3. Update the staged rollout fraction (e.g., 20% → 50% → 100%).
 
 ---
 
-## Current deployment status
+## Asset files (ready in the project)
 
-- **Google Play connection:** Connected and verified.
-- **Internal testing build:** Published — version code `1785158118`, submission `3fc81eaf-ac20-4286-bcc6-e2b69725f50a`.
-- **Play Store listing metadata:** Updated (title, short description, full description for en-US).
-- **Phone screenshots:** Uploaded via API (4 branded screenshots using the VitaHero logo and colors).
-- **App icon + feature graphic:** Regenerated with the official VitaHero logo/branding in `play-store-assets/`. These must be uploaded manually in Play Console because the API requires exact 512 x 512 and 1024 x 500 sizes.
-- **Production promotion:** Blocked until Play Console initial setup is completed (the app is still a draft). You must finish the Play Console setup checklist and send the first release for review before automated promotion can proceed.
-
-## Next action
-
-1. Sign in to [Google Play Console](https://play.google.com/console), select `kallam.healthcare`, and complete the **Publishing overview** setup checklist (app signing, Data Safety, content rating, target audience, ads, privacy policy, support email, countries).
-2. Manually upload `play-store-assets/icon_512.png` and `play-store-assets/banner_1024x500.png` in **Grow → Store presence → Main store listing**.
-3. Once the app has a live (non-draft) release, tell me to continue and I will promote the internal build to production.
+- `play-store-assets/icon_512.png` — Play Store app icon (real VitaHero logo)
+- `play-store-assets/banner_1024x500.png` — Play Store feature graphic
+- `play-store-assets/screenshot_home.png` — Home dashboard
+- `play-store-assets/screenshot_diet.png` — Diet plan + AI coach
+- `play-store-assets/screenshot_growth.png` — Growth charts
+- `play-store-assets/screenshot_report.png` — Health checkup report
+- `android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png` — Android adaptive-icon foreground (real VitaHero logo)
+- `android/app/src/main/res/values/ic_launcher_background.xml` — Android adaptive-icon background (HeroOrange #F47B20)
