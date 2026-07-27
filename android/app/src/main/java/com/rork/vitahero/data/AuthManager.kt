@@ -46,6 +46,16 @@ class AuthManager(private val app: Application) {
         scope.launch(Dispatchers.IO) {
             _onboardingComplete.value = SessionStore.isOnboardingComplete(app)
         }
+        // Listen for server-side sign-out, token revocation, or account deletion.
+        // Firebase Auth invokes this callback on cold start and whenever auth state changes.
+        fbAuth.addAuthStateListener { auth ->
+            val user = auth.currentUser
+            if (user == null && _isLoggedIn.value) {
+                // Session was revoked or user was signed out remotely — clear local state
+                android.util.Log.d("VitaHeroAuth", "AuthStateListener: user signed out remotely")
+                clearLocalSessionState()
+            }
+        }
     }
 
     private val _authError = MutableStateFlow<String?>(null)
@@ -254,6 +264,8 @@ class AuthManager(private val app: Application) {
 
     /**
      * Try to restore the session from Firebase Auth's persisted state.
+     * If the Firebase user exists but their Firestore profile was deleted (admin action),
+     * signs out the orphaned Firebase session and returns false.
      */
     suspend fun tryRestoreSession(): Boolean = withContext(Dispatchers.IO) {
         val user = fbAuth.currentUser ?: return@withContext false
@@ -267,7 +279,13 @@ class AuthManager(private val app: Application) {
 
             val uid = user.uid
             val profileSnap = db.collection("profiles").document(uid).get().await()
-            if (!profileSnap.exists()) return@withContext false
+            if (!profileSnap.exists()) {
+                // Profile was deleted (admin action) — sign out the orphaned session
+                android.util.Log.d("VitaHeroAuth", "tryRestoreSession: profile missing, signing out orphaned session")
+                fbAuth.signOut()
+                clearLocalSessionState()
+                return@withContext false
+            }
 
             val name = profileSnap.getString("name") ?: "Parent"
             val role = profileSnap.getString("role") ?: "PARENT"
@@ -323,10 +341,27 @@ class AuthManager(private val app: Application) {
                 }
             } catch (_: Exception) { }
             fbAuth.signOut()
+            // Clear Firestore persistence cache so a different parent's data
+            // doesn't flash briefly on the next sign-in
+            try { db.clearPersistence() } catch (_: Exception) { }
         }
         SessionStore.clearToken(app)
         _sessionToken.value = null
         ApiService.clearSession()
+        clearLocalSessionState()
+    }
+
+    fun clearSession() {
+        fbAuth.signOut()
+        try { db.clearPersistence() } catch (_: Exception) { }
+        SessionStore.clearToken(app)
+        _sessionToken.value = null
+        ApiService.clearSession()
+        clearLocalSessionState()
+    }
+
+    /** Clears all local auth state fields (does not sign out Firebase). */
+    private fun clearLocalSessionState() {
         _isLoggedIn.value = false
         _uid.value = ""
         _profileId.value = ""
@@ -339,22 +374,6 @@ class AuthManager(private val app: Application) {
         _doctorSpecialty.value = ""
         _isDoctor.value = false
         _verificationId.value = ""
-    }
-
-    fun clearSession() {
-        fbAuth.signOut()
-        SessionStore.clearToken(app)
-        _sessionToken.value = null
-        ApiService.clearSession()
-        _isLoggedIn.value = false
-        _uid.value = ""
-        _profileId.value = ""
-        _userId.value = ""
-        _role.value = "PARENT"
-        _allowedScreens.value = emptyList()
-        _doctorName.value = ""
-        _doctorSpecialty.value = ""
-        _isDoctor.value = false
     }
 
     /** Set doctor pre-verification info (from phone pre-check before OTP). */

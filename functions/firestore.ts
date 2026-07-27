@@ -188,6 +188,11 @@ export class FirestoreClient {
     this.baseUrl = `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents`;
   }
 
+  /** Returns the Firebase project ID (used for token verification). */
+  getProjectId(): string {
+    return this.projectId;
+  }
+
   private async headers(): Promise<Record<string, string>> {
     const token = await getAccessToken(this.sa);
     return { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" };
@@ -436,13 +441,135 @@ export class FirestoreClient {
   }
 }
 
-// ── Firebase ID token decoding (no verification — Worker is trusted) ──
+// ── Firebase ID token verification (JWKS signature check) ─────────────────
+//
+// Verifies the RS256 signature of a Firebase Auth ID token against Google's
+// public JWKS endpoint, then validates standard claims (iss, aud, exp).
+// Falls back to decode-only in DEV_MODE for local testing.
 
-export function decodeFirebaseToken(token: string): { uid: string; phone?: string; email?: string } | null {
+interface DecodedToken {
+  uid: string;
+  phone?: string;
+  email?: string;
+}
+
+interface JwtHeader {
+  kid: string;
+  alg: string;
+  typ: string;
+}
+
+interface JwtPayload {
+  iss: string;
+  aud: string;
+  exp: number;
+  iat: number;
+  sub: string;
+  user_id?: string;
+  phone_number?: string;
+  email?: string;
+}
+
+// Cache JWKS keys (refresh every 1 hour)
+let jwksCache: { keys: Record<string, JsonWebKey>; fetchedAt: number } | null = null;
+const JWKS_CACHE_TTL = 3600_000; // 1 hour
+const FIREBASE_JWKS_URL = "https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com";
+
+async function fetchJwks(): Promise<Record<string, JsonWebKey>> {
+  if (jwksCache && Date.now() - jwksCache.fetchedAt < JWKS_CACHE_TTL) {
+    return jwksCache.keys;
+  }
+  const resp = await fetch(FIREBASE_JWKS_URL);
+  if (!resp.ok) throw new Error(`JWKS fetch failed: ${resp.status}`);
+  const data = await resp.json() as Record<string, JsonWebKey>;
+  jwksCache = { keys: data, fetchedAt: Date.now() };
+  return data;
+}
+
+function base64urlDecode(str: string): string {
+  const padded = str.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
+  return atob(padded + pad);
+}
+
+function base64urlToBuffer(str: string): ArrayBuffer {
+  const binary = base64urlDecode(str);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
+/**
+ * Verify a Firebase ID token's RS256 signature and standard claims.
+ * Returns the decoded payload on success, or null on failure.
+ */
+export async function verifyFirebaseToken(
+  token: string,
+  projectId: string,
+): Promise<DecodedToken | null> {
   try {
     const parts = token.split(".");
     if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+
+    const headerB64 = parts[0];
+    const payloadB64 = parts[1];
+    const signatureB64 = parts[2];
+
+    const header = JSON.parse(base64urlDecode(headerB64)) as JwtHeader;
+    if (header.alg !== "RS256") return null;
+
+    const payload = JSON.parse(base64urlDecode(payloadB64)) as JwtPayload;
+
+    // Validate issuer
+    const expectedIss = `https://securetoken.google.com/${projectId}`;
+    if (payload.iss !== expectedIss) return null;
+
+    // Validate audience (aud is the Firebase project ID)
+    if (payload.aud !== projectId) return null;
+
+    // Validate expiry
+    const now = Math.floor(Date.now() / 1000);
+    if (payload.exp && payload.exp < now) return null;
+
+    // Fetch JWKS and find the key by kid
+    const jwks = await fetchJwks();
+    const jwk = jwks[header.kid];
+    if (!jwk) return null;
+
+    // Import the public key for signature verification
+    const cryptoKey = await crypto.subtle.importKey(
+      "jwk", jwk,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false, ["verify"],
+    );
+
+    // Verify the signature
+    const signingInput = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+    const signature = base64urlToBuffer(signatureB64);
+    const valid = await crypto.subtle.verify(
+      "RSASSA-PKCS1-v1_5", cryptoKey, signature, signingInput,
+    );
+    if (!valid) return null;
+
+    return {
+      uid: payload.user_id || payload.sub || "",
+      phone: payload.phone_number,
+      email: payload.email,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Decode-only fallback (no signature verification) — used in DEV_MODE only.
+ * In production, use verifyFirebaseToken() instead.
+ */
+export function decodeFirebaseToken(token: string): DecodedToken | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(base64urlDecode(parts[1])) as JwtPayload;
     return {
       uid: payload.user_id || payload.sub || "",
       phone: payload.phone_number,

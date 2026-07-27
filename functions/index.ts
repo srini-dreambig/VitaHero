@@ -4,7 +4,7 @@
 // Admin panel uses a static API key (ADMIN_API_KEY).
 // AI features (diet tips, food recognition) use the Rork Toolkit.
 
-import { FirestoreClient, decodeFirebaseToken } from "./firestore";
+import { FirestoreClient, decodeFirebaseToken, verifyFirebaseToken } from "./firestore";
 import { renderAdminPanel } from "./admin-panel";
 import { LOGO_DATA_URI } from "./logo";
 import { PLAYSTORE_ASSETS } from "./playstore-assets";
@@ -1306,7 +1306,13 @@ a.btn.secondary{background:#0F172A}
       // ═══════════════════════════════════════════════════
 
       const token = extractToken(request);
-      const decoded = token ? decodeFirebaseToken(token) : null;
+      // In production: verify the Firebase ID token signature via JWKS.
+      // In DEV_MODE: decode-only (no signature check) for local testing.
+      const decoded = token
+        ? (isDevMode(env)
+            ? decodeFirebaseToken(token)
+            : await verifyFirebaseToken(token, fs.getProjectId()))
+        : null;
       const uid = decoded?.uid || "";
 
       // ── Booking directory ──

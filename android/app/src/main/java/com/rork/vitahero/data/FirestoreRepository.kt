@@ -492,23 +492,54 @@ class FirestoreRepository(private val app: Application) {
 
     // ─── Health Checkups ───────────────────────────────────────
 
-    suspend fun fetchHealthCheckups(kidId: String? = null): List<HealthCheckupResultDto> = withContext(Dispatchers.IO) {
+    /**
+     * Fetch health checkups. Parents see only their own kids' checkups
+     * (scoped by user_id). Doctors see checkups for camps they're assigned to
+     * (caller passes doctorCampIds; query is scoped to those camps).
+     */
+    suspend fun fetchHealthCheckups(
+        kidId: String? = null,
+        doctorCampIds: List<String> = emptyList(),
+    ): List<HealthCheckupResultDto> = withContext(Dispatchers.IO) {
         try {
             val uid = currentUid
-            var query: Query = db.collection("health_checkups")
-            if (kidId != null) query = query.whereEqualTo("kid_id", kidId)
-            val snaps = query.get().await()
-            val results = mutableListOf<HealthCheckupResultDto>()
+            if (uid.isBlank()) return@withContext emptyList()
 
-            for (snap in snaps.documents) {
-                val checkup = snap.toObject(HealthCheckupResultDto::class.java)?.copy(id = snap.id)
-                if (checkup != null) {
-                    // Enrich with kid name and camp title
-                    val enriched = enrichCheckup(checkup, uid)
-                    results.add(enriched)
+            // Parents: scope by user_id. Doctors: scope by school_camp_id (in doctorCampIds).
+            val isDoctorScope = doctorCampIds.isNotEmpty()
+            var query: Query = db.collection("health_checkups")
+
+            if (isDoctorScope) {
+                // Firestore "in" query supports up to 10 values; chunk if needed
+                val chunked = doctorCampIds.chunked(10)
+                val allSnaps = mutableListOf<HealthCheckupResultDto>()
+                for (campIds in chunked) {
+                    var q: Query = query.whereIn("school_camp_id", campIds)
+                    if (kidId != null) q = q.whereEqualTo("kid_id", kidId)
+                    val snaps = q.get().await()
+                    for (snap in snaps.documents) {
+                        val checkup = snap.toObject(HealthCheckupResultDto::class.java)?.copy(id = snap.id)
+                        if (checkup != null) {
+                            allSnaps.add(enrichCheckup(checkup, uid))
+                        }
+                    }
                 }
+                return@withContext allSnaps
+            } else {
+                // Parent scope: only this user's kids' checkups
+                query = query.whereEqualTo("user_id", uid)
+                if (kidId != null) query = query.whereEqualTo("kid_id", kidId)
+                val snaps = query.get().await()
+                val results = mutableListOf<HealthCheckupResultDto>()
+                for (snap in snaps.documents) {
+                    val checkup = snap.toObject(HealthCheckupResultDto::class.java)?.copy(id = snap.id)
+                    if (checkup != null) {
+                        val enriched = enrichCheckup(checkup, uid)
+                        results.add(enriched)
+                    }
+                }
+                results
             }
-            results
         } catch (_: Exception) { emptyList() }
     }
 
@@ -525,11 +556,12 @@ class FirestoreRepository(private val app: Application) {
     private suspend fun enrichCheckup(dto: HealthCheckupResultDto, uid: String): HealthCheckupResultDto {
         var result = dto
         try {
-            // Find kid name from any profile's kids subcollection
-            if (result.kidName.isBlank()) {
-                val kidSnap = db.collectionGroup("kids").whereEqualTo("id", dto.kidId).limit(1).get().await()
-                if (!kidSnap.documents.isEmpty()) {
-                    result = result.copy(kidName = kidSnap.documents[0].getString("name") ?: "")
+            // Find kid name from this user's kids subcollection (scoped by parent UID)
+            if (result.kidName.isBlank() && uid.isNotBlank()) {
+                val kidSnap = db.collection("profiles").document(uid)
+                    .collection("kids").document(dto.kidId).get().await()
+                if (kidSnap.exists()) {
+                    result = result.copy(kidName = kidSnap.getString("name") ?: "")
                 }
             }
             // Find camp title
@@ -664,9 +696,17 @@ class FirestoreRepository(private val app: Application) {
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val doctorName = auth.currentUser?.displayName ?: "Doctor"
+            val doctorUid = currentUid
+            // Look up the parent UID for this kid via camp_registrations
+            val regSnap = db.collection("camp_registrations")
+                .whereEqualTo("school_camp_id", campId)
+                .whereEqualTo("kid_id", kidId).limit(1).get().await()
+            val parentUid = regSnap.documents.firstOrNull()?.getString("user_id") ?: ""
             val data = mapOf(
                 "kid_id" to kidId,
                 "school_camp_id" to campId,
+                "user_id" to parentUid,
+                "doctor_uid" to doctorUid,
                 "doctor_name" to doctorName,
                 "form_data" to formData,
                 "summary" to summary,
