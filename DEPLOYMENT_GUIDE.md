@@ -47,27 +47,27 @@ Generated assets are in the Rork project asset library. I also created exact-siz
 
 | Slot | Exact-size file | Project asset ID (for automated upload) | Size / note |
 |------|-----------------|----------------------------------------|-------------|
-| App icon | `play-store-assets/icon_512.png` | `2c7640fe-d9b5-415d-8599-735216b699de` | 512 x 512 px, 309 KB, PNG with alpha |
-| Feature graphic | `play-store-assets/banner_1024x500.png` | `58beac76-5783-49f2-beba-d4906449130f` | 1024 x 500 px, 557 KB |
-| Phone screenshot 1 | `play-store-assets/screenshot_home.png` | `5be98bfd-1297-4a8a-a0a7-6693eb700d07` | 1024 x 1536 px, home dashboard |
-| Phone screenshot 2 | `play-store-assets/screenshot_report.png` | `720f69cc-8eda-4ed4-94ab-80dbab6c33bf` | 1024 x 1536 px, health report |
-| Phone screenshot 3 | `play-store-assets/screenshot_diet.png` | `1c0509b4-fd7f-43ba-856a-542859c2582f` | 1024 x 1536 px, diet & AI tips |
-| Phone screenshot 4 | `play-store-assets/screenshot_growth.png` | `4fd80c53-f490-446d-8285-022d3df2f64f` | 1024 x 1536 px, growth chart |
+| App icon | `play-store-assets/icon_512.png` | `2c7640fe-d9b5-415d-8599-735216b699de` | 512 x 512 px, regenerated with official VitaHero branding |
+| Feature graphic | `play-store-assets/banner_1024x500.png` | `58beac76-5783-49f2-beba-d4906449130f` | 1024 x 500 px, regenerated with official VitaHero branding |
+| Phone screenshot 1 | `play-store-assets/screenshot_home.png` | `c59ed813-ebae-4366-bdec-bc29f19cf82e` | 1024 x 1536 px, home dashboard (uploaded via API) |
+| Phone screenshot 2 | `play-store-assets/screenshot_report.png` | `6170fbf8-877d-4355-8c3d-fcedd5e23f56` | 1024 x 1536 px, health report (uploaded via API) |
+| Phone screenshot 3 | `play-store-assets/screenshot_diet.png` | `1a34ebee-42b6-4461-a9dc-9417f1f55b46` | 1024 x 1536 px, diet & AI tips (uploaded via API) |
+| Phone screenshot 4 | `play-store-assets/screenshot_growth.png` | `4181b95b-9cec-456e-bd66-190620eb5ad6` | 1024 x 1536 px, growth chart (uploaded via API) |
 
 - **App icon:** 512 x 512 px 32-bit PNG with alpha (must be ≤ 1 MB) — ready file is in `play-store-assets/icon_512.png`.
 - **Feature graphic:** 1024 x 500 px JPEG or 24-bit PNG — ready file is in `play-store-assets/banner_1024x500.png`.
 - **Phone screenshots:** 2–8 images, 320–3840 px per side, longest side ≤ 2x shortest side — ready files are in `play-store-assets/screenshot_*.png`.
 
-> If the automated Play Store image upload rejects the source asset IDs due to size mismatch, use the exact-size files in `play-store-assets/` and upload them manually in Play Console.
+> **Status:** The 4 phone screenshots were uploaded successfully via the API. The app icon and feature graphic must be uploaded manually in Play Console because the Play Store API requires exact dimensions (512 x 512 for the icon, 1024 x 500 for the banner) and the asset-generation tool cannot produce those exact sizes. Use the exact-size files in `play-store-assets/icon_512.png` and `play-store-assets/banner_1024x500.png`, which have been regenerated with the official VitaHero logo and brand colors.
 
 ### 5. Production readiness checklist
-- [ ] Google Play connected in Rork
-- [ ] Play Console app created and app signing opted in
+- [x] Google Play connected in Rork
+- [ ] Play Console app created and app signing opted in (required for first release)
 - [ ] Data Safety form completed
 - [ ] Content rating completed
 - [ ] Privacy policy + data deletion URLs set
 - [ ] Support email set
-- [ ] Listing icon, feature graphic, and screenshots uploaded
+- [ ] Listing icon and feature graphic uploaded manually (screenshots uploaded via API)
 - [ ] Target audience and ads declarations completed
 - [ ] Countries / distribution selected
 - [ ] You have a rollout plan (e.g. staged 20% → 100%)
@@ -162,6 +162,17 @@ After you connect Google Play in Rork, I will execute:
 
 ---
 
+## Current deployment status
+
+- **Google Play connection:** Connected and verified.
+- **Internal testing build:** Published — version code `1785158118`, submission `3fc81eaf-ac20-4286-bcc6-e2b69725f50a`.
+- **Play Store listing metadata:** Updated (title, short description, full description for en-US).
+- **Phone screenshots:** Uploaded via API (4 branded screenshots using the VitaHero logo and colors).
+- **App icon + feature graphic:** Regenerated with the official VitaHero logo/branding in `play-store-assets/`. These must be uploaded manually in Play Console because the API requires exact 512 x 512 and 1024 x 500 sizes.
+- **Production promotion:** Blocked until Play Console initial setup is completed (the app is still a draft). You must finish the Play Console setup checklist and send the first release for review before automated promotion can proceed.
+
 ## Next action
 
-Connect Google Play in Rork's Publish dialog, then tell me to continue. I will run the full automated flow and report the submission ID, track, and version code.
+1. Sign in to [Google Play Console](https://play.google.com/console), select `kallam.healthcare`, and complete the **Publishing overview** setup checklist (app signing, Data Safety, content rating, target audience, ads, privacy policy, support email, countries).
+2. Manually upload `play-store-assets/icon_512.png` and `play-store-assets/banner_1024x500.png` in **Grow → Store presence → Main store listing**.
+3. Once the app has a live (non-draft) release, tell me to continue and I will promote the internal build to production.
