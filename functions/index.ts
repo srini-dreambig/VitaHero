@@ -559,6 +559,158 @@ function generateDoctorSlots(
   return slots;
 }
 
+// ─── Privacy Policy & Data Deletion Pages ─────────────────────
+
+function renderPrivacyPolicy(): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VitaHero — Privacy Policy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Host Grotesk',system-ui,-apple-system,sans-serif;background:#F8FAFC;color:#0F172A;line-height:1.6}
+.wrap{max-width:760px;margin:0 auto;padding:48px 24px 80px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #E2E8F0}
+.mark{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#F47B20,#1FA2DD);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:22px}
+.name{font-size:22px;font-weight:700}.name span{color:#F47B20}
+h1{font-size:30px;font-weight:700;margin:0 0 8px}
+.updated{color:#64748B;font-size:14px;margin-bottom:32px}
+h2{font-size:20px;font-weight:600;margin:32px 0 12px;color:#0F172A}
+p{margin:0 0 14px;color:#334155;font-size:15px}
+ul{margin:0 0 14px 0;padding-left:22px;color:#334155;font-size:15px}
+li{margin-bottom:8px}
+a{color:#1FA2DD;text-decoration:none}
+.contact{background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:24px;margin-top:24px}
+.contact h2{margin-top:0}
+</style></head><body><div class="wrap">
+<header><div class="mark">V</div><div class="name">Vita<span>Hero</span></div></header>
+<h1>Privacy Policy</h1>
+<div class="updated">Last updated: July 27, 2026</div>
+
+<p>VitaHero ("we", "us", or "our") operates the VitaHero mobile application (the "App") and the associated backend services. The App helps parents access their children's health check-up reports from school health camps conducted by partner hospitals and doctors. This Privacy Policy explains what information we collect, how we use it, and the choices you have.</p>
+
+<h2>1. Information We Collect</h2>
+<ul>
+<li><b>Phone number:</b> Your mobile number is used as your account identifier and to send you a one-time password (OTP) via SMS for sign-in.</li>
+<li><b>Child health records:</b> Health check-up results entered by authorised doctors during school health camps, including vision, dental, BMI, and general paediatric findings. These are associated with your account so you can view your child's reports.</li>
+<li><b>Profile information:</b> Parent name and child name(s), collected during school camp registration or imported by the school administrator.</li>
+<li><b>Optional device data:</b> If you grant permission, the App may read step count, active calories, and exercise data from Android Health Connect to display wellness trends. This data stays on your device unless you choose to share it.</li>
+<li><b>Camera usage:</b> The App uses the camera for food recognition (AI diet tips) only when you choose to scan a meal. Images are processed to generate suggestions and are not stored unless you save them.</li>
+</ul>
+
+<h2>2. How We Use Information</h2>
+<ul>
+<li>To authenticate you via SMS OTP and create your account.</li>
+<li>To display your child's health check-up reports and recommendations.</li>
+<li>To send you SMS invitations and notifications about available health reports.</li>
+<li>To enable doctors and school administrators to manage camp check-ups and generate reports.</li>
+<li>To improve the App's features and AI-based diet and food recognition suggestions.</li>
+</ul>
+
+<h2>3. Data Storage</h2>
+<p>Your data is stored securely in Google Firebase (Firestore and Firebase Authentication), hosted on Google Cloud infrastructure. Access is restricted to authorised administrators and the doctors assigned to your child's health camp. SMS messages are sent through Plivo or Twilio, our trusted SMS providers, who process the phone number solely to deliver the message.</p>
+
+<h2>4. Data Sharing</h2>
+<p>We do not sell your personal information. We share data only with:</p>
+<ul>
+<li><b>Partner schools and hospitals:</b> To coordinate health camps and deliver reports to parents.</li>
+<li><b>Service providers:</b> Firebase (Google), Plivo, and Twilio, for authentication, data storage, and SMS delivery under their respective privacy policies.</li>
+<li><b>Legal authorities:</b> If required by applicable law.</li>
+</ul>
+
+<h2>5. Data Retention & Deletion</h2>
+<p>We retain your child's health records for as long as your account is active and for a reasonable period thereafter to meet legal or medical record-keeping obligations. You can request deletion of your account and associated data at any time — see the contact section below or visit our <a href="/data-deletion">Data Deletion page</a>.</p>
+
+<h2>6. Children's Privacy</h2>
+<p>The App is designed for parents and guardians to manage health information about their children. We do not knowingly collect personal information directly from children under 13. All accounts are created and controlled by a verified parent or guardian. Health data is collected by authorised doctors during school-organised health camps with the school's consent.</p>
+
+<h2>7. Your Rights</h2>
+<ul>
+<li>Access the health records associated with your account.</li>
+<li>Request correction of inaccurate information.</li>
+<li>Request deletion of your account and associated data.</li>
+<li>Withdraw Health Connect or camera permissions at any time from your Android settings.</li>
+</ul>
+
+<h2>8. Security</h2>
+<p>We protect your data with industry-standard measures including encrypted transport (HTTPS), Firebase security rules, server-side API key authentication for admin access, and scoped doctor credentials. No method of transmission or storage is 100% secure, but we work to protect your information using reasonable safeguards.</p>
+
+<h2>9. Changes to This Policy</h2>
+<p>We may update this Privacy Policy from time to time. We will notify you of significant changes by posting the new policy on this page and updating the "Last updated" date above.</p>
+
+<div class="contact">
+<h2>10. Contact Us</h2>
+<p>If you have questions about this Privacy Policy or want to request data access, correction, or deletion, please contact:</p>
+<ul>
+<li>Email: <a href="mailto:support@vitahero.app">support@vitahero.app</a></li>
+<li>Admin portal: <a href="/admin">VitaHero Admin Panel</a></li>
+</ul>
+</div>
+</div></body></html>`;
+}
+
+function renderDataDeletion(): string {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VitaHero — Data Deletion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Host Grotesk',system-ui,-apple-system,sans-serif;background:#F8FAFC;color:#0F172A;line-height:1.6}
+.wrap{max-width:680px;margin:0 auto;padding:48px 24px 80px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #E2E8F0}
+.mark{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#F47B20,#1FA2DD);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:22px}
+.name{font-size:22px;font-weight:700}.name span{color:#F47B20}
+h1{font-size:28px;font-weight:700;margin:0 0 8px}
+.updated{color:#64748B;font-size:14px;margin-bottom:32px}
+h2{font-size:19px;font-weight:600;margin:28px 0 10px}
+p{margin:0 0 14px;color:#334155;font-size:15px}
+ul{margin:0 0 14px 0;padding-left:22px;color:#334155;font-size:15px}
+li{margin-bottom:8px}
+a{color:#1FA2DD;text-decoration:none}
+.card{background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:28px;margin:24px 0}
+.steps{counter-reset:step;padding:0;list-style:none}
+.steps li{counter-increment:step;position:relative;padding:14px 0 14px 56px;border-bottom:1px solid #F1F5F9}
+.steps li:last-child{border-bottom:none}
+.steps li::before{content:counter(step);position:absolute;left:0;top:12px;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#F47B20,#1FA2DD);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:15px}
+.btn{display:inline-flex;align-items:center;background:linear-gradient(90deg,#F47B20,#1FA2DD);color:#fff;text-decoration:none;padding:14px 28px;border-radius:14px;font-weight:600;margin-top:16px}
+</style></head><body><div class="wrap">
+<header><div class="mark">V</div><div class="name">Vita<span>Hero</span></div></header>
+<h1>Data Deletion & Account Removal</h1>
+<div class="updated">Last updated: July 27, 2026</div>
+
+<p>You can request deletion of your VitaHero account and all associated data at any time. Once a deletion request is processed, your account, your child's health check-up records, and your phone number will be permanently removed from our systems, usually within 30 days.</p>
+
+<h2>What gets deleted</h2>
+<ul>
+<li>Your parent profile and phone number.</li>
+<li>All health check-up reports associated with your children.</li>
+<li>SMS invite and notification history tied to your number.</li>
+<li>Any locally stored wellness data on your device (you can also clear this from Android Settings → Apps → VitaHero → Storage).</li>
+</ul>
+
+<h2>How to request deletion</h2>
+<div class="card">
+<ol class="steps">
+<li><b>Email us</b> at <a href="mailto:support@vitahero.app?subject=Account%20Deletion%20Request">support@vitahero.app</a> with the subject "Account Deletion Request" and the mobile number registered with VitaHero.</li>
+<li><b>Use the admin portal</b> — if you have access, sign in at <a href="/admin">/admin</a> and use the parent management tools to remove your record.</li>
+<li><b>Withdraw app permissions</b> — open Android Settings → Apps → VitaHero → Permissions, and revoke Camera and Health access at any time.</li>
+</ol>
+<a class="btn" href="mailto:support@vitahero.app?subject=Account%20Deletion%20Request">Request deletion by email</a>
+</div>
+
+<h2>Processing time</h2>
+<p>Deletion requests are processed within 30 days of verification. You will receive a confirmation email once your data has been removed. Some aggregated, anonymised analytics may be retained where required by law, but no personally identifiable information will remain.</p>
+
+<h2>Questions?</h2>
+<p>Contact us at <a href="mailto:support@vitahero.app">support@vitahero.app</a> or read our full <a href="/privacy">Privacy Policy</a>.</p>
+</div></body></html>`;
+}
+
 // ─── Main Worker ────────────────────────────────────────────────
 
 export default {
@@ -601,6 +753,18 @@ export default {
       const last10 = await verifyInviteToken(token, env);
       if (!last10) return json({ valid: false }, 200);
       return json({ valid: true, phone: `+${DEFAULT_COUNTRY_CODE}${last10}`, last10 });
+    }
+
+    // ── Privacy policy (required for Play Console + health app data safety) ──
+    if (path === "/privacy") {
+      const html = renderPrivacyPolicy();
+      return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
+    }
+
+    // ── Data deletion instructions (required for Play Console data safety form) ──
+    if (path === "/data-deletion") {
+      const html = renderDataDeletion();
+      return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
     }
 
     // ── Invite landing page ──
