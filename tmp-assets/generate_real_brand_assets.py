@@ -64,8 +64,9 @@ def load_logo(path: Path, target: int) -> Image.Image:
 
 
 def make_launcher_foreground():
-    logo = load_logo(LOGO_PATH, 360)
     size = 432
+    pad = 48
+    logo = load_logo(LOGO_PATH, size - pad * 2)
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     x = (size - logo.width) // 2
     y = (size - logo.height) // 2
@@ -76,9 +77,11 @@ def make_launcher_foreground():
 
 def make_playstore_icon():
     size = 512
+    pad = 56
     canvas = Image.new("RGBA", (size, size), SURFACE)
-    # Use icon version if it looks better centered, otherwise full logo
-    logo = load_logo(ICON_PATH, size - 80)
+
+    # Use the full logo (superhero + wordmark) from presentation/vitahero_logo.png
+    logo = load_logo(LOGO_PATH, size - pad * 2)
     x = (size - logo.width) // 2
     y = (size - logo.height) // 2
     canvas.paste(logo, (x, y), logo)
