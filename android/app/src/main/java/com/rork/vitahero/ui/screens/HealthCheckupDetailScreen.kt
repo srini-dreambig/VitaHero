@@ -220,6 +220,8 @@ fun HealthCheckupDetailScreen(
             val vision = fd["vision"] as? JsonObject
             val nutrition = fd["nutrition"] as? JsonObject
             val general = fd["general"] as? JsonObject
+            val ent = fd["ent"] as? JsonObject
+            val dermatology = fd["dermatology"] as? JsonObject
 
             vitals?.let {
                 item {
@@ -290,6 +292,38 @@ fun HealthCheckupDetailScreen(
                         TextRow("Hearing Screening", it["hearing"] as? JsonPrimitive)
                         BoolRow("Immunization Up to Date", it["immunization_up_to_date"] as? JsonPrimitive)
                         TextRow("Developmental Milestone", it["developmental_milestone"] as? JsonPrimitive)
+                        TextRow("Notes", it["notes"] as? JsonPrimitive)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
+
+            ent?.let {
+                item {
+                    SectionCard("ENT Examination") {
+                        StatusRow("Overall", it["overall_status"] as? JsonPrimitive)
+                        TextRow("Ear Condition", it["ear_condition"] as? JsonPrimitive)
+                        TextRow("Hearing Screening", it["hearing"] as? JsonPrimitive)
+                        TextRow("Tonsils", it["tonsils"] as? JsonPrimitive)
+                        TextRow("Throat Condition", it["throat_condition"] as? JsonPrimitive)
+                        TextRow("Nasal Condition", it["nasal_condition"] as? JsonPrimitive)
+                        BoolRow("Speech Delay Suspected", it["speech_delay"] as? JsonPrimitive)
+                        TextRow("Notes", it["notes"] as? JsonPrimitive)
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
+
+            dermatology?.let {
+                item {
+                    SectionCard("Dermatology / Skin Examination") {
+                        StatusRow("Overall", it["overall_status"] as? JsonPrimitive)
+                        TextRow("Skin Lesion / Condition", it["skin_lesion_type"] as? JsonPrimitive)
+                        BoolRow("Rash Present", it["rash_present"] as? JsonPrimitive)
+                        TextRow("Rash Location", it["rash_location"] as? JsonPrimitive)
+                        BoolRow("Pigmentation Issue", it["pigmentation_issue"] as? JsonPrimitive)
+                        TextRow("Scalp / Hair Condition", it["scalp_condition"] as? JsonPrimitive)
+                        BoolRow("Known Allergy History", it["allergy_history"] as? JsonPrimitive)
                         TextRow("Notes", it["notes"] as? JsonPrimitive)
                     }
                     Spacer(Modifier.height(12.dp))

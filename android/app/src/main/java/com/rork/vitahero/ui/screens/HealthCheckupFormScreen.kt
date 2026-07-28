@@ -124,6 +124,26 @@ private class CheckupFormState {
     var developmentalMilestone: String = "Normal"
     var generalNotes: String = ""
 
+    // ENT (Ear, Nose & Throat)
+    var entOverall: String = "GOOD"
+    var earCondition: String = "Normal"
+    var entHearingScreening: String = "Pass"
+    var tonsils: String = "Normal"
+    var throatCondition: String = "Normal"
+    var nasalCondition: String = "Normal"
+    var speechDelay: Boolean = false
+    var entNotes: String = ""
+
+    // Dermatology (Skin & Scalp)
+    var dermaOverall: String = "GOOD"
+    var skinLesionType: String = "None"
+    var rashPresent: Boolean = false
+    var rashLocation: String = ""
+    var pigmentationIssue: Boolean = false
+    var scalpCondition: String = "Normal"
+    var allergyHistory: Boolean = false
+    var dermaNotes: String = ""
+
     // Referral & Summary
     var referralNeeded: Boolean = false
     var referralSpecialty: String = ""
@@ -139,6 +159,15 @@ private val SkinOptions = listOf("Normal", "Scabies", "Fungal Infection", "Eczem
 private val LymphNodeOptions = listOf("Normal", "Enlarged", "Tender")
 private val HearingOptions = listOf("Pass", "Refer", "Not Tested")
 private val DevelopmentalOptions = listOf("Normal", "Delayed", "Needs Assessment")
+private val EarConditionOptions = listOf("Normal", "Wax Buildup", "Discharge", "Perforation", "Infection")
+private val TonsilOptions = listOf("Normal", "Enlarged", "Inflamed", "Exudate Present")
+private val ThroatOptions = listOf("Normal", "Congested", "Infected")
+private val NasalOptions = listOf("Normal", "Deviated Septum", "Polyps", "Discharge", "Congestion")
+private val SkinLesionOptions = listOf(
+    "None", "Rash", "Scabies", "Fungal Infection", "Eczema",
+    "Psoriasis", "Vitiligo", "Allergic Dermatitis", "Other"
+)
+private val ScalpOptions = listOf("Normal", "Dandruff", "Hair Loss", "Lice", "Fungal Infection")
 private val ReferralSpecialtyOptions = listOf(
     "", "Paediatrics", "Ophthalmology", "Dental", "ENT",
     "Dermatology", "Nutrition", "Orthopaedics", "General Medicine"
@@ -166,9 +195,9 @@ fun HealthCheckupFormScreen(
     val showDental = showAll || doctorSpecialty.equals("Dental", ignoreCase = true)
     val showVision = showAll || doctorSpecialty.equals("Ophthalmology", ignoreCase = true)
     val showNutrition = showAll || doctorSpecialty.equals("Nutrition", ignoreCase = true)
-    val showGeneral = showAll ||
-        doctorSpecialty.equals("ENT", ignoreCase = true) ||
-        doctorSpecialty.equals("Dermatology", ignoreCase = true)
+    val showGeneral = showAll
+    val showENT = showAll || doctorSpecialty.equals("ENT", ignoreCase = true)
+    val showDermatology = showAll || doctorSpecialty.equals("Dermatology", ignoreCase = true)
     val showReferral = true // Always show referral & summary
 
     // Pre-fill from existing kid data
@@ -356,6 +385,46 @@ fun HealthCheckupFormScreen(
             Spacer(Modifier.height(12.dp))
         }
 
+        // ── Section: ENT (Ear, Nose & Throat) ──
+        if (showENT) item {
+            FormSection(
+                title = "ENT Examination",
+                expanded = expandedSection == "ent",
+                onToggle = { expandedSection = if (expandedSection == "ent") "" else "ent" }
+            ) {
+                HealthFlagSelector("Overall ENT Status", form.entOverall) { form.entOverall = it }
+                DropdownField("Ear Condition", EarConditionOptions, form.earCondition) { form.earCondition = it }
+                DropdownField("Hearing Screening", HearingOptions, form.entHearingScreening) { form.entHearingScreening = it }
+                DropdownField("Tonsils", TonsilOptions, form.tonsils) { form.tonsils = it }
+                DropdownField("Throat Condition", ThroatOptions, form.throatCondition) { form.throatCondition = it }
+                DropdownField("Nasal Condition", NasalOptions, form.nasalCondition) { form.nasalCondition = it }
+                ToggleRow("Speech Delay Suspected", form.speechDelay) { form.speechDelay = it }
+                TextField("ENT Notes", form.entNotes) { form.entNotes = it }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // ── Section: Dermatology (Skin & Scalp) ──
+        if (showDermatology) item {
+            FormSection(
+                title = "Dermatology / Skin Examination",
+                expanded = expandedSection == "dermatology",
+                onToggle = { expandedSection = if (expandedSection == "dermatology") "" else "dermatology" }
+            ) {
+                HealthFlagSelector("Overall Skin Status", form.dermaOverall) { form.dermaOverall = it }
+                DropdownField("Skin Lesion / Condition", SkinLesionOptions, form.skinLesionType) { form.skinLesionType = it }
+                ToggleRow("Rash Present", form.rashPresent) { form.rashPresent = it }
+                if (form.rashPresent) {
+                    TextField("Rash Location", form.rashLocation) { form.rashLocation = it }
+                }
+                ToggleRow("Pigmentation Issue", form.pigmentationIssue) { form.pigmentationIssue = it }
+                DropdownField("Scalp / Hair Condition", ScalpOptions, form.scalpCondition) { form.scalpCondition = it }
+                ToggleRow("Known Allergy History", form.allergyHistory) { form.allergyHistory = it }
+                TextField("Dermatology Notes", form.dermaNotes) { form.dermaNotes = it }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+
         // ── Section: Referral & Summary ──
         if (showReferral) item {
             FormSection(
@@ -483,6 +552,26 @@ private fun buildFormData(f: CheckupFormState): Map<String, Any> = mapOf(
         "developmental_milestone" to f.developmentalMilestone,
         "notes" to f.generalNotes,
     ),
+    "ent" to mapOf(
+        "overall_status" to f.entOverall,
+        "ear_condition" to f.earCondition,
+        "hearing" to f.entHearingScreening,
+        "tonsils" to f.tonsils,
+        "throat_condition" to f.throatCondition,
+        "nasal_condition" to f.nasalCondition,
+        "speech_delay" to f.speechDelay,
+        "notes" to f.entNotes,
+    ),
+    "dermatology" to mapOf(
+        "overall_status" to f.dermaOverall,
+        "skin_lesion_type" to f.skinLesionType,
+        "rash_present" to f.rashPresent,
+        "rash_location" to f.rashLocation,
+        "pigmentation_issue" to f.pigmentationIssue,
+        "scalp_condition" to f.scalpCondition,
+        "allergy_history" to f.allergyHistory,
+        "notes" to f.dermaNotes,
+    ),
     "referral" to mapOf(
         "needed" to f.referralNeeded,
         "specialty" to f.referralSpecialty,
@@ -497,6 +586,8 @@ private fun populateFormFromCheckup(f: CheckupFormState, checkup: HealthCheckupD
     val vision = fd["vision"] as? JsonObject
     val nutrition = fd["nutrition"] as? JsonObject
     val general = fd["general"] as? JsonObject
+    val ent = fd["ent"] as? JsonObject
+    val dermatology = fd["dermatology"] as? JsonObject
     val referral = fd["referral"] as? JsonObject
 
     vitals?.let {
@@ -544,6 +635,26 @@ private fun populateFormFromCheckup(f: CheckupFormState, checkup: HealthCheckupD
         f.immunizationUpToDate = (it["immunization_up_to_date"] as? JsonPrimitive)?.contentOrNull != "false"
         f.developmentalMilestone = (it["developmental_milestone"] as? JsonPrimitive)?.contentOrNull ?: f.developmentalMilestone
         f.generalNotes = (it["notes"] as? JsonPrimitive)?.contentOrNull ?: ""
+    }
+    ent?.let {
+        f.entOverall = (it["overall_status"] as? JsonPrimitive)?.contentOrNull ?: f.entOverall
+        f.earCondition = (it["ear_condition"] as? JsonPrimitive)?.contentOrNull ?: f.earCondition
+        f.entHearingScreening = (it["hearing"] as? JsonPrimitive)?.contentOrNull ?: f.entHearingScreening
+        f.tonsils = (it["tonsils"] as? JsonPrimitive)?.contentOrNull ?: f.tonsils
+        f.throatCondition = (it["throat_condition"] as? JsonPrimitive)?.contentOrNull ?: f.throatCondition
+        f.nasalCondition = (it["nasal_condition"] as? JsonPrimitive)?.contentOrNull ?: f.nasalCondition
+        f.speechDelay = (it["speech_delay"] as? JsonPrimitive)?.contentOrNull == "true"
+        f.entNotes = (it["notes"] as? JsonPrimitive)?.contentOrNull ?: ""
+    }
+    dermatology?.let {
+        f.dermaOverall = (it["overall_status"] as? JsonPrimitive)?.contentOrNull ?: f.dermaOverall
+        f.skinLesionType = (it["skin_lesion_type"] as? JsonPrimitive)?.contentOrNull ?: f.skinLesionType
+        f.rashPresent = (it["rash_present"] as? JsonPrimitive)?.contentOrNull == "true"
+        f.rashLocation = (it["rash_location"] as? JsonPrimitive)?.contentOrNull ?: ""
+        f.pigmentationIssue = (it["pigmentation_issue"] as? JsonPrimitive)?.contentOrNull == "true"
+        f.scalpCondition = (it["scalp_condition"] as? JsonPrimitive)?.contentOrNull ?: f.scalpCondition
+        f.allergyHistory = (it["allergy_history"] as? JsonPrimitive)?.contentOrNull == "true"
+        f.dermaNotes = (it["notes"] as? JsonPrimitive)?.contentOrNull ?: ""
     }
     referral?.let {
         f.referralNeeded = (it["needed"] as? JsonPrimitive)?.contentOrNull == "true"
