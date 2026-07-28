@@ -34,6 +34,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -79,6 +80,14 @@ fun AuthScreen(
     prefilledPhone: String = "",
 ) {
     var phone by remember(prefilledPhone) { mutableStateOf(prefilledPhone) }
+
+    // Coming from an invite link: the phone is already known, so request the
+    // OTP automatically instead of making the parent tap "Send OTP" again.
+    LaunchedEffect(prefilledPhone) {
+        if (prefilledPhone.length == 10 && !isLoading) {
+            onContinueWithPhone(prefilledPhone)
+        }
+    }
 
     Column(
         Modifier
