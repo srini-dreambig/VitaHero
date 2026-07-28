@@ -21,10 +21,16 @@ ANDROID_CERT_SHA256=
 # Defaults to the internal test track link below; override once the app is in production.
 APP_PLAY_URL=https://play.google.com/apps/internaltest/4700990678853594044
 
-# Invite links are no longer sent via SMS — the admin panel generates a
-# shareable link per parent that you copy/share yourself (WhatsApp, email, etc).
+# Invite links are texted to the parent automatically via Twilio the moment
+# the admin clicks Invite (single, bulk, or right after an import). If Twilio
+# isn't configured yet, the link is still generated and shown in the admin
+# panel so you can copy/share it manually as a fallback.
 # Login OTP is handled entirely by Firebase Phone Auth on the client, so no
-# SMS provider is needed for that either.
+# SMS provider is needed for that.
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+# The Twilio phone number (or Messaging Service "from" number) invites are sent from.
+TWILIO_FROM_NUMBER=
 
 # ── DEV MODE (testing only) ───────────────────────────────────
 # Set DEV_MODE=true to decode Firebase ID tokens without signature

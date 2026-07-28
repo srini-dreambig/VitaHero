@@ -27,6 +27,9 @@ interface Env {
   TOOLKIT_URL?: string;
   TOOLKIT_SECRET_KEY?: string;
   DEV_MODE?: string;
+  TWILIO_ACCOUNT_SID?: string;
+  TWILIO_AUTH_TOKEN?: string;
+  TWILIO_FROM_NUMBER?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -280,6 +283,41 @@ async function verifyInviteToken(token: string, env: Env): Promise<string | null
   return last10;
 }
 
+// ─── Twilio SMS (invite link only — login OTP stays 100% Firebase) ─────
+
+function twilioConfigured(env: Env): boolean {
+  return !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM_NUMBER);
+}
+
+async function sendInviteSms(e164Phone: string, link: string, env: Env): Promise<{ sent: boolean; reason?: string }> {
+  if (!twilioConfigured(env)) {
+    return { sent: false, reason: "Twilio not configured" };
+  }
+  try {
+    const body = new URLSearchParams({
+      To: e164Phone,
+      From: env.TWILIO_FROM_NUMBER as string,
+      Body: `VitaHero: Your child's health camp invite is ready. Install/open the app here: ${link}`,
+    });
+    const auth = btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`);
+    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Basic ${auth}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: body.toString(),
+    });
+    if (!resp.ok) {
+      const errText = await resp.text();
+      return { sent: false, reason: `Twilio error: ${errText.slice(0, 200)}` };
+    }
+    return { sent: true };
+  } catch (err) {
+    return { sent: false, reason: (err as Error).message };
+  }
+}
+
 // ─── Admin Auth ─────────────────────────────────────────────────
 
 function requireAdmin(request: Request, env: Env): boolean {
@@ -442,9 +480,10 @@ async function processImport(
         });
       }
 
-      // Generate a shareable invite link if requested (no SMS is sent — the admin copies/shares it manually)
+      // Generate an invite link and, if Twilio is configured, text it to the parent automatically
       let inviteLink = "";
       let rowMessage = "";
+      let smsSent = false;
       if (opts.generateLinks) {
         const token = await signInviteToken(norm.last10, env);
         if (token) {
@@ -454,11 +493,14 @@ async function processImport(
             invited_at: new Date().toISOString(),
             invite_count: (existing?.invite_count as number || 0) + 1,
           });
+          const smsResult = await sendInviteSms(norm.e164, inviteLink, env);
+          smsSent = smsResult.sent;
+          rowMessage = smsResult.sent ? "Invite SMS sent" : (smsResult.reason || "");
         } else {
           rowMessage = "Could not sign invite link (INVITE_SIGNING_KEY missing)";
         }
       }
-      results.push({ row: i + 1, phone: norm.e164, student: studentName, status: isNew ? "created" : "updated", message: rowMessage, link: inviteLink });
+      results.push({ row: i + 1, phone: norm.e164, student: studentName, status: isNew ? "created" : "updated", message: rowMessage, link: inviteLink, smsSent });
       if (isNew) created++; else updated++;
     } catch (err) {
       results.push({ row: i + 1, phone: norm.e164, student: studentName, status: "error", message: (err as Error).message });
@@ -933,12 +975,13 @@ a.btn.secondary{background:#0F172A}
         return json(rows);
       }
 
-      // ── Generate invite link(s) — no SMS is sent; the admin copies/shares the link manually ──
+      // ── Generate invite link(s) and text them via Twilio automatically ──
       if (path === "/api/admin/invite" && request.method === "POST") {
         if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
         const body: Record<string, unknown> = await request.json();
         const phones = Array.isArray(body.phones) ? (body.phones as unknown[]).map(String) : [];
         let linked = 0;
+        let smsSentCount = 0;
         const skipped: string[] = [];
         const details: Array<Record<string, unknown>> = [];
         for (const raw of phones) {
@@ -954,9 +997,11 @@ a.btn.secondary{background:#0F172A}
             invited_at: new Date().toISOString(),
             invite_count: ((prof.invite_count as number) || 0) + 1,
           });
-          details.push({ phone: norm.e164, status: "linked", link: inviteUrl });
+          const smsResult = await sendInviteSms(norm.e164, inviteUrl, env);
+          if (smsResult.sent) smsSentCount++;
+          details.push({ phone: norm.e164, status: "linked", link: inviteUrl, smsSent: smsResult.sent, smsReason: smsResult.reason || "" });
         }
-        return json({ linked, skipped, details });
+        return json({ linked, smsSent: smsSentCount, twilioConfigured: twilioConfigured(env), skipped, details });
       }
 
       // ── List provisioned parents ──
