@@ -83,10 +83,58 @@ function normalizePhone(raw: string | number | undefined | null): { e164: string
   return null;
 }
 
+function normalizeFieldKey(s: string): string {
+  return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+const FIELD_ALIASES: Record<string, string[]> = {
+  phone: ["phone", "parentPhone", "parentphone", "mobile", "contact", "phoneNumber", "phonenumber", "mobilenumber"],
+  studentName: ["studentName", "studentname", "name", "student", "kidName", "kidname", "childName", "childname", "studentFullName", "studentfullname"],
+  parentName: ["parentName", "parentname", "fatherName", "fathername", "motherName", "mothername", "guardianName", "guardianname", "parent"],
+  gender: ["gender", "sex"],
+  grade: ["grade", "class", "className", "classname", "standard", "section"],
+  dob: ["dob", "dateOfBirth", "dateofbirth", "birthDate", "birthdate"],
+  age: ["age"],
+  schoolCode: ["schoolCode", "school_code", "partnerCode", "partnercode", "partner_code", "schoolcode"],
+  schoolName: ["schoolName", "school_name", "school", "schoolname"],
+  campDate: ["campDate", "camp_date", "date"],
+  campTitle: ["campTitle", "camp_title", "camp", "title"],
+  heightCm: ["heightCm", "height_cm", "height", "stature"],
+  weightKg: ["weightKg", "weight_kg", "weight", "mass"],
+  dental: ["dental", "dental_status", "dentalstatus", "teeth"],
+  eyesight: ["eyesight", "vision", "eye_status", "eyestatus", "eye"],
+  nutrition: ["nutrition", "nutrition_status", "nutritionstatus", "bmi"],
+  studentId: ["studentId", "student_id", "rollNumber", "rollnumber", "rollNo", "rollno", "id"],
+};
+
+function canonicalizeRow(row: Record<string, unknown>): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [rawKey, value] of Object.entries(row)) {
+    const normKey = normalizeFieldKey(rawKey);
+    let str = String(value ?? "").trim();
+    if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1);
+    for (const [canonical, aliases] of Object.entries(FIELD_ALIASES)) {
+      if (out[canonical]) continue;
+      for (const alias of aliases) {
+        if (normalizeFieldKey(alias) === normKey) {
+          out[canonical] = str;
+          break;
+        }
+      }
+    }
+    if (!(normKey in out)) {
+      out[normKey] = str;
+    }
+  }
+  return out;
+}
+
 function rowField(row: Record<string, unknown>, ...wanted: string[]): string {
+  const n = canonicalizeRow(row);
   for (const key of wanted) {
-    const val = row[key];
-    if (typeof val === "string" && val.trim()) return val.trim();
+    const val = n[normalizeFieldKey(key)];
+    if (val && val.trim()) return val.trim();
   }
   return "";
 }
@@ -161,6 +209,45 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 function slugify(s: string): string {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+async function getOrCreateSchool(
+  fs: FirestoreClient,
+  schoolCode: string,
+  schoolName: string,
+): Promise<{ schoolId: string; schoolName: string }> {
+  if (!schoolCode && !schoolName) return { schoolId: "", schoolName: "" };
+  const normalizedName = schoolName.toLowerCase().trim();
+  const normalizedCode = schoolCode.toLowerCase().trim();
+  try {
+    const all = await fs.query("schools", [{ field: "active", op: "EQUAL", value: true }], undefined, 1000);
+    for (const s of all) {
+      const code = String(s.partner_code || "").toLowerCase().trim();
+      if (normalizedCode && code === normalizedCode) {
+        return { schoolId: s.id as string, schoolName: (s.name as string) || schoolName };
+      }
+      const name = String(s.name || "").toLowerCase().trim();
+      if (normalizedName && name === normalizedName) {
+        return { schoolId: s.id as string, schoolName: (s.name as string) || schoolName };
+      }
+    }
+  } catch (_) {
+    // ignore and fall through
+  }
+  if (!schoolName) return { schoolId: "", schoolName: "" };
+  const id = schoolCode ? `sch_${slugify(schoolCode)}` : `sch_${slugify(schoolName)}`;
+  const newSchool = {
+    id,
+    name: schoolName,
+    city: "",
+    district: "",
+    partner_code: schoolCode || "",
+    contact_email: "",
+    description: "Imported via admin panel",
+    active: true,
+  };
+  await fs.setDoc("schools", id, newSchool);
+  return { schoolId: id, schoolName };
 }
 
 // ─── HMAC Invite Tokens ─────────────────────────────────────────
@@ -276,22 +363,23 @@ async function processImport(
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const phoneRaw = rowField(row, "phone", "parentPhone", "mobile");
-    const studentName = rowField(row, "studentName", "name", "kidName", "childName");
-    const parentName = rowField(row, "parentName", "fatherName", "motherName", "guardianName");
-    const gender = rowField(row, "gender", "sex").toUpperCase().startsWith("F") ? "F" : "M";
-    const grade = rowField(row, "grade", "class", "className");
-    const age = deriveAge(rowField(row, "dob", "dateOfBirth"), rowField(row, "age"));
-    const schoolCode = rowField(row, "schoolCode", "school_code").toUpperCase();
-    const schoolName = rowField(row, "schoolName", "school_name", "school");
-    const campDate = rowField(row, "campDate", "camp_date");
-    const campTitle = rowField(row, "campTitle", "camp_title");
-    const heightCm = parseNum(rowField(row, "heightCm", "height_cm", "height")) ?? 0;
-    const weightKg = parseNum(rowField(row, "weightKg", "weight_kg", "weight")) ?? 0;
-    const dental = normHealthFlag(rowField(row, "dental", "dental_status"));
-    const eyesight = normHealthFlag(rowField(row, "eyesight", "vision", "eye_status"));
-    const nutrition = normHealthFlag(rowField(row, "nutrition", "nutrition_status"));
-    const studentId = rowField(row, "studentId", "student_id", "rollNumber");
+    const n = canonicalizeRow(row);
+    const phoneRaw = n.phone;
+    const studentName = n.studentName;
+    const parentName = n.parentName;
+    const gender = (n.gender || "").toUpperCase().startsWith("F") ? "F" : "M";
+    const grade = n.grade;
+    const age = deriveAge(n.dob, n.age);
+    const schoolCode = (n.schoolCode || "").toUpperCase();
+    const schoolName = n.schoolName;
+    const campDate = n.campDate;
+    const campTitle = n.campTitle;
+    const heightCm = parseNum(n.heightCm) ?? 0;
+    const weightKg = parseNum(n.weightKg) ?? 0;
+    const dental = normHealthFlag(n.dental);
+    const eyesight = normHealthFlag(n.eyesight);
+    const nutrition = normHealthFlag(n.nutrition);
+    const studentId = n.studentId;
 
     const norm = normalizePhone(phoneRaw);
     if (!norm) {
@@ -307,21 +395,9 @@ async function processImport(
     }
 
     try {
-      // Look up school by partner code
-      let schoolId = "";
-      if (schoolCode) {
-        const schools = await fs.query("schools", [{ field: "partner_code", op: "EQUAL", value: schoolCode }], undefined, 1);
-        if (schools.length > 0) {
-          schoolId = schools[0].id as string;
-        }
-      }
-      // If no school code but school name provided, try to find by name
-      if (!schoolId && schoolName) {
-        const schools = await fs.query("schools", [{ field: "name", op: "EQUAL", value: schoolName }], undefined, 1);
-        if (schools.length > 0) {
-          schoolId = schools[0].id as string;
-        }
-      }
+      // Look up or auto-create the school by code/name (case-insensitive)
+      const { schoolId, schoolName: resolvedSchoolName } = await getOrCreateSchool(fs, schoolCode, schoolName);
+      const finalSchoolName = resolvedSchoolName || schoolName;
 
       const studentRef = buildStudentRef(norm.last10, studentName, studentId);
       const kidId = `kid_${norm.last10}_${studentRef}`;
@@ -338,7 +414,7 @@ async function processImport(
         name: parentName || "Parent",
         provisioned: true,
         school_id: schoolId,
-        school_name: schoolName,
+        school_name: finalSchoolName,
         invited_at: existing?.invited_at || "",
         invite_count: existing?.invite_count || 0,
         is_logged_in: existing?.is_logged_in || false,
@@ -353,7 +429,7 @@ async function processImport(
         age,
         gender,
         grade,
-        school: schoolName,
+        school: finalSchoolName,
         school_id: schoolId,
         height_cm: heightCm,
         weight_kg: weightKg,
@@ -952,6 +1028,9 @@ a.btn.secondary{background:#0F172A}
           if (r.school_id) {
             const school = await fs.getDoc("schools", r.school_id as string);
             schoolName = (school?.name as string) || "";
+          }
+          if (!schoolName && r.school_name) {
+            schoolName = String(r.school_name);
           }
           result.push({
             id: r.id,

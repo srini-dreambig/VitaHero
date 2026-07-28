@@ -313,11 +313,11 @@ td{padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12px}tr:hover 
     <div class="tab-content" id="content-import">
       <div class="card">
         <div class="card-header"><div class="card-title"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg> CSV Format Guide</div></div>
-        <p style="margin-bottom:8px;color:var(--ink-soft);font-size:12px">Paste CSV data with headers in the first row. Column names are case-insensitive.</p>
+        <p style="margin-bottom:8px;color:var(--ink-soft);font-size:12px">Paste CSV data with headers in the first row. Column names are case-insensitive and spaces/underscores are ignored. Schools that don't exist yet are created automatically from the import.</p>
         <p style="margin-bottom:4px;font-size:12px"><b>Required columns:</b></p>
         <p style="margin-bottom:8px" class="guide-mono guide-tag">phone, studentName</p>
         <p style="margin-bottom:4px;font-size:12px"><b>Optional columns:</b></p>
-        <p style="margin-bottom:8px" class="guide-mono guide-tag-opt">parentName, gender, grade, dob, age, schoolCode, schoolName, campCode, campDate, campTitle, heightCm, weightKg, dental, eyesight, nutrition, studentId</p>
+        <p style="margin-bottom:8px" class="guide-mono guide-tag-opt">parentName, gender, grade, dob, age, schoolCode, schoolName, campDate, campTitle, heightCm, weightKg, dental, eyesight, nutrition, studentId</p>
         <p style="margin-bottom:4px;font-size:12px"><b>Health flags:</b> dental, eyesight, nutrition accept GOOD, WATCH, or ALERT</p>
         <p style="margin-bottom:8px;font-size:12px"><b>Phone format:</b> 10-digit number (e.g. 9876543210). Country code +91 is auto-added.</p>
       </div>
