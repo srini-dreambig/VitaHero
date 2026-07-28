@@ -1071,6 +1071,72 @@ a.btn.secondary{background:#0F172A}
         return json(rows);
       }
 
+      // ── List hospitals ──
+      if (path === "/api/admin/hospitals" && request.method === "GET") {
+        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
+        const rows = await fs.query("hospitals", undefined, undefined, 500);
+        rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+        return json(rows);
+      }
+
+      // ── Create hospital ──
+      if (path === "/api/admin/hospitals" && request.method === "POST") {
+        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
+        const body: Record<string, unknown> = await request.json();
+        const name = (body.name as string)?.trim();
+        const address = (body.address as string)?.trim();
+        if (!name) return json({ error: "name is required" }, 400);
+        if (!address) return json({ error: "address is required" }, 400);
+        const hospId = `hosp_${crypto.randomUUID().slice(0, 10)}`;
+        const lat = body.lat !== undefined && body.lat !== null && body.lat !== "" ? parseFloat(String(body.lat)) : null;
+        const lng = body.lng !== undefined && body.lng !== null && body.lng !== "" ? parseFloat(String(body.lng)) : null;
+        const hospData = {
+          id: hospId,
+          name,
+          city: (body.city as string)?.trim() || "",
+          district: (body.district as string)?.trim() || "",
+          address,
+          phone: (body.phone as string)?.trim() || "",
+          lat: lat != null && !isNaN(lat) ? lat : null,
+          lng: lng != null && !isNaN(lng) ? lng : null,
+          rating: parseFloat(String(body.rating || 4.5)) || 4.5,
+          is_camp_partner: !!body.is_camp_partner,
+          active: true,
+        };
+        await fs.setDoc("hospitals", hospId, hospData);
+        return json(hospData);
+      }
+
+      // ── Update hospital ──
+      if (path.startsWith("/api/admin/hospitals/") && request.method === "PUT") {
+        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
+        const hospId = path.split("/")[4];
+        const body: Record<string, unknown> = await request.json();
+        const update: Record<string, unknown> = {};
+        if (body.name !== undefined) update.name = String(body.name).trim();
+        if (body.city !== undefined) update.city = String(body.city).trim();
+        if (body.district !== undefined) update.district = String(body.district).trim();
+        if (body.address !== undefined) update.address = String(body.address).trim();
+        if (body.phone !== undefined) update.phone = String(body.phone).trim();
+        if (body.lat !== undefined) {
+          const lat = body.lat !== null && body.lat !== "" ? parseFloat(String(body.lat)) : null;
+          update.lat = lat != null && !isNaN(lat) ? lat : null;
+        }
+        if (body.lng !== undefined) {
+          const lng = body.lng !== null && body.lng !== "" ? parseFloat(String(body.lng)) : null;
+          update.lng = lng != null && !isNaN(lng) ? lng : null;
+        }
+        if (body.rating !== undefined) update.rating = parseFloat(String(body.rating)) || 4.5;
+        if (body.is_camp_partner !== undefined) update.is_camp_partner = !!body.is_camp_partner;
+        if (body.active !== undefined) update.active = !!body.active;
+        if (!Object.prototype.hasOwnProperty.call(update, "address") && update.address === undefined) {
+          // no-op guard; explicit checks above already handle presence
+        }
+        await fs.mergeDoc("hospitals", hospId, update);
+        const updated = await fs.getDoc("hospitals", hospId);
+        return json(updated || {});
+      }
+
       // ── List camps ──
       if (path === "/api/admin/camps" && request.method === "GET") {
         if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
@@ -1172,7 +1238,16 @@ a.btn.secondary{background:#0F172A}
         const phone = (body.phone as string)?.trim();
         const schoolCampId = (body.school_camp_id as string)?.trim();
         const specialty = (body.specialty as string)?.trim() || "General Paediatrics";
-        const hospital = (body.hospital as string)?.trim() || "";
+        const hospitalId = (body.hospital_id as string)?.trim() || "";
+        let hospital = (body.hospital as string)?.trim() || "";
+        let hospitalCity = "";
+        if (hospitalId) {
+          const hospDoc = await fs.getDoc("hospitals", hospitalId);
+          if (hospDoc) {
+            hospital = (hospDoc.name as string) || hospital;
+            hospitalCity = (hospDoc.city as string) || "";
+          }
+        }
         if (!doctorName || !phone || !schoolCampId) {
           return json({ error: "doctor_name, phone, and school_camp_id are required" }, 400);
         }
@@ -1189,6 +1264,7 @@ a.btn.secondary{background:#0F172A}
           specialty,
           doctor_type: specialty,
           hospital,
+          hospital_id: hospitalId,
           camp_id: schoolCampId,
           assignment_status: "ACTIVE",
           allowed_screens: allowedScreens,
@@ -1201,7 +1277,8 @@ a.btn.secondary{background:#0F172A}
           name: doctorName,
           specialty,
           hospital,
-          city: "Hyderabad",
+          hospital_id: hospitalId,
+          city: hospitalCity || "Hyderabad",
           rating: 4.5,
           active: true,
         });
@@ -1233,7 +1310,16 @@ a.btn.secondary{background:#0F172A}
           const doctorName = (doc.doctor_name as string)?.trim();
           const phone = (doc.phone as string)?.trim();
           const specialty = (doc.specialty as string)?.trim() || "General Paediatrics";
-          const hospital = (doc.hospital as string)?.trim() || "";
+          const hospitalId = (doc.hospital_id as string)?.trim() || "";
+          let hospital = (doc.hospital as string)?.trim() || "";
+          let hospitalCity = "";
+          if (hospitalId) {
+            const hospDoc = await fs.getDoc("hospitals", hospitalId);
+            if (hospDoc) {
+              hospital = (hospDoc.name as string) || hospital;
+              hospitalCity = (hospDoc.city as string) || "";
+            }
+          }
           if (!doctorName || !phone) {
             results.push({ row: i + 1, doctor_name: doctorName || "", phone: phone || "", status: "error", message: "Missing name or phone" });
             errors++;
@@ -1257,6 +1343,7 @@ a.btn.secondary{background:#0F172A}
               specialty,
               doctor_type: specialty,
               hospital,
+              hospital_id: hospitalId,
               camp_id: schoolCampId,
               assignment_status: "ACTIVE",
               allowed_screens: docScreens,
@@ -1268,7 +1355,8 @@ a.btn.secondary{background:#0F172A}
               name: doctorName,
               specialty,
               hospital,
-              city: "Hyderabad",
+              hospital_id: hospitalId,
+              city: hospitalCity || "Hyderabad",
               rating: 4.5,
               active: true,
             });
