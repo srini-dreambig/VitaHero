@@ -2,10 +2,6 @@
 # Copy to functions/.dev.vars for local worker testing — never commit real values.
 
 DATABASE_URL=postgresql://user:pass@host/neondb?sslmode=require
-PLIVO_AUTH_ID=
-PLIVO_AUTH_TOKEN=
-# Your purchased Plivo phone number in E.164 format (e.g. +12562828337)
-PLIVO_SRC_NUMBER=
 
 # Rork Toolkit — used server-side for AI diet tips (NOT in the Android app)
 TOOLKIT_URL=https://toolkit.rork.app
@@ -24,11 +20,13 @@ ANDROID_CERT_SHA256=
 # Optional Play Store URL used as the install fallback on the invite landing page.
 APP_PLAY_URL=
 
-# ── DEV MODE (testing without a purchased Plivo number) ──────
-# Set DEV_MODE=true to bypass Plivo SMS entirely:
-#  • Any phone number can request an OTP (no admin provisioning needed).
-#  • The OTP code is returned in the /phone/send response as dev_otp.
-#  • A test profile is auto-provisioned on first OTP request.
-#  • Invite SMS sends are skipped (the invite link is logged instead).
-# NEVER enable in production — the OTP is exposed in the API response.
+# Invite links are no longer sent via SMS — the admin panel generates a
+# shareable link per parent that you copy/share yourself (WhatsApp, email, etc).
+# Login OTP is handled entirely by Firebase Phone Auth on the client, so no
+# SMS provider is needed for that either.
+
+# ── DEV MODE (testing only) ───────────────────────────────────
+# Set DEV_MODE=true to decode Firebase ID tokens without signature
+# verification, for local/dev testing of authenticated endpoints.
+# NEVER enable in production.
 DEV_MODE=

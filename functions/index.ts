@@ -21,17 +21,12 @@ const DOCTOR_SETUP_OTP_EXPIRY_MINUTES = 30;
 interface Env {
   FIREBASE_SERVICE_ACCOUNT_KEY: string;
   ADMIN_API_KEY?: string;
-  PLIVO_AUTH_ID?: string;
-  PLIVO_AUTH_TOKEN?: string;
-  PLIVO_SRC_NUMBER?: string;
   INVITE_SIGNING_KEY?: string;
   ANDROID_CERT_SHA256?: string;
   APP_PLAY_URL?: string;
   TOOLKIT_URL?: string;
   TOOLKIT_SECRET_KEY?: string;
   DEV_MODE?: string;
-  TWILIO_ACCOUNT_SID?: string;
-  TWILIO_AUTH_TOKEN?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -285,51 +280,6 @@ async function verifyInviteToken(token: string, env: Env): Promise<string | null
   return last10;
 }
 
-// ─── SMS ────────────────────────────────────────────────────────
-
-type SmsResult = {
-  success: boolean;
-  devBypass?: boolean;
-  missingCredentials?: boolean;
-  apiStatus?: number;
-  apiError?: string;
-  provider?: string;
-};
-
-async function sendPlivoSms(env: Env, to: string, text: string): Promise<SmsResult> {
-  if (isDevMode(env)) {
-    console.log(`[DEV_MODE] SMS to ${to}: ${text}`);
-    return { success: true, devBypass: true, provider: "plivo" };
-  }
-  if (!env.PLIVO_AUTH_ID || !env.PLIVO_AUTH_TOKEN) {
-    return { success: false, missingCredentials: true, provider: "plivo" };
-  }
-  const src = env.PLIVO_SRC_NUMBER || "+12562828337";
-  try {
-    const resp = await fetch(
-      `https://api.plivo.com/v1/Account/${env.PLIVO_AUTH_ID}/Message/`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": "Basic " + btoa(`${env.PLIVO_AUTH_ID}:${env.PLIVO_AUTH_TOKEN}`),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ src, dst: to, text }),
-      },
-    );
-    if (resp.ok) {
-      return { success: true, apiStatus: resp.status, provider: "plivo" };
-    }
-    const errText = await resp.text().catch(() => "Unknown error");
-    console.error(`Plivo SMS failed (${resp.status}): ${errText}`);
-    return { success: false, apiStatus: resp.status, apiError: errText.slice(0, 200), provider: "plivo" };
-  } catch (e) {
-    const err = (e as Error).message || "Network error";
-    console.error(`Plivo SMS exception: ${err}`);
-    return { success: false, apiError: err, provider: "plivo" };
-  }
-}
-
 // ─── Admin Auth ─────────────────────────────────────────────────
 
 function requireAdmin(request: Request, env: Env): boolean {
@@ -374,10 +324,10 @@ async function processImport(
   fs: FirestoreClient,
   env: Env,
   rows: Record<string, unknown>[],
-  opts: { dryRun: boolean; sendInvites: boolean; filename: string; adminId: string; appOrigin: string },
+  opts: { dryRun: boolean; generateLinks: boolean; filename: string; adminId: string; appOrigin: string },
 ): Promise<Record<string, unknown>> {
   const results: Array<Record<string, unknown>> = [];
-  let created = 0, updated = 0, errors = 0, invited = 0;
+  let created = 0, updated = 0, errors = 0, linked = 0;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -492,40 +442,23 @@ async function processImport(
         });
       }
 
-      // Send invite SMS if requested
-      let smsStatus: SmsResult | null = null;
-      if (opts.sendInvites) {
+      // Generate a shareable invite link if requested (no SMS is sent — the admin copies/shares it manually)
+      let inviteLink = "";
+      let rowMessage = "";
+      if (opts.generateLinks) {
         const token = await signInviteToken(norm.last10, env);
         if (token) {
-          const inviteUrl = `${opts.appOrigin}/i/${token}`;
-          const smsText = `Your child's health report is ready on VitaHero. Install: ${inviteUrl}`;
-          smsStatus = await sendPlivoSms(env, norm.e164, smsText);
-          if (smsStatus.success) {
-            invited++;
-            await fs.mergeDoc("provisioned_parents", provisionedId, {
-              invited_at: new Date().toISOString(),
-              invite_count: (existing?.invite_count as number || 0) + 1,
-            });
-            // Log SMS
-            await fs.setDoc("sms_log", `sms_${Date.now()}_${norm.last10}`, {
-              phone: norm.e164,
-              type: "INVITE",
-              status: smsStatus.devBypass ? "DEV_BYPASS" : "SENT",
-              sent_at: new Date().toISOString(),
-            });
-          }
+          inviteLink = `${opts.appOrigin}/i/${token}`;
+          linked++;
+          await fs.mergeDoc("provisioned_parents", provisionedId, {
+            invited_at: new Date().toISOString(),
+            invite_count: (existing?.invite_count as number || 0) + 1,
+          });
+        } else {
+          rowMessage = "Could not sign invite link (INVITE_SIGNING_KEY missing)";
         }
       }
-
-      let rowMessage = "";
-      if (smsStatus && !smsStatus.success) {
-        if (smsStatus.missingCredentials) rowMessage = "SMS failed: Plivo credentials not configured";
-        else if (smsStatus.apiError) rowMessage = `SMS failed: Plivo error ${smsStatus.apiStatus || ""} ${smsStatus.apiError}`;
-        else rowMessage = "SMS failed";
-      } else if (smsStatus?.devBypass) {
-        rowMessage = "SMS bypassed (DEV_MODE)";
-      }
-      results.push({ row: i + 1, phone: norm.e164, student: studentName, status: isNew ? "created" : "updated", message: rowMessage });
+      results.push({ row: i + 1, phone: norm.e164, student: studentName, status: isNew ? "created" : "updated", message: rowMessage, link: inviteLink });
       if (isNew) created++; else updated++;
     } catch (err) {
       results.push({ row: i + 1, phone: norm.e164, student: studentName, status: "error", message: (err as Error).message });
@@ -545,7 +478,7 @@ async function processImport(
       updated,
       skipped: 0,
       errors,
-      invited,
+      invited: linked,
       dry_run: false,
       created_at: new Date().toISOString(),
     });
@@ -556,7 +489,7 @@ async function processImport(
     created,
     updated,
     errors,
-    invited,
+    linked,
     dryRun: opts.dryRun,
     results,
   };
@@ -954,13 +887,14 @@ a.btn.secondary{background:#0F172A}
       if (path === "/api/admin/stats" && request.method === "GET") {
         if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
         const parents = await fs.count("provisioned_parents", [{ field: "provisioned", op: "EQUAL", value: true }]);
-        const invites = await fs.count("sms_log", [{ field: "type", op: "EQUAL", value: "INVITE" }]);
-        // Count imported kids and active parents by iterating provisioned parents
+        // Count imported kids, active parents, and generated links by iterating provisioned parents
         let importedKids = 0;
         let activeParents = 0;
+        let invites = 0;
         const provParents = await fs.query("provisioned_parents", [{ field: "provisioned", op: "EQUAL", value: true }], undefined, 500);
         for (const p of provParents) {
           if (p.is_logged_in === true) activeParents++;
+          if (p.invited_at) invites += (p.invite_count as number) || 1;
           try {
             const kids = await fs.listDocs(`provisioned_parents/${p.id}/kids`);
             importedKids += kids.length;
@@ -983,7 +917,7 @@ a.btn.secondary{background:#0F172A}
         if (rows.length > IMPORT_MAX_ROWS) return json({ error: `Too many rows (max ${IMPORT_MAX_ROWS})` }, 413);
         const report = await processImport(fs, env, rows, {
           dryRun: body.dryRun === true,
-          sendInvites: body.sendInvites === true,
+          generateLinks: body.generateLinks === true,
           filename: (body.filename as string) || "",
           adminId: "admin",
           appOrigin: url.origin,
@@ -999,13 +933,12 @@ a.btn.secondary{background:#0F172A}
         return json(rows);
       }
 
-      // ── Send invites ──
+      // ── Generate invite link(s) — no SMS is sent; the admin copies/shares the link manually ──
       if (path === "/api/admin/invite" && request.method === "POST") {
         if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
         const body: Record<string, unknown> = await request.json();
         const phones = Array.isArray(body.phones) ? (body.phones as unknown[]).map(String) : [];
-        const force = body.force === true;
-        let invited = 0;
+        let linked = 0;
         const skipped: string[] = [];
         const details: Array<Record<string, unknown>> = [];
         for (const raw of phones) {
@@ -1016,25 +949,14 @@ a.btn.secondary{background:#0F172A}
           const token = await signInviteToken(norm.last10, env);
           if (!token) { skipped.push(norm.e164); details.push({ phone: norm.e164, status: "skipped", reason: "Invite token could not be signed" }); continue; }
           const inviteUrl = `${url.origin}/i/${token}`;
-          const sms = await sendPlivoSms(env, norm.e164, `Your child's health report is ready on VitaHero. Install: ${inviteUrl}`);
-          if (sms.success) {
-            invited++;
-            await fs.mergeDoc("provisioned_parents", norm.last10, {
-              invited_at: new Date().toISOString(),
-              invite_count: ((prof.invite_count as number) || 0) + 1,
-            });
-            details.push({ phone: norm.e164, status: sms.devBypass ? "dev_bypass" : "sent", provider: sms.provider });
-          } else {
-            skipped.push(norm.e164);
-            const reason = sms.missingCredentials
-              ? "Plivo credentials not configured"
-              : sms.apiError
-                ? `Plivo error ${sms.apiStatus || ""}: ${sms.apiError}`
-                : "SMS provider error";
-            details.push({ phone: norm.e164, status: "failed", reason, provider: sms.provider });
-          }
+          linked++;
+          await fs.mergeDoc("provisioned_parents", norm.last10, {
+            invited_at: new Date().toISOString(),
+            invite_count: ((prof.invite_count as number) || 0) + 1,
+          });
+          details.push({ phone: norm.e164, status: "linked", link: inviteUrl });
         }
-        return json({ invited, skipped, devMode: isDevMode(env), details });
+        return json({ linked, skipped, details });
       }
 
       // ── List provisioned parents ──
