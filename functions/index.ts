@@ -27,9 +27,8 @@ interface Env {
   TOOLKIT_URL?: string;
   TOOLKIT_SECRET_KEY?: string;
   DEV_MODE?: string;
-  TWILIO_ACCOUNT_SID?: string;
-  TWILIO_AUTH_TOKEN?: string;
-  TWILIO_FROM_NUMBER?: string;
+  TEXTBEE_API_KEY?: string;
+  TEXTBEE_DEVICE_ID?: string;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -283,34 +282,33 @@ async function verifyInviteToken(token: string, env: Env): Promise<string | null
   return last10;
 }
 
-// ─── Twilio SMS (invite link only — login OTP stays 100% Firebase) ─────
+// ─── textbee.dev SMS (invite link only — login OTP stays 100% Firebase) ─
+// textbee.dev turns your own Android phone into an SMS gateway, so there's
+// no per-message provider fee like Twilio/Plivo — texts go out from your SIM.
 
-function twilioConfigured(env: Env): boolean {
-  return !!(env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_FROM_NUMBER);
+function textbeeConfigured(env: Env): boolean {
+  return !!(env.TEXTBEE_API_KEY && env.TEXTBEE_DEVICE_ID);
 }
 
 async function sendInviteSms(e164Phone: string, link: string, env: Env): Promise<{ sent: boolean; reason?: string }> {
-  if (!twilioConfigured(env)) {
-    return { sent: false, reason: "Twilio not configured" };
+  if (!textbeeConfigured(env)) {
+    return { sent: false, reason: "textbee.dev not configured" };
   }
   try {
-    const body = new URLSearchParams({
-      To: e164Phone,
-      From: env.TWILIO_FROM_NUMBER as string,
-      Body: `VitaHero: Your child's health camp invite is ready. Install/open the app here: ${link}`,
-    });
-    const auth = btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`);
-    const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${env.TWILIO_ACCOUNT_SID}/Messages.json`, {
+    const resp = await fetch(`https://api.textbee.dev/api/v1/gateway/devices/${env.TEXTBEE_DEVICE_ID}/send-sms`, {
       method: "POST",
       headers: {
-        "Authorization": `Basic ${auth}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+        "x-api-key": env.TEXTBEE_API_KEY as string,
+        "Content-Type": "application/json",
       },
-      body: body.toString(),
+      body: JSON.stringify({
+        recipients: [e164Phone],
+        message: `VitaHero: Your child's health camp invite is ready. Install/open the app here: ${link}`,
+      }),
     });
     if (!resp.ok) {
       const errText = await resp.text();
-      return { sent: false, reason: `Twilio error: ${errText.slice(0, 200)}` };
+      return { sent: false, reason: `textbee.dev error: ${errText.slice(0, 200)}` };
     }
     return { sent: true };
   } catch (err) {
@@ -480,7 +478,7 @@ async function processImport(
         });
       }
 
-      // Generate an invite link and, if Twilio is configured, text it to the parent automatically
+      // Generate an invite link and, if textbee.dev is configured, text it to the parent automatically
       let inviteLink = "";
       let rowMessage = "";
       let smsSent = false;
@@ -689,13 +687,13 @@ a{color:#1FA2DD;text-decoration:none}
 </ul>
 
 <h2>3. Data Storage</h2>
-<p>Your data is stored securely in Google Firebase (Firestore and Firebase Authentication), hosted on Google Cloud infrastructure. Access is restricted to authorised administrators and the doctors assigned to your child's health camp. SMS messages are sent through Plivo or Twilio, our trusted SMS providers, who process the phone number solely to deliver the message.</p>
+<p>Your data is stored securely in Google Firebase (Firestore and Firebase Authentication), hosted on Google Cloud infrastructure. Access is restricted to authorised administrators and the doctors assigned to your child's health camp. SMS messages are sent through textbee.dev, our SMS gateway provider, which processes the phone number solely to deliver the message.</p>
 
 <h2>4. Data Sharing</h2>
 <p>We do not sell your personal information. We share data only with:</p>
 <ul>
 <li><b>Partner schools and hospitals:</b> To coordinate health camps and deliver reports to parents.</li>
-<li><b>Service providers:</b> Firebase (Google), Plivo, and Twilio, for authentication, data storage, and SMS delivery under their respective privacy policies.</li>
+<li><b>Service providers:</b> Firebase (Google) for authentication and data storage, and textbee.dev for SMS delivery, under their respective privacy policies.</li>
 <li><b>Legal authorities:</b> If required by applicable law.</li>
 </ul>
 
@@ -975,7 +973,7 @@ a.btn.secondary{background:#0F172A}
         return json(rows);
       }
 
-      // ── Generate invite link(s) and text them via Twilio automatically ──
+      // ── Generate invite link(s) and text them via textbee.dev automatically ──
       if (path === "/api/admin/invite" && request.method === "POST") {
         if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
         const body: Record<string, unknown> = await request.json();
