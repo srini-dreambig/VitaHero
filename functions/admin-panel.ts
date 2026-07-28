@@ -186,6 +186,19 @@ td{padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12px}tr:hover 
 .helper-text{font-size:11px;color:var(--ink-soft);margin-bottom:12px;line-height:1.5}
 .helper-text b{color:var(--ink)}
 
+/* ── Modal ── */
+.modal-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.55);opacity:0;visibility:hidden;transition:opacity .2s ease,visibility .2s ease;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:20px}
+.modal-overlay.active{opacity:1;visibility:visible}
+.modal-card{background:var(--surface);border-radius:var(--radius);padding:28px;max-width:420px;width:100%;box-shadow:0 20px 50px rgba(15,23,42,.2);border:1px solid var(--hair);text-align:center;transform:translateY(10px) scale(.98);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+.modal-overlay.active .modal-card{transform:translateY(0) scale(1)}
+.modal-card .m-icon{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;background:var(--blue-soft);color:var(--blue-d)}
+.modal-card .m-icon svg{width:26px;height:26px}
+.modal-card .m-icon .spinner{width:26px;height:26px;border-width:3px}
+.modal-card h3{font-size:18px;font-weight:700;margin-bottom:8px;color:var(--ink)}
+.modal-card p{font-size:13px;color:var(--ink-soft);line-height:1.5;margin-bottom:22px;word-break:break-word}
+.modal-actions{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap}
+.modal-actions button{min-width:100px}
+
 @media(max-width:900px){.login-wrap{grid-template-columns:1fr}.login-brand{display:none}.login-form{padding:20px 16px;min-height:100vh}}
 @media(max-width:768px){
   .sidebar{transform:translateX(-100%);width:var(--sidebar)}
@@ -195,6 +208,7 @@ td{padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12px}tr:hover 
   .sidebar.collapsed~.main{margin-left:0}
   .doc-row,.doc-row-header{grid-template-columns:1fr 1fr;gap:8px}
   .doc-row .btn-remove,.doc-row-header span:last-child{grid-column:span 2}
+  .modal-card{padding:22px}
 }
 </style>
 </head>
