@@ -212,9 +212,11 @@ class AuthManager(private val app: Application) {
             }
             db.collection("profiles").document(uid).set(profileData).await()
         } else {
-            val existingRole = profileSnap.getString("role") ?: "PARENT"
-            // If pre-verified as doctor, override role to DOCTOR
-            val finalRole = if (_isDoctor.value) "DOCTOR" else existingRole
+            // Role is always re-derived from the fresh backend pre-verification
+            // (doctor_assignments / provisioned_parents) on every login, so a
+            // doctor whose assignment was revoked is correctly downgraded back
+            // to PARENT instead of keeping a stale DOCTOR role forever.
+            val finalRole = if (_isDoctor.value) "DOCTOR" else "PARENT"
             profileData["role"] = finalRole
             if (_isDoctor.value) {
                 profileData["allowed_screens"] = _allowedScreens.value
@@ -224,6 +226,10 @@ class AuthManager(private val app: Application) {
                 if (existingName.isBlank() || existingName == "Parent") {
                     profileData["name"] = _doctorName.value
                 }
+            } else {
+                // Clear stale doctor-only fields if this account was previously a doctor
+                profileData["allowed_screens"] = emptyList<String>()
+                profileData["doctor_specialty"] = ""
             }
             db.collection("profiles").document(uid).set(profileData, SetOptions.merge()).await()
         }
