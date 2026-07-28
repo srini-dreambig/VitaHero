@@ -349,7 +349,7 @@ td{padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12px}tr:hover 
             </button>
           </div>
         </div>
-        <p style="margin:-2px 0 10px;color:var(--ink-faint);font-size:11px">If Twilio is configured, each parent is texted their invite link automatically after import. If not yet configured, links are still generated here so you can copy/share them manually.</p>
+        <p style="margin:-2px 0 10px;color:var(--ink-faint);font-size:11px">If SMS is configured, each parent is texted their invite link automatically after import. If not yet configured, links are still generated here so you can copy/share them manually.</p>
         <div id="fileInfo" style="display:none;margin-bottom:10px;padding:9px 12px;background:var(--blue-soft);border:1px solid rgba(31,162,221,.25);border-radius:var(--radius-sm);font-size:12px;color:var(--blue-d);align-items:center;gap:8px">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
           <span id="fileName"></span>
@@ -361,7 +361,7 @@ td{padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12px}tr:hover 
 9876543210,Aarav Sharma,Rahul Sharma,M,Class 3,7,OAK2026,Oakridge International School,2026-07-15,Annual Health Camp,115,22,GOOD,GOOD,GOOD,STU001"></textarea>
         </div>
         <div class="checkbox-row"><input type="checkbox" id="dryRun" checked><label for="dryRun">Dry run (preview only, no data written, no links generated)</label></div>
-        <div class="checkbox-row"><input type="checkbox" id="generateLinks" checked><label for="generateLinks">Generate invite links after import and text them via Twilio (falls back to manual copy/share if Twilio isn't configured)</label></div>
+        <div class="checkbox-row"><input type="checkbox" id="generateLinks" checked><label for="generateLinks">Generate invite links after import and text them via SMS (falls back to manual copy/share if SMS isn't configured)</label></div>
         <button class="btn-primary" id="importBtn" onclick="doImport()">Import Data</button>
       </div>
       <div class="card" id="importResults" style="display:none">
@@ -590,9 +590,9 @@ function getInviteLink(phone,mode){if(!phone)return;phone=String(phone);openModa
   var link=detail.link;
   if(mode==='sms'){
     if(detail.smsSent){
-      openModal({title:'Invite Sent',message:'A text with the invite link was sent to '+phone+' via Twilio.',confirmText:'OK',cancelText:false,iconBg:'rgba(16,185,129,.12)',iconColor:'var(--good)',icon:'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"26\" height=\"26\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg>',onClose:function(){loadParents()}})
+      openModal({title:'Invite Sent',message:'A text with the invite link was sent to '+phone+'.',confirmText:'OK',cancelText:false,iconBg:'rgba(16,185,129,.12)',iconColor:'var(--good)',icon:'<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"26\" height=\"26\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M20 6 9 17l-5-5\"/></svg>',onClose:function(){loadParents()}})
     } else {
-      openModal({title:'SMS Not Sent',message:(detail.smsReason||'Twilio is not configured yet')+'. The invite link was still generated \\u2014 you can copy or share it manually below.\\n\\n'+link,confirmText:'Copy Link',cancelText:'Close',iconBg:'rgba(245,158,11,.12)',iconColor:'var(--orange)',onConfirm:function(){navigator.clipboard.writeText(link).catch(function(){prompt('Copy this link:',link)});closeModal(false);loadParents()},onClose:function(){loadParents()}})
+      openModal({title:'SMS Not Sent',message:(detail.smsReason||'SMS is not configured yet')+'. The invite link was still generated \\u2014 you can copy or share it manually below.\\n\\n'+link,confirmText:'Copy Link',cancelText:'Close',iconBg:'rgba(245,158,11,.12)',iconColor:'var(--orange)',onConfirm:function(){navigator.clipboard.writeText(link).catch(function(){prompt('Copy this link:',link)});closeModal(false);loadParents()},onClose:function(){loadParents()}})
     }
     return
   }

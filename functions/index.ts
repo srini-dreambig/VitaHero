@@ -999,7 +999,7 @@ a.btn.secondary{background:#0F172A}
           if (smsResult.sent) smsSentCount++;
           details.push({ phone: norm.e164, status: "linked", link: inviteUrl, smsSent: smsResult.sent, smsReason: smsResult.reason || "" });
         }
-        return json({ linked, smsSent: smsSentCount, twilioConfigured: twilioConfigured(env), skipped, details });
+        return json({ linked, smsSent: smsSentCount, smsConfigured: textbeeConfigured(env), skipped, details });
       }
 
       // ── List provisioned parents ──
