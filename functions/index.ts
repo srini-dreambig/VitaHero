@@ -293,21 +293,9 @@ function textbeeConfigured(env: Env): boolean {
 function buildInviteMessage(link: string, studentName?: string, schoolName?: string): string {
   const kid = (studentName || "").trim();
   const school = (schoolName || "").trim();
-  const openers = kid
-    ? [
-        `${kid}'s free health checkup adventure starts now!`,
-        `Big news, ${kid}'s family!`,
-        `${kid} just got a health sidekick!`,
-        `Ready, set, healthy! ${kid}'s wellness journey awaits.`,
-      ]
-    : [
-        `Your child's free health checkup adventure starts now!`,
-        `Big news from your child's school!`,
-        `Your little one just got a health sidekick!`,
-      ];
-  const opener = openers[Math.abs(stableHash(link)) % openers.length];
-  const context = school ? ` from ${school}` : "";
-  return `VitaHero: ${opener} Track growth, vision & nutrition${context} in one free app. Tap in: ${link}`;
+  const who = kid ? kid : "your child";
+  const source = school ? `${school} has` : "We've";
+  return `VitaHero: ${source} set up a free health record for ${who} — track growth, vision & nutrition in one app. View it here: ${link}`;
 }
 
 async function sendInviteSms(e164Phone: string, link: string, env: Env, studentName?: string, schoolName?: string): Promise<{ sent: boolean; reason?: string }> {
