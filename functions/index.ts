@@ -66,9 +66,9 @@ function isDevMode(env: Env): boolean {
   return env.DEV_MODE === "true" || env.DEV_MODE === "1";
 }
 
-function normalizePhone(raw: string | undefined | null): { e164: string; last10: string } | null {
-  if (!raw) return null;
-  let digits = raw.replace(/\D/g, "");
+function normalizePhone(raw: string | number | undefined | null): { e164: string; last10: string } | null {
+  if (raw == null) return null;
+  let digits = String(raw).replace(/\D/g, "");
   if (digits.length === 10) {
     return { e164: `+${DEFAULT_COUNTRY_CODE}${digits}`, last10: digits };
   }
@@ -900,7 +900,7 @@ a.btn.secondary{background:#0F172A}
       if (path === "/api/admin/invite" && request.method === "POST") {
         if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
         const body: Record<string, unknown> = await request.json();
-        const phones = Array.isArray(body.phones) ? body.phones as string[] : [];
+        const phones = Array.isArray(body.phones) ? (body.phones as unknown[]).map(String) : [];
         const force = body.force === true;
         let invited = 0;
         const skipped: string[] = [];
