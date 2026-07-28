@@ -833,7 +833,7 @@ export default {
     // ── Invite landing page ──
     if (path.startsWith("/i/")) {
       const token = path.slice(3);
-      const playUrl = env.APP_PLAY_URL || `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`;
+      const playUrl = env.APP_PLAY_URL || "https://play.google.com/apps/internaltest/4700990678853594044";
       const deepLink = `vitahero://invite?token=${encodeURIComponent(token)}`;
       const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">

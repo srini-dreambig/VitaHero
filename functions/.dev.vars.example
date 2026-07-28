@@ -17,8 +17,9 @@ ADMIN_API_KEY=
 INVITE_SIGNING_KEY=
 # Android App Links: comma-separated SHA-256 signing-cert fingerprints.
 ANDROID_CERT_SHA256=
-# Optional Play Store URL used as the install fallback on the invite landing page.
-APP_PLAY_URL=
+# Play Store URL used as the "Get the app" download link on the invite landing page.
+# Defaults to the internal test track link below; override once the app is in production.
+APP_PLAY_URL=https://play.google.com/apps/internaltest/4700990678853594044
 
 # Invite links are no longer sent via SMS — the admin panel generates a
 # shareable link per parent that you copy/share yourself (WhatsApp, email, etc).
