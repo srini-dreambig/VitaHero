@@ -290,7 +290,27 @@ function textbeeConfigured(env: Env): boolean {
   return !!(env.TEXTBEE_API_KEY && env.TEXTBEE_DEVICE_ID);
 }
 
-async function sendInviteSms(e164Phone: string, link: string, env: Env): Promise<{ sent: boolean; reason?: string }> {
+function buildInviteMessage(link: string, studentName?: string, schoolName?: string): string {
+  const kid = (studentName || "").trim();
+  const school = (schoolName || "").trim();
+  const openers = kid
+    ? [
+        `${kid}'s free health checkup adventure starts now!`,
+        `Big news, ${kid}'s family!`,
+        `${kid} just got a health sidekick!`,
+        `Ready, set, healthy! ${kid}'s wellness journey awaits.`,
+      ]
+    : [
+        `Your child's free health checkup adventure starts now!`,
+        `Big news from your child's school!`,
+        `Your little one just got a health sidekick!`,
+      ];
+  const opener = openers[Math.abs(stableHash(link)) % openers.length];
+  const context = school ? ` from ${school}` : "";
+  return `VitaHero: ${opener} Track growth, vision & nutrition${context} in one free app. Tap in: ${link}`;
+}
+
+async function sendInviteSms(e164Phone: string, link: string, env: Env, studentName?: string, schoolName?: string): Promise<{ sent: boolean; reason?: string }> {
   if (!textbeeConfigured(env)) {
     return { sent: false, reason: "textbee.dev not configured" };
   }
@@ -303,7 +323,7 @@ async function sendInviteSms(e164Phone: string, link: string, env: Env): Promise
       },
       body: JSON.stringify({
         recipients: [e164Phone],
-        message: `VitaHero: Your child's health camp invite is ready. Install/open the app here: ${link}`,
+        message: buildInviteMessage(link, studentName, schoolName),
       }),
     });
     if (!resp.ok) {
@@ -491,7 +511,7 @@ async function processImport(
             invited_at: new Date().toISOString(),
             invite_count: (existing?.invite_count as number || 0) + 1,
           });
-          const smsResult = await sendInviteSms(norm.e164, inviteLink, env);
+          const smsResult = await sendInviteSms(norm.e164, inviteLink, env, studentName, finalSchoolName);
           smsSent = smsResult.sent;
           rowMessage = smsResult.sent ? "Invite SMS sent" : (smsResult.reason || "");
         } else {
@@ -995,7 +1015,14 @@ a.btn.secondary{background:#0F172A}
             invited_at: new Date().toISOString(),
             invite_count: ((prof.invite_count as number) || 0) + 1,
           });
-          const smsResult = await sendInviteSms(norm.e164, inviteUrl, env);
+          let firstKidName = "";
+          try {
+            const kids = await fs.listDocs(`provisioned_parents/${norm.last10}/kids`);
+            firstKidName = (kids?.[0]?.name as string) || "";
+          } catch {
+            // personalization is best-effort — fall back to generic wording
+          }
+          const smsResult = await sendInviteSms(norm.e164, inviteUrl, env, firstKidName, prof.school_name as string);
           if (smsResult.sent) smsSentCount++;
           details.push({ phone: norm.e164, status: "linked", link: inviteUrl, smsSent: smsResult.sent, smsReason: smsResult.reason || "" });
         }
