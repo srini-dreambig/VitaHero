@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.LocalHospital
+import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.Icon
@@ -65,25 +66,10 @@ fun HospitalDirectoryCard(
                     )
                     if (hospital.address.isNotBlank()) {
                         Text(
-                            hospital.address,
+                            hospital.address + if (hospital.pincode.isNotBlank()) " - ${hospital.pincode}" else "",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                    }
-                    hospital.distanceKm?.let { km ->
-                        Text(
-                            String.format(t(S.kmAway), "%.1f".format(km)),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = HeroBlue,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Star, contentDescription = null, tint = HeroYellow, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(2.dp))
-                        Text("${hospital.rating}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }

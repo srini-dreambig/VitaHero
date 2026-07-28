@@ -101,11 +101,10 @@ data class Hospital(
     val city: String,
     val district: String,
     val address: String,
-    val rating: Float,
+    val pincode: String = "",
     val isCampPartner: Boolean,
     val conductedCamps: Int,
     val userCampLinked: Boolean,
-    val distanceKm: Float?,
     val specialties: List<String>,
     val doctors: List<Doctor>,
 )

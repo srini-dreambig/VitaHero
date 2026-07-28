@@ -18,10 +18,8 @@ interface SeedHospital {
   city: string;
   district: string;
   address: string;
-  lat: number;
-  lng: number;
+  pincode: string;
   phone: string;
-  rating: number;
   is_camp_partner: boolean;
   active: boolean;
 }
@@ -45,11 +43,11 @@ export const SEED_SCHOOLS: SeedSchool[] = [
 ];
 
 export const SEED_HOSPITALS: SeedHospital[] = [
-  { id: "hosp_rainbow", name: "Rainbow Children's Hospital", city: "Hyderabad", district: "Banjara Hills", address: "Road No 2, Banjara Hills, Hyderabad", lat: 17.4156, lng: 78.4347, phone: "+914066000000", rating: 4.8, is_camp_partner: true, active: true },
-  { id: "hosp_kims", name: "KIMS Hospitals", city: "Hyderabad", district: "Secunderabad", address: "1-8-31/1, Minister Road, Secunderabad", lat: 17.4434, lng: 78.4974, phone: "+914044000000", rating: 4.6, is_camp_partner: true, active: true },
-  { id: "hosp_lvp", name: "LV Prasad Eye Institute", city: "Hyderabad", district: "Banjara Hills", address: "L V Prasad Marg, Banjara Hills, Hyderabad", lat: 17.4174, lng: 78.4362, phone: "+914030000000", rating: 4.7, is_camp_partner: true, active: true },
-  { id: "hosp_apollo", name: "Apollo Cradle", city: "Hyderabad", district: "Jubilee Hills", address: "Road No 12, Jubilee Hills, Hyderabad", lat: 17.4329, lng: 78.4074, phone: "+914023000000", rating: 4.5, is_camp_partner: false, active: true },
-  { id: "hosp_continental", name: "Continental Hospitals", city: "Hyderabad", district: "Gachibowli", address: "IT Industry Park, Gachibowli, Hyderabad", lat: 17.4456, lng: 78.3494, phone: "+914067000000", rating: 4.4, is_camp_partner: true, active: true },
+  { id: "hosp_rainbow", name: "Rainbow Children's Hospital", city: "Hyderabad", district: "Banjara Hills", address: "Road No 2, Banjara Hills, Hyderabad", pincode: "500034", phone: "+914066000000", is_camp_partner: true, active: true },
+  { id: "hosp_kims", name: "KIMS Hospitals", city: "Hyderabad", district: "Secunderabad", address: "1-8-31/1, Minister Road, Secunderabad", pincode: "500003", phone: "+914044000000", is_camp_partner: true, active: true },
+  { id: "hosp_lvp", name: "LV Prasad Eye Institute", city: "Hyderabad", district: "Banjara Hills", address: "L V Prasad Marg, Banjara Hills, Hyderabad", pincode: "500034", phone: "+914030000000", is_camp_partner: true, active: true },
+  { id: "hosp_apollo", name: "Apollo Cradle", city: "Hyderabad", district: "Jubilee Hills", address: "Road No 12, Jubilee Hills, Hyderabad", pincode: "500033", phone: "+914023000000", is_camp_partner: false, active: true },
+  { id: "hosp_continental", name: "Continental Hospitals", city: "Hyderabad", district: "Gachibowli", address: "IT Industry Park, Gachibowli, Hyderabad", pincode: "500032", phone: "+914067000000", is_camp_partner: true, active: true },
 ];
 
 export const SEED_DOCTORS: SeedDoctor[] = [

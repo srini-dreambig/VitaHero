@@ -1088,8 +1088,6 @@ a.btn.secondary{background:#0F172A}
         if (!name) return json({ error: "name is required" }, 400);
         if (!address) return json({ error: "address is required" }, 400);
         const hospId = `hosp_${crypto.randomUUID().slice(0, 10)}`;
-        const lat = body.lat !== undefined && body.lat !== null && body.lat !== "" ? parseFloat(String(body.lat)) : null;
-        const lng = body.lng !== undefined && body.lng !== null && body.lng !== "" ? parseFloat(String(body.lng)) : null;
         const hospData = {
           id: hospId,
           name,
@@ -1097,9 +1095,7 @@ a.btn.secondary{background:#0F172A}
           district: (body.district as string)?.trim() || "",
           address,
           phone: (body.phone as string)?.trim() || "",
-          lat: lat != null && !isNaN(lat) ? lat : null,
-          lng: lng != null && !isNaN(lng) ? lng : null,
-          rating: parseFloat(String(body.rating || 4.5)) || 4.5,
+          pincode: (body.pincode as string)?.trim() || "",
           is_camp_partner: !!body.is_camp_partner,
           active: true,
         };
@@ -1118,15 +1114,7 @@ a.btn.secondary{background:#0F172A}
         if (body.district !== undefined) update.district = String(body.district).trim();
         if (body.address !== undefined) update.address = String(body.address).trim();
         if (body.phone !== undefined) update.phone = String(body.phone).trim();
-        if (body.lat !== undefined) {
-          const lat = body.lat !== null && body.lat !== "" ? parseFloat(String(body.lat)) : null;
-          update.lat = lat != null && !isNaN(lat) ? lat : null;
-        }
-        if (body.lng !== undefined) {
-          const lng = body.lng !== null && body.lng !== "" ? parseFloat(String(body.lng)) : null;
-          update.lng = lng != null && !isNaN(lng) ? lng : null;
-        }
-        if (body.rating !== undefined) update.rating = parseFloat(String(body.rating)) || 4.5;
+        if (body.pincode !== undefined) update.pincode = String(body.pincode).trim();
         if (body.is_camp_partner !== undefined) update.is_camp_partner = !!body.is_camp_partner;
         if (body.active !== undefined) update.active = !!body.active;
         if (!Object.prototype.hasOwnProperty.call(update, "address") && update.address === undefined) {
@@ -1502,10 +1490,7 @@ a.btn.secondary{background:#0F172A}
         if (!uid) return json({ error: "Unauthorized" }, 401);
         const city = (url.searchParams.get("city") || "Hyderabad").trim();
         const specialty = (url.searchParams.get("specialty") || "").trim();
-        const latParam = url.searchParams.get("lat");
-        const lngParam = url.searchParams.get("lng");
-        const userLat = latParam ? parseFloat(latParam) : null;
-        const userLng = lngParam ? parseFloat(lngParam) : null;
+        const userPincode = (url.searchParams.get("pincode") || "").trim();
 
         // Get user's enrolled schools
         const enrollments = await fs.query("school_enrollments", [{ field: "user_id", op: "EQUAL", value: uid }]);
@@ -1532,19 +1517,15 @@ a.btn.secondary{background:#0F172A}
           const conductedCamps = schoolCamps.filter(sc => sc.school_id && userSchoolIds.includes(sc.school_id as string)).length;
           const isCampPartner = h.is_camp_partner === true || conductedCamps > 0;
 
-          const lat = h.lat as number | null;
-          const lng = h.lng as number | null;
-          const distanceKm = userLat != null && userLng != null && lat != null && lng != null
-            ? Math.round(haversineKm(userLat, userLng, lat, lng) * 10) / 10 : null;
+          const samePincode = !!userPincode && !!h.pincode && String(h.pincode) === userPincode;
 
           const specialties = [...new Set(docs.map(d => d.specialty as string))].sort();
           for (const s of specialties) allSpecialties.add(s);
 
           const priorityScore =
             (isCampPartner ? 5000 : 0) +
-            conductedCamps * 100 +
-            ((h.rating as number) || 0) * 10 -
-            (distanceKm ?? 999);
+            (samePincode ? 1000 : 0) +
+            conductedCamps * 100;
 
           hospitalsOut.push({
             id: hid,
@@ -1552,14 +1533,13 @@ a.btn.secondary{background:#0F172A}
             city: h.city,
             district: h.district,
             address: h.address,
-            lat, lng,
+            pincode: h.pincode || "",
             phone: h.phone,
-            rating: h.rating,
             is_camp_partner: isCampPartner,
             conducted_camps: conductedCamps,
             user_camp_linked: conductedCamps > 0,
             user_linked_camps: conductedCamps,
-            distance_km: distanceKm,
+            same_pincode: samePincode,
             priority_score: priorityScore,
             specialties,
             doctors: docs
