@@ -200,13 +200,22 @@ fun OtpScreen(
             cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent)
         ) { innerTextField ->
             // innerTextField() is the REAL interactive text-input node that owns
-            // focus, the cursor, and the IME/keyboard session. Previous versions
-            // never invoked this parameter at all, so the 6 boxes below were pure
-            // decoration with no live focusable input behind them — taps had
-            // nothing real to focus, so Android never had anything to raise a
-            // keyboard for. Rendering it (visually hidden) wires taps on the
-            // boxes to the actual input session while keeping our custom look.
-            Box(Modifier.size(0.dp)) {
+            // focus, the cursor, and the IME/keyboard session. It MUST be given a
+            // real, non-zero on-screen size here. A previous version wrapped it in
+            // Modifier.size(0.dp) — the node was composed and technically focusable,
+            // but Android's TextInputService reports its layout bounds (used by the
+            // platform to decide whether to actually raise the IME, especially on
+            // Samsung/OEM keyboards) as an empty 0x0 rect. Many real devices treat a
+            // zero-size input target as "not really visible" and silently refuse to
+            // show the keyboard — this reproduces exactly the reported symptom
+            // (focus/cursor state changes, but no keyboard ever appears). Giving it
+            // the same footprint as the visible digit row (kept invisible via
+            // transparent text/cursor, not via zero size) fixes this on real hardware.
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(58.dp)
+            ) {
                 innerTextField()
             }
             Row(
