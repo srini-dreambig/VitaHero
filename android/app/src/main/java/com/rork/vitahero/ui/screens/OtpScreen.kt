@@ -2,6 +2,7 @@ package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,10 +78,15 @@ fun OtpScreen(
     var seconds by remember { mutableIntStateOf(30) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val otpReady = !verificationId.isNullOrBlank()
 
-    LaunchedEffect(Unit) {
-        focus.requestFocus()
-        keyboard?.show()
+    // The hidden field only accepts focus once it's enabled (verificationId arrived),
+    // so re-request focus + show the keyboard every time readiness flips to true.
+    LaunchedEffect(otpReady) {
+        if (otpReady) {
+            focus.requestFocus()
+            keyboard?.show()
+        }
     }
     LaunchedEffect(seconds) {
         if (seconds > 0) {
@@ -165,7 +171,6 @@ fun OtpScreen(
         }
 
         // OTP input — only show if verificationId is ready (SMS sent)
-        val otpReady = !verificationId.isNullOrBlank()
         Box {
             BasicTextField(
                 value = code,
@@ -179,9 +184,15 @@ fun OtpScreen(
                 textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground)
             ) {}
 
-            // Visible digit boxes
+            // Visible digit boxes — tapping anywhere here (re)focuses the hidden field
+            // and pops the keyboard back up, in case it was dismissed.
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier
+                    .fillMaxWidth()
+                    .clickable(enabled = otpReady) {
+                        focus.requestFocus()
+                        keyboard?.show()
+                    },
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 repeat(6) { i ->
