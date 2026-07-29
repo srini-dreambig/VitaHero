@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
@@ -80,12 +81,12 @@ fun OtpScreen(
     val keyboard = LocalSoftwareKeyboardController.current
     val otpReady = !verificationId.isNullOrBlank()
 
-    // The hidden field only accepts focus once it's enabled (verificationId arrived),
-    // so re-request focus + show the keyboard every time readiness flips to true.
+    // The hidden field only accepts focus once it's enabled (verificationId arrived).
+    // requestFocus() only takes effect a frame later, so we can't call keyboard.show()
+    // right after it — we wait for the actual focus-changed callback below instead.
     LaunchedEffect(otpReady) {
         if (otpReady) {
             focus.requestFocus()
-            keyboard?.show()
         }
     }
     LaunchedEffect(seconds) {
@@ -179,6 +180,12 @@ fun OtpScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 modifier = Modifier
                     .focusRequester(focus)
+                    .onFocusChanged { state ->
+                        // Only fires once the field is truly focused — safe point to force
+                        // the software keyboard open (needed on emulators / devices where a
+                        // hardware keyboard is attached and the IME doesn't auto-show).
+                        if (state.isFocused) keyboard?.show()
+                    }
                     .focusable()
                     .size(1.dp),
                 textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground)
@@ -190,6 +197,8 @@ fun OtpScreen(
                 Modifier
                     .fillMaxWidth()
                     .clickable(enabled = otpReady) {
+                        // If the field is already focused, onFocusChanged won't fire again,
+                        // so force-show the keyboard here too as a fallback.
                         focus.requestFocus()
                         keyboard?.show()
                     },
