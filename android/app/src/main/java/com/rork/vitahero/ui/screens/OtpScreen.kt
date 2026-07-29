@@ -2,6 +2,8 @@ package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +47,9 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -79,15 +84,30 @@ fun OtpScreen(
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    val view = LocalView.current
     val otpReady = !verificationId.isNullOrBlank()
 
+    // Cloud emulators report an attached hardware keyboard, which makes Android's
+    // InputMethodManager silently refuse to auto-raise the soft keyboard via the
+    // normal showSoftInput() path (used internally by keyboard?.show()). Forcing
+    // it through both WindowInsetsControllerCompat (the modern API) AND
+    // InputMethodManager.SHOW_FORCED covers real devices and hardware-keyboard
+    // emulators alike.
+    fun forceShowKeyboard() {
+        view.post {
+            ViewCompat.getWindowInsetsController(view)?.show(WindowInsetsCompat.Type.ime())
+            val imm = view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
+                as? android.view.inputmethod.InputMethodManager
+            imm?.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_FORCED)
+        }
+    }
+
     // Once the field becomes focusable (verificationId arrived), grab focus and
-    // explicitly force the IME open. We keep both calls because relying on either
-    // one alone has proven flaky on emulators/hardware-keyboard devices.
+    // explicitly force the IME open.
     LaunchedEffect(otpReady) {
         if (otpReady) {
             focus.requestFocus()
-            keyboard?.show()
+            forceShowKeyboard()
         } else {
             focusManager.clearFocus()
         }
@@ -233,10 +253,27 @@ fun OtpScreen(
                 modifier = Modifier
                     .matchParentSize()
                     .focusRequester(focus)
-                    .onFocusChanged { state -> if (state.isFocused) keyboard?.show() },
+                    .onFocusChanged { state -> if (state.isFocused) forceShowKeyboard() },
                 textStyle = TextStyle(color = Color.Transparent),
                 cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent)
             ) {}
+
+            // Extra safety net: a transparent clickable overlay above the field so a tap
+            // that lands on the Box but doesn't trigger a focus *change* (e.g. it's
+            // already focused but the IME got dismissed) still re-forces the keyboard.
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .then(
+                        if (otpReady) Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) {
+                            focus.requestFocus()
+                            forceShowKeyboard()
+                        } else Modifier
+                    )
+            )
         }
 
         Spacer(Modifier.height(20.dp))
