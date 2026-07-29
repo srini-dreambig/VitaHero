@@ -198,7 +198,17 @@ fun OtpScreen(
                 .onFocusChanged { state -> if (state.isFocused) keyboard?.show() },
             textStyle = TextStyle(color = Color.Transparent),
             cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent)
-        ) {
+        ) { innerTextField ->
+            // innerTextField() is the REAL interactive text-input node that owns
+            // focus, the cursor, and the IME/keyboard session. Previous versions
+            // never invoked this parameter at all, so the 6 boxes below were pure
+            // decoration with no live focusable input behind them — taps had
+            // nothing real to focus, so Android never had anything to raise a
+            // keyboard for. Rendering it (visually hidden) wires taps on the
+            // boxes to the actual input session while keeping our custom look.
+            Box(Modifier.size(0.dp)) {
+                innerTextField()
+            }
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
