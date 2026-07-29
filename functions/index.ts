@@ -368,7 +368,7 @@ async function processImport(
   fs: FirestoreClient,
   env: Env,
   rows: Record<string, unknown>[],
-  opts: { dryRun: boolean; generateLinks: boolean; filename: string; adminId: string; appOrigin: string },
+  opts: { dryRun: boolean; generateLinks: boolean; resendExisting: boolean; filename: string; adminId: string; appOrigin: string },
 ): Promise<Record<string, unknown>> {
   const results: Array<Record<string, unknown>> = [];
   let created = 0, updated = 0, errors = 0, linked = 0;
@@ -486,11 +486,14 @@ async function processImport(
         });
       }
 
-      // Generate an invite link and, if textbee.dev is configured, text it to the parent automatically
+      // Generate an invite link and, if textbee.dev is configured, text it to the parent automatically.
+      // Parents who were already invited before are skipped by default (no repeat SMS on every re-import) —
+      // the admin can explicitly resend to them via the "Resend" action or the resendExisting bulk option.
       let inviteLink = "";
       let rowMessage = "";
       let smsSent = false;
-      if (opts.generateLinks) {
+      const alreadyInvited = !!(existing?.invited_at);
+      if (opts.generateLinks && (!alreadyInvited || opts.resendExisting)) {
         const token = await signInviteToken(norm.last10, env);
         if (token) {
           inviteLink = `${opts.appOrigin}/i/${token}`;
@@ -505,8 +508,10 @@ async function processImport(
         } else {
           rowMessage = "Could not sign invite link (INVITE_SIGNING_KEY missing)";
         }
+      } else if (opts.generateLinks && alreadyInvited) {
+        rowMessage = "Already invited previously — skipped (use Resend to text again)";
       }
-      results.push({ row: i + 1, phone: norm.e164, student: studentName, status: isNew ? "created" : "updated", message: rowMessage, link: inviteLink, smsSent });
+      results.push({ row: i + 1, phone: norm.e164, student: studentName, status: isNew ? "created" : "updated", message: rowMessage, link: inviteLink, smsSent, alreadyInvited });
       if (isNew) created++; else updated++;
     } catch (err) {
       results.push({ row: i + 1, phone: norm.e164, student: studentName, status: "error", message: (err as Error).message });
@@ -966,6 +971,7 @@ a.btn.secondary{background:#0F172A}
         const report = await processImport(fs, env, rows, {
           dryRun: body.dryRun === true,
           generateLinks: body.generateLinks === true,
+          resendExisting: body.resendExisting === true,
           filename: (body.filename as string) || "",
           adminId: "admin",
           appOrigin: url.origin,
