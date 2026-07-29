@@ -2,8 +2,6 @@ package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,6 +43,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -79,14 +78,18 @@ fun OtpScreen(
     var seconds by remember { mutableIntStateOf(30) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     val otpReady = !verificationId.isNullOrBlank()
 
-    // The hidden field only accepts focus once it's enabled (verificationId arrived).
-    // requestFocus() only takes effect a frame later, so we can't call keyboard.show()
-    // right after it — we wait for the actual focus-changed callback below instead.
+    // Once the field becomes focusable (verificationId arrived), grab focus and
+    // explicitly force the IME open. We keep both calls because relying on either
+    // one alone has proven flaky on emulators/hardware-keyboard devices.
     LaunchedEffect(otpReady) {
         if (otpReady) {
             focus.requestFocus()
+            keyboard?.show()
+        } else {
+            focusManager.clearFocus()
         }
     }
     LaunchedEffect(seconds) {
@@ -171,37 +174,15 @@ fun OtpScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // OTP input — only show if verificationId is ready (SMS sent)
+        // OTP input — only show if verificationId is ready (SMS sent).
+        // The real editable field is drawn transparently ON TOP of the visible digit
+        // boxes (matchParentSize, same tap target), so a tap lands directly on the
+        // actual input instead of a separate hidden field that forwards focus —
+        // that indirection is what kept silently failing to raise the IME before.
         Box {
-            BasicTextField(
-                value = code,
-                onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
-                enabled = otpReady,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                modifier = Modifier
-                    .focusRequester(focus)
-                    .onFocusChanged { state ->
-                        // Only fires once the field is truly focused — safe point to force
-                        // the software keyboard open (needed on emulators / devices where a
-                        // hardware keyboard is attached and the IME doesn't auto-show).
-                        if (state.isFocused) keyboard?.show()
-                    }
-                    .focusable()
-                    .size(1.dp),
-                textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground)
-            ) {}
-
-            // Visible digit boxes — tapping anywhere here (re)focuses the hidden field
-            // and pops the keyboard back up, in case it was dismissed.
+            // Visible digit boxes (purely decorative — no click handling of their own)
             Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = otpReady) {
-                        // If the field is already focused, onFocusChanged won't fire again,
-                        // so force-show the keyboard here too as a fallback.
-                        focus.requestFocus()
-                        keyboard?.show()
-                    },
+                Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 repeat(6) { i ->
@@ -241,6 +222,21 @@ fun OtpScreen(
                     }
                 }
             }
+
+            // Real input, invisible, exactly overlapping the digit boxes above so
+            // taps go straight to it and reliably trigger the system IME.
+            BasicTextField(
+                value = code,
+                onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
+                enabled = otpReady,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                modifier = Modifier
+                    .matchParentSize()
+                    .focusRequester(focus)
+                    .onFocusChanged { state -> if (state.isFocused) keyboard?.show() },
+                textStyle = TextStyle(color = Color.Transparent),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent)
+            ) {}
         }
 
         Spacer(Modifier.height(20.dp))
