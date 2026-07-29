@@ -2,8 +2,6 @@ package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,9 +45,6 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalView
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -84,30 +79,18 @@ fun OtpScreen(
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
-    val view = LocalView.current
     val otpReady = !verificationId.isNullOrBlank()
 
-    // Cloud emulators report an attached hardware keyboard, which makes Android's
-    // InputMethodManager silently refuse to auto-raise the soft keyboard via the
-    // normal showSoftInput() path (used internally by keyboard?.show()). Forcing
-    // it through both WindowInsetsControllerCompat (the modern API) AND
-    // InputMethodManager.SHOW_FORCED covers real devices and hardware-keyboard
-    // emulators alike.
-    fun forceShowKeyboard() {
-        view.post {
-            ViewCompat.getWindowInsetsController(view)?.show(WindowInsetsCompat.Type.ime())
-            val imm = view.context.getSystemService(android.content.Context.INPUT_METHOD_SERVICE)
-                as? android.view.inputmethod.InputMethodManager
-            imm?.showSoftInput(view, android.view.inputmethod.InputMethodManager.SHOW_FORCED)
-        }
-    }
-
-    // Once the field becomes focusable (verificationId arrived), grab focus and
-    // explicitly force the IME open.
+    // Once the field becomes focusable (verificationId arrived), grab focus.
+    // requestFocus() alone is enough here because the field below is the real,
+    // directly-tappable input (no invisible overlay in front of it) — Android
+    // reliably raises the IME both for a genuine user tap AND for a
+    // programmatic focus request on a field that is actually visible/enabled,
+    // as long as nothing else is intercepting the touch first.
     LaunchedEffect(otpReady) {
         if (otpReady) {
             focus.requestFocus()
-            forceShowKeyboard()
+            keyboard?.show()
         } else {
             focusManager.clearFocus()
         }
@@ -194,13 +177,26 @@ fun OtpScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // OTP input — only show if verificationId is ready (SMS sent).
-        // The real editable field is drawn transparently ON TOP of the visible digit
-        // boxes (matchParentSize, same tap target), so a tap lands directly on the
-        // actual input instead of a separate hidden field that forwards focus —
-        // that indirection is what kept silently failing to raise the IME before.
-        Box {
-            // Visible digit boxes (purely decorative — no click handling of their own)
+        // OTP input — a single real BasicTextField IS the tap target (via its
+        // decorationBox rendering the 6 digit boxes). There is nothing drawn on
+        // top of it, so every tap is a genuine, direct touch on the focusable
+        // input itself — the one interaction Android is guaranteed to honor by
+        // raising the IME on every device, real or virtual. Previous versions
+        // used an invisible field plus a separate overlay that intercepted the
+        // touch and re-forwarded focus programmatically; that indirection is
+        // exactly what real devices (and OEM keyboards) can silently ignore.
+        BasicTextField(
+            value = code,
+            onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
+            enabled = otpReady,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focus)
+                .onFocusChanged { state -> if (state.isFocused) keyboard?.show() },
+            textStyle = TextStyle(color = Color.Transparent),
+            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent)
+        ) {
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -242,38 +238,6 @@ fun OtpScreen(
                     }
                 }
             }
-
-            // Real input, invisible, exactly overlapping the digit boxes above so
-            // taps go straight to it and reliably trigger the system IME.
-            BasicTextField(
-                value = code,
-                onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
-                enabled = otpReady,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                modifier = Modifier
-                    .matchParentSize()
-                    .focusRequester(focus)
-                    .onFocusChanged { state -> if (state.isFocused) forceShowKeyboard() },
-                textStyle = TextStyle(color = Color.Transparent),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent)
-            ) {}
-
-            // Extra safety net: a transparent clickable overlay above the field so a tap
-            // that lands on the Box but doesn't trigger a focus *change* (e.g. it's
-            // already focused but the IME got dismissed) still re-forces the keyboard.
-            Box(
-                Modifier
-                    .matchParentSize()
-                    .then(
-                        if (otpReady) Modifier.clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) {
-                            focus.requestFocus()
-                            forceShowKeyboard()
-                        } else Modifier
-                    )
-            )
         }
 
         Spacer(Modifier.height(20.dp))
