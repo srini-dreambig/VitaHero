@@ -63,6 +63,7 @@ import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 import android.content.Intent
 import android.net.Uri
+import com.rork.vitahero.BuildConfig
 
 @Composable
 fun ProfileScreen(
@@ -247,7 +248,7 @@ fun ProfileScreen(
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                "VitaHero v1.0 · For informational purposes only.\nAlways consult a doctor for medical advice.",
+                "VitaHero v${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}\nFor informational purposes only. Always consult a doctor for medical advice.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),
