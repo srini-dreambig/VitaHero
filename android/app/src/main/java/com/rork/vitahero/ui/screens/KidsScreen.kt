@@ -47,7 +47,6 @@ import com.rork.vitahero.ui.theme.HeroOrange
 fun KidsScreen(
     kids: List<Kid>,
     onOpenKid: (String) -> Unit,
-    onAddKid: () -> Unit = {}
 ) {
     LazyColumn(
         modifier = Modifier

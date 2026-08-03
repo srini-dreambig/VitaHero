@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.Group
 import androidx.compose.material.icons.outlined.LocalHospital
 import androidx.compose.material.icons.outlined.Pending
 import androidx.compose.material.icons.outlined.Schedule
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -146,6 +147,41 @@ fun DoctorDashboardScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         CircularProgressIndicator(color = HeroOrange)
+                    }
+                }
+            } else if (state.error != null) {
+                item {
+                    HeroCard {
+                        Column(
+                            Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                Icons.Outlined.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Could not load camps",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                state.error ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(
+                                "Tap to retry",
+                                color = HeroOrange,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.clickable { doctorViewModel.loadCamps() }.padding(8.dp)
+                            )
+                        }
                     }
                 }
             } else if (state.camps.isEmpty()) {

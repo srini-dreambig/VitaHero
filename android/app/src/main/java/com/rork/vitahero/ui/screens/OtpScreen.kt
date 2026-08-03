@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
@@ -173,14 +174,12 @@ fun OtpScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // OTP input — a single real BasicTextField IS the tap target (via its
-        // decorationBox rendering the 6 digit boxes). There is nothing drawn on
-        // top of it, so every tap is a genuine, direct touch on the focusable
-        // input itself — the one interaction Android is guaranteed to honor by
-        // raising the IME on every device, real or virtual. Previous versions
-        // used an invisible field plus a separate overlay that intercepted the
-        // touch and re-forwarded focus programmatically; that indirection is
-        // exactly what real devices (and OEM keyboards) can silently ignore.
+        // OTP input — the real BasicTextField is stacked in the SAME 58dp row as
+        // the visible digit boxes, not in a separate box above or below them. The
+        // digit boxes are drawn on top but have no interactive modifiers, so every
+        // tap passes through to the real focusable input behind them. This is the
+        // only layout that Android's TextInputService / OEM keyboards treat as a
+        // genuine, visible, tappable input on every real device.
         BasicTextField(
             value = code,
             onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
@@ -188,67 +187,57 @@ fun OtpScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             modifier = Modifier
                 .fillMaxWidth()
+                .height(58.dp)
                 .focusRequester(focus)
                 .onFocusChanged { state -> if (state.isFocused) keyboard?.show() },
             textStyle = TextStyle(color = Color.Transparent),
             cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent)
         ) { innerTextField ->
-            // innerTextField() is the REAL interactive text-input node that owns
-            // focus, the cursor, and the IME/keyboard session. It MUST be given a
-            // real, non-zero on-screen size here. A previous version wrapped it in
-            // Modifier.size(0.dp) — the node was composed and technically focusable,
-            // but Android's TextInputService reports its layout bounds (used by the
-            // platform to decide whether to actually raise the IME, especially on
-            // Samsung/OEM keyboards) as an empty 0x0 rect. Many real devices treat a
-            // zero-size input target as "not really visible" and silently refuse to
-            // show the keyboard — this reproduces exactly the reported symptom
-            // (focus/cursor state changes, but no keyboard ever appears). Giving it
-            // the same footprint as the visible digit row (kept invisible via
-            // transparent text/cursor, not via zero size) fixes this on real hardware.
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(58.dp)
-            ) {
-                innerTextField()
-            }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                repeat(6) { i ->
-                    val char = code.getOrNull(i)?.toString() ?: ""
-                    val active = i == code.length && otpReady
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .height(58.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(
-                                if (otpReady) MaterialTheme.colorScheme.surface
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                            .border(
-                                width = if (active) 2.dp else 1.dp,
-                                color = if (active) HeroOrange else MaterialTheme.colorScheme.outline,
-                                shape = RoundedCornerShape(14.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isVerifying && code.length == 6 && i == 5) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = HeroOrange
-                            )
-                        } else {
-                            Text(
-                                char,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (otpReady) MaterialTheme.colorScheme.onSurface
-                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            )
+            Box(Modifier.fillMaxSize()) {
+                // Real input node: fills the entire 58dp row, invisible text/cursor.
+                // Placed first so it owns the touch area and the IME bounds.
+                Box(Modifier.fillMaxSize()) {
+                    innerTextField()
+                }
+                // Visual digit boxes on top — no click/focus, so taps pass through.
+                Row(
+                    Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    repeat(6) { i ->
+                        val char = code.getOrNull(i)?.toString() ?: ""
+                        val active = i == code.length && otpReady
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(
+                                    if (otpReady) MaterialTheme.colorScheme.surface
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                )
+                                .border(
+                                    width = if (active) 2.dp else 1.dp,
+                                    color = if (active) HeroOrange else MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(14.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isVerifying && code.length == 6 && i == 5) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = HeroOrange
+                                )
+                            } else {
+                                Text(
+                                    char,
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (otpReady) MaterialTheme.colorScheme.onSurface
+                                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                )
+                            }
                         }
                     }
                 }

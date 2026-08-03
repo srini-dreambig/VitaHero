@@ -65,7 +65,6 @@ object Routes {
     const val DIET = "diet/{kidId}"
     const val BOOKING = "booking"
     const val NOTIFICATIONS = "notifications"
-    const val ADD_KID = "addKid"
     const val FAMILY_SHARING = "familySharing"
     const val FOOD_RECOGNITION = "foodRecognition/{kidId}/{kidName}"
     const val SCHOOLS = "schools"
@@ -256,7 +255,6 @@ fun AppNavigation(
                 onOpenDiet = { navController.navigate("diet/$it") },
                 onOpenBooking = { navController.navigate(Routes.BOOKING) },
                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
-                onAddKid = { navController.navigate(Routes.ADD_KID) },
                 onOpenFamilySharing = { navController.navigate(Routes.FAMILY_SHARING) },
                 onOpenSchools = { navController.navigate(Routes.SCHOOLS) },
                 onOpenHospitals = { navController.navigate(Routes.HOSPITALS) },
