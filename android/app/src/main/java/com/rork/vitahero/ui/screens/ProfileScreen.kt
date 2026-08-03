@@ -26,6 +26,8 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.ChildCare
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.HealthAndSafety
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.LocalHospital
 import androidx.compose.material.icons.outlined.Lock
@@ -254,6 +256,16 @@ fun ProfileScreen(
                             context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:support@kidhero.rork.app")))
                         }
                     )
+                    LinkRow(
+                        Icons.Outlined.Info, Color(0xFF3B82F6), "VitaHero",
+                        "v${versionInfo.first} · build ${versionInfo.second}",
+                        onClick = {}
+                    )
+                    LinkRow(
+                        Icons.Outlined.HealthAndSafety, Color(0xFF22C55E), "Medical disclaimer",
+                        "For informational purposes only. Always consult a doctor.",
+                        onClick = {}
+                    )
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -274,23 +286,6 @@ fun ProfileScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // Footer pinned at the bottom of the content area
-        Text(
-            "VitaHero v${versionInfo.first} · build ${versionInfo.second}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth(),
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Medium
-        )
-        Text(
-            "For informational purposes only. Always consult a doctor for medical advice.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp),
-            textAlign = TextAlign.Center,
-            fontWeight = FontWeight.Normal
-        )
     }
 }
 
