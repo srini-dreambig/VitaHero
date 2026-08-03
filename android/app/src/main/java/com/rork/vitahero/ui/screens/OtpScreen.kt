@@ -44,7 +44,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalFocusManager
+
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -79,22 +79,16 @@ fun OtpScreen(
     var seconds by remember { mutableIntStateOf(30) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    val focusManager = LocalFocusManager.current
     val otpReady = !verificationId.isNullOrBlank()
 
-    // Once the field becomes focusable (verificationId arrived), grab focus.
-    // requestFocus() alone is enough here because the field below is the real,
-    // directly-tappable input (no invisible overlay in front of it) — Android
-    // reliably raises the IME both for a genuine user tap AND for a
-    // programmatic focus request on a field that is actually visible/enabled,
-    // as long as nothing else is intercepting the touch first.
-    LaunchedEffect(otpReady) {
-        if (otpReady) {
-            focus.requestFocus()
-            keyboard?.show()
-        } else {
-            focusManager.clearFocus()
-        }
+    // Request focus + keyboard immediately on screen entry — do NOT wait for
+    // verificationId (Firebase's onCodeSent can take 50-60s due to reCAPTCHA /
+    // SafetyNet / backend pre-verification). The user already has the SMS code
+    // and should be able to type it right away. Only the Verify button is gated
+    // on otpReady, not the input field itself.
+    LaunchedEffect(Unit) {
+        focus.requestFocus()
+        keyboard?.show()
     }
     LaunchedEffect(seconds) {
         if (seconds > 0) {
@@ -190,7 +184,7 @@ fun OtpScreen(
         BasicTextField(
             value = code,
             onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
-            enabled = otpReady,
+            enabled = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
             modifier = Modifier
                 .fillMaxWidth()
