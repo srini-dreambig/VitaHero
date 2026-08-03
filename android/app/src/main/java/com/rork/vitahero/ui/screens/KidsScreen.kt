@@ -18,7 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
-import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.ChildCare
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,7 +47,7 @@ import com.rork.vitahero.ui.theme.HeroOrange
 fun KidsScreen(
     kids: List<Kid>,
     onOpenKid: (String) -> Unit,
-    onAddKid: () -> Unit
+    onAddKid: () -> Unit = {}
 ) {
     LazyColumn(
         modifier = Modifier
@@ -78,22 +78,15 @@ fun KidsScreen(
         if (kids.isEmpty()) {
             item {
                 EmptyState(
-                    icon = Icons.Outlined.Add,
+                    icon = Icons.Outlined.ChildCare,
                     title = t(S.noKidsYet),
-                    subtitle = t(S.noKidsSub),
-                    actionLabel = t(S.addChild),
-                    onAction = onAddKid
+                    subtitle = "Your school or admin will add children to your account. Once added, they'll appear here.",
                 )
             }
         } else {
             items(kids, key = { it.id }) { kid ->
                 KidCard(kid, Modifier.padding(horizontal = 20.dp, vertical = 7.dp)) { onOpenKid(kid.id) }
             }
-        }
-
-        item {
-            Spacer(Modifier.height(8.dp))
-            AddKidCard(Modifier.padding(horizontal = 20.dp), onAddKid)
         }
     }
 }
@@ -148,33 +141,7 @@ private fun Metric(label: String, value: String, modifier: Modifier = Modifier) 
     }
 }
 
-@Composable
-private fun AddKidCard(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    HeroCard(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
-        background = MaterialTheme.colorScheme.primaryContainer,
-        border = false
-    ) {
-        Row(
-            Modifier.padding(18.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-            }
-            Spacer(Modifier.width(14.dp))
-            Column {
-                Text(t(S.addAnotherChild), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text(t(S.trackAllKids), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
-            }
-        }
-    }
-}
+
 
 @Preview(showBackground = true)
 @Composable
@@ -184,7 +151,6 @@ private fun KidsScreenPreview() {
             KidsScreen(
                 kids = emptyList(),
                 onOpenKid = {},
-                onAddKid = {}
             )
         }
     }

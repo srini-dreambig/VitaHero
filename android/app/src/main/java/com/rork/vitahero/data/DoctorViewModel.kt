@@ -14,7 +14,11 @@ import kotlinx.coroutines.withContext
 /**
  * Manages doctor state: assigned camps, camp kid lists, checkup form data,
  * and submission of health checkup forms.
- * Uses FirestoreRepository for Firestore operations.
+ *
+ * IMPORTANT: Doctor data (doctor_assignments) is admin-only in Firestore rules,
+ * so all reads/writes must go through the backend Worker via ApiRepository —
+ * NOT through FirestoreRepository which hits Firestore directly and would get
+ * permission-denied for doctor_assignments.
  */
 class DoctorViewModel(
     application: Application,
@@ -22,6 +26,7 @@ class DoctorViewModel(
 ) : AndroidViewModel(application) {
 
     private val repo get() = container.repo
+    private val api get() = ApiRepositoryProvider.repository
 
     data class DoctorUiState(
         val camps: List<DoctorCampDto> = emptyList(),
@@ -40,7 +45,7 @@ class DoctorViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                val camps = withContext(Dispatchers.IO) { repo.fetchDoctorCamps() }
+                val camps = withContext(Dispatchers.IO) { api.fetchDoctorCamps() }
                 _uiState.update { it.copy(camps = camps, isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -57,7 +62,7 @@ class DoctorViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                val kids = withContext(Dispatchers.IO) { repo.fetchDoctorCampKids(campId) }
+                val kids = withContext(Dispatchers.IO) { api.fetchDoctorCampKids(campId) }
                 _uiState.update { it.copy(campKids = kids, isLoading = false) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -68,7 +73,7 @@ class DoctorViewModel(
     fun loadExistingCheckup(kidId: String, campId: String, onResult: (HealthCheckupDto?) -> Unit) {
         viewModelScope.launch {
             try {
-                val checkup = withContext(Dispatchers.IO) { repo.fetchDoctorCheckup(kidId, campId) }
+                val checkup = withContext(Dispatchers.IO) { api.fetchDoctorCheckup(kidId, campId) }
                 onResult(checkup)
             } catch (_: Exception) {
                 onResult(null)
@@ -90,7 +95,7 @@ class DoctorViewModel(
             _uiState.update { it.copy(isSubmitting = true, submitSuccess = false, error = null) }
             try {
                 val result = withContext(Dispatchers.IO) {
-                    repo.submitDoctorCheckup(
+                    api.submitDoctorCheckup(
                         kidId, campId, formData, summary,
                         referralNeeded, referralNotes, overallStatus,
                     )

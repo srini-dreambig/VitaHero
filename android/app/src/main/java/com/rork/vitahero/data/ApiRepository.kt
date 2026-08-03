@@ -559,6 +559,76 @@ class ApiRepository {
         }
     }
 
+    // ─── Parent: Health visits (hospital/clinic, non-camp) ────
+
+    suspend fun fetchHealthVisits(kidId: String): List<HealthVisitDto> = onIo {
+        if (skipNetwork) return@onIo emptyList()
+        val resp = http.get("$base/api/parent/health-visits") {
+            authHeaders().forEach { (k, v) -> header(k, v) }
+            url { parameters.append("kid_id", kidId) }
+        }
+        if (resp.status.isSuccess()) resp.body<List<HealthVisitDto>>() else emptyList()
+    }
+
+    suspend fun saveHealthVisit(
+        kidId: String,
+        visitType: String,
+        hospitalName: String,
+        doctorName: String,
+        visitDate: String,
+        reason: String,
+        diagnosis: String,
+        prescription: String,
+        notes: String,
+        nextFollowup: String,
+        heightCm: Double?,
+        weightKg: Double?,
+        overallStatus: String,
+    ): Result<Unit> = onIo {
+        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
+        try {
+            val resp = http.post("$base/api/parent/health-visits") {
+                authHeaders().forEach { (k, v) -> header(k, v) }
+                contentType(ContentType.Application.Json)
+                setBody(mapOf(
+                    "kid_id" to kidId,
+                    "visit_type" to visitType,
+                    "hospital_name" to hospitalName,
+                    "doctor_name" to doctorName,
+                    "visit_date" to visitDate,
+                    "reason" to reason,
+                    "diagnosis" to diagnosis,
+                    "prescription" to prescription,
+                    "notes" to notes,
+                    "next_followup" to nextFollowup,
+                    "height_cm" to heightCm,
+                    "weight_kg" to weightKg,
+                    "overall_status" to overallStatus,
+                ))
+            }
+            if (resp.status.isSuccess()) Result.success(Unit)
+            else {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                Result.failure(Exception(err?.error ?: "Save failed"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteHealthVisit(visitId: String): Result<Unit> = onIo {
+        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
+        try {
+            val resp = http.delete("$base/api/parent/health-visits/$visitId") {
+                authHeaders().forEach { (k, v) -> header(k, v) }
+            }
+            if (resp.status.isSuccess()) Result.success(Unit)
+            else Result.failure(Exception("Delete failed"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ─── Helpers ───────────────────────────────────────────────
 
     fun newId(): String = UUID.randomUUID().toString().take(12)

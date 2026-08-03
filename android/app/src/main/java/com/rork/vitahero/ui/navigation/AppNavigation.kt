@@ -33,7 +33,6 @@ import com.rork.vitahero.data.AppViewModel
 import com.rork.vitahero.data.PdfReportGenerator
 import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.data.rememberVitaHeroViewModels
-import com.rork.vitahero.ui.screens.AddKidScreen
 import com.rork.vitahero.ui.screens.AuthScreen
 import com.rork.vitahero.ui.screens.BookingScreen
 import com.rork.vitahero.ui.screens.CampDetailScreen
@@ -383,16 +382,6 @@ fun AppNavigation(
                 notifications = state.notifications,
                 onBack = {
                     profileViewModel.markAllNotificationsRead()
-                    navController.popBackStack()
-                }
-            )
-        }
-
-        composable(Routes.ADD_KID) {
-            AddKidScreen(
-                onBack = { navController.popBackStack() },
-                onSave = { name, age, gender, school, grade, height, weight ->
-                    kidsViewModel.addKid(name, age, gender, school, grade, height, weight)
                     navController.popBackStack()
                 }
             )

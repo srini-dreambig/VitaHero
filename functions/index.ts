@@ -1491,6 +1491,268 @@ a.btn.secondary{background:#0F172A}
         : null;
       const uid = decoded?.uid || "";
 
+      // ── Doctor: My assigned camps ──
+      // Looks up doctor_assignments by the phone number in the Firebase ID token.
+      // doctor_assignments is admin-only in Firestore rules, so this must go through
+      // the Worker (service account bypasses rules).
+      if (path === "/api/doctor/camps" && request.method === "GET") {
+        if (!uid) return json({ error: "Unauthorized" }, 401);
+        const doctorPhone = decoded?.phone || "";
+        if (!doctorPhone) return json({ error: "Phone number not found in token" }, 403);
+        // Normalize the phone to match how admin stores it
+        const normDoc = normalizePhone(doctorPhone);
+        if (!normDoc) return json({ error: "Invalid phone number" }, 400);
+        const assignments = await fs.query("doctor_assignments", [
+          { field: "phone", op: "EQUAL", value: normDoc.e164 },
+          { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
+        ], undefined, 50);
+        // Also try last10 in case admin stored it differently
+        if (assignments.length === 0) {
+          const allAssignments = await fs.query("doctor_assignments", [
+            { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
+          ], undefined, 200);
+          const phoneLast10 = normDoc.last10;
+          const matched = allAssignments.filter(a => {
+            const aPhone = String(a.phone || "");
+            const aDigits = aPhone.replace(/\D/g, "");
+            const aLast10 = aDigits.length >= 10 ? aDigits.slice(-10) : aDigits;
+            return aLast10 === phoneLast10;
+          });
+          if (matched.length > 0) {
+            assignments.push(...matched);
+          }
+        }
+        const result = [];
+        for (const a of assignments) {
+          const campId = a.camp_id as string;
+          if (!campId) continue;
+          const campDoc = await fs.getDoc("school_camps", campId);
+          if (!campDoc) continue;
+          // Count registrations and checkups
+          const regs = await fs.query("camp_registrations", [
+            { field: "school_camp_id", op: "EQUAL", value: campId },
+          ], undefined, 1000);
+          const checkups = await fs.query("health_checkups", [
+            { field: "school_camp_id", op: "EQUAL", value: campId },
+          ], undefined, 1000);
+          const checks = Array.isArray(campDoc.checks) ? campDoc.checks : [];
+          result.push({
+            assignment_id: a.id,
+            assignment_status: a.assignment_status || "ACTIVE",
+            camp_id: campId,
+            camp_title: campDoc.title || "",
+            camp_date: campDoc.date || "",
+            camp_time: campDoc.time || "",
+            camp_status: campDoc.status || "UPCOMING",
+            checks: checks,
+            school_id: campDoc.school_id || null,
+            school_name: campDoc.school_name || "",
+            school_city: campDoc.school_city || "",
+            registered_count: regs.length,
+            checked_count: checkups.length,
+          });
+        }
+        return json(result);
+      }
+
+      // ── Doctor: Kids registered for a camp ──
+      if (path === "/api/doctor/camp-kids" && request.method === "GET") {
+        if (!uid) return json({ error: "Unauthorized" }, 401);
+        const campId = (url.searchParams.get("camp_id") || "").trim();
+        if (!campId) return json({ error: "camp_id required" }, 400);
+        // Verify this doctor is assigned to this camp
+        const doctorPhone = decoded?.phone || "";
+        const normDoc = doctorPhone ? normalizePhone(doctorPhone) : null;
+        if (normDoc) {
+          const myAssignments = await fs.query("doctor_assignments", [
+            { field: "phone", op: "EQUAL", value: normDoc.e164 },
+            { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
+          ], undefined, 50);
+          const assignedCampIds = new Set(myAssignments.map(a => a.camp_id as string));
+          if (!assignedCampIds.has(campId)) {
+            // Also try last10 matching
+            const allAssignments = await fs.query("doctor_assignments", [
+              { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
+            ], undefined, 200);
+            const phoneLast10 = normDoc.last10;
+            const matched = allAssignments.filter(a => {
+              const aPhone = String(a.phone || "");
+              const aDigits = aPhone.replace(/\D/g, "");
+              const aLast10 = aDigits.length >= 10 ? aDigits.slice(-10) : aDigits;
+              return aLast10 === phoneLast10 && a.camp_id === campId;
+            });
+            if (matched.length === 0) {
+              return json({ error: "You are not assigned to this camp" }, 403);
+            }
+          }
+        }
+        const registrations = await fs.query("camp_registrations", [
+          { field: "school_camp_id", op: "EQUAL", value: campId },
+        ], undefined, 1000);
+        const result = [];
+        for (const reg of registrations) {
+          const kidId = reg.kid_id as string;
+          const parentUid = reg.user_id as string;
+          if (!kidId || !parentUid) continue;
+          // Read kid from parent's subcollection
+          const kidDoc = await fs.getDoc(`profiles/${parentUid}/kids`, kidId);
+          if (!kidDoc) continue;
+          // Check if a checkup already exists
+          const existingCheckups = await fs.query("health_checkups", [
+            { field: "kid_id", op: "EQUAL", value: kidId },
+            { field: "school_camp_id", op: "EQUAL", value: campId },
+          ], undefined, 1);
+          const checkup = existingCheckups[0];
+          // Get parent info
+          const parentDoc = await fs.getDoc("profiles", parentUid);
+          result.push({
+            kid_id: kidId,
+            name: kidDoc.name || "",
+            age: kidDoc.age || 0,
+            gender: kidDoc.gender || "",
+            grade: kidDoc.grade || "",
+            school: kidDoc.school || "",
+            height_cm: kidDoc.height_cm || 0,
+            weight_kg: kidDoc.weight_kg || 0,
+            dental: kidDoc.dental || "GOOD",
+            eyesight: kidDoc.eyesight || "GOOD",
+            nutrition: kidDoc.nutrition || "GOOD",
+            last_checkup: kidDoc.last_checkup || "Not yet",
+            student_ref: kidDoc.student_ref || null,
+            parent_name: parentDoc?.name || "",
+            parent_phone: parentDoc?.phone || "",
+            checkup_id: checkup?.id || null,
+            checkup_status: checkup?.overall_status || null,
+            checkup_at: checkup?.updated_at || null,
+            referral_needed: checkup?.referral_needed || null,
+          });
+        }
+        return json(result);
+      }
+
+      // ── Doctor: Get existing checkup ──
+      if (path === "/api/doctor/checkup" && request.method === "GET") {
+        if (!uid) return json({ error: "Unauthorized" }, 401);
+        const kidId = (url.searchParams.get("kid_id") || "").trim();
+        const campId = (url.searchParams.get("camp_id") || "").trim();
+        if (!kidId || !campId) return json({ error: "kid_id and camp_id required" }, 400);
+        const existing = await fs.query("health_checkups", [
+          { field: "kid_id", op: "EQUAL", value: kidId },
+          { field: "school_camp_id", op: "EQUAL", value: campId },
+        ], undefined, 1);
+        if (existing.length === 0) return json(null);
+        const cp = existing[0];
+        return json({
+          id: cp.id,
+          kid_id: cp.kid_id,
+          school_camp_id: cp.school_camp_id,
+          doctor_name: cp.doctor_name || "",
+          form_data: cp.form_data || {},
+          summary: cp.summary || "",
+          referral_needed: cp.referral_needed || false,
+          referral_notes: cp.referral_notes || "",
+          overall_status: cp.overall_status || "GOOD",
+          updated_at: cp.updated_at || null,
+        });
+      }
+
+      // ── Doctor: Submit checkup ──
+      if (path === "/api/doctor/checkup" && request.method === "POST") {
+        if (!uid) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const kidId = (body.kid_id as string)?.trim();
+        const campId = (body.school_camp_id as string)?.trim();
+        if (!kidId || !campId) return json({ error: "kid_id and school_camp_id required" }, 400);
+        const formData = body.form_data || {};
+        const summary = (body.summary as string) || "";
+        const referralNeeded = !!body.referral_needed;
+        const referralNotes = (body.referral_notes as string) || "";
+        const overallStatus = (body.overall_status as string) || "GOOD";
+        // Look up parent UID via camp_registrations
+        const regs = await fs.query("camp_registrations", [
+          { field: "school_camp_id", op: "EQUAL", value: campId },
+          { field: "kid_id", op: "EQUAL", value: kidId },
+        ], undefined, 1);
+        const parentUid = regs[0]?.user_id as string || "";
+        // Look up doctor name from profile
+        const doctorProfile = await fs.getDoc("profiles", uid);
+        const doctorName = doctorProfile?.name || "Doctor";
+        // Check if checkup already exists
+        const existing = await fs.query("health_checkups", [
+          { field: "kid_id", op: "EQUAL", value: kidId },
+          { field: "school_camp_id", op: "EQUAL", value: campId },
+        ], undefined, 1);
+        const checkupId = existing[0]?.id || `hc_${kidId}_${campId}`;
+        await fs.setDoc("health_checkups", checkupId, {
+          id: checkupId,
+          kid_id: kidId,
+          school_camp_id: campId,
+          user_id: parentUid,
+          doctor_uid: uid,
+          doctor_name: doctorName,
+          form_data: formData,
+          summary,
+          referral_needed: referralNeeded,
+          referral_notes: referralNotes,
+          overall_status: overallStatus,
+          updated_at: new Date().toISOString(),
+        });
+        return json({ success: true, checkup_id: checkupId });
+      }
+
+      // ── Parent: Log a health visit (hospital/clinic checkup, non-camp) ──
+      if (path === "/api/parent/health-visits" && request.method === "POST") {
+        if (!uid) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const kidId = (body.kid_id as string)?.trim();
+        if (!kidId) return json({ error: "kid_id required" }, 400);
+        const visitId = `hv_${kidId}_${Date.now().toString(36)}`;
+        const visitData = {
+          id: visitId,
+          kid_id: kidId,
+          user_id: uid,
+          visit_type: (body.visit_type as string) || "HOSPITAL",
+          hospital_name: (body.hospital_name as string) || "",
+          doctor_name: (body.doctor_name as string) || "",
+          visit_date: (body.visit_date as string) || new Date().toISOString(),
+          reason: (body.reason as string) || "",
+          diagnosis: (body.diagnosis as string) || "",
+          prescription: (body.prescription as string) || "",
+          notes: (body.notes as string) || "",
+          next_followup: (body.next_followup as string) || "",
+          height_cm: body.height_cm || null,
+          weight_kg: body.weight_kg || null,
+          overall_status: (body.overall_status as string) || "GOOD",
+          created_at: new Date().toISOString(),
+        };
+        await fs.setDoc("health_visits", visitId, visitData);
+        return json({ success: true, visit_id: visitId });
+      }
+
+      // ── Parent: List health visits for a kid ──
+      if (path === "/api/parent/health-visits" && request.method === "GET") {
+        if (!uid) return json({ error: "Unauthorized" }, 401);
+        const kidId = (url.searchParams.get("kid_id") || "").trim();
+        if (!kidId) return json({ error: "kid_id required" }, 400);
+        const visits = await fs.query("health_visits", [
+          { field: "user_id", op: "EQUAL", value: uid },
+          { field: "kid_id", op: "EQUAL", value: kidId },
+        ], { field: "visit_date", direction: "DESCENDING" }, 100);
+        return json(visits);
+      }
+
+      // ── Parent: Delete a health visit ──
+      if (path.startsWith("/api/parent/health-visits/") && request.method === "DELETE") {
+        if (!uid) return json({ error: "Unauthorized" }, 401);
+        const visitId = path.split("/").pop() || "";
+        const visit = await fs.getDoc("health_visits", visitId);
+        if (!visit || visit.user_id !== uid) {
+          return json({ error: "Visit not found or not authorized" }, 404);
+        }
+        await fs.deleteDoc("health_visits", visitId);
+        return json({ success: true });
+      }
+
       // ── Booking directory ──
       if (path === "/api/booking/directory" && request.method === "GET") {
         if (!uid) return json({ error: "Unauthorized" }, 401);

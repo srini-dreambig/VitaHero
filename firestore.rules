@@ -82,6 +82,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ── Health visits — parent-logged hospital/clinic visits (non-camp) ──
+    match /health_visits/{visitId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.user_id;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.user_id;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.user_id;
+    }
+
     // ── School enrollments — owner write, authenticated read (doctor camp flow) ──
     match /school_enrollments/{enrollmentId} {
       allow read: if request.auth != null;

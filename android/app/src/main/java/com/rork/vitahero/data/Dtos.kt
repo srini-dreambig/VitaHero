@@ -357,3 +357,23 @@ data class HealthCheckupResultDto(
     @SerialName("school_name") val schoolName: String = "",
     @SerialName("updated_at") val updatedAt: String? = null,
 )
+
+@Serializable
+data class HealthVisitDto(
+    val id: String = "",
+    @SerialName("kid_id") val kidId: String = "",
+    @SerialName("user_id") val userId: String = "",
+    @SerialName("visit_type") val visitType: String = "HOSPITAL",
+    @SerialName("hospital_name") val hospitalName: String = "",
+    @SerialName("doctor_name") val doctorName: String = "",
+    @SerialName("visit_date") val visitDate: String = "",
+    val reason: String = "",
+    val diagnosis: String = "",
+    val prescription: String = "",
+    val notes: String = "",
+    @SerialName("next_followup") val nextFollowup: String = "",
+    @SerialName("height_cm") val heightCm: Double? = null,
+    @SerialName("weight_kg") val weightKg: Double? = null,
+    @SerialName("overall_status") val overallStatus: String = "GOOD",
+    @SerialName("created_at") val createdAt: String = "",
+)

@@ -6,6 +6,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,12 +81,20 @@ import com.rork.vitahero.ui.theme.FlagWatch
 import com.rork.vitahero.ui.theme.FlagAlert
 import com.rork.vitahero.data.ApiRepositoryProvider
 import com.rork.vitahero.data.HealthCheckupResultDto
+import com.rork.vitahero.data.HealthVisitDto
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import androidx.compose.material.icons.outlined.MedicalServices
+import androidx.compose.material.icons.outlined.LocalHospital
+import androidx.compose.material.icons.outlined.EditNote
 
 private enum class DetailTab(val labelKey: String) {
     GROWTH(S.growthTabLabel), DENTAL(S.dentalTabLabel), EYE(S.eyeTabLabel), NUTRITION(S.nutritionTabLabel)
@@ -345,6 +355,13 @@ fun KidDetailScreen(
         // ── Health Checkup Reports ──
         item {
             HealthCheckupReportsSection(kid.id, onOpenCheckup)
+        }
+
+        // ── Parent Health Visits (hospital/clinic, non-camp) ──
+        if (kid.source != "ADMIN") {
+            item {
+                HealthVisitSection(kid.id, kid.name)
+            }
         }
 
         item {
@@ -760,4 +777,405 @@ private fun HealthCheckupReportsSection(kidId: String, onOpenCheckup: (String) -
             }
         }
     }
+}
+
+@Composable
+private fun HealthVisitSection(kidId: String, kidName: String) {
+    var visits by remember { mutableStateOf<List<HealthVisitDto>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var showForm by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var visitToDelete by remember { mutableStateOf<HealthVisitDto?>(null) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(kidId, showForm) {
+        if (!showForm) {
+            loading = true
+            try {
+                visits = withContext(Dispatchers.IO) {
+                    ApiRepositoryProvider.repository.fetchHealthVisits(kidId)
+                }
+            } catch (_: Exception) {
+                visits = emptyList()
+            }
+            loading = false
+        }
+    }
+
+    if (visitToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { visitToDelete = null },
+            title = { Text("Delete Visit") },
+            text = { Text("Remove this health visit record?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    val visit = visitToDelete
+                    visitToDelete = null
+                    if (visit != null) {
+                        scope.launch {
+                            try {
+                                ApiRepositoryProvider.repository.deleteHealthVisit(visit.id)
+                            } catch (_: Exception) {}
+                            visits = withContext(Dispatchers.IO) {
+                                ApiRepositoryProvider.repository.fetchHealthVisits(kidId)
+                            }
+                        }
+                    }
+                }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { visitToDelete = null }) { Text("Cancel") } }
+        )
+    }
+
+    Column(Modifier.padding(horizontal = 20.dp)) {
+        Row(
+            Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Health Visits & Milestones",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
+            )
+            if (!showForm) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(HeroOrange.copy(alpha = 0.12f))
+                        .clickable { showForm = true }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.EditNote, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Log Visit", style = MaterialTheme.typography.labelMedium, color = HeroOrange, fontWeight = FontWeight.SemiBold)
+                    }
+                }
+            }
+        }
+
+        if (showForm) {
+            HealthVisitForm(
+                kidName = kidName,
+                isSaving = saving,
+                onSave = { visitType, hospital, doctor, date, reason, diagnosis, prescription, notes, followup, height, weight, status ->
+                    saving = true
+                    scope.launch {
+                        try {
+                            ApiRepositoryProvider.repository.saveHealthVisit(
+                                kidId, visitType, hospital, doctor, date,
+                                reason, diagnosis, prescription, notes, followup,
+                                height, weight, status,
+                            )
+                            visits = withContext(Dispatchers.IO) {
+                                ApiRepositoryProvider.repository.fetchHealthVisits(kidId)
+                            }
+                            showForm = false
+                        } catch (_: Exception) { }
+                        saving = false
+                    }
+                },
+                onCancel = { showForm = false },
+            )
+        } else if (loading) {
+            Box(Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = HeroOrange, modifier = Modifier.size(28.dp))
+            }
+        } else if (visits.isEmpty()) {
+            HeroCard {
+                Column(Modifier.padding(20.dp)) {
+                    Text(
+                        "No health visits logged yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Log hospital visits, clinic checkups, and health milestones for $kidName here.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        } else {
+            visits.forEach { visit ->
+                val statusColor = when (visit.overallStatus) {
+                    "GOOD" -> FlagGood
+                    "WATCH" -> FlagWatch
+                    "ALERT" -> FlagAlert
+                    else -> MaterialTheme.colorScheme.outline
+                }
+                HeroCard(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 10.dp),
+                ) {
+                    Column(Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier.size(40.dp).clip(RoundedCornerShape(10.dp))
+                                    .background(statusColor.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Outlined.LocalHospital, contentDescription = null, tint = statusColor, modifier = Modifier.size(22.dp))
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    visit.hospitalName.ifBlank { visit.visitType },
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                )
+                                Text(
+                                    visit.visitDate,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Box(
+                                Modifier
+                                    .size(28.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                                    .clickable { visitToDelete = visit },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Outlined.Close, contentDescription = "Delete", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        if (visit.doctorName.isNotBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text("Dr. ${visit.doctorName}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        if (visit.reason.isNotBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text("Reason: ${visit.reason}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (visit.diagnosis.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text("Diagnosis: ${visit.diagnosis}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (visit.prescription.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text("Prescription: ${visit.prescription}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (visit.notes.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text("Notes: ${visit.notes}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (visit.nextFollowup.isNotBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text("Follow-up: ${visit.nextFollowup}", style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.Medium)
+                        }
+                        if (visit.heightCm != null && visit.heightCm > 0 || visit.weightKg != null && visit.weightKg > 0) {
+                            Spacer(Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                if (visit.heightCm != null && visit.heightCm > 0) {
+                                    Text("${visit.heightCm.toInt()} cm", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                if (visit.weightKg != null && visit.weightKg > 0) {
+                                    Text("${visit.weightKg.toInt()} kg", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HealthVisitForm(
+    kidName: String,
+    isSaving: Boolean,
+    onSave: (
+        visitType: String,
+        hospital: String,
+        doctor: String,
+        date: String,
+        reason: String,
+        diagnosis: String,
+        prescription: String,
+        notes: String,
+        followup: String,
+        height: Double?,
+        weight: Double?,
+        status: String,
+    ) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var visitType by remember { mutableStateOf("HOSPITAL") }
+    var hospital by remember { mutableStateOf("") }
+    var doctor by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"))) }
+    var reason by remember { mutableStateOf("") }
+    var diagnosis by remember { mutableStateOf("") }
+    var prescription by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    var followup by remember { mutableStateOf("") }
+    var height by remember { mutableStateOf("") }
+    var weight by remember { mutableStateOf("") }
+    var status by remember { mutableStateOf("GOOD") }
+
+    val canSave = hospital.isNotBlank() || reason.isNotBlank()
+
+    HeroCard(Modifier.padding(bottom = 12.dp), background = MaterialTheme.colorScheme.surface) {
+        Column(
+            Modifier.padding(18.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.LocalHospital, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(22.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Log Health Visit", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                Box(
+                    Modifier.size(32.dp).clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .clickable(onClick = onCancel),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.Close, contentDescription = "Cancel", modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            // Visit type selector
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("HOSPITAL" to "Hospital", "CLINIC" to "Clinic", "CHECKUP" to "Checkup").forEach { (value, label) ->
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(48.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (visitType == value) HeroOrange.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
+                            .border(2.dp, if (visitType == value) HeroOrange else MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+                            .clickable { visitType = value },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(label, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, color = if (visitType == value) HeroOrange else MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            VisitTextField("Hospital / Clinic name", hospital, { hospital = it }, "e.g. Apollo Hospital")
+            Spacer(Modifier.height(12.dp))
+            VisitTextField("Doctor name", doctor, { doctor = it }, "e.g. Dr. Sharma")
+            Spacer(Modifier.height(12.dp))
+            VisitTextField("Visit date", date, { date = it }, "e.g. 15 Aug 2025")
+            Spacer(Modifier.height(12.dp))
+            VisitTextField("Reason for visit", reason, { reason = it }, "e.g. Fever, routine checkup")
+            Spacer(Modifier.height(12.dp))
+            VisitTextField("Diagnosis", diagnosis, { diagnosis = it }, "What was diagnosed?")
+            Spacer(Modifier.height(12.dp))
+            VisitTextField("Prescription", prescription, { prescription = it }, "Medicines prescribed")
+            Spacer(Modifier.height(12.dp))
+            VisitTextField("Notes", notes, { notes = it }, "Any additional notes")
+            Spacer(Modifier.height(12.dp))
+            VisitTextField("Next follow-up date", followup, { followup = it }, "e.g. 20 Aug 2025")
+            Spacer(Modifier.height(12.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f)) {
+                    Text("Height (cm)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = height,
+                        onValueChange = { height = it.filter { c -> c.isDigit() || c == '.' } },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = HeroOrange,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                Column(Modifier.weight(1f)) {
+                    Text("Weight (kg)", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = weight,
+                        onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = HeroOrange,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            // Status selector
+            Text("Overall status", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf("GOOD" to "Good", "WATCH" to "Watch", "ALERT" to "Alert").forEach { (value, label) ->
+                    val color = when (value) {
+                        "GOOD" -> FlagGood
+                        "WATCH" -> FlagWatch
+                        else -> FlagAlert
+                    }
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (status == value) color.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
+                            .border(2.dp, if (status == value) color else MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+                            .clickable { status = value },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(label, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = if (status == value) color else MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+            }
+            Spacer(Modifier.height(24.dp))
+
+            PrimaryGradientButton(
+                text = if (isSaving) "Saving..." else "Save Visit",
+                enabled = canSave && !isSaving,
+                onClick = {
+                    onSave(
+                        visitType, hospital.trim(), doctor.trim(), date.trim(),
+                        reason.trim(), diagnosis.trim(), prescription.trim(),
+                        notes.trim(), followup.trim(),
+                        height.toDoubleOrNull(), weight.toDoubleOrNull(), status,
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun VisitTextField(label: String, value: String, onValueChange: (String) -> Unit, placeholder: String) {
+    Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Spacer(Modifier.height(4.dp))
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        placeholder = { Text(placeholder, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = HeroOrange,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
