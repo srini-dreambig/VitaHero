@@ -1,21 +1,26 @@
 package com.rork.vitahero.ui.screens
 
+import android.content.Intent
+import android.content.pm.PackageInfo
+import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.outlined.Logout
@@ -26,7 +31,6 @@ import androidx.compose.material.icons.outlined.LocalHospital
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.People
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SupportAgent
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -44,10 +48,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.rork.vitahero.BuildConfig
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.LocalAppLocale
@@ -61,9 +67,22 @@ import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
-import android.content.Intent
-import android.net.Uri
-import com.rork.vitahero.BuildConfig
+
+private fun getVersionInfo(context: android.content.Context): Pair<String, String> {
+    return try {
+        val packageInfo: PackageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        val name = packageInfo.versionName?.takeIf { it.isNotBlank() } ?: BuildConfig.VERSION_NAME
+        val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            packageInfo.longVersionCode.toString()
+        } else {
+            @Suppress("DEPRECATION")
+            packageInfo.versionCode.toString()
+        }
+        Pair(name, code)
+    } catch (e: Exception) {
+        Pair(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE.toString())
+    }
+}
 
 @Composable
 fun ProfileScreen(
@@ -83,14 +102,20 @@ fun ProfileScreen(
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
+    val versionInfo = remember { getVersionInfo(context) }
+    val scrollState = rememberScrollState()
 
-    LazyColumn(
+    Column(
         modifier = Modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 20.dp)
     ) {
-        item {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(scrollState)
+        ) {
             StatusBarSpacer()
             Spacer(Modifier.height(8.dp))
             // Parent header
@@ -226,7 +251,7 @@ fun ProfileScreen(
                     LinkRow(
                         Icons.Outlined.SupportAgent, Color(0xFFF59E0B), t(S.helpSupport), t(S.helpSupportSub),
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@kidhero.rork.app")))
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:support@kidhero.rork.app")))
                         }
                     )
                 }
@@ -247,14 +272,25 @@ fun ProfileScreen(
                 Text(t(S.logout), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(16.dp))
-            Text(
-                "VitaHero v${BuildConfig.VERSION_NAME} · build ${BuildConfig.VERSION_CODE}\nFor informational purposes only. Always consult a doctor for medical advice.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.fillMaxWidth(),
-                fontWeight = FontWeight.Normal
-            )
         }
+
+        // Footer pinned at the bottom of the content area
+        Text(
+            "VitaHero v${versionInfo.first} · build ${versionInfo.second}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            "For informational purposes only. Always consult a doctor for medical advice.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp),
+            textAlign = TextAlign.Center,
+            fontWeight = FontWeight.Normal
+        )
     }
 }
 

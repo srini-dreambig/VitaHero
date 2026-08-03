@@ -10,8 +10,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -87,16 +87,19 @@ fun MainScaffold(
     val state by appViewModel.uiState.collectAsState()
     val unread = state.notifications.count { it.unread }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-    ) {
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        bottomBar = {
+            BottomBar(selected = tab, onSelect = { tab = it })
+        }
+    ) { padding ->
         AnimatedContent(
             targetState = tab,
             transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
             label = "tab",
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
         ) { current ->
             when (current) {
                 Tab.HOME -> HomeScreen(
@@ -149,12 +152,6 @@ fun MainScaffold(
                 )
             }
         }
-
-        BottomBar(
-            selected = tab,
-            onSelect = { tab = it },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 }
 
