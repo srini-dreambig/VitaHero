@@ -1700,6 +1700,64 @@ a.btn.secondary{background:#0F172A}
         return json({ success: true, checkup_id: checkupId });
       }
 
+      // ── Parent: Resolve admin-provisioned data (imported kids, school) ──
+      // provisioned_parents is admin-only in Firestore rules, so the app cannot
+      // read it client-side. After Firebase login the app calls this endpoint;
+      // the Worker (service account) reads the provisioned record by phone,
+      // copies kids into the user's profile, updates name/school, and links it.
+      if (path === "/api/parent/provisioned-data" && request.method === "POST") {
+        if (!uid) return json({ error: "Unauthorized" }, 401);
+        const parentPhone = decoded?.phone || "";
+        const normProv = normalizePhone(parentPhone);
+        if (!normProv) return json({ resolved: false });
+        const prov = await fs.getDoc("provisioned_parents", normProv.last10);
+        if (!prov || prov.provisioned !== true) return json({ resolved: false });
+        const provName = (prov.name as string) || "Parent";
+        const provSchoolId = (prov.school_id as string) || "";
+        const provSchoolName = (prov.school_name as string) || "";
+
+        // Link the provisioned parent record to this Firebase UID
+        await fs.mergeDoc("provisioned_parents", normProv.last10, { uid, is_logged_in: true });
+
+        // Copy provisioned kids into the user's profile subcollection
+        const provKids = await fs.listDocs(`provisioned_parents/${normProv.last10}/kids`);
+        for (const kid of provKids || []) {
+          const kidId = String(kid.id || "");
+          if (!kidId) continue;
+          await fs.setDocByPath(`profiles/${uid}/kids/${kidId}`, {
+            ...kid,
+            profile_id: uid,
+            user_id: uid,
+          });
+        }
+
+        // Fill in the parent's real name if the profile still has the default
+        const profile = await fs.getDoc("profiles", uid);
+        const existingName = (profile?.name as string) || "";
+        if (!existingName || existingName === "Parent") {
+          await fs.mergeDoc("profiles", uid, { name: provName, school_id: provSchoolId });
+        } else if (provSchoolId) {
+          await fs.mergeDoc("profiles", uid, { school_id: provSchoolId });
+        }
+
+        // Auto-enroll in the provisioned school
+        if (provSchoolId) {
+          await fs.mergeDoc("school_enrollments", `${uid}_${provSchoolId}`, {
+            user_id: uid,
+            school_id: provSchoolId,
+            enrolled_at: Date.now().toString(),
+          });
+        }
+
+        return json({
+          resolved: true,
+          parent_name: provName,
+          school_id: provSchoolId,
+          school_name: provSchoolName,
+          kids_copied: (provKids || []).length,
+        });
+      }
+
       // ── Parent: Log a health visit (hospital/clinic checkup, non-camp) ──
       if (path === "/api/parent/health-visits" && request.method === "POST") {
         if (!uid) return json({ error: "Unauthorized" }, 401);

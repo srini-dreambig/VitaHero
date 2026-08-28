@@ -234,11 +234,19 @@ class AuthManager(private val app: Application) {
             db.collection("profiles").document(uid).set(profileData, SetOptions.merge()).await()
         }
 
-        // Resolve admin-provisioned data (imported kids, school enrollment) by phone number
+        // Resolve admin-provisioned data (imported kids, school enrollment) by
+        // phone number. provisioned_parents is admin-only in Firestore rules, so
+        // this MUST go through the backend Worker (service account) — a direct
+        // client read is denied by the rules and fails silently.
         if (phone.isNotBlank()) {
             try {
-                val repo = FirestoreRepository(app)
-                repo.resolveProvisionedData(phone)
+                // Attach the fresh ID token before calling the backend
+                val apiToken = user.getIdToken(false).await().token
+                if (apiToken != null) {
+                    ApiService.sessionToken = apiToken
+                    _sessionToken.value = apiToken
+                }
+                ApiRepositoryProvider.repository.resolveProvisionedData()
             } catch (_: Exception) { }
         }
 

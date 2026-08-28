@@ -12,6 +12,16 @@ data class InviteResolveDto(
     val last10: String? = null,
 )
 
+/** Response for POST /api/parent/provisioned-data — admin-imported parent/kids data. */
+@Serializable
+data class ProvisionedDataResponse(
+    val resolved: Boolean = false,
+    @SerialName("parent_name") val parentName: String = "",
+    @SerialName("school_id") val schoolId: String = "",
+    @SerialName("school_name") val schoolName: String = "",
+    @SerialName("kids_copied") val kidsCopied: Int = 0,
+)
+
 @Serializable
 data class ProfileDto(
     val id: String,

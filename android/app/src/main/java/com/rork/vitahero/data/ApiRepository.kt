@@ -149,6 +149,21 @@ class ApiRepository {
 
     // ─── Profiles ──────────────────────────────────────────────
 
+    /**
+     * Resolve admin-provisioned data (imported kids, school enrollment) for the
+     * logged-in parent. provisioned_parents is admin-only in Firestore rules, so
+     * this must go through the backend Worker (service account), never directly.
+     */
+    suspend fun resolveProvisionedData(): ProvisionedDataResponse? = onIo {
+        if (skipNetwork) return@onIo null
+        try {
+            val resp = http.post("$base/api/parent/provisioned-data") {
+                authHeaders().forEach { (k, v) -> header(k, v) }
+            }
+            if (resp.status.isSuccess()) resp.body<ProvisionedDataResponse>() else null
+        } catch (_: Exception) { null }
+    }
+
     suspend fun upsertProfile(dto: ProfileDto): Result<Unit> = onIo {
         postResult("/api/profiles", dto)
     }
