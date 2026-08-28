@@ -179,6 +179,12 @@ async function resolveProvisionedForParent(
   }
 }
 
+/** Persist a provisioned-resolution attempt for admin diagnostics (service-account write). */
+async function logProvisionedAttempt(fs: FirestoreClient, entry: Record<string, unknown>): Promise<void> {
+  const id = `pl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  await fs.setDoc("provisioned_logs", id, { ...entry, created_at: new Date().toISOString() });
+}
+
 function normalizeFieldKey(s: string): string {
   return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -1243,6 +1249,15 @@ a.btn.secondary{background:#0F172A}
         return json({ ok: true, stage: "live", dry, live, readbackCount: readback.length, cleanup });
       }
 
+      // ── Admin: Recent provisioned-data resolution attempts (diagnostics) ──
+      if (path === "/api/admin/provisioned-logs" && request.method === "GET") {
+        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
+        let logs: Array<Record<string, unknown>> = [];
+        try { logs = await fs.listDocs("provisioned_logs"); } catch (_) { /* empty */ }
+        logs.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+        return json(logs.slice(0, 100));
+      }
+
       // ── List schools ──
       if (path === "/api/admin/schools" && request.method === "GET") {
         if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
@@ -1879,7 +1894,36 @@ a.btn.secondary{background:#0F172A}
       // read it client-side — this must run server-side with the service account.
       if (path === "/api/parent/provisioned-data" && request.method === "POST") {
         if (!uid) return json({ error: "Unauthorized" }, 401);
-        const r = await resolveProvisionedForParent(fs, decoded?.phone, uid, { applyWrites: true });
+        // Phone source priority: Firebase ID token claim → profile doc. Some
+        // tokens (linked accounts, refreshed sessions) can lack the
+        // phone_number claim; the profile phone is written by the app at login
+        // from Firebase phone auth, and uid is already verified here.
+        let phoneSource = "token";
+        let phoneRaw: string | number | undefined | null = decoded?.phone;
+        if (!phoneRaw) {
+          try {
+            const profDoc = await fs.getDoc("profiles", uid);
+            phoneRaw = (profDoc?.phone as string) || "";
+          } catch (_) { phoneRaw = ""; }
+          phoneSource = phoneRaw ? "profile" : "none";
+        }
+        const r = await resolveProvisionedForParent(fs, phoneRaw, uid, { applyWrites: true });
+        // Diagnostic log so resolution failures are visible in the admin panel
+        try {
+          await logProvisionedAttempt(fs, {
+            uid,
+            phone_source: phoneSource,
+            has_phone_claim: !!decoded?.phone,
+            phone_last10: r.phoneLast10,
+            found: r.found,
+            provisioned: r.provisioned,
+            kids_found: r.kids.length,
+            kids_copied: r.kidsCopied,
+            profile_name_updated: r.profileNameUpdated,
+            enrolled: r.enrolled,
+            error: r.error,
+          });
+        } catch (_) { /* diagnostics must never break the resolution flow */ }
         if (!r.provisioned) return json({ resolved: false, reason: r.error || "not_provisioned" });
         return json({
           resolved: true,
