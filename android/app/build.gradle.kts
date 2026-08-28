@@ -25,6 +25,30 @@ android {
     namespace = "com.rork.vitahero"
     compileSdk = 36
 
+    signingConfigs {
+        create("release") {
+            val ksPath = localProperties.getProperty("vitahero.storeFile")
+                ?: System.getenv("VITAHERO_STORE_FILE")
+            val ksPassword = localProperties.getProperty("vitahero.storePassword")
+                ?: System.getenv("VITAHERO_STORE_PASSWORD")
+            if (ksPath != null && ksPassword != null) {
+                storeFile = rootProject.file(ksPath)
+                storePassword = ksPassword
+                keyAlias = localProperties.getProperty("vitahero.keyAlias")
+                    ?: System.getenv("VITAHERO_KEY_ALIAS") ?: "vitahero"
+                keyPassword = localProperties.getProperty("vitahero.keyPassword")
+                    ?: System.getenv("VITAHERO_KEY_PASSWORD") ?: ksPassword
+            } else {
+                // Fall back to the debug key when no release keystore is configured
+                val debugConfig = signingConfigs.getByName("debug")
+                storeFile = debugConfig.storeFile
+                storePassword = debugConfig.storePassword
+                keyAlias = debugConfig.keyAlias
+                keyPassword = debugConfig.keyPassword
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "kallam.healthcare"
         minSdk = 26
@@ -47,7 +71,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
