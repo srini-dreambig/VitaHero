@@ -62,7 +62,7 @@ class FirestoreRepository(private val app: Application) {
         try {
             val snap = db.collection("profiles").document(uid).get().await()
             if (!snap.exists()) return@withContext null
-            snap.toObject(ProfileDto::class.java)?.copy(id = uid)
+            snap.toDto<ProfileDto>()?.copy(id = uid)
         } catch (_: Exception) { null }
     }
 
@@ -154,7 +154,7 @@ class FirestoreRepository(private val app: Application) {
         try {
             db.collection("profiles").document(uid)
                 .collection("kids").get().await()
-                .documents.mapNotNull { it.toObject(KidDto::class.java)?.copy(id = it.id) }
+                .documents.mapNotNull { it.toDto<KidDto>()?.copy(id = it.id) }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -188,7 +188,7 @@ class FirestoreRepository(private val app: Application) {
         try {
             db.collection("profiles").document(uid)
                 .collection("meals").get().await()
-                .documents.mapNotNull { it.toObject(MealItemDto::class.java)?.copy(id = it.id) }
+                .documents.mapNotNull { it.toDto<MealItemDto>()?.copy(id = it.id) }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -215,7 +215,7 @@ class FirestoreRepository(private val app: Application) {
             db.collection("profiles").document(uid)
                 .collection("kids").document(kidId)
                 .collection("growth_points").get().await()
-                .documents.mapNotNull { it.toObject(GrowthPointDto::class.java)?.copy(id = it.id) }
+                .documents.mapNotNull { it.toDto<GrowthPointDto>()?.copy(id = it.id) }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -239,7 +239,7 @@ class FirestoreRepository(private val app: Application) {
             val snap = db.collection("profiles").document(uid)
                 .collection("streaks").document(kidId).get().await()
             if (!snap.exists()) return@withContext null
-            snap.toObject(StreakDto::class.java)
+            snap.toDto<StreakDto>()
         } catch (_: Exception) { null }
     }
 
@@ -261,7 +261,7 @@ class FirestoreRepository(private val app: Application) {
         try {
             db.collection("profiles").document(uid)
                 .collection("appointments").get().await()
-                .documents.mapNotNull { it.toObject(AppointmentDto::class.java)?.copy(id = it.id) }
+                .documents.mapNotNull { it.toDto<AppointmentDto>()?.copy(id = it.id) }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -292,7 +292,7 @@ class FirestoreRepository(private val app: Application) {
         try {
             db.collection("profiles").document(uid)
                 .collection("co_parents").get().await()
-                .documents.mapNotNull { it.toObject(CoParentDto::class.java)?.copy(id = it.id) }
+                .documents.mapNotNull { it.toDto<CoParentDto>()?.copy(id = it.id) }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -315,7 +315,7 @@ class FirestoreRepository(private val app: Application) {
             db.collection("profiles").document(uid)
                 .collection("notifications")
                 .orderBy("time", Query.Direction.DESCENDING).get().await()
-                .documents.mapNotNull { it.toObject(NotificationDto::class.java)?.copy(id = it.id) }
+                .documents.mapNotNull { it.toDto<NotificationDto>()?.copy(id = it.id) }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -343,7 +343,7 @@ class FirestoreRepository(private val app: Application) {
         try {
             db.collection("profiles").document(uid)
                 .collection("camps").get().await()
-                .documents.mapNotNull { it.toObject(CampDto::class.java)?.copy(id = it.id) }
+                .documents.mapNotNull { it.toDto<CampDto>()?.copy(id = it.id) }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -362,7 +362,7 @@ class FirestoreRepository(private val app: Application) {
     suspend fun fetchSchools(): List<SchoolDto> = withContext(Dispatchers.IO) {
         try {
             db.collection("schools").whereEqualTo("active", true).get().await()
-                .documents.mapNotNull { it.toObject(SchoolDto::class.java)?.copy(id = it.id) }
+                .documents.mapNotNull { it.toDto<SchoolDto>()?.copy(id = it.id) }
         } catch (_: Exception) { emptyList() }
     }
 
@@ -428,7 +428,7 @@ class FirestoreRepository(private val app: Application) {
                 val enrolledAt = enrollment.getString("enrolled_at") ?: ""
                 val schoolDoc = db.collection("schools").document(schoolId).get().await()
                 if (!schoolDoc.exists()) continue
-                val school = schoolDoc.toObject(SchoolDto::class.java) ?: continue
+                val school = schoolDoc.toDto<SchoolDto>() ?: continue
                 result.add(
                     MySchoolDto(
                         id = school.id,
@@ -454,7 +454,7 @@ class FirestoreRepository(private val app: Application) {
             if (schools.documents.isEmpty()) {
                 return@withContext Result.failure(Exception("Invalid partner code"))
             }
-            val school = schools.documents[0].toObject(SchoolDto::class.java)!!
+            val school = schools.documents[0].toDto<SchoolDto>()!!
             val enrollmentId = "${uid}_${school.id}"
             val enrollmentData = mutableMapOf(
                 "user_id" to uid,
@@ -518,7 +518,7 @@ class FirestoreRepository(private val app: Application) {
                     if (kidId != null) q = q.whereEqualTo("kid_id", kidId)
                     val snaps = q.get().await()
                     for (snap in snaps.documents) {
-                        val checkup = snap.toObject(HealthCheckupResultDto::class.java)?.copy(id = snap.id)
+                        val checkup = snap.toDto<HealthCheckupResultDto>()?.copy(id = snap.id)
                         if (checkup != null) {
                             allSnaps.add(enrichCheckup(checkup, uid))
                         }
@@ -532,7 +532,7 @@ class FirestoreRepository(private val app: Application) {
                 val snaps = query.get().await()
                 val results = mutableListOf<HealthCheckupResultDto>()
                 for (snap in snaps.documents) {
-                    val checkup = snap.toObject(HealthCheckupResultDto::class.java)?.copy(id = snap.id)
+                    val checkup = snap.toDto<HealthCheckupResultDto>()?.copy(id = snap.id)
                     if (checkup != null) {
                         val enriched = enrichCheckup(checkup, uid)
                         results.add(enriched)
@@ -548,7 +548,7 @@ class FirestoreRepository(private val app: Application) {
             val uid = currentUid
             val snap = db.collection("health_checkups").document(checkupId).get().await()
             if (!snap.exists()) return@withContext null
-            val checkup = snap.toObject(HealthCheckupResultDto::class.java)?.copy(id = snap.id)
+            val checkup = snap.toDto<HealthCheckupResultDto>()?.copy(id = snap.id)
             if (checkup != null) enrichCheckup(checkup, uid) else null
         } catch (_: Exception) { null }
     }
@@ -637,7 +637,7 @@ class FirestoreRepository(private val app: Application) {
                     .collection("kids").document(kidId).get().await()
                 if (!kidDoc.exists()) continue
 
-                val kid = kidDoc.toObject(KidDto::class.java) ?: continue
+                val kid = kidDoc.toDto<KidDto>() ?: continue
 
                 val checkupSnap = db.collection("health_checkups")
                     .whereEqualTo("kid_id", kidId)
@@ -681,7 +681,7 @@ class FirestoreRepository(private val app: Application) {
                 .whereEqualTo("kid_id", kidId)
                 .whereEqualTo("school_camp_id", campId).limit(1).get().await()
             val doc = snap.documents.firstOrNull() ?: return@withContext null
-            doc.toObject(HealthCheckupDto::class.java)?.copy(id = doc.id)
+            doc.toDto<HealthCheckupDto>()?.copy(id = doc.id)
         } catch (_: Exception) { null }
     }
 
@@ -1004,7 +1004,7 @@ class FirestoreRepository(private val app: Application) {
                 if (doc.id == uid) isOwner = true
                 val kids = doc.reference.collection("kids").get().await()
                 for (kidDoc in kids.documents) {
-                    val kid = kidDoc.toObject(KidDto::class.java) ?: continue
+                    val kid = kidDoc.toDto<KidDto>() ?: continue
                     allKids.add(
                         SharedKidInfo(
                             id = kid.id,

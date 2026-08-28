@@ -14,7 +14,7 @@ object BackendDataMapper {
         grade = dto.grade,
         heightCm = dto.heightCm.toFloat(),
         weightKg = dto.weightKg.toFloat(),
-        avatarColor = dto.avatarColor,
+        avatarColor = dto.avatarColor.takeIf { it != 0L } ?: stableAvatarColor(dto.name),
         overallScore = dto.overallScore,
         growth = growth,
         dental = parseFlag(dto.dental),
@@ -78,4 +78,12 @@ object BackendDataMapper {
 
     private fun parseFlag(value: String): HealthFlag =
         runCatching { HealthFlag.valueOf(value) }.getOrDefault(HealthFlag.GOOD)
+
+    private val avatarPalette = longArrayOf(
+        0xFFEF6C00, 0xFF2E7D32, 0xFF1565C0, 0xFF6A1B9A, 0xFFC62828, 0xFF00838F, 0xFF5D4037,
+    )
+
+    /** Imported kids have no avatar_color (0 renders black) — derive a stable color from the name. */
+    private fun stableAvatarColor(name: String): Long =
+        avatarPalette[Math.abs(name.hashCode()) % avatarPalette.size]
 }

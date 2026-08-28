@@ -46,11 +46,11 @@ data class ProfileDto(
 @Serializable
 data class KidDto(
     val id: String,
-    @SerialName("profile_id") val profileId: String,
+    @SerialName("profile_id") val profileId: String = "",
     @SerialName("user_id") val userId: String? = null,
-    val name: String,
-    val age: Int,
-    val gender: String,
+    val name: String = "",
+    val age: Int = 0,
+    val gender: String = "",
     val school: String = "",
     val grade: String = "",
     @SerialName("height_cm") val heightCm: Double = 0.0,
@@ -69,10 +69,10 @@ data class CampDto(
     val id: String,
     @SerialName("profile_id") val profileId: String = "",
     @SerialName("user_id") val userId: String? = null,
-    val title: String,
-    val school: String,
-    val date: String,
-    val time: String,
+    val title: String = "",
+    val school: String = "",
+    val date: String = "",
+    val time: String = "",
     val status: String = "UPCOMING",
     val checks: List<String> = emptyList(),
     @SerialName("result_summary") val resultSummary: String? = null,
@@ -88,24 +88,24 @@ data class CampDto(
 @Serializable
 data class AppointmentDto(
     val id: String,
-    @SerialName("profile_id") val profileId: String,
+    @SerialName("profile_id") val profileId: String = "",
     @SerialName("user_id") val userId: String? = null,
-    @SerialName("doctor_name") val doctorName: String,
+    @SerialName("doctor_name") val doctorName: String = "",
     @SerialName("doctor_id") val doctorId: String? = null,
-    val specialty: String,
-    @SerialName("kid_name") val kidName: String,
-    val date: String,
-    val time: String,
+    val specialty: String = "",
+    @SerialName("kid_name") val kidName: String = "",
+    val date: String = "",
+    val time: String = "",
 )
 
 @Serializable
 data class MealItemDto(
     val id: String,
-    @SerialName("profile_id") val profileId: String,
+    @SerialName("profile_id") val profileId: String = "",
     @SerialName("user_id") val userId: String? = null,
-    @SerialName("kid_id") val kidId: String,
-    @SerialName("time_slot") val timeSlot: String,
-    val name: String,
+    @SerialName("kid_id") val kidId: String = "",
+    @SerialName("time_slot") val timeSlot: String = "",
+    val name: String = "",
     val detail: String = "",
     val kcal: Int = 0,
     val eaten: Boolean = false,
@@ -133,10 +133,10 @@ data class StreakDto(
 @Serializable
 data class CoParentDto(
     val id: String,
-    @SerialName("profile_id") val profileId: String,
+    @SerialName("profile_id") val profileId: String = "",
     @SerialName("user_id") val userId: String? = null,
-    val name: String,
-    val relation: String,
+    val name: String = "",
+    val relation: String = "",
     @SerialName("joined_date") val joinedDate: String = "",
 )
 
@@ -204,8 +204,8 @@ data class BookingSlotsResponse(
 @Serializable
 data class NotificationDto(
     val id: String,
-    val title: String,
-    val body: String,
+    val title: String = "",
+    val body: String = "",
     val time: String = "",
     val type: String = "CAMP",
     val unread: Boolean = true,
@@ -214,7 +214,7 @@ data class NotificationDto(
 @Serializable
 data class SchoolDto(
     val id: String,
-    val name: String,
+    val name: String = "",
     val city: String = "",
     val district: String = "",
     val description: String = "",
@@ -224,7 +224,7 @@ data class SchoolDto(
 @Serializable
 data class MySchoolDto(
     val id: String,
-    val name: String,
+    val name: String = "",
     val city: String = "",
     val district: String = "",
     val description: String = "",

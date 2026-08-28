@@ -492,9 +492,15 @@ async function fetchJwks(): Promise<Record<string, JsonWebKey>> {
   }
   const resp = await fetch(FIREBASE_JWKS_URL);
   if (!resp.ok) throw new Error(`JWKS fetch failed: ${resp.status}`);
-  const data = await resp.json() as Record<string, JsonWebKey>;
-  jwksCache = { keys: data, fetchedAt: Date.now() };
-  return data;
+  // The endpoint returns a JWK Set: { keys: [ ... ] }. Build a kid→JWK map,
+  // since verifyFirebaseToken() looks keys up by the token header's kid.
+  const data = await resp.json() as { keys?: Array<JsonWebKey & { kid?: string }> };
+  const map: Record<string, JsonWebKey> = {};
+  for (const k of data.keys || []) {
+    if (k.kid) map[k.kid] = k;
+  }
+  jwksCache = { keys: map, fetchedAt: Date.now() };
+  return map;
 }
 
 function base64urlDecode(str: string): string {

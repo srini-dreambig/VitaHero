@@ -343,14 +343,23 @@ fun HeroTextField(
 @Composable
 fun t(key: String): String = tr(key, LocalAppLocale.current)
 
-/** Resolve a translated format string (supports one %s replacement). */
+/** Resolve a translated format string (supports one %d or %s replacement). */
 @Composable
-fun tf(key: String, arg: String): String = tr(key, LocalAppLocale.current).replace("%s", arg)
+fun tf(key: String, arg: String): String {
+    val s = tr(key, LocalAppLocale.current)
+    return s.replaceFirst("%d", arg).replaceFirst("%s", arg)
+}
 
-/** Resolve a translated format string (supports two %s replacements). */
+/** Resolve a translated format string (supports two ordered %d/%s replacements). */
 @Composable
-fun tf2(key: String, arg1: String, arg2: String): String =
-    tr(key, LocalAppLocale.current).replace("%s1", arg1).replace("%s2", arg2)
+fun tf2(key: String, arg1: String, arg2: String): String {
+    val s = tr(key, LocalAppLocale.current)
+    if (s.contains("%s1") || s.contains("%d1")) {
+        return s.replace("%s1", arg1).replace("%d1", arg1).replace("%s2", arg2).replace("%d2", arg2)
+    }
+    return s.replaceFirst("%d", arg1).replaceFirst("%s", arg1)
+        .replaceFirst("%d", arg2).replaceFirst("%s", arg2)
+}
 
 /** Full-screen loading placeholder with a subtle shimmer. */
 @Composable
