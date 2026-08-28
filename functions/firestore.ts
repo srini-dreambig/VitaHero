@@ -302,6 +302,17 @@ export class FirestoreClient {
     }
   }
 
+  /** Delete a document at an explicit path (e.g. "profiles/{uid}/kids/{kidId}"). */
+  async deleteDocByPath(path: string): Promise<void> {
+    const resp = await fetch(`${this.baseUrl}/${path}`, {
+      method: "DELETE",
+      headers: await this.headers(),
+    });
+    if (!resp.ok && resp.status !== 404) {
+      throw new Error(`Firestore deleteDocByPath ${path} failed: ${resp.status}`);
+    }
+  }
+
   /** Delete a document. */
   async deleteDoc(collection: string, id: string): Promise<void> {
     const resp = await fetch(this.docPath(collection, id), {

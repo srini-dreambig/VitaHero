@@ -80,6 +80,105 @@ function normalizePhone(raw: string | number | undefined | null): { e164: string
   return null;
 }
 
+/** Shape returned by resolveProvisionedForParent — used by the app endpoint and admin diagnostics. */
+interface ProvisionedResolution {
+  phoneLast10: string;
+  found: boolean;
+  provisioned: boolean;
+  parentName: string;
+  schoolId: string;
+  schoolName: string;
+  priorUid: string;
+  priorLoggedIn: boolean;
+  kids: Array<Record<string, unknown>>;
+  kidsCopied: number;
+  profileNameUpdated: boolean;
+  enrolled: boolean;
+  error: string;
+}
+
+/**
+ * Resolve admin-provisioned data (imported parent profile + kids) for a
+ * logged-in parent. provisioned_parents is admin-only in Firestore rules, so
+ * the app must go through the Worker (service account) for this.
+ * With applyWrites=false this is a read-only dry run that reports exactly what
+ * would be resolved and copied.
+ */
+async function resolveProvisionedForParent(
+  fs: FirestoreClient,
+  phoneRaw: string | number | undefined | null,
+  uid: string,
+  opts: { applyWrites: boolean },
+): Promise<ProvisionedResolution> {
+  const out: ProvisionedResolution = {
+    phoneLast10: "",
+    found: false,
+    provisioned: false,
+    parentName: "",
+    schoolId: "",
+    schoolName: "",
+    priorUid: "",
+    priorLoggedIn: false,
+    kids: [],
+    kidsCopied: 0,
+    profileNameUpdated: false,
+    enrolled: false,
+    error: "",
+  };
+  try {
+    const norm = normalizePhone(phoneRaw);
+    if (!norm) { out.error = "invalid_phone"; return out; }
+    out.phoneLast10 = norm.last10;
+    const prov = await fs.getDoc("provisioned_parents", norm.last10);
+    if (!prov) { out.error = "not_found"; return out; }
+    out.found = true;
+    out.provisioned = prov.provisioned === true;
+    if (!out.provisioned) { out.error = "not_provisioned"; return out; }
+    out.parentName = (prov.name as string) || "";
+    out.schoolId = (prov.school_id as string) || "";
+    out.schoolName = (prov.school_name as string) || "";
+    out.priorUid = (prov.uid as string) || "";
+    out.priorLoggedIn = prov.is_logged_in === true;
+    out.kids = await fs.listDocs(`provisioned_parents/${norm.last10}/kids`);
+    if (!opts.applyWrites) return out;
+
+    // Link the provisioned parent record to this Firebase UID
+    await fs.mergeDoc("provisioned_parents", norm.last10, { uid, is_logged_in: true });
+
+    // Copy provisioned kids into the user's profile subcollection
+    for (const kid of out.kids) {
+      const kidId = String(kid.id || "");
+      if (!kidId) continue;
+      await fs.setDocByPath(`profiles/${uid}/kids/${kidId}`, { ...kid, profile_id: uid, user_id: uid });
+      out.kidsCopied++;
+    }
+
+    // Fill in the parent's real name if the profile still has the default
+    const profile = await fs.getDoc("profiles", uid);
+    const existingName = (profile?.name as string) || "";
+    if ((!existingName || existingName === "Parent") && out.parentName) {
+      await fs.mergeDoc("profiles", uid, { name: out.parentName, school_id: out.schoolId });
+      out.profileNameUpdated = true;
+    } else if (out.schoolId) {
+      await fs.mergeDoc("profiles", uid, { school_id: out.schoolId });
+    }
+
+    // Auto-enroll in the provisioned school
+    if (out.schoolId) {
+      await fs.mergeDoc("school_enrollments", `${uid}_${out.schoolId}`, {
+        user_id: uid,
+        school_id: out.schoolId,
+        enrolled_at: Date.now().toString(),
+      });
+      out.enrolled = true;
+    }
+    return out;
+  } catch (err) {
+    out.error = (err as Error).message;
+    return out;
+  }
+}
+
 function normalizeFieldKey(s: string): string {
   return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -1064,9 +1163,84 @@ a.btn.secondary{background:#0F172A}
             is_logged_in: r.is_logged_in,
             provisioned: r.provisioned,
             kid_count: kids.length,
+            kid_names: kids.map(k => String(k.name || "")).filter(Boolean),
           });
         }
         return json(result);
+      }
+
+      // ── Admin: List students (imported kids) joined with parent info ──
+      if (path === "/api/admin/students" && request.method === "GET") {
+        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
+        const search = (url.searchParams.get("q") || "").trim().toLowerCase();
+        const provParents = await fs.query("provisioned_parents", [{ field: "provisioned", op: "EQUAL", value: true }], undefined, 500);
+        const rows: Array<Record<string, unknown>> = [];
+        for (const p of provParents) {
+          let kids: Array<Record<string, unknown>> = [];
+          try { kids = await fs.listDocs(`provisioned_parents/${p.id}/kids`); } catch (_) { continue; }
+          for (const kid of kids) {
+            rows.push({
+              kid_id: kid.id,
+              name: kid.name || "",
+              age: kid.age ?? null,
+              gender: kid.gender || "",
+              grade: kid.grade || "",
+              school: kid.school || p.school_name || "",
+              height_cm: kid.height_cm ?? null,
+              weight_kg: kid.weight_kg ?? null,
+              dental: kid.dental || "",
+              eyesight: kid.eyesight || "",
+              nutrition: kid.nutrition || "",
+              last_checkup: kid.last_checkup || "Not yet",
+              student_ref: kid.student_ref || "",
+              parent_name: p.name || "Parent",
+              parent_phone: p.phone || "",
+              parent_logged_in: p.is_logged_in === true,
+              invite_count: p.invite_count || 0,
+            });
+          }
+        }
+        rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+        const filtered = search ? rows.filter(r =>
+          String(r.name || "").toLowerCase().includes(search) ||
+          String(r.parent_name || "").toLowerCase().includes(search) ||
+          String(r.parent_phone || "").includes(search) ||
+          String(r.school || "").toLowerCase().includes(search)
+        ) : rows;
+        return json(filtered);
+      }
+
+      // ── Admin: Verify provisioned-data resolution for a phone (diagnostics) ──
+      // Runs the exact same code path as POST /api/parent/provisioned-data.
+      // applyWrites=false → read-only dry run. With applyWrites=true and a
+      // debug_-prefixed uid, all test writes are cleaned up afterwards.
+      if (path === "/api/admin/resolve-provisioned" && request.method === "POST") {
+        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
+        const body: Record<string, unknown> = await request.json();
+        const phone = (body.phone as string) || "";
+        const testUid = ((body.uid as string) || "debug_test_uid").trim();
+        const applyWrites = body.applyWrites === true;
+        const dry = await resolveProvisionedForParent(fs, phone, testUid, { applyWrites: false });
+        if (!dry.provisioned) return json({ ok: false, stage: "dryrun", dry });
+        if (!applyWrites) return json({ ok: true, stage: "dryrun", dry });
+        const live = await resolveProvisionedForParent(fs, phone, testUid, { applyWrites: true });
+        let readback: Array<Record<string, unknown>> = [];
+        try { readback = await fs.listDocs(`profiles/${testUid}/kids`); } catch (_) { /* ignore */ }
+        const cleanup: string[] = [];
+        if (testUid.startsWith("debug_")) {
+          for (const kid of readback) {
+            const kidId = String(kid.id || "");
+            if (!kidId) continue;
+            try { await fs.deleteDocByPath(`profiles/${testUid}/kids/${kidId}`); cleanup.push(`kids/${kidId}`); } catch (_) { /* ignore */ }
+          }
+          try { await fs.deleteDocByPath(`profiles/${testUid}`); cleanup.push("profile"); } catch (_) { /* ignore */ }
+          // Restore the provisioned record's link fields to their prior values
+          try {
+            await fs.mergeDoc("provisioned_parents", dry.phoneLast10, { uid: dry.priorUid, is_logged_in: dry.priorLoggedIn });
+            cleanup.push("provisioned_link_restored");
+          } catch (_) { /* ignore */ }
+        }
+        return json({ ok: true, stage: "live", dry, live, readbackCount: readback.length, cleanup });
       }
 
       // ── List schools ──
@@ -1702,59 +1876,17 @@ a.btn.secondary{background:#0F172A}
 
       // ── Parent: Resolve admin-provisioned data (imported kids, school) ──
       // provisioned_parents is admin-only in Firestore rules, so the app cannot
-      // read it client-side. After Firebase login the app calls this endpoint;
-      // the Worker (service account) reads the provisioned record by phone,
-      // copies kids into the user's profile, updates name/school, and links it.
+      // read it client-side — this must run server-side with the service account.
       if (path === "/api/parent/provisioned-data" && request.method === "POST") {
         if (!uid) return json({ error: "Unauthorized" }, 401);
-        const parentPhone = decoded?.phone || "";
-        const normProv = normalizePhone(parentPhone);
-        if (!normProv) return json({ resolved: false });
-        const prov = await fs.getDoc("provisioned_parents", normProv.last10);
-        if (!prov || prov.provisioned !== true) return json({ resolved: false });
-        const provName = (prov.name as string) || "Parent";
-        const provSchoolId = (prov.school_id as string) || "";
-        const provSchoolName = (prov.school_name as string) || "";
-
-        // Link the provisioned parent record to this Firebase UID
-        await fs.mergeDoc("provisioned_parents", normProv.last10, { uid, is_logged_in: true });
-
-        // Copy provisioned kids into the user's profile subcollection
-        const provKids = await fs.listDocs(`provisioned_parents/${normProv.last10}/kids`);
-        for (const kid of provKids || []) {
-          const kidId = String(kid.id || "");
-          if (!kidId) continue;
-          await fs.setDocByPath(`profiles/${uid}/kids/${kidId}`, {
-            ...kid,
-            profile_id: uid,
-            user_id: uid,
-          });
-        }
-
-        // Fill in the parent's real name if the profile still has the default
-        const profile = await fs.getDoc("profiles", uid);
-        const existingName = (profile?.name as string) || "";
-        if (!existingName || existingName === "Parent") {
-          await fs.mergeDoc("profiles", uid, { name: provName, school_id: provSchoolId });
-        } else if (provSchoolId) {
-          await fs.mergeDoc("profiles", uid, { school_id: provSchoolId });
-        }
-
-        // Auto-enroll in the provisioned school
-        if (provSchoolId) {
-          await fs.mergeDoc("school_enrollments", `${uid}_${provSchoolId}`, {
-            user_id: uid,
-            school_id: provSchoolId,
-            enrolled_at: Date.now().toString(),
-          });
-        }
-
+        const r = await resolveProvisionedForParent(fs, decoded?.phone, uid, { applyWrites: true });
+        if (!r.provisioned) return json({ resolved: false, reason: r.error || "not_provisioned" });
         return json({
           resolved: true,
-          parent_name: provName,
-          school_id: provSchoolId,
-          school_name: provSchoolName,
-          kids_copied: (provKids || []).length,
+          parent_name: r.parentName,
+          school_id: r.schoolId,
+          school_name: r.schoolName,
+          kids_copied: r.kidsCopied,
         });
       }
 

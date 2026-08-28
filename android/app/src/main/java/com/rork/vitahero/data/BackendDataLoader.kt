@@ -18,6 +18,15 @@ class BackendDataLoader(
         if (!auth.isLoggedIn.value) return
         if (auth.profileId.value.isBlank()) return
 
+        // Self-heal admin-provisioned data (imported kids, parent name): runs on
+        // every data load — not only fresh logins — so imports added after the
+        // parent signed in, or app updates with a restored session, still show up.
+        // provisioned_parents is admin-only in Firestore rules, so this must go
+        // through the backend Worker (service account), never a direct client read.
+        if (ApiService.isConfigured) {
+            try { ApiRepositoryProvider.repository.resolveProvisionedData() } catch (_: Exception) { }
+        }
+
         val profile = repo.fetchMyProfile()
         val kidDtos = repo.fetchKids()
         val kidsFromBackend = kidDtos.map { BackendDataMapper.mapKid(it) }

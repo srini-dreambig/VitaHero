@@ -53,7 +53,7 @@ android {
         applicationId = "kallam.healthcare"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1785750000
+        versionCode = 1787950000
         versionName = "1.0.1"
 
         buildConfigField("String", "RORK_FUNCTIONS_URL", "\"${buildConfigProp("RORK_FUNCTIONS_URL", "EXPO_PUBLIC_RORK_FUNCTIONS_URL")}\"")
