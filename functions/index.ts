@@ -233,6 +233,8 @@ const FIELD_ALIASES: Record<string, string[]> = {
   schoolName: ["schoolName", "school_name", "school", "schoolname"],
   campDate: ["campDate", "camp_date", "date"],
   campTitle: ["campTitle", "camp_title", "camp", "title"],
+  campId: ["campId", "camp_id"],
+  schoolId: ["schoolId", "school_id"],
   heightCm: ["heightCm", "height_cm", "height", "stature"],
   weightKg: ["weightKg", "weight_kg", "weight", "mass"],
   dental: ["dental", "dental_status", "dentalstatus", "teeth"],
@@ -522,6 +524,8 @@ async function processImport(
     const schoolName = n.schoolName;
     const campDate = n.campDate;
     const campTitle = n.campTitle;
+    const campIdParam = n.campId;
+    const schoolIdParam = n.schoolId;
     const heightCm = parseNum(n.heightCm) ?? 0;
     const weightKg = parseNum(n.weightKg) ?? 0;
     const dental = normHealthFlag(n.dental);
@@ -543,8 +547,22 @@ async function processImport(
     }
 
     try {
-      // Look up or auto-create the school by code/name (case-insensitive)
-      const { schoolId, schoolName: resolvedSchoolName } = await getOrCreateSchool(fs, schoolCode, schoolName);
+      // Resolve the school: an explicit school id (admin panel dropdown) wins;
+      // otherwise look up or auto-create by code/name (case-insensitive)
+      let schoolId = "";
+      let resolvedSchoolName = "";
+      if (schoolIdParam) {
+        const schoolDoc = await fs.getDoc("schools", schoolIdParam);
+        if (schoolDoc) {
+          schoolId = schoolIdParam;
+          resolvedSchoolName = (schoolDoc.name as string) || schoolName;
+        }
+      }
+      if (!schoolId) {
+        const lookedUp = await getOrCreateSchool(fs, schoolCode, schoolName);
+        schoolId = lookedUp.schoolId;
+        resolvedSchoolName = lookedUp.schoolName;
+      }
       const finalSchoolName = resolvedSchoolName || schoolName;
 
       const studentRef = buildStudentRef(norm.last10, studentName, studentId);
@@ -591,11 +609,21 @@ async function processImport(
       };
       await fs.setDocByPath(`provisioned_parents/${provisionedId}/kids/${kidId}`, kidData);
 
-      // Handle camp registration if camp date/title provided.
+      // Handle camp registration. An explicit camp id (admin panel dropdown)
+      // registers into that exact camp; otherwise title+date derive the camp.
       // Camps run every year: the same title with a new date is a NEW camp
       // instance, so the kid gets a fresh registration instead of being stuck
       // in last year's camp. Re-importing the same file stays idempotent.
-      if (campDate && campTitle && schoolId) {
+      const explicitCampDoc = campIdParam ? await fs.getDoc("school_camps", campIdParam) : null;
+      if (explicitCampDoc) {
+        const regId = `${campIdParam}_${kidId}`;
+        await fs.mergeDoc("camp_registrations", regId, {
+          school_camp_id: campIdParam,
+          kid_id: kidId,
+          user_id: provisionedId,
+          registered_at: Date.now().toString(),
+        });
+      } else if (campDate && campTitle && schoolId) {
         const slug = slugify(campTitle).slice(0, 12);
         const legacyCampId = `sc_${schoolId}_${slug}`;
         const legacyCamp = await fs.getDoc("school_camps", legacyCampId);
