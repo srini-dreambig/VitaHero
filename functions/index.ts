@@ -113,6 +113,7 @@ interface ProvisionedResolution {
   priorLoggedIn: boolean;
   kids: Array<Record<string, unknown>>;
   kidsCopied: number;
+  registrationsLinked: number;
   profileNameUpdated: boolean;
   enrolled: boolean;
   error: string;
@@ -142,6 +143,7 @@ async function resolveProvisionedForParent(
     priorLoggedIn: false,
     kids: [],
     kidsCopied: 0,
+    registrationsLinked: 0,
     profileNameUpdated: false,
     enrolled: false,
     error: "",
@@ -173,6 +175,20 @@ async function resolveProvisionedForParent(
       await fs.setDocByPath(`profiles/${uid}/kids/${kidId}`, { ...kid, profile_id: uid, user_id: uid });
       out.kidsCopied++;
     }
+
+    // Re-point camp registrations written by the admin import (they were keyed
+    // to the phone number) at this parent's real account, so the parent app
+    // shows them as registered and doctor camp lists resolve the kids.
+    try {
+      const phoneRegs = await fs.query("camp_registrations", [
+        { field: "user_id", op: "EQUAL", value: norm.last10 },
+      ], undefined, 200);
+      for (const reg of phoneRegs) {
+        if (!reg.id) continue;
+        await fs.mergeDoc("camp_registrations", String(reg.id), { user_id: uid });
+      }
+      out.registrationsLinked = phoneRegs.length;
+    } catch { /* best-effort — registrations stay phone-keyed */ }
 
     // Fill in the parent's real name if the profile still has the default
     const profile = await fs.getDoc("profiles", uid);
@@ -575,9 +591,17 @@ async function processImport(
       };
       await fs.setDocByPath(`provisioned_parents/${provisionedId}/kids/${kidId}`, kidData);
 
-      // Handle camp registration if camp date/title provided
+      // Handle camp registration if camp date/title provided.
+      // Camps run every year: the same title with a new date is a NEW camp
+      // instance, so the kid gets a fresh registration instead of being stuck
+      // in last year's camp. Re-importing the same file stays idempotent.
       if (campDate && campTitle && schoolId) {
-        const campId = `sc_${schoolId}_${slugify(campTitle).slice(0, 12)}`;
+        const slug = slugify(campTitle).slice(0, 12);
+        const legacyCampId = `sc_${schoolId}_${slug}`;
+        const legacyCamp = await fs.getDoc("school_camps", legacyCampId);
+        const campId = legacyCamp && legacyCamp.date === campDate
+          ? legacyCampId
+          : `sc_${schoolId}_${slug}_${campDate}`;
         const existingCamp = await fs.getDoc("school_camps", campId);
         if (!existingCamp) {
           await fs.setDoc("school_camps", campId, {
@@ -1195,6 +1219,26 @@ a.btn.secondary{background:#0F172A}
         if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
         const search = (url.searchParams.get("q") || "").trim().toLowerCase();
         const provParents = await fs.query("provisioned_parents", [{ field: "provisioned", op: "EQUAL", value: true }], undefined, 500);
+        // Build a kid -> camps map. A kid can be registered for multiple camps
+        // over the years — show all of them, oldest first.
+        const allRegs = await fs.query("camp_registrations", undefined, undefined, 2000);
+        const campsById = new Map<string, Record<string, unknown>>();
+        for (const reg of allRegs) {
+          const campId = String(reg.school_camp_id || "");
+          if (!campId || campsById.has(campId)) continue;
+          const campDoc = await fs.getDoc("school_camps", campId);
+          if (campDoc) campsById.set(campId, campDoc);
+        }
+        const campsByKid = new Map<string, Array<Record<string, unknown>>>();
+        for (const reg of allRegs) {
+          const regKidId = String(reg.kid_id || "");
+          const campDoc = campsById.get(String(reg.school_camp_id || ""));
+          if (!regKidId || !campDoc) continue;
+          const list = campsByKid.get(regKidId) || [];
+          list.push({ camp_id: reg.school_camp_id, title: campDoc.title || "", date: campDoc.date || "", status: campDoc.status || "" });
+          campsByKid.set(regKidId, list);
+        }
+        for (const list of campsByKid.values()) list.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
         const rows: Array<Record<string, unknown>> = [];
         for (const p of provParents) {
           let kids: Array<Record<string, unknown>> = [];
@@ -1218,6 +1262,7 @@ a.btn.secondary{background:#0F172A}
               parent_phone: p.phone || "",
               parent_logged_in: p.is_logged_in === true,
               invite_count: p.invite_count || 0,
+              camps: campsByKid.get(String(kid.id || "")) || [],
             });
           }
         }
@@ -1226,7 +1271,8 @@ a.btn.secondary{background:#0F172A}
           String(r.name || "").toLowerCase().includes(search) ||
           String(r.parent_name || "").toLowerCase().includes(search) ||
           String(r.parent_phone || "").includes(search) ||
-          String(r.school || "").toLowerCase().includes(search)
+          String(r.school || "").toLowerCase().includes(search) ||
+          (Array.isArray(r.camps) && r.camps.some((c: Record<string, unknown>) => String(c.title || "").toLowerCase().includes(search)))
         ) : rows;
         return json(filtered);
       }
@@ -1795,8 +1841,13 @@ a.btn.secondary{background:#0F172A}
           const kidId = reg.kid_id as string;
           const parentUid = reg.user_id as string;
           if (!kidId || !parentUid) continue;
-          // Read kid from parent's subcollection
-          const kidDoc = await fs.getDoc(`profiles/${parentUid}/kids`, kidId);
+          // Read kid from parent's subcollection. Registrations written by the
+          // admin import may still be phone-keyed — fall back to the
+          // provisioned data so imported kids always appear in the list.
+          let kidDoc = await fs.getDoc(`profiles/${parentUid}/kids`, kidId);
+          if (!kidDoc && /^\d{10}$/.test(parentUid)) {
+            kidDoc = await fs.getDoc(`provisioned_parents/${parentUid}/kids`, kidId);
+          }
           if (!kidDoc) continue;
           // Check if a checkup already exists
           const existingCheckups = await fs.query("health_checkups", [
@@ -1804,8 +1855,11 @@ a.btn.secondary{background:#0F172A}
             { field: "school_camp_id", op: "EQUAL", value: campId },
           ], undefined, 1);
           const checkup = existingCheckups[0];
-          // Get parent info
-          const parentDoc = await fs.getDoc("profiles", parentUid);
+          // Get parent info (fall back to provisioned parent for imported data)
+          let parentDoc = await fs.getDoc("profiles", parentUid);
+          if (!parentDoc) {
+            parentDoc = await fs.getDoc("provisioned_parents", parentUid);
+          }
           result.push({
             kid_id: kidId,
             name: kidDoc.name || "",
@@ -1869,12 +1923,25 @@ a.btn.secondary{background:#0F172A}
         const referralNeeded = !!body.referral_needed;
         const referralNotes = (body.referral_notes as string) || "";
         const overallStatus = (body.overall_status as string) || "GOOD";
-        // Look up parent UID via camp_registrations
+        // Look up parent UID via camp_registrations. Registrations written by
+        // the admin import may still be keyed by phone — resolve the real
+        // account so the parent sees the checkup in the app.
         const regs = await fs.query("camp_registrations", [
           { field: "school_camp_id", op: "EQUAL", value: campId },
           { field: "kid_id", op: "EQUAL", value: kidId },
         ], undefined, 1);
-        const parentUid = regs[0]?.user_id as string || "";
+        let parentUid = regs[0]?.user_id as string || "";
+        if (parentUid && !(await fs.getDoc("profiles", parentUid))) {
+          const provParent = await fs.getDoc("provisioned_parents", parentUid.replace(/\D/g, "").slice(-10));
+          const realUid = (provParent?.uid as string) || "";
+          if (realUid) {
+            parentUid = realUid;
+            if (regs[0]?.id) {
+              // Self-heal: re-point the registration at the real account
+              await fs.mergeDoc("camp_registrations", String(regs[0].id), { user_id: realUid });
+            }
+          }
+        }
         // Look up doctor name from profile
         const doctorProfile = await fs.getDoc("profiles", uid);
         const doctorName = doctorProfile?.name || "Doctor";
