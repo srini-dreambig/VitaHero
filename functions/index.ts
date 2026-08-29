@@ -1267,11 +1267,19 @@ a.btn.secondary{background:#0F172A}
           campsByKid.set(regKidId, list);
         }
         for (const list of campsByKid.values()) list.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+        // Kids only show health flags once a doctor has actually done a
+        // checkup — the import seeds placeholder values we must not display.
+        const checkupKidIds = new Set<string>();
+        try {
+          const allCheckups = await fs.query("health_checkups", undefined, undefined, 2000);
+          for (const c of allCheckups) checkupKidIds.add(String(c.kid_id || ""));
+        } catch { /* flags stay hidden if the query fails */ }
         const rows: Array<Record<string, unknown>> = [];
         for (const p of provParents) {
           let kids: Array<Record<string, unknown>> = [];
           try { kids = await fs.listDocs(`provisioned_parents/${p.id}/kids`); } catch (_) { continue; }
           for (const kid of kids) {
+            const hasCheckup = checkupKidIds.has(String(kid.id || ""));
             rows.push({
               kid_id: kid.id,
               name: kid.name || "",
@@ -1281,11 +1289,12 @@ a.btn.secondary{background:#0F172A}
               school: kid.school || p.school_name || "",
               height_cm: kid.height_cm ?? null,
               weight_kg: kid.weight_kg ?? null,
-              dental: kid.dental || "",
-              eyesight: kid.eyesight || "",
-              nutrition: kid.nutrition || "",
+              dental: hasCheckup ? (kid.dental || null) : null,
+              eyesight: hasCheckup ? (kid.eyesight || null) : null,
+              nutrition: hasCheckup ? (kid.nutrition || null) : null,
               last_checkup: kid.last_checkup || "Not yet",
               student_ref: kid.student_ref || "",
+              student_id: kid.student_id || String(kid.student_ref || "").replace(/^stu_/, "") || null,
               parent_name: p.name || "Parent",
               parent_phone: p.phone || "",
               parent_logged_in: p.is_logged_in === true,
