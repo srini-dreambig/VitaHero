@@ -398,45 +398,16 @@ td{padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12px}tr:hover 
         </div>
         <p class="helper-text" id="campFormHint">Create a new health camp linked to a school. Fields marked with * are required.</p>
         <div id="campFormArea">
-          <div class="form-group" style="margin-bottom:12px">
-            <label>School *</label>
-            <select id="campSchoolSelect"><option value="">Loading schools...</option></select>
-          </div>
-          <div class="form-group" style="margin-bottom:12px">
-            <label>Camp Title *</label>
-            <input type="text" id="campTitle" placeholder="e.g. Annual Health & Growth Camp">
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-            <div class="form-group" style="margin:0">
-              <label>Date *</label>
-              <input type="date" id="campDate">
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>Time</label>
-              <input type="text" id="campTime" placeholder="9:00 AM - 1:00 PM" value="9:00 AM - 1:00 PM">
-            </div>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
-            <div class="form-group" style="margin:0">
-              <label>Status</label>
-              <select id="campStatus"><option value="UPCOMING">Upcoming</option><option value="ACTIVE">Active</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select>
-            </div>
-            <div class="form-group" style="margin:0">
-              <label>Capacity</label>
-              <input type="number" id="campCapacity" value="200" min="1">
-            </div>
-          </div>
-          <div class="form-group" style="margin-bottom:12px">
-            <label>Description</label>
-            <input type="text" id="campDescription" placeholder="Brief description of the camp">
-          </div>
-          <div class="form-group" style="margin-bottom:12px">
-            <label>Checks (comma-separated)</label>
-            <input type="text" id="campChecks" placeholder="Height & Weight, Dental, Eye Test, Hemoglobin">
-          </div>
-          <div class="form-group" style="margin-bottom:14px">
-            <label>Grades (comma-separated)</label>
-            <input type="text" id="campGrades" placeholder="Class 1, Class 2, Class 3">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:12px">
+            <div class="form-group" style="margin:0"><label>School *</label><select id="campSchoolSelect"><option value="">Loading schools...</option></select></div>
+            <div class="form-group" style="margin:0"><label>Camp Title *</label><input type="text" id="campTitle" placeholder="e.g. Annual Health & Growth Camp"></div>
+            <div class="form-group" style="margin:0"><label>Date *</label><input type="date" id="campDate"></div>
+            <div class="form-group" style="margin:0"><label>Time</label><input type="text" id="campTime" placeholder="9:00 AM - 1:00 PM" value="9:00 AM - 1:00 PM"></div>
+            <div class="form-group" style="margin:0"><label>Status</label><select id="campStatus"><option value="UPCOMING">Upcoming</option><option value="ACTIVE">Active</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select></div>
+            <div class="form-group" style="margin:0"><label>Capacity</label><input type="number" id="campCapacity" value="200" min="1"></div>
+            <div class="form-group" style="margin:0"><label>Description</label><input type="text" id="campDescription" placeholder="Brief description of the camp"></div>
+            <div class="form-group" style="margin:0"><label>Checks (comma-separated)</label><input type="text" id="campChecks" placeholder="Height & Weight, Dental, Eye Test, Hemoglobin"></div>
+            <div class="form-group" style="margin:0"><label>Grades (comma-separated)</label><input type="text" id="campGrades" placeholder="Class 1, Class 2, Class 3"></div>
           </div>
           <div style="display:flex;gap:10px;align-items:center">
             <button class="btn-primary" id="campSaveBtn" onclick="saveCamp()">Create Camp</button>
@@ -615,7 +586,7 @@ td{padding:9px 12px;border-bottom:1px solid var(--hair);font-size:12px}tr:hover 
         <div id="genDocResult" style="margin-top:10px"></div>
       </div>
       <div class="card">
-        <div class="card-header"><div class="card-title">Active Doctor Credentials</div><button class="btn-sm" onclick="toggleForm('docFormCard',this,'Generate Credentials')">Generate Credentials</button><button class="btn-sm" onclick="loadDoctors()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg> Refresh</button></div>
+        <div class="card-header"><div class="card-title">Active Doctor Credentials</div><button class="btn-sm" onclick="toggleForm('docFormCard',this,'Add Doctor')">Add Doctor</button><button class="btn-sm" onclick="loadDoctors()"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg> Refresh</button></div>
         <div class="table-wrap"><div id="doctorsTable"><div class="empty-state"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .2.3"/><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"/><circle cx="20" cy="10" r="2"/></svg><p>Click Refresh to load doctor credentials</p></div></div></div>
       </div>
     </div>
