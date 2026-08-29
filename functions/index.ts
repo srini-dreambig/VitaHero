@@ -80,6 +80,27 @@ function normalizePhone(raw: string | number | undefined | null): { e164: string
   return null;
 }
 
+/**
+ * A doctor (identified by phone) must have exactly one current camp assignment.
+ * When a credential is (re)created, revoke every other assignment for this phone
+ * so re-assigning to a different camp cleanly switches the doctor over.
+ */
+async function revokeOtherAssignments(fs: FirestoreClient, phoneLast10: string, keepAssignmentId: string): Promise<void> {
+  try {
+    const all = await fs.query("doctor_assignments", undefined, undefined, 200);
+    for (const a of all) {
+      if (!a.id || a.id === keepAssignmentId) continue;
+      const digits = String(a.phone || "").replace(/\D/g, "");
+      const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+      if (last10 === phoneLast10 && a.assignment_status === "ACTIVE") {
+        await fs.mergeDoc("doctor_assignments", String(a.id), { assignment_status: "REVOKED" });
+      }
+    }
+  } catch {
+    // Supersede is best-effort; credential creation itself must not fail because of it.
+  }
+}
+
 /** Shape returned by resolveProvisionedForParent — used by the app endpoint and admin diagnostics. */
 interface ProvisionedResolution {
   phoneLast10: string;
@@ -1425,6 +1446,9 @@ a.btn.secondary{background:#0F172A}
           ? body.allowed_screens.filter((s: string) => typeof s === "string" && s.trim())
           : ["DASHBOARD", "CHECKUP"];
         const assignId = `dca_${norm.last10}_${schoolCampId}`;
+        // A doctor (phone) has exactly one current camp: re-creating for any
+        // camp supersedes and revokes all previous assignments for this number.
+        await revokeOtherAssignments(fs, norm.last10, assignId);
         await fs.setDoc("doctor_assignments", assignId, {
           id: assignId,
           phone: norm.e164,
@@ -1504,6 +1528,9 @@ a.btn.secondary{background:#0F172A}
               ? doc.allowed_screens.filter((s: string) => typeof s === "string" && s.trim())
               : ["DASHBOARD", "CHECKUP"];
             const assignId = `dca_${norm.last10}_${schoolCampId}`;
+            // A doctor (phone) has exactly one current camp: re-creating for any
+            // camp supersedes and revokes all previous assignments for this number.
+            await revokeOtherAssignments(fs, norm.last10, assignId);
             await fs.setDoc("doctor_assignments", assignId, {
               id: assignId,
               phone: norm.e164,
