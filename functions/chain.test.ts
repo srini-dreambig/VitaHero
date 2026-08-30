@@ -44,6 +44,9 @@ import { adminAnalytics } from "./analytics";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import { ensureMediaSchema } from "./media";
 import { markReferralBooked } from "./referrals";
+import { listDoctors, upsertDoctor } from "./directory";
+import { addStudent } from "./roster";
+import { assignDoctorToCamp, canClinicianSignIn, doctorCamps, setCampStaffActive } from "./camps";
 import { ensureReferralSchema, guardianReferrals, markReferralAttended, declineReferral,
   recordReferralOutcome, referralDashboard, nudgeReferrals, kidReferrals } from "./referrals";
 import { ensureLifecycleSchema, exportGuardianData, requestCorrection, listCorrections,
@@ -190,7 +193,7 @@ beforeAll(async () => {
   await sql`CREATE TABLE IF NOT EXISTS vita_hero.doctors (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, specialty TEXT NOT NULL,
     hospital TEXT DEFAULT '', hospital_id TEXT, city TEXT DEFAULT 'Hyderabad',
-    rating DOUBLE PRECISION DEFAULT 4.5, active BOOLEAN DEFAULT true)`;
+    phone TEXT DEFAULT '', rating DOUBLE PRECISION DEFAULT 4.5, active BOOLEAN DEFAULT true)`;
 });
 afterAll(async () => { if (client) await client.end(); });
 
@@ -1205,6 +1208,207 @@ suite("end to end", () => {
     const attributed = r.hospitals.reduce((a, h) => a + h.sent, 0);
     const total = await client.query("SELECT COUNT(*)::int n FROM vita_hero.referrals");
     expect(attributed + r.notBooked.total).toBeLessThanOrEqual(total.rows[0].n);
+  });
+
+  // ── adding one child by hand ──
+
+  test("a late admission can be added without re-uploading the roster", async () => {
+    const before = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1", [schoolId]);
+    const r = await addStudent(sql, admin, schoolId, {
+      name: "Late Arrival", studentRef: "2026/9001", dob: "04/07/2016", gender: "Female",
+      grade: "Class 4", section: "A", guardianName: "Priya Arrival",
+      guardianPhone: "9877000001", academicYear: "2026-27",
+    });
+    expect(r.errors).toBe(0);
+    expect(r.create).toBe(1);
+    const after = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1", [schoolId]);
+    expect(after.rows[0].n).toBe(before.rows[0].n + 1);
+  });
+
+  test("a child added by hand gets a guardian who can be sent a consent request", async () => {
+    // The admission number is slugified into the stable reference, so match on
+    // the child rather than guessing at the stored form.
+    const rows = await client.query(
+      `SELECT k.student_ref, p.phone, p.provisioned FROM vita_hero.kids k
+       JOIN vita_hero.profiles p ON p.id = k.profile_id
+       WHERE k.school_id = $1 AND k.name LIKE 'Late Arrival%'`, [schoolId]);
+    expect(rows.rows.length).toBe(1);
+    expect(rows.rows[0].student_ref).toContain("9001");
+    expect(rows.rows[0].phone).toContain("9877000001");
+    // Provisioned is what lets the guardian receive the consent request.
+    expect(rows.rows[0].provisioned).toBe(true);
+  });
+
+  test("adding by hand is the same path as the CSV, so it validates the same", async () => {
+    // A missing name is an error on the spreadsheet; it has to be one here too,
+    // or the two ways in disagree about what a valid child is.
+    // ...and the message has to name what is wrong with this child, not report
+    // how many rows of a spreadsheet failed.
+    await expect(addStudent(sql, admin, schoolId, {
+      name: "", studentRef: "2026/9002", grade: "Class 4", guardianPhone: "9877000002",
+      academicYear: "2026-27",
+    })).rejects.toThrow(/name/i);
+    const rows = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE student_ref LIKE '%9002%'");
+    expect(rows.rows[0].n).toBe(0);
+  });
+
+  test("adding the same admission number twice updates rather than duplicates", async () => {
+    const r = await addStudent(sql, admin, schoolId, {
+      name: "Late Arrival Renamed", studentRef: "2026/9001", dob: "04/07/2016",
+      gender: "Female", grade: "Class 4", section: "B", guardianName: "Priya Arrival",
+      guardianPhone: "9877000001", academicYear: "2026-27",
+    });
+    // Matched on the admission number, so it is an update, not a second child.
+    expect(r.create).toBe(0);
+    expect(r.update + r.unchanged).toBe(1);
+    const rows = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND name LIKE 'Late Arrival%'",
+      [schoolId]);
+    expect(rows.rows[0].n).toBe(1);
+  });
+
+  // ── a doctor at a camp: assign, screen, revoke ──
+  //
+  // The join the product was missing. The directory held doctors with no
+  // login; camp_staff held logins with no link to the directory. A doctor was
+  // someone you could describe but never let through the door.
+
+  test("assigning a directory doctor to a camp gives them a login", async () => {
+    await client.query(
+      `INSERT INTO vita_hero.doctors (id, name, specialty, phone, hospital_id)
+       VALUES ('doc_camp', 'Dr Kavita Rao', 'Ophthalmology', '+919812345678', 'hosp_t1')
+       ON CONFLICT (id) DO UPDATE SET phone = EXCLUDED.phone`);
+    const r = await assignDoctorToCamp(sql, admin, campId, "doc_camp");
+    expect(r.assigned.profileId).toBe("ph_9812345678");
+    expect(r.assigned.role).toBe("PHYSICIAN");
+    const prof = await client.query(
+      "SELECT role, provisioned, school_id FROM vita_hero.profiles WHERE id='ph_9812345678'");
+    expect(prof.rows[0].role).toBe("PHYSICIAN");
+    // provisioned is what lets the OTP be sent at all.
+    expect(prof.rows[0].provisioned).toBe(true);
+    expect(prof.rows[0].school_id).toBe(schoolId);
+  });
+
+  test("a doctor with no number cannot be assigned, and is told why", async () => {
+    await client.query(
+      `INSERT INTO vita_hero.doctors (id, name, specialty, phone)
+       VALUES ('doc_nophone', 'Dr No Number', 'Dental', '')
+       ON CONFLICT (id) DO NOTHING`);
+    await expect(assignDoctorToCamp(sql, admin, campId, "doc_nophone"))
+      .rejects.toThrow(/no mobile number/);
+  });
+
+  test("an assigned doctor can open the camp and screen", async () => {
+    const doc: Actor = {
+      profileId: "ph_9812345678", name: "Dr Kavita Rao", role: "PHYSICIAN", schoolId,
+    };
+    const mine = await listMyCamps(sql, doc);
+    expect(mine.camps.some((c) => c.id === campId)).toBe(true);
+    // campPack is what the app downloads for the camp: the children, their
+    // consent, and the checks — usable with no network in a school hall.
+    const pack = await campPack(sql, doc, campId);
+    expect(pack.participants.length).toBeGreaterThan(0);
+  });
+
+  test("a clinician may sign in only while some camp is still theirs", async () => {
+    expect(await canClinicianSignIn(sql, "ph_9812345678", "PHYSICIAN")).toBe(true);
+    await setCampStaffActive(sql, admin, campId, "ph_9812345678", false);
+    expect(await canClinicianSignIn(sql, "ph_9812345678", "PHYSICIAN")).toBe(false);
+  });
+
+  test("revoking ends access to the camp without erasing the assignment", async () => {
+    const doc: Actor = {
+      profileId: "ph_9812345678", name: "Dr Kavita Rao", role: "PHYSICIAN", schoolId,
+    };
+    await expect(campPack(sql, doc, campId)).rejects.toThrow(/access to this camp has ended/);
+    // The row survives: it is how we know who screened whom.
+    const rows = await client.query(
+      "SELECT active, revoked_at FROM vita_hero.camp_staff WHERE camp_id=$1 AND profile_id=$2",
+      [campId, "ph_9812345678"]);
+    expect(rows.rows.length).toBe(1);
+    expect(rows.rows[0].active).toBe(false);
+    expect(rows.rows[0].revoked_at).not.toBeNull();
+  });
+
+  test("a revoked camp drops off the doctor's list but not their history", async () => {
+    const doc: Actor = {
+      profileId: "ph_9812345678", name: "Dr Kavita Rao", role: "PHYSICIAN", schoolId,
+    };
+    const mine = await listMyCamps(sql, doc);
+    expect(mine.camps.some((c) => c.id === campId)).toBe(false);
+    // The school still sees every camp the doctor was on, and its state.
+    const history = await doctorCamps(sql, admin, "doc_camp");
+    const row = history.camps.find((c) => c.campId === campId)!;
+    expect(row.active).toBe(false);
+    expect(row.revokedAt).toMatch(/^\d{4}-/);
+  });
+
+  test("access can be given back", async () => {
+    await setCampStaffActive(sql, admin, campId, "ph_9812345678", true);
+    expect(await canClinicianSignIn(sql, "ph_9812345678", "PHYSICIAN")).toBe(true);
+    const history = await doctorCamps(sql, admin, "doc_camp");
+    expect(history.camps.find((c) => c.campId === campId)!.active).toBe(true);
+  });
+
+  test("revoking one camp leaves a doctor's other camps alone", async () => {
+    const second = await createCamp(sql, admin, schoolId, {
+      title: "Second Camp", date: "2026-11-20", checks: ["Vision"], grades: ["Class 4"],
+    });
+    await assignDoctorToCamp(sql, admin, second.camp.id, "doc_camp");
+    await setCampStaffActive(sql, admin, campId, "ph_9812345678", false);
+    // Still has one, so still gets through the door.
+    expect(await canClinicianSignIn(sql, "ph_9812345678", "PHYSICIAN")).toBe(true);
+    const history = await doctorCamps(sql, admin, "doc_camp");
+    expect(history.camps.length).toBe(2);
+    expect(history.camps.filter((c) => c.active).length).toBe(1);
+    await setCampStaffActive(sql, admin, second.camp.id, "ph_9812345678", true);
+    await setCampStaffActive(sql, admin, campId, "ph_9812345678", true);
+  });
+
+  // ── the doctor directory ──
+  //
+  // A directory doctor's number is a sign-in credential, not a contact for
+  // families: doctors come to camps to screen, and the number is how they get
+  // into the app. It was built the other way round first, which is why these
+  // exist.
+
+  test("a doctor's number is stored normalised", async () => {
+    const r = await upsertDoctor(sql, OPS, {
+      name: "Dr Meera Iyer", specialty: "Ophthalmology",
+      hospitalId: "hosp_t1", phone: "98765 43210",
+    });
+    expect(r.phone).toBe("+919876543210");
+    const listed = await listDoctors(sql, OPS, "hosp_t1");
+    const doc = listed.doctors.find((d) => d.id === r.id)!;
+    expect(doc.phone).toBe("+919876543210");
+  });
+
+  test("a number that is not a phone number is refused", async () => {
+    await expect(upsertDoctor(sql, OPS, {
+      name: "Dr Nobody", specialty: "Dental", phone: "12",
+    })).rejects.toThrow(/valid mobile number/);
+  });
+
+  test("no number is a legitimate state, not an empty string to guess at", async () => {
+    const r = await upsertDoctor(sql, OPS, { name: "Dr Anon", specialty: "Dental" });
+    expect(r.phone).toBe("");
+    const listed = await listDoctors(sql, OPS, "");
+    expect(listed.doctors.find((d) => d.id === r.id)!.phone).toBe("");
+  });
+
+  test("the doctor's number never reaches a family", async () => {
+    // The parent-facing booking payload is built from an explicit column list;
+    // if `phone` is ever added to it, this fails.
+    const src = await import("node:fs").then((fs) =>
+      fs.readFileSync("index.ts", "utf8"));
+    const booking = src.slice(src.indexOf('path === "/api/booking/directory"'));
+    const doctorQuery = booking.slice(0, booking.indexOf("conducted_camps"));
+    expect(doctorQuery).not.toContain("d.phone");
+    const list = src.slice(src.indexOf('path === "/api/doctors"'));
+    expect(list.slice(0, list.indexOf("ORDER BY"))).not.toContain("d.phone");
   });
 
   test("partner performance is ops-only", async () => {

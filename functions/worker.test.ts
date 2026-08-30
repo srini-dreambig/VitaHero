@@ -678,3 +678,115 @@ describe("the console is valid JavaScript", () => {
     expect(() => new Function(SERVICE_WORKER_JS)).not.toThrow();
   });
 });
+
+// The console and the clinical model have to agree on what a camp can offer.
+//
+// They drifted once already: the school setup screen offered eight checks
+// while only four had a capture screen, so a school could agree to a spine
+// examination that resolved, on the day, to a Normal/Abnormal dropdown. And
+// the demo seed created camps with checks ("Eye Test", "Hemoglobin") and a
+// status ("UPCOMING") that neither list knew, which is how a camp ended up in
+// the console that the lifecycle could not advance.
+describe("the console offers only what can actually be recorded", () => {
+  test("the portal's check list is exactly the designed checks", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    const { DESIGNED_CHECKS } = await import("./clinical");
+    const m = PORTAL_HTML.match(/var CHECKS = \[([^\]]*)\]/);
+    expect(m).not.toBeNull();
+    const offered = m![1].split(",").map((x) => x.trim().replace(/^"|"$/g, ""));
+    expect(offered).toEqual([...DESIGNED_CHECKS]);
+  });
+
+  test("every designed check has a capture form, not the fallback dropdown", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    const { DESIGNED_CHECKS } = await import("./clinical");
+    for (const c of DESIGNED_CHECKS) {
+      expect(PORTAL_HTML).toContain(`ct === "${c}"`);
+    }
+  });
+
+  test("a planned check is recognised but never offered", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    const { PLANNED_CHECKS, CHECK_TYPES, isDesignedCheck } = await import("./clinical");
+    for (const c of PLANNED_CHECKS) {
+      // Still a valid stored value, so old camps and findings keep working...
+      expect(CHECK_TYPES).toContain(c);
+      // ...but not something a school can be signed up to today.
+      expect(isDesignedCheck(c)).toBe(false);
+    }
+    const m = PORTAL_HTML.match(/var CHECKS = \[([^\]]*)\]/);
+    for (const c of PLANNED_CHECKS) expect(m![1]).not.toContain(c);
+  });
+
+  test("no seeded camp carries a status or a check the code does not know", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { CHECK_TYPES } = await import("./clinical");
+    const { CAMP_STATUSES } = await import("./camps");
+    const src = readFileSync("index.ts", "utf8");
+    const seed = src.slice(src.indexOf("async function seedPartnerSchools"));
+    const body = seed.slice(0, seed.indexOf("\nasync function", 10));
+    // The seed rows are ["id", "school", "title", "desc", date, time, STATUS, [checks], ...]
+    for (const row of body.matchAll(/"(SCHEDULED|UPCOMING|DRAFT|IN_PROGRESS|SCREENED|RELEASED|CANCELLED)", \[([^\]]*)\]/g)) {
+      expect(CAMP_STATUSES).toContain(row[1]);
+      for (const raw of row[2].split(",")) {
+        const check = raw.trim().replace(/^"|"$/g, "");
+        if (check) expect(CHECK_TYPES).toContain(check);
+      }
+    }
+  });
+});
+
+// The console and the app have to agree about camps.
+//
+// Three ways they did not, all of which typechecked and passed every test:
+// the app's CampStatus enum held UPCOMING and COMPLETED while the server's
+// lifecycle produces SCHEDULED / IN_PROGRESS / SCREENED / RELEASED, so
+// valueOf threw on every partner camp and fell back to UPCOMING — the "past
+// camps" list was permanently empty, a released camp still read as upcoming,
+// and reminders kept firing for camps that had already happened. The venue and
+// the consent deadline were asked for on every camp and sent to nobody. And a
+// camp the school was still drafting was shown to parents.
+describe("the app and the server agree about camps", () => {
+  test("a camp still being drafted is not sent to a parent", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("index.ts", "utf8");
+    const at = src.indexOf('path === "/api/camps"');
+    const block = src.slice(at, at + 3000);
+    expect(block).toContain("NOT IN ('DRAFT', 'CANCELLED')");
+  });
+
+  test("the venue and the consent deadline are sent", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("index.ts", "utf8");
+    const at = src.indexOf('path === "/api/camps"');
+    expect(src.slice(at, at + 3000)).toContain("venue: sc.venue");
+  });
+});
+
+// NOT HERE YET, ON PURPOSE.
+//
+// Three further tests in the upstream repo read android/ and assert the app
+// can parse what the server sends: that CampStatus covers SCHEDULED,
+// IN_PROGRESS, SCREENED and RELEASED, that a released camp classifies as past,
+// and that CampDto carries the venue. They fail here, correctly — this repo
+// carries the admin-panel half of that change and not the Android half, so the
+// app still falls back to UPCOMING for every camp, still shows an empty "past
+// camps" list, and still reminds families about camps that have happened.
+//
+// They arrive with the Kotlin fix rather than being silenced ahead of it.
+
+// A clinician has to be able to see what the family reported.
+describe("the family's illness history reaches the person examining the child", () => {
+  test("the screening screen asks for it", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    // Built, routed and tested server-side, but for a while no screen called
+    // it: the parent logged three fevers and the doctor never saw them.
+    expect(PORTAL_HTML).toContain("/symptoms/");
+    expect(PORTAL_HTML).toContain("What the family reported");
+  });
+
+  test("it is labelled as reported, never as a finding", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    expect(PORTAL_HTML).toContain("Not examined");
+  });
+});

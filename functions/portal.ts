@@ -93,7 +93,23 @@ export const PORTAL_HTML = `<!doctype html>
   .signbrand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:18px}
   .signbrand .tag{font-size:11px;font-weight:600;letter-spacing:.13em;
     text-transform:uppercase;color:var(--blue)}
+  /* The nav is now long enough to need its own scroll, so the brand stays put
+     at the top and sign-out stays put at the bottom. */
+  .navscroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:8px}
+  .navscroll::-webkit-scrollbar{width:6px}
+  .navscroll::-webkit-scrollbar-thumb{background:#2C3E4E;border-radius:3px}
   .navsec{padding:6px 10px}
+  .navsec + .navsec{border-top:1px solid #1B2836;margin-top:2px}
+  /* A sub-item is indented and quieter than the section it sits under; the
+     marker is what carries the selected state at a glance. */
+  .navi.sub{padding-left:12px;font-size:13px;font-weight:500;gap:8px}
+  .navi.sub .dotix{width:5px;height:5px;border-radius:50%;background:#3C4F60;flex:none;
+    transition:background .12s,transform .12s}
+  .navi.sub:hover .dotix{background:#5D707E}
+  .navi.sub.on .dotix{background:var(--nav-ac);transform:scale(1.4)}
+  .navi .n{margin-left:auto;background:#2C3E4E;color:#CBD5E1;border-radius:9px;
+    padding:0 6px;font-size:11px;font-weight:650;line-height:17px}
+  .navi.sub.on .n{background:var(--nav-ac);color:#0F172A}
   .navsec h4{color:#5D707E;padding:10px 8px 6px;font-size:10.5px}
   .navi{
     display:flex;align-items:center;gap:9px;width:100%;text-align:left;
@@ -317,7 +333,13 @@ export const PORTAL_HTML = `<!doctype html>
     /* min-width:0 is the whole fix: a flex child defaults to min-width:auto,
        so this strip refused to shrink below its buttons and held the entire
        shell open at 424px inside a 390px phone. */
-    .navsec{display:flex;gap:4px;padding:0 10px 8px;overflow-x:auto;flex:1;min-width:0}
+    /* On a phone the whole nav becomes one horizontal strip: the sections run
+       on after each other rather than stacking, so the header takes one line
+       instead of half the screen. */
+    .navscroll{display:flex;overflow-x:auto;overflow-y:visible;flex:1;min-width:0;padding:0}
+    .navsec{display:flex;gap:4px;padding:0 6px 8px;flex:none;min-width:0;align-items:center}
+    .navsec + .navsec{border-top:none;border-left:1px solid #1B2836;margin-top:0}
+    .navi.sub{padding-left:10px}
     .nav{max-width:100%;min-width:0}
     /* The signed-in name and role can be long; let the footer wrap rather than
        hold the strip open. */
@@ -449,12 +471,18 @@ export const PORTAL_HTML = `<!doctype html>
     pack: null, forceOffline: false, syncRejects: null, packInfo: null,
     photos: null, photosKid: null, photoOpen: null,
     hospitals: null, doctors: null, hosForm: null, docForm: null, hosQuery: "",
+    addChild: null,
     invites: null, campPeople: null, peopleQuery: "",
     threads: null, thread: null, billing: null, library: null, libForm: null,
   };
   function set(p) { for (var k in p) S[k] = p[k]; render(); }
 
-  var CHECKS = ["Height & weight","Vision","Dental","Haemoglobin","ENT","Skin","Spine","Immunisation review"];
+  // Only checks a clinician has a screen to record on. Offering "Spine" when
+  // the capture form is a bare Normal/Abnormal dropdown means the school
+  // agrees to a spine examination and nobody ever performs one. Mirrors
+  // DESIGNED_CHECKS in clinical.ts; the rest stay recognised for historical
+  // camps but are not offered anywhere.
+  var CHECKS = ["Height & weight","Vision","Dental","Haemoglobin"];
   var ACUITY = ["6/6","6/9","6/12","6/18","6/24","6/36","6/60","<6/60"];
   var CADENCE = [["ANNUAL","Once a year"],["BIANNUAL","Twice a year"],["QUARTERLY","Every quarter"],["ADHOC","As arranged"]];
 
@@ -737,7 +765,7 @@ export const PORTAL_HTML = `<!doctype html>
     run(api("/api/admin/schools/" + encodeURIComponent(id)), function (d) {
       S.school = d.school; S.view = "school"; S.schoolTab = tab || "roster";
       S.classes = null; S.admins = null; S.staff = null; S.roster = null; S.batches = null;
-      S.camps = null; S.upload = null; S.form = null;
+      S.camps = null; S.upload = null; S.form = null; S.addChild = null;
       S.referrals = null; S.report = null; S.corrections = null; S.refKid = null;
       S.threads = null; S.thread = null; S.billing = null; S.invites = null;
       loadSchoolTab();
@@ -1199,15 +1227,9 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ school detail
   function viewSchool() {
     var s = S.school;
-    var tabs = [["roster","Roster"],["camps","Camps"],["invites","App invites"],
-      ["referrals","Follow-ups"],["questions","Questions"],["report","Report"],
-      ["classes","Classes"],["people","Staff"],["requests","Requests"],
-      ["billing","Billing"],["programme","Programme"],["history","Uploads"]];
+    // The tab strip moved into the sidebar: twelve tabs across the top asked a
+    // school office to hold the whole product in their head to find one screen.
     return el("div", null,
-      el("div", { class: "tabs" }, tabs.map(function (t) {
-        return el("button", { class: "tab" + (S.schoolTab === t[0] ? " on" : ""),
-          onclick: function () { S.schoolTab = t[0]; S.error = ""; S.upload = null; render(); loadSchoolTab(); } }, t[1]);
-      })),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       S.schoolTab === "roster" ? tabRoster()
@@ -1215,7 +1237,7 @@ export const PORTAL_HTML = `<!doctype html>
         : S.schoolTab === "referrals" ? tabReferrals()
         : S.schoolTab === "questions" ? tabQuestions()
         : S.schoolTab === "invites" ? tabInvites()
-        : S.schoolTab === "billing" ? tabBilling()
+        : S.schoolTab === "billing" ? (isOps() ? tabBilling() : tabRoster())
         : S.schoolTab === "report" ? tabReport()
         : S.schoolTab === "classes" ? tabClasses()
         : S.schoolTab === "people" ? tabPeople()
@@ -1464,6 +1486,83 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   // ══════════════════════════════════════ roster
+  /**
+   * One child, for a late admission.
+   *
+   * Goes to the same endpoint the CSV import commits through, so a child added
+   * here is validated, matched on admission number and given a guardian
+   * account exactly as one from a spreadsheet would be.
+   */
+  function addChildForm(r) {
+    var f = S.addChild;
+    var b = function (k) { return function (e) { f[k] = e.target.value; }; };
+    var classes = (S.classes || []).map(function (c) {
+      return c.grade + (c.section ? " \u00b7 " + c.section : "");
+    });
+    function save() {
+      run(api("/api/admin/schools/" + S.school.id + "/roster/student", { method: "POST",
+        body: {
+          name: f.name, studentRef: f.studentRef, dob: f.dob, gender: f.gender,
+          grade: f.grade, section: f.section, guardianName: f.guardianName,
+          guardianPhone: f.guardianPhone, academicYear: r.academicYear,
+        } }), function (rep) {
+        if (rep.errors > 0) {
+          // Say what is actually wrong with the row rather than "failed".
+          var issues = [];
+          (rep.rows || []).forEach(function (row) {
+            (row.issues || []).forEach(function (i) {
+              if (i.level === "error") issues.push(i.message);
+            });
+          });
+          S.error = issues.length ? issues.join(" \u00b7 ") : "That child could not be added.";
+          render();
+          return;
+        }
+        S.addChild = null;
+        S.notice = f.name + " is on the roster.";
+        S.roster = null; loadSchoolTab();
+      });
+    }
+    return el("div", { class: "card", style: "margin-bottom:14px" },
+      el("div", { class: "card-h" }, el("h2", null, "Add one child")),
+      el("div", { class: "card-b" },
+        el("div", { class: "g3" },
+          el("div", { class: "fld" }, el("label", null, "Full name"),
+            el("input", { value: f.name, oninput: b("name"), placeholder: "Rahul Sharma" })),
+          el("div", { class: "fld" }, el("label", null, "Admission number"),
+            el("input", { value: f.studentRef, oninput: b("studentRef"), placeholder: "2026/0412" })),
+          el("div", { class: "fld" }, el("label", null, "Date of birth"),
+            el("input", { value: f.dob, oninput: b("dob"), placeholder: "14/03/2016" }))),
+        el("div", { class: "g3" },
+          el("div", { class: "fld" }, el("label", null, "Class"),
+            el("input", { value: f.grade, oninput: b("grade"), placeholder: "Class 4",
+              list: "vh-classes" }),
+            classes.length
+              ? el("datalist", { id: "vh-classes" }, (S.classes || []).map(function (c) {
+                  return el("option", { value: c.grade });
+                }))
+              : null),
+          el("div", { class: "fld" }, el("label", null, "Section"),
+            el("input", { value: f.section, oninput: b("section"), placeholder: "B" })),
+          el("div", { class: "fld" }, el("label", null, "Sex"),
+            el("select", { onchange: b("gender") },
+              el("option", { value: "" }, "\u2014"),
+              ["Male", "Female"].map(function (g) {
+                return el("option", { value: g, selected: f.gender === g }, g); })))),
+        el("div", { class: "g2" },
+          el("div", { class: "fld" }, el("label", null, "Guardian name"),
+            el("input", { value: f.guardianName, oninput: b("guardianName") })),
+          el("div", { class: "fld" }, el("label", null, "Guardian mobile"),
+            el("input", { value: f.guardianPhone, oninput: b("guardianPhone"), placeholder: "9876543210" }))),
+        el("div", { class: "hint" },
+          "The admission number is what matches this child on the next roster upload, "
+          + "so next term updates them rather than creating a second record. The guardian's "
+          + "mobile is how they receive the consent request and the result.")),
+      el("div", { class: "card-f" }, el("div", { class: "row" },
+        el("button", { class: "pri", disabled: S.busy, onclick: save }, "Add to roster"),
+        el("button", { onclick: function () { set({ addChild: null, error: "" }); } }, "Cancel"))));
+  }
+
   function tabRoster() {
     if (S.upload) return uploadWizard();
     if (!S.roster) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
@@ -1476,12 +1575,21 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat" }, el("b", null, uniq(r.students.map(function (s) { return s.guardianPhone; })).length),
           el("span", null, "guardian numbers"))),
       el("div", { class: "row", style: "margin-bottom:14px" },
-        el("button", { class: "pri", onclick: function () { set({ upload: { step: 1 }, error: "", notice: "" }); } }, "Upload roster"),
-        el("button", { onclick: dlTemplate }, "Download template"),
+        el("button", { class: "pri", onclick: function () { set({ upload: { step: 1 }, error: "", notice: "" }); } },
+          icon("upload", 14), " Import from CSV"),
+        el("button", { onclick: function () {
+          set({ addChild: { name: "", studentRef: "", dob: "", gender: "", grade: "",
+            section: "", guardianName: "", guardianPhone: "" }, error: "", notice: "" });
+        } }, icon("plus", 14), " Add one child"),
+        el("button", { onclick: dlTemplate }, icon("download", 14), " CSV template"),
         r.total ? el("button", { onclick: exportRoster }, "Export roster") : null),
+      S.addChild ? addChildForm(r) : null,
       r.students.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
-            el("h3", null, "No students yet"), el("p", { style: "font-size:13.5px" }, "Set up your classes, then upload the roster CSV.")))
+            el("h3", null, "No students yet"),
+            el("p", { style: "font-size:13.5px" },
+              "Import the school's roster as a CSV, or add children one at a time. "
+              + "Everything else \u2014 camps, consent, screening \u2014 works from this list.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Student"), el("th", null, "Class"), el("th", null, "DOB"),
               el("th", null, "Guardian"), el("th", null, "Mobile"), el("th", null, "App"))),
@@ -2280,12 +2388,7 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ camp detail
   function viewCamp() {
     var d = S.camp, c = d.camp, can = d.can;
-    var tabs = [];
-    if (can.schedule) tabs.push(["setup", "Setup", null]);
-    if (can.schedule) tabs.push(["people", "Parents & children", null]);
-    if (can.schedule) tabs.push(["consent", "Consent", c.pendingConsent]);
-    if (can.screen) tabs.push(["campday", "Camp day", c.awaitingReview]);
-    if (can.review) tabs.push(["review", "Review", c.awaitingReview]);
+    // The stages are in the sidebar, in the order the day runs.
     return el("div", null,
       el("div", { class: "stats" },
         el("div", { class: "stat" }, el("b", null, c.participants || 0), el("span", null, "children")),
@@ -2295,11 +2398,6 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat" }, el("b", null, c.screened || 0), el("span", null, "screened")),
         el("div", { class: "stat warn" }, el("b", null, c.awaitingReview || 0), el("span", null, "awaiting review")),
         el("div", { class: "stat ok" }, el("b", null, c.released || 0), el("span", null, "released"))),
-      el("div", { class: "tabs" }, tabs.map(function (t) {
-        return el("button", { class: "tab" + (S.campTab === t[0] ? " on" : ""),
-          onclick: function () { S.campTab = t[0]; S.error = ""; S.screenKid = null; S.reviewKid = null; render(); loadCampTab(); } },
-          t[1], t[2] ? el("span", { class: "n" }, t[2]) : null);
-      })),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       S.campTab === "setup" ? campSetup()
@@ -2347,13 +2445,28 @@ export const PORTAL_HTML = `<!doctype html>
           ? el("div", { class: "empty" },
               el("p", { style: "font-size:13.5px;margin:0" }, "Nobody assigned yet. Add screeners and a physician under the school's People tab, then assign them here."))
           : el("table", null, el("tbody", null, staff.map(function (s) {
-              return el("tr", null,
+              // Access is ended, not deleted: the assignment is how we know who
+              // screened whom, and it survives the camp.
+              function setActive(on) {
+                run(api("/api/admin/camps/" + c.id + "/staff/" + encodeURIComponent(s.profileId),
+                  { method: "PATCH", body: { active: on } }), function () {
+                    S.notice = on
+                      ? s.name + " can sign in for this camp again."
+                      : s.name + " can no longer open this camp.";
+                    refreshCamp();
+                  });
+              }
+              var on = s.active !== false;
+              return el("tr", { class: on ? "" : "muted" },
                 el("td", null, el("b", null, s.name), el("div", { class: "muted mono", style: "font-size:12px" }, s.phone)),
                 el("td", null, el("span", { class: "pill " + (s.role === "PHYSICIAN" ? "info" : "warn") },
                   s.role === "PHYSICIAN" ? "Physician" : "Screener")),
-                el("td", { style: "text-align:right" }, el("button", { class: "sm dang", onclick: function () {
-                  run(api("/api/admin/camps/" + c.id + "/staff/" + encodeURIComponent(s.profileId), { method: "DELETE" }),
-                    function () { refreshCamp(); }); } }, "Remove")));
+                el("td", null, on
+                  ? el("span", { class: "pill ok" }, "Active")
+                  : el("span", { class: "pill mute" }, "Access ended")),
+                el("td", { style: "text-align:right" }, on
+                  ? el("button", { class: "sm dang", onclick: function () { setActive(false); } }, "End access")
+                  : el("button", { class: "sm", onclick: function () { setActive(true); } }, "Restore")));
             }))),
         el("div", { class: "card-f" }, assignStaffRow(c))));
   }
@@ -2439,21 +2552,53 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     var sel;
-    return el("div", { class: "row" },
-      avail.length
-        ? sel = el("select", { style: "max-width:280px" }, avail.map(function (s) {
-            return el("option", { value: s.profileId }, s.name + " \\u2014 " + (s.role === "PHYSICIAN" ? "Physician" : "Screener")); }))
-        : el("span", { class: "muted", style: "font-size:13px" },
-            S.staff.length ? "Everyone at this school is already on this camp." : "No screeners or physicians yet."),
-      avail.length
-        ? el("button", { disabled: S.busy, onclick: function () {
-            run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST", body: { profileId: sel.value } }),
-              function () { S.notice = "Assigned."; refreshCamp(); });
-          } }, "Assign to camp")
-        : null,
-      el("button", { class: avail.length ? "" : "pri", onclick: function () {
-        set({ form: { newStaff: true, name: "", phone: "", role: "SCREENER" } });
-      } }, icon("userPlus", 14), " Add someone new"));
+    // Doctors from the directory are the other way onto a camp. Assigning one
+    // provisions the login their phone number signs in to the app with, which
+    // is the whole point: a doctor who cannot sign in cannot screen anybody.
+    var docSel;
+    if (!S.doctors) {
+      api("/api/admin/doctors").then(function (r) { S.doctors = r; render(); }).catch(function () {});
+    }
+    var docs = ((S.doctors && S.doctors.doctors) || []).filter(function (d) {
+      return d.active && d.phone
+        && assigned.indexOf("ph_" + String(d.phone).slice(-10)) < 0;
+    });
+
+    return el("div", null,
+      el("div", { class: "row" },
+        avail.length
+          ? sel = el("select", { style: "max-width:280px" }, avail.map(function (s) {
+              return el("option", { value: s.profileId }, s.name + " — " + (s.role === "PHYSICIAN" ? "Physician" : "Screener")); }))
+          : el("span", { class: "muted", style: "font-size:13px" },
+              S.staff.length ? "Everyone at this school is already on this camp." : "No screeners or physicians yet."),
+        avail.length
+          ? el("button", { disabled: S.busy, onclick: function () {
+              run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST", body: { profileId: sel.value } }),
+                function () { S.notice = "Assigned."; refreshCamp(); });
+            } }, "Assign to camp")
+          : null,
+        el("button", { class: avail.length ? "" : "pri", onclick: function () {
+          set({ form: { newStaff: true, name: "", phone: "", role: "SCREENER" } });
+        } }, icon("userPlus", 14), " Add someone new")),
+      el("div", { class: "row", style: "margin-top:10px" },
+        docs.length
+          ? docSel = el("select", { style: "max-width:280px" }, docs.map(function (d) {
+              return el("option", { value: d.id }, d.name + " — " + d.specialty); }))
+          : el("span", { class: "muted", style: "font-size:13px" },
+              !S.doctors ? "Loading doctors…" : "No directory doctor with a mobile number to add."),
+        docs.length
+          ? el("button", { disabled: S.busy, onclick: function () {
+              run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST",
+                body: { doctorId: docSel.value } }), function (r) {
+                S.notice = r.signInHint || "Assigned.";
+                S.doctors = null; refreshCamp();
+              });
+            } }, icon("stethoscope", 14), " Assign a doctor")
+          : null),
+      el("div", { class: "hint", style: "margin-top:8px" },
+        "A doctor from the Hospitals directory signs in to the Android app with the mobile "
+        + "number held there, and sees only the camps they are assigned to. End their access "
+        + "when the camp is done — with no active camp they cannot sign in at all."));
   }
 
   // ══════════════════════════════════════ everyone at this camp
@@ -2695,6 +2840,7 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     render();
+    S.symptoms = null;
     run(api("/api/admin/camps/" + S.camp.camp.id + "/screening/" + encodeURIComponent(kidId)), function (d) {
       S.screenData = d;
       var form = {};
@@ -2704,6 +2850,46 @@ export const PORTAL_HTML = `<!doctype html>
       });
       S.screenForm = form;
     });
+    // What the family reported since the last camp. Loaded alongside rather
+    // than blocking the form: a clinician should never wait on history to
+    // start examining the child in front of them. School administrators are
+    // refused this by the API, so a failure here is quietly nothing.
+    api("/api/admin/camps/" + S.camp.camp.id + "/symptoms/" + encodeURIComponent(kidId))
+      .then(function (h) { S.symptoms = h; }, function () { S.symptoms = null; })
+      .then(render);
+  }
+
+  /**
+   * The family's own account of everyday illness, shown while screening.
+   *
+   * Three fevers since June changes what a clinician looks for, and the parent
+   * already typed it into the app. It was reaching the database and no screen
+   * ever asked for it. Labelled as reported, never as a finding: nobody
+   * examined this child when it was written down.
+   */
+  function symptomHistoryCard() {
+    var h = S.symptoms;
+    if (!h || !h.events || h.events.length === 0) return null;
+    var sevLabel = { MILD: "Mild", MODERATE: "Moderate" };
+    return el("div", { class: "card", style: "margin-bottom:14px" },
+      el("div", { class: "card-h" },
+        el("h2", null, "What the family reported"),
+        el("span", { class: "pill warn" }, "Not examined")),
+      el("div", { class: "card-b" },
+        el("p", { class: "muted", style: "font-size:12.5px;margin-top:0" }, h.caution),
+        el("div", { class: "tws" }, el("table", null,
+          el("thead", null, el("tr", null,
+            el("th", null, "What"), el("th", null, "When"), el("th", null, "How bad"),
+            el("th", null, "Saw a doctor"), el("th", null, "Note"))),
+          el("tbody", null, h.events.map(function (e) {
+            return el("tr", null,
+              el("td", null, el("b", null, e.symptom)),
+              el("td", { class: "muted" }, fmtDate(e.startedOn)
+                + (e.endedOn && e.endedOn !== e.startedOn ? " \u2013 " + fmtDate(e.endedOn) : "")),
+              el("td", null, sevLabel[e.severity] || e.severity),
+              el("td", null, e.sawDoctor ? "Yes" : el("span", { class: "muted" }, "No")),
+              el("td", { class: "muted" }, e.note || ""));
+          }))))));
   }
 
   function screeningPanel() {
@@ -2760,6 +2946,10 @@ export const PORTAL_HTML = `<!doctype html>
             el("button", { class: "sm" + (d.attendance === "PRESENT" ? " pri" : ""), onclick: function () { mark("PRESENT"); } }, "Present"),
             el("button", { class: "sm" + (d.attendance === "ABSENT" ? " pri" : ""), onclick: function () { mark("ABSENT"); } }, "Absent"),
             el("button", { class: "sm" + (d.attendance === "REFUSED" ? " pri" : ""), onclick: function () { mark("REFUSED"); } }, "Refused")))),
+
+      // Before the checks, not after: what the family reported is context for
+      // the examination, not a footnote to it.
+      symptomHistoryCard(),
 
       blocked
         ? el("div", { class: "msg warn" },
@@ -3195,13 +3385,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function viewOversight() {
-    var tabs = [["partners", "Hospital partners"], ["access", "Record access"],
-      ["retention", "Retention"], ["child", "Look up a child"]];
     return el("div", null,
-      el("div", { class: "tabs" }, tabs.map(function (t) {
-        return el("button", { class: "tab" + (S.oversightTab === t[0] ? " on" : ""),
-          onclick: function () { S.oversightTab = t[0]; S.error = ""; render(); loadOversightTab(); } }, t[1]);
-      })),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       S.oversightTab === "access" ? tabAccessLog()
@@ -3526,14 +3710,19 @@ export const PORTAL_HTML = `<!doctype html>
               el("input", { value: g.name, oninput: db("name") })),
             el("div", { class: "fld" }, el("label", null, "Specialty"),
               el("input", { value: g.specialty, oninput: db("specialty"), placeholder: "Ophthalmology" }))),
-          el("div", { class: "fld" }, el("label", null, "Hospital"),
-            el("select", { onchange: db("hospitalId") },
-              [el("option", { value: "" }, "\u2014 not attached \u2014")].concat(
-                (S.hospitals.hospitals || []).map(function (h) {
-                  return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
-                })))),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Hospital"),
+              el("select", { onchange: db("hospitalId") },
+                [el("option", { value: "" }, "\u2014 not attached \u2014")].concat(
+                  (S.hospitals.hospitals || []).map(function (h) {
+                    return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
+                  })))),
+            el("div", { class: "fld" }, el("label", null, "Direct number (optional)"),
+              el("input", { value: g.phone || "", oninput: db("phone"), placeholder: "+91 98765 43210" }))),
           el("div", { class: "hint" },
-            "A referral names a specialty. Attaching the doctor to a hospital is what lets the app tell a family where to go.")),
+            "A referral names a specialty. Attaching the doctor to a hospital is what lets the app "
+            + "tell a family where to go \u2014 and if this doctor has no direct number, the family "
+            + "is given the hospital's, so leaving it blank is better than guessing one.")),
         el("div", { class: "card-f" }, el("div", { class: "row" },
           el("button", { class: "pri", disabled: S.busy, onclick: saveDoctor }, "Save doctor"),
           el("button", { onclick: function () { set({ docForm: null }); } }, "Cancel"))));
@@ -3555,7 +3744,7 @@ export const PORTAL_HTML = `<!doctype html>
             lat: "", lng: "", isCampPartner: false } });
         } }, icon("plus", 14), " Add hospital") : null,
         canEdit ? el("button", { onclick: function () {
-          set({ docForm: { name: "", specialty: "", hospitalId: "", city: "Hyderabad" } });
+          set({ docForm: { name: "", specialty: "", hospitalId: "", city: "Hyderabad", phone: "" } });
         } }, icon("plus", 14), " Add doctor") : null),
 
       hs.length === 0
@@ -3599,17 +3788,24 @@ export const PORTAL_HTML = `<!doctype html>
               el("p", { style: "font-size:13.5px;margin:0" }, "None yet.")))
           : el("div", { class: "tw" }, el("table", null,
               el("thead", null, el("tr", null, el("th", null, "Doctor"), el("th", null, "Specialty"),
-                el("th", null, "Hospital"), el("th", null, ""))),
+                el("th", null, "Hospital"), el("th", null, "Phone"), el("th", null, ""))),
               el("tbody", null, (S.doctors.doctors || []).map(function (d) {
                 return el("tr", { class: d.active ? "" : "muted" },
                   el("td", null, el("b", null, d.name)),
                   el("td", null, d.specialty),
                   el("td", { class: "muted" }, d.hospitalName || "\u2014"),
+                  // No direct number is a real state, not a blank cell: the
+                  // family is given the hospital's instead, and saying so
+                  // stops it reading like missing data.
+                  el("td", { class: "mono" }, d.phone
+                    ? d.phone
+                    : el("span", { class: "muted", style: "font-family:inherit" },
+                        d.hospitalName ? "via hospital" : "\u2014")),
                   el("td", { style: "text-align:right" }, canEdit
                     ? el("div", { class: "row" },
                         el("button", { class: "sm", onclick: function () {
                           set({ docForm: { id: d.id, name: d.name, specialty: d.specialty,
-                            hospitalId: d.hospitalId, city: d.city } });
+                            hospitalId: d.hospitalId, city: d.city, phone: d.phone || "" } });
                         } }, "Edit"),
                         d.active ? el("button", { class: "sm dang", onclick: function () {
                           retire("doctors", d.id, d.name);
@@ -3623,21 +3819,124 @@ export const PORTAL_HTML = `<!doctype html>
       el("span", { class: "ic" }, icon(name, 17)), label);
   }
 
+  /**
+   * The left navigation.
+   *
+   * Twelve tabs across the top of a school and five across a camp asked
+   * somebody who runs a school office to hold the whole product in their head
+   * and read a strip of words to find out where they were. This is the same
+   * screens, arranged as the work actually goes: the school you have open,
+   * then the camp you have open inside it, with the stages in the order they
+   * happen.
+   *
+   * Contextual on purpose. Nothing about a camp appears until a camp is open,
+   * so the list stays short.
+   */
+  function navSub(label, key, current, go, badge) {
+    return el("button", { class: "navi sub" + (current === key ? " on" : ""), onclick: go },
+      el("span", { class: "dotix" }), label,
+      badge ? el("span", { class: "n" }, badge) : null);
+  }
+
+  function schoolNav() {
+    if (!S.school || S.view !== "school") return null;
+    var t = S.schoolTab;
+    function go(tab) {
+      return function () {
+        S.schoolTab = tab; S.error = ""; S.upload = null; S.addChild = null;
+        render(); loadSchoolTab();
+      };
+    }
+    return [
+      el("div", { class: "navsec" },
+        el("h4", null, truncate(S.school.name, 22)),
+        navSub("Roster", "roster", t, go("roster")),
+        navSub("Classes", "classes", t, go("classes")),
+        navSub("Import history", "history", t, go("history"))),
+      el("div", { class: "navsec" },
+        el("h4", null, "Camps"),
+        navSub("All camps", "camps", t, go("camps")),
+        navSub("App invites", "invites", t, go("invites"))),
+      el("div", { class: "navsec" },
+        el("h4", null, "Following up"),
+        navSub("Referrals", "referrals", t, go("referrals")),
+        navSub("Questions", "questions", t, go("questions"))),
+      el("div", { class: "navsec" },
+        el("h4", null, "School"),
+        navSub("Staff", "people", t, go("people")),
+        navSub("Camp report", "report", t, go("report")),
+        navSub("Programme", "programme", t, go("programme")),
+        navSub("Data requests", "requests", t, go("requests")),
+        // Billing is an operations matter; a school office does not need to
+        // see what its own contract is worth.
+        isOps() ? navSub("Billing", "billing", t, go("billing")) : null),
+    ];
+  }
+
+  function campNav() {
+    if (!S.camp || S.view !== "camp") return null;
+    var c = S.camp.camp, can = S.camp.can, t = S.campTab;
+    function go(tab) {
+      return function () {
+        S.campTab = tab; S.error = ""; S.screenKid = null; S.reviewKid = null;
+        render(); loadCampTab();
+      };
+    }
+    // The order the day actually runs in.
+    var stages = [];
+    if (can.schedule) stages.push(["setup", "Setup", null]);
+    if (can.schedule) stages.push(["people", "Parents & children", null]);
+    if (can.schedule) stages.push(["consent", "Consent", c.pendingConsent]);
+    if (can.screen) stages.push(["campday", "Camp day", c.awaitingReview]);
+    if (can.review) stages.push(["review", "Review", c.awaitingReview]);
+    return el("div", { class: "navsec" },
+      el("h4", null, truncate(c.title, 22)),
+      stages.map(function (x) { return navSub(x[1], x[0], t, go(x[0]), x[2]); }));
+  }
+
+  function oversightNav() {
+    if (S.view !== "oversight") return null;
+    var t = S.oversightTab;
+    function go(tab) {
+      return function () { S.oversightTab = tab; S.error = ""; render(); loadOversightTab(); };
+    }
+    return el("div", { class: "navsec" },
+      el("h4", null, "Oversight"),
+      navSub("Hospital partners", "partners", t, go("partners")),
+      navSub("Record access", "access", t, go("access")),
+      navSub("Retention", "retention", t, go("retention")),
+      navSub("Look up a child", "child", t, go("child")));
+  }
+
+  function truncate(v, n) {
+    v = String(v || "");
+    return v.length > n ? v.slice(0, n - 1) + "…" : v;
+  }
+
   function sidebar() {
     return el("nav", { class: "nav" },
       el("div", { class: "brand" }, brandMark(26),
         el("span", { class: "wm" }, el("i", null, "vita"), el("b", null, "hero"))),
-      el("div", { class: "navsec" },
-        el("h4", null, "Menu"),
-        canManage() ? navItem("home", "Overview", "overview", function () { set({ view: "overview" }); if (!S.overview) boot(); }) : null,
-        canManage() ? navItem("school", isSchoolAdmin() ? "My school" : "Schools", "schools", function () {
-          if (isSchoolAdmin() && S.school) openSchool(S.school.id); else loadSchools();
-        }) : null,
-        isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
-        isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
-        isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
-        isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null,
-        S.camp ? navItem("flag", "Current camp", "camp", function () { set({ view: "camp" }); }) : null),
+      el("div", { class: "navscroll" },
+        el("div", { class: "navsec" },
+          el("h4", null, "Menu"),
+          canManage() ? navItem("home", "Overview", "overview", function () { set({ view: "overview" }); if (!S.overview) boot(); }) : null,
+          canManage() ? navItem("school", isSchoolAdmin() ? "My school" : "Schools", "schools", function () {
+            if (isSchoolAdmin() && S.school) openSchool(S.school.id); else loadSchools();
+          }) : null,
+          isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
+          isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
+          isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
+          isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null),
+        schoolNav(),
+        campNav(),
+        oversightNav(),
+        // Getting back out of a camp without the browser's back button.
+        S.camp && S.view === "camp" && S.school
+          ? el("div", { class: "navsec" },
+              el("button", { class: "navi", onclick: function () { openSchool(S.school.id, "camps"); } },
+                el("span", { class: "ic" }, icon("home", 17)), "Back to " + truncate(S.school.name, 18)))
+          : null),
       el("div", { class: "navfoot" },
         el("b", null, S.auth.name),
         el("div", { class: "role" }, roleLabel()),
@@ -3654,7 +3953,11 @@ export const PORTAL_HTML = `<!doctype html>
       } else if (isClinical()) {
         parts.push(el("button", { onclick: loadMyCamps }, "My camps"), " / ");
       }
-      parts.push(S.camp.camp.schoolName ? S.camp.camp.schoolName + " \\u00b7 " : "", S.camp.camp.title);
+      // Only name the school here when it is not already the crumb before
+      // this one, or it reads "Oakridge / Oakridge · Annual Camp".
+      var named = canManage() && S.school;
+      parts.push(!named && S.camp.camp.schoolName ? S.camp.camp.schoolName + " \\u00b7 " : "",
+        S.camp.camp.title);
     } else if (S.view === "newSchool") {
       parts.push(el("button", { onclick: loadSchools }, "Schools"), " / New school");
     }

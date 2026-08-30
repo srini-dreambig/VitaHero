@@ -86,7 +86,7 @@ await p.goto(URL, { waitUntil: "networkidle" });
 await p.waitForTimeout(600);
 
 const nav = (label) => p.locator(".navi", { hasText: new RegExp("^" + label + "$") }).first().click();
-const tab = (label) => p.locator(".tab", { hasText: new RegExp("^" + label + "$") }).first().click();
+const tab = (label) => p.locator(".navi", { hasText: new RegExp("^" + label + "$") }).first().click();
 const text = () => p.$eval("#root", (n) => n.innerText);
 
 check("Oversight is reachable from the menu",

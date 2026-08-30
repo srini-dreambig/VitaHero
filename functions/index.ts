@@ -33,6 +33,7 @@ import {
 } from "./schools";
 import {
   validateRoster,
+  addStudent,
   commitRoster,
   listRoster,
   listRosterBatches,
@@ -66,6 +67,10 @@ import {
   assertCampAccess,
   campPack,
   saveScreeningBulk,
+  canClinicianSignIn,
+  assignDoctorToCamp,
+  doctorCamps,
+  setCampStaffActive,
 } from "./camps";
 import { adminAnalytics } from "./analytics";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
@@ -360,7 +365,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
       school TEXT DEFAULT '',
       date TEXT NOT NULL,
       time TEXT DEFAULT '',
-      status TEXT DEFAULT 'UPCOMING',
+      status TEXT DEFAULT 'DRAFT',
       checks JSONB DEFAULT '[]'::jsonb,
       result_summary TEXT
     )
@@ -468,7 +473,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
       description TEXT DEFAULT '',
       date TEXT NOT NULL,
       time TEXT DEFAULT '',
-      status TEXT DEFAULT 'UPCOMING',
+      status TEXT DEFAULT 'DRAFT',
       checks JSONB DEFAULT '[]'::jsonb,
       grades JSONB DEFAULT '[]'::jsonb,
       capacity INT DEFAULT 200,
@@ -631,11 +636,11 @@ async function seedPartnerSchools(sql: Sql): Promise<void> {
   };
 
   const camps = [
-    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "UPCOMING", ["Height & Weight", "BMI Percentile", "Dental", "Eye Test", "Hemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null],
-    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "UPCOMING", ["Nutrition", "Hemoglobin", "BMI"], ["Class 6", "Class 7", "Class 8"], 180, null],
-    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "UPCOMING", ["Dental", "Eye Test"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null],
-    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "UPCOMING", ["Height & Weight", "Growth Percentile", "Nutrition"], ["Class 4", "Class 5", "Class 6"], 200, null],
-    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "UPCOMING", ["Height & Weight", "Dental", "Eye Test", "Nutrition", "General"], ["All grades"], 400, null],
+    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision", "Haemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null],
+    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "SCHEDULED", ["Height & weight", "Haemoglobin"], ["Class 6", "Class 7", "Class 8"], 180, null],
+    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "SCHEDULED", ["Dental", "Vision"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null],
+    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "SCHEDULED", ["Height & weight"], ["Class 4", "Class 5", "Class 6"], 200, null],
+    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision"], ["All grades"], 400, null],
     ["sc_oak_past", "sch_oak", "Mid-Term Dental Check", "Completed screening — 3 follow-ups recommended", fmt(d60), "10:00 AM – 12:00 PM", "COMPLETED", ["Dental"], ["Class 3", "Class 4"], 120, "142 children screened · 3 follow-ups recommended"],
   ] as const;
 
@@ -883,6 +888,11 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
   `;
 
   await sql`ALTER TABLE vita_hero.doctors ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
+  // A directory doctor had no phone number at all, which meant a family told
+  // to see Dr X had no way to reach them and the console had nothing to show.
+  // Nullable: a hospital's own switchboard is often the right number, and an
+  // invented one is worse than none.
+  await sql`ALTER TABLE vita_hero.doctors ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT ''`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
 
   const hospitals = [
@@ -1732,6 +1742,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // ── Admin: overview, my camps, camp operations ──
       if (path === "/api/admin/overview" || path === "/api/admin/analytics"
           || path === "/api/admin/partners" || path === "/api/admin/access-log"
+          || path.startsWith("/api/admin/doctor-camps/")
           || path === "/api/admin/my-camps"
           || path === "/api/admin/camps" || path.startsWith("/api/admin/camps/")) {
         const actor = await resolveActor(request, sql, env);
@@ -1748,6 +1759,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         try {
           if (path === "/api/admin/overview" && method === "GET") {
             return json(await adminOverview(sql, actor));
+          }
+          if (path.startsWith("/api/admin/doctor-camps/") && method === "GET") {
+            const docId = decodeURIComponent(path.slice("/api/admin/doctor-camps/".length));
+            return json(await doctorCamps(sql, actor, docId));
           }
           if (path === "/api/admin/partners" && method === "GET") {
             return json(await hospitalPerformance(sql, actor, {
@@ -1864,7 +1879,22 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
 
           if (section === "staff") {
-            if (method === "POST") return json(await assignCampStaff(sql, actor, campId, await readBody()));
+            if (method === "POST") {
+              const b = await readBody();
+              // A doctor comes from the directory; a screener from the school's
+              // own staff list. Assigning a doctor also provisions the login
+              // their phone number signs in with.
+              if (b.doctorId) {
+                return json(await assignDoctorToCamp(sql, actor, campId, String(b.doctorId)));
+              }
+              return json(await assignCampStaff(sql, actor, campId, b));
+            }
+            // PATCH revokes or restores; DELETE is kept as a revoke so the
+            // record of who screened whom survives.
+            if (method === "PATCH" && third) {
+              const b = await readBody();
+              return json(await setCampStaffActive(sql, actor, campId, third, b.active === true));
+            }
             if (method === "DELETE" && third) return json(await removeCampStaff(sql, actor, campId, third));
             return json({ error: "Method not allowed" }, 405);
           }
@@ -2307,6 +2337,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (sub === "validate" && method === "POST") {
               return json(await validateRoster(sql, actor, schoolId, await readBody()));
             }
+            // One child, for a late admission. Goes through commitRoster so it
+            // cannot drift from the CSV path.
+            if (sub === "student" && method === "POST") {
+              return json(await addStudent(sql, actor, schoolId, await readBody()));
+            }
             if (sub === "commit" && method === "POST") {
               return json(await commitRoster(sql, actor, schoolId, await readBody()));
             }
@@ -2444,15 +2479,33 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         // Closed app: only admin-provisioned numbers may receive an OTP.
         const norm = normalizePhone(phone);
         if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
+        const signInProfileId = profileIdForPhone(norm.last10);
         const provRows = await sql`
-          SELECT provisioned FROM vita_hero.profiles
-          WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1
+          SELECT provisioned, role FROM vita_hero.profiles
+          WHERE id = ${signInProfileId} LIMIT 1
         `;
         if (provRows.length === 0 || provRows[0].provisioned !== true) {
           return json(
             {
               error: "This number isn't registered. Please contact your school or camp organizer.",
               code: "NOT_PROVISIONED",
+            },
+            403
+          );
+        }
+
+        // A screener or physician holds access through their camp assignments.
+        // When the last one is revoked the camp is over for them, and there is
+        // nothing behind this door — so it does not open. Said plainly, because
+        // the alternative is a doctor standing in a school hall reading
+        // "something went wrong".
+        const clinicianRole = (provRows[0].role as string) || "";
+        if (!(await canClinicianSignIn(sql, signInProfileId, clinicianRole))) {
+          return json(
+            {
+              error:
+                "Your camp access has ended. Ask the school to assign you to a camp if this is wrong.",
+              code: "NO_ACTIVE_CAMP",
             },
             403
           );
@@ -3101,7 +3154,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
               SELECT sc.*, s.name AS school_name, s.city AS school_city
               FROM vita_hero.school_camps sc
               JOIN vita_hero.schools s ON s.id = sc.school_id
+              -- A camp the school is still drafting, or has cancelled, is not
+              -- something a parent should be shown.
               WHERE sc.school_id = ${sid} AND sc.active = true
+                AND sc.status NOT IN ('DRAFT', 'CANCELLED')
               ORDER BY sc.date
             `;
             partner.push(...(partnerRows as Record<string, unknown>[]));
@@ -3125,6 +3181,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             school: sc.school_name,
             date: sc.date,
             time: sc.time,
+            // The console asks for a venue and a consent deadline on every
+            // camp; neither reached the app's camp list, so a parent was told
+            // a camp was happening but not where, and not by when to reply.
+            venue: sc.venue,
+            consent_deadline: sc.consent_deadline,
             status: sc.status,
             checks: sc.checks,
             result_summary: sc.result_summary,
@@ -4013,5 +4074,3 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
     }
   },
 };
-
-// Neon serverless driver dependency restored (see functions/package.json).
