@@ -130,6 +130,7 @@ import {
 } from "./messages";
 import {
   ensureLibrarySchema,
+  seedLibraryIfEmpty,
   libraryForGuardian,
   getArticle,
   listArticles,
@@ -156,6 +157,7 @@ import {
   deleteSymptom,
   symptomHistoryForClinician,
 } from "./symptoms";
+import { migrate, SCHEMA_VERSION } from "./migrate";
 import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
@@ -411,23 +413,6 @@ async function ensureSchema(sql: Sql): Promise<void> {
     )
   `;
 
-  const docCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.doctors`;
-  if ((docCount[0]?.c as number) === 0) {
-    const doctors = [
-      ["d1", "Dr. Ananya Rao", "Paediatrics", "Rainbow Children's Hospital", 4.9],
-      ["d2", "Dr. Vikram Reddy", "Dental", "Apollo Cradle", 4.7],
-      ["d3", "Dr. Meera Iyer", "Ophthalmology", "LV Prasad Eye Institute", 4.8],
-      ["d4", "Dr. Karthik Nair", "Nutrition", "KIMS Hospital", 4.6],
-      ["d5", "Dr. Priya Sharma", "General Paediatrics", "Continental Hospitals", 4.5],
-    ] as const;
-    for (const [id, name, specialty, hospital, rating] of doctors) {
-      await sql`
-        INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, rating)
-        VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})
-        ON CONFLICT (id) DO NOTHING
-      `;
-    }
-  }
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.ai_diet_tips (
@@ -538,6 +523,34 @@ async function ensureSchema(sql: Sql): Promise<void> {
   await seedPartnerSchools(sql);
   await linkCampHospitals(sql);
 }
+
+/**
+ * Seed the starter doctor directory, once, on a database that has none.
+ *
+ * Separated from ensureSchema for the same reason as the library: that
+ * function is now pure DDL, recorded and sent as a batch, and anything that
+ * reads a result has to run on its own.
+ */
+async function seedDoctorsIfEmpty(sql: Sql): Promise<void> {
+  const docCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.doctors`;
+  if ((docCount[0]?.c as number) === 0) {
+    const doctors = [
+      ["d1", "Dr. Ananya Rao", "Paediatrics", "Rainbow Children's Hospital", 4.9],
+      ["d2", "Dr. Vikram Reddy", "Dental", "Apollo Cradle", 4.7],
+      ["d3", "Dr. Meera Iyer", "Ophthalmology", "LV Prasad Eye Institute", 4.8],
+      ["d4", "Dr. Karthik Nair", "Nutrition", "KIMS Hospital", 4.6],
+      ["d5", "Dr. Priya Sharma", "General Paediatrics", "Continental Hospitals", 4.5],
+    ] as const;
+    for (const [id, name, specialty, hospital, rating] of doctors) {
+      await sql`
+        INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, rating)
+        VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})
+        ON CONFLICT (id) DO NOTHING
+      `;
+    }
+  }
+}
+
 
 function generateDoctorSlots(
   doctorId: string,
@@ -1488,6 +1501,26 @@ async function upsertProfileFromNeonAuth(
 
 // ─── Entrypoint ─────────────────────────────────────────────
 
+/**
+ * Pure DDL, in dependency order. Recorded and shipped as a batch by migrate().
+ * Nothing in here may read a query result — see migrate.ts for why.
+ */
+const SCHEMA_STEPS = [
+  ensureSchema,
+  ensureStageASchema,
+  ensureCampSchema,
+  ensureReferralSchema,
+  ensureLifecycleSchema,
+  ensureMediaSchema,
+  ensureMessageSchema,
+  ensureLibrarySchema,
+  ensureBillingSchema,
+  ensureSymptomSchema,
+];
+
+/** Steps that have to read before they write. Only ever touch an empty table. */
+const SEED_STEPS = [seedDoctorsIfEmpty, seedLibraryIfEmpty];
+
 /** Per-isolate latch so schema init does not run on every request. */
 let schemaReady = false;
 
@@ -1510,22 +1543,48 @@ export default {
       // with the Neon HTTP driver each one is its own round trip. Running it per
       // request put that cost in front of every single call. Once per isolate is
       // enough; a deploy-time migration would be better still.
+      // The console's own HTML is served below, so a failure here used to take
+      // out the page a founder would use to diagnose it. It is now cheap on a
+      // migrated database (one query) and it reports what actually broke.
       if (!schemaReady) {
         try {
-          await ensureSchema(sql);
-          await ensureStageASchema(sql);
-          await ensureCampSchema(sql);
-          await ensureReferralSchema(sql);
-          await ensureLifecycleSchema(sql);
-          await ensureMediaSchema(sql);
-          await ensureMessageSchema(sql);
-          await ensureLibrarySchema(sql);
-          await ensureBillingSchema(sql);
-          await ensureSymptomSchema(sql);
+          await migrate(sql, SCHEMA_STEPS, SEED_STEPS);
           schemaReady = true;
         } catch (schemaErr) {
+          const detail = (schemaErr as Error)?.message || String(schemaErr);
           console.error("Schema init error:", schemaErr);
-          return json({ error: "Database schema initialization failed" }, 500);
+          return json({
+            error: "Database schema initialization failed",
+            detail,
+            hint: "Run GET /api/admin/schema with the ops key for the full state.",
+          }, 500);
+        }
+      }
+
+      // ── Schema state, for when something like this happens again ──
+      //
+      // Behind the ops key, and it answers the question the generic error
+      // could not: which version is this database at, and what broke.
+      if (path === "/api/admin/schema") {
+        const key = request.headers.get("X-Admin-Key") || "";
+        if (!env.ADMIN_API_KEY || key !== env.ADMIN_API_KEY) {
+          return json({ error: "Ops key required" }, 403);
+        }
+        try {
+          const rows = await sql`SELECT version, migrated_at FROM vita_hero.schema_meta WHERE id = 1`;
+          const tables = await sql`
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'vita_hero' ORDER BY table_name
+          `;
+          return json({
+            expected: SCHEMA_VERSION,
+            actual: Number(rows[0]?.version) || 0,
+            migratedAt: rows[0]?.migrated_at ? String(rows[0].migrated_at) : null,
+            upToDate: (Number(rows[0]?.version) || 0) >= SCHEMA_VERSION,
+            tables: tables.map((t: Record<string, unknown>) => t.table_name as string),
+          });
+        } catch (e) {
+          return json({ expected: SCHEMA_VERSION, actual: 0, error: (e as Error).message }, 500);
         }
       }
 

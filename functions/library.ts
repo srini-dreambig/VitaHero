@@ -41,6 +41,16 @@ export async function ensureLibrarySchema(sql: Sql): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS library_locale ON vita_hero.library_articles(locale, published)`;
 
+}
+
+/**
+ * Seed the shelf, once, on a database that has none.
+ *
+ * Kept out of ensureLibrarySchema so that function is pure DDL: schema
+ * statements can then be recorded and shipped to Postgres in one batch, while
+ * anything that has to read a result stays on its own path.
+ */
+export async function seedLibraryIfEmpty(sql: Sql): Promise<void> {
   const count = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.library_articles`;
   if (((count[0]?.n as number) || 0) === 0) await seedLibrary(sql);
 }
