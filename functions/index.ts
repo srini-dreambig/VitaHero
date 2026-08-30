@@ -66,6 +66,10 @@ import {
   assertCampAccess,
   campPack,
   saveScreeningBulk,
+  canClinicianSignIn,
+  assignDoctorToCamp,
+  doctorCamps,
+  setCampStaffActive,
 } from "./camps";
 import { adminAnalytics } from "./analytics";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
@@ -1737,6 +1741,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // ── Admin: overview, my camps, camp operations ──
       if (path === "/api/admin/overview" || path === "/api/admin/analytics"
           || path === "/api/admin/partners" || path === "/api/admin/access-log"
+          || path.startsWith("/api/admin/doctor-camps/")
           || path === "/api/admin/my-camps"
           || path === "/api/admin/camps" || path.startsWith("/api/admin/camps/")) {
         const actor = await resolveActor(request, sql, env);
@@ -1753,6 +1758,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         try {
           if (path === "/api/admin/overview" && method === "GET") {
             return json(await adminOverview(sql, actor));
+          }
+          if (path.startsWith("/api/admin/doctor-camps/") && method === "GET") {
+            const docId = decodeURIComponent(path.slice("/api/admin/doctor-camps/".length));
+            return json(await doctorCamps(sql, actor, docId));
           }
           if (path === "/api/admin/partners" && method === "GET") {
             return json(await hospitalPerformance(sql, actor, {
@@ -1869,7 +1878,22 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
 
           if (section === "staff") {
-            if (method === "POST") return json(await assignCampStaff(sql, actor, campId, await readBody()));
+            if (method === "POST") {
+              const b = await readBody();
+              // A doctor comes from the directory; a screener from the school's
+              // own staff list. Assigning a doctor also provisions the login
+              // their phone number signs in with.
+              if (b.doctorId) {
+                return json(await assignDoctorToCamp(sql, actor, campId, String(b.doctorId)));
+              }
+              return json(await assignCampStaff(sql, actor, campId, b));
+            }
+            // PATCH revokes or restores; DELETE is kept as a revoke so the
+            // record of who screened whom survives.
+            if (method === "PATCH" && third) {
+              const b = await readBody();
+              return json(await setCampStaffActive(sql, actor, campId, third, b.active === true));
+            }
             if (method === "DELETE" && third) return json(await removeCampStaff(sql, actor, campId, third));
             return json({ error: "Method not allowed" }, 405);
           }
@@ -2449,15 +2473,33 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         // Closed app: only admin-provisioned numbers may receive an OTP.
         const norm = normalizePhone(phone);
         if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
+        const signInProfileId = profileIdForPhone(norm.last10);
         const provRows = await sql`
-          SELECT provisioned FROM vita_hero.profiles
-          WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1
+          SELECT provisioned, role FROM vita_hero.profiles
+          WHERE id = ${signInProfileId} LIMIT 1
         `;
         if (provRows.length === 0 || provRows[0].provisioned !== true) {
           return json(
             {
               error: "This number isn't registered. Please contact your school or camp organizer.",
               code: "NOT_PROVISIONED",
+            },
+            403
+          );
+        }
+
+        // A screener or physician holds access through their camp assignments.
+        // When the last one is revoked the camp is over for them, and there is
+        // nothing behind this door — so it does not open. Said plainly, because
+        // the alternative is a doctor standing in a school hall reading
+        // "something went wrong".
+        const clinicianRole = (provRows[0].role as string) || "";
+        if (!(await canClinicianSignIn(sql, signInProfileId, clinicianRole))) {
+          return json(
+            {
+              error:
+                "Your camp access has ended. Ask the school to assign you to a camp if this is wrong.",
+              code: "NO_ACTIVE_CAMP",
             },
             403
           );

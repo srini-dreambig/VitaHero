@@ -63,6 +63,15 @@ export async function ensureCampSchema(sql: Sql): Promise<void> {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS camp_staff_profile ON vita_hero.camp_staff(profile_id)`;
+  // Revoked rather than deleted. A camp ends and the doctor's access to it
+  // ends with it, but "Dr Iyer screened at Oakridge in September" is part of
+  // the clinical record and must survive the revocation. It is also what lets
+  // the console show a doctor every camp they have been on, active or not.
+  await sql`ALTER TABLE vita_hero.camp_staff ADD COLUMN IF NOT EXISTS active BOOLEAN DEFAULT true`;
+  await sql`ALTER TABLE vita_hero.camp_staff ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE vita_hero.camp_staff ADD COLUMN IF NOT EXISTS revoked_by TEXT DEFAULT ''`;
+  // The directory entry and the login are the same person.
+  await sql`ALTER TABLE vita_hero.camp_staff ADD COLUMN IF NOT EXISTS doctor_id TEXT`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS vita_hero.camp_participants (
@@ -175,11 +184,20 @@ export async function assertCampAccess(
   }
 
   const staff = await sql`
-    SELECT staff_role FROM vita_hero.camp_staff
+    SELECT staff_role, active FROM vita_hero.camp_staff
     WHERE camp_id = ${campId} AND profile_id = ${actor.profileId} LIMIT 1
   `;
   if (staff.length === 0) {
     throw new ApiError(403, "You are not assigned to this camp", "CAMP_FORBIDDEN");
+  }
+  // A revoked assignment is not a missing one, and the difference matters to
+  // whoever is standing in the hall being told no.
+  if (staff[0].active === false) {
+    throw new ApiError(
+      403,
+      "Your access to this camp has ended. Ask the school to restore it if this is wrong.",
+      "CAMP_REVOKED"
+    );
   }
   const staffRole = staff[0].staff_role as string;
   return {
@@ -267,7 +285,7 @@ export async function listMyCamps(sql: Sql, actor: Actor) {
       (SELECT COUNT(*)::int FROM vita_hero.camp_participants p WHERE p.camp_id = sc.id
          AND p.status = 'SCREENED') AS approved_count
     FROM vita_hero.camp_staff cs
-    JOIN vita_hero.school_camps sc ON sc.id = cs.camp_id
+    JOIN vita_hero.school_camps sc ON sc.id = cs.camp_id AND cs.active = true
     JOIN vita_hero.schools s ON s.id = sc.school_id
     WHERE cs.profile_id = ${actor.profileId} AND sc.active = true
     ORDER BY sc.date DESC
@@ -295,10 +313,12 @@ export async function getCamp(sql: Sql, actor: Actor, campId: string) {
     FROM vita_hero.camp_participants WHERE camp_id = ${campId}
   `;
   const staff = await sql`
-    SELECT cs.profile_id, cs.staff_role, p.name, p.phone
+    SELECT cs.profile_id, cs.staff_role, cs.active, cs.doctor_id, cs.revoked_at,
+           p.name, p.phone
     FROM vita_hero.camp_staff cs
     LEFT JOIN vita_hero.profiles p ON p.id = cs.profile_id
-    WHERE cs.camp_id = ${campId} ORDER BY cs.staff_role, p.name
+    WHERE cs.camp_id = ${campId}
+    ORDER BY cs.active DESC, cs.staff_role, p.name
   `;
   // Counts come back snake_case from SQL; the rest of the API is camelCase, so
   // normalise here rather than leaving callers to guess which shape they got.
@@ -323,6 +343,11 @@ export async function getCamp(sql: Sql, actor: Actor, campId: string) {
       role: s.staff_role as string,
       name: (s.name as string) || "",
       phone: (s.phone as string) || "",
+      // Revoked assignments stay on the list, marked. They are how the school
+      // knows who screened at this camp after access has ended.
+      active: s.active !== false,
+      doctorId: (s.doctor_id as string) || "",
+      revokedAt: s.revoked_at ? new Date(s.revoked_at as string).toISOString() : "",
     })),
     can: {
       schedule: access.canSchedule,
@@ -1696,9 +1721,174 @@ export async function assignCampStaff(
   return { assigned: { profileId, name: rows[0].name as string, role } };
 }
 
-export async function removeCampStaff(sql: Sql, actor: Actor, campId: string, profileId: string) {
+/**
+ * End someone's access to a camp, or give it back.
+ *
+ * Not a delete: the assignment is how we know who screened whom, so it is
+ * marked inactive and kept. Revoking the last active assignment a clinician
+ * has is also what stops them signing in at all — see canClinicianSignIn.
+ */
+/**
+ * May this clinician sign in at all?
+ *
+ * For a screener or physician, access *is* the camp assignment. Once every
+ * assignment has been revoked there is nothing for them to open and no reason
+ * for them to hold a session, so the OTP is refused at the door rather than
+ * letting them in to an empty app.
+ *
+ * Deliberately does not apply to ops or school administrators: their job
+ * outlives any one camp.
+ */
+export async function canClinicianSignIn(
+  sql: Sql,
+  profileId: string,
+  role: string
+): Promise<boolean> {
+  if (role !== "SCREENER" && role !== "PHYSICIAN") return true;
+  const rows = await sql`
+    SELECT 1 FROM vita_hero.camp_staff
+    WHERE profile_id = ${profileId} AND active = true LIMIT 1
+  `;
+  return rows.length > 0;
+}
+
+/**
+ * Put a doctor from the directory onto a camp, and give them a way in.
+ *
+ * This is the join the product was missing. The directory held doctors with
+ * no login; `camp_staff` held logins with no connection to the directory. A
+ * doctor was therefore someone you could describe but never let through the
+ * door.
+ *
+ * Assigning one here provisions the profile their phone number signs in with,
+ * scopes it to the camp's school, and records which directory entry it came
+ * from. Access is the assignment: revoke every active assignment and the
+ * sign-in stops working, which is exactly what "the camp is over" should mean.
+ */
+export async function assignDoctorToCamp(
+  sql: Sql,
+  actor: Actor,
+  campId: string,
+  doctorId: string
+) {
   const access = await assertCampAccess(sql, actor, campId);
   assertCan(access.canSchedule, "change staff on this camp");
-  await sql`DELETE FROM vita_hero.camp_staff WHERE camp_id = ${campId} AND profile_id = ${profileId}`;
-  return { removed: profileId };
+
+  const docs = await sql`
+    SELECT id, name, phone, specialty FROM vita_hero.doctors
+    WHERE id = ${doctorId} AND active = true LIMIT 1
+  `;
+  if (docs.length === 0) throw new ApiError(404, "That doctor is not in the directory", "NO_DOCTOR");
+  const doc = docs[0];
+
+  const norm = normalizePhone(String(doc.phone || ""));
+  if (!norm) {
+    throw new ApiError(
+      400,
+      `${doc.name as string} has no mobile number in the directory. Add one first — it is how they sign in.`,
+      "DOCTOR_NO_PHONE"
+    );
+  }
+
+  const profileId = `ph_${norm.last10}`;
+  const existing = await sql`SELECT role FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1`;
+  if (existing.length > 0 && (existing[0].role as string) === "PARENT") {
+    throw new ApiError(409, "That number is already registered as a parent", "PHONE_IS_PARENT");
+  }
+
+  const schoolId = access.camp.school_id as string;
+  await sql`
+    INSERT INTO vita_hero.profiles
+      (id, user_id, phone, name, auth_provider, role, provisioned, school_id,
+       is_logged_in, onboarding_complete, created_by)
+    VALUES
+      (${profileId}, ${profileId}, ${norm.e164}, ${doc.name as string}, 'PHONE', 'PHYSICIAN',
+       true, ${schoolId}, false, true, ${actor.profileId})
+    ON CONFLICT (id) DO UPDATE SET
+      name = ${doc.name as string}, phone = ${norm.e164}, role = 'PHYSICIAN',
+      school_id = ${schoolId}, provisioned = true
+  `;
+
+  await sql`
+    INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role, doctor_id, active)
+    VALUES (${"cst_" + campId.slice(-10) + "_" + slugify(profileId).slice(0, 16)},
+            ${campId}, ${profileId}, 'PHYSICIAN', ${doctorId}, true)
+    ON CONFLICT (camp_id, profile_id) DO UPDATE SET
+      staff_role = 'PHYSICIAN', doctor_id = ${doctorId},
+      active = true, revoked_at = NULL, revoked_by = ''
+  `;
+
+  return {
+    assigned: {
+      doctorId,
+      profileId,
+      name: doc.name as string,
+      specialty: (doc.specialty as string) || "",
+      phone: norm.e164,
+      role: "PHYSICIAN",
+    },
+    signInHint: `${doc.name as string} signs in to the app with ${norm.e164}.`,
+  };
+}
+
+/**
+ * Every camp a doctor has been put on, active or not.
+ *
+ * The revoked ones are the point: a school needs to see that Dr Iyer screened
+ * at three camps and can currently reach none of them.
+ */
+export async function doctorCamps(sql: Sql, actor: Actor, doctorId: string) {
+  if (!isOpsRole(actor.role) && actor.role !== "SCHOOL_ADMIN") {
+    throw new ApiError(403, "Only staff can see a doctor's camps", "FORBIDDEN");
+  }
+  const rows = await sql`
+    SELECT cs.camp_id, cs.active, cs.revoked_at, cs.staff_role,
+           sc.title, sc.date, sc.status, sc.school_id, s.name AS school_name
+    FROM vita_hero.camp_staff cs
+    JOIN vita_hero.school_camps sc ON sc.id = cs.camp_id
+    JOIN vita_hero.schools s ON s.id = sc.school_id
+    WHERE cs.doctor_id = ${doctorId}
+      AND (${isOpsRole(actor.role)} OR sc.school_id = ${actor.schoolId || ""})
+    ORDER BY sc.date DESC
+  `;
+  return {
+    camps: rows.map((r) => ({
+      campId: r.camp_id as string,
+      title: (r.title as string) || "",
+      date: (r.date as string) || "",
+      status: (r.status as string) || "",
+      schoolId: (r.school_id as string) || "",
+      schoolName: (r.school_name as string) || "",
+      role: (r.staff_role as string) || "",
+      active: r.active !== false,
+      revokedAt: r.revoked_at ? new Date(r.revoked_at as string).toISOString() : "",
+    })),
+  };
+}
+
+export async function setCampStaffActive(
+  sql: Sql,
+  actor: Actor,
+  campId: string,
+  profileId: string,
+  active: boolean
+) {
+  const access = await assertCampAccess(sql, actor, campId);
+  assertCan(access.canSchedule, "change staff on this camp");
+  const rows = await sql`
+    UPDATE vita_hero.camp_staff
+    SET active = ${active},
+        revoked_at = ${active ? null : new Date().toISOString()},
+        revoked_by = ${active ? "" : actor.profileId}
+    WHERE camp_id = ${campId} AND profile_id = ${profileId}
+    RETURNING profile_id
+  `;
+  if (rows.length === 0) {
+    throw new ApiError(404, "That person is not on this camp", "NOT_ASSIGNED");
+  }
+  return { profileId, active };
+}
+
+export async function removeCampStaff(sql: Sql, actor: Actor, campId: string, profileId: string) {
+  return setCampStaffActive(sql, actor, campId, profileId, false);
 }

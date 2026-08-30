@@ -28,11 +28,14 @@ import { Sql } from "./common";
  * shape, so the check in migrate.test.ts asserts this file changes whenever
  * the DDL does.
  */
+// 4 — camp_staff gains active/revoked_at/revoked_by/doctor_id: a doctor's
+//     access to a camp is revoked, not deleted, so the record of who screened
+//     whom survives it.
 // 3 — adds doctors.phone, so a family told to see a doctor has a number.
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

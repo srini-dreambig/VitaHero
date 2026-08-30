@@ -2347,13 +2347,28 @@ export const PORTAL_HTML = `<!doctype html>
           ? el("div", { class: "empty" },
               el("p", { style: "font-size:13.5px;margin:0" }, "Nobody assigned yet. Add screeners and a physician under the school's People tab, then assign them here."))
           : el("table", null, el("tbody", null, staff.map(function (s) {
-              return el("tr", null,
+              // Access is ended, not deleted: the assignment is how we know who
+              // screened whom, and it survives the camp.
+              function setActive(on) {
+                run(api("/api/admin/camps/" + c.id + "/staff/" + encodeURIComponent(s.profileId),
+                  { method: "PATCH", body: { active: on } }), function () {
+                    S.notice = on
+                      ? s.name + " can sign in for this camp again."
+                      : s.name + " can no longer open this camp.";
+                    refreshCamp();
+                  });
+              }
+              var on = s.active !== false;
+              return el("tr", { class: on ? "" : "muted" },
                 el("td", null, el("b", null, s.name), el("div", { class: "muted mono", style: "font-size:12px" }, s.phone)),
                 el("td", null, el("span", { class: "pill " + (s.role === "PHYSICIAN" ? "info" : "warn") },
                   s.role === "PHYSICIAN" ? "Physician" : "Screener")),
-                el("td", { style: "text-align:right" }, el("button", { class: "sm dang", onclick: function () {
-                  run(api("/api/admin/camps/" + c.id + "/staff/" + encodeURIComponent(s.profileId), { method: "DELETE" }),
-                    function () { refreshCamp(); }); } }, "Remove")));
+                el("td", null, on
+                  ? el("span", { class: "pill ok" }, "Active")
+                  : el("span", { class: "pill mute" }, "Access ended")),
+                el("td", { style: "text-align:right" }, on
+                  ? el("button", { class: "sm dang", onclick: function () { setActive(false); } }, "End access")
+                  : el("button", { class: "sm", onclick: function () { setActive(true); } }, "Restore")));
             }))),
         el("div", { class: "card-f" }, assignStaffRow(c))));
   }
@@ -2439,21 +2454,53 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     var sel;
-    return el("div", { class: "row" },
-      avail.length
-        ? sel = el("select", { style: "max-width:280px" }, avail.map(function (s) {
-            return el("option", { value: s.profileId }, s.name + " \\u2014 " + (s.role === "PHYSICIAN" ? "Physician" : "Screener")); }))
-        : el("span", { class: "muted", style: "font-size:13px" },
-            S.staff.length ? "Everyone at this school is already on this camp." : "No screeners or physicians yet."),
-      avail.length
-        ? el("button", { disabled: S.busy, onclick: function () {
-            run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST", body: { profileId: sel.value } }),
-              function () { S.notice = "Assigned."; refreshCamp(); });
-          } }, "Assign to camp")
-        : null,
-      el("button", { class: avail.length ? "" : "pri", onclick: function () {
-        set({ form: { newStaff: true, name: "", phone: "", role: "SCREENER" } });
-      } }, icon("userPlus", 14), " Add someone new"));
+    // Doctors from the directory are the other way onto a camp. Assigning one
+    // provisions the login their phone number signs in to the app with, which
+    // is the whole point: a doctor who cannot sign in cannot screen anybody.
+    var docSel;
+    if (!S.doctors) {
+      api("/api/admin/doctors").then(function (r) { S.doctors = r; render(); }).catch(function () {});
+    }
+    var docs = ((S.doctors && S.doctors.doctors) || []).filter(function (d) {
+      return d.active && d.phone
+        && assigned.indexOf("ph_" + String(d.phone).slice(-10)) < 0;
+    });
+
+    return el("div", null,
+      el("div", { class: "row" },
+        avail.length
+          ? sel = el("select", { style: "max-width:280px" }, avail.map(function (s) {
+              return el("option", { value: s.profileId }, s.name + " — " + (s.role === "PHYSICIAN" ? "Physician" : "Screener")); }))
+          : el("span", { class: "muted", style: "font-size:13px" },
+              S.staff.length ? "Everyone at this school is already on this camp." : "No screeners or physicians yet."),
+        avail.length
+          ? el("button", { disabled: S.busy, onclick: function () {
+              run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST", body: { profileId: sel.value } }),
+                function () { S.notice = "Assigned."; refreshCamp(); });
+            } }, "Assign to camp")
+          : null,
+        el("button", { class: avail.length ? "" : "pri", onclick: function () {
+          set({ form: { newStaff: true, name: "", phone: "", role: "SCREENER" } });
+        } }, icon("userPlus", 14), " Add someone new")),
+      el("div", { class: "row", style: "margin-top:10px" },
+        docs.length
+          ? docSel = el("select", { style: "max-width:280px" }, docs.map(function (d) {
+              return el("option", { value: d.id }, d.name + " — " + d.specialty); }))
+          : el("span", { class: "muted", style: "font-size:13px" },
+              !S.doctors ? "Loading doctors…" : "No directory doctor with a mobile number to add."),
+        docs.length
+          ? el("button", { disabled: S.busy, onclick: function () {
+              run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST",
+                body: { doctorId: docSel.value } }), function (r) {
+                S.notice = r.signInHint || "Assigned.";
+                S.doctors = null; refreshCamp();
+              });
+            } }, icon("stethoscope", 14), " Assign a doctor")
+          : null),
+      el("div", { class: "hint", style: "margin-top:8px" },
+        "A doctor from the Hospitals directory signs in to the Android app with the mobile "
+        + "number held there, and sees only the camps they are assigned to. End their access "
+        + "when the camp is done — with no active camp they cannot sign in at all."));
   }
 
   // ══════════════════════════════════════ everyone at this camp

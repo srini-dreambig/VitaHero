@@ -45,6 +45,7 @@ import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./o
 import { ensureMediaSchema } from "./media";
 import { markReferralBooked } from "./referrals";
 import { listDoctors, upsertDoctor } from "./directory";
+import { assignDoctorToCamp, canClinicianSignIn, doctorCamps, setCampStaffActive } from "./camps";
 import { ensureReferralSchema, guardianReferrals, markReferralAttended, declineReferral,
   recordReferralOutcome, referralDashboard, nudgeReferrals, kidReferrals } from "./referrals";
 import { ensureLifecycleSchema, exportGuardianData, requestCorrection, listCorrections,
@@ -1206,6 +1207,104 @@ suite("end to end", () => {
     const attributed = r.hospitals.reduce((a, h) => a + h.sent, 0);
     const total = await client.query("SELECT COUNT(*)::int n FROM vita_hero.referrals");
     expect(attributed + r.notBooked.total).toBeLessThanOrEqual(total.rows[0].n);
+  });
+
+  // ── a doctor at a camp: assign, screen, revoke ──
+  //
+  // The join the product was missing. The directory held doctors with no
+  // login; camp_staff held logins with no link to the directory. A doctor was
+  // someone you could describe but never let through the door.
+
+  test("assigning a directory doctor to a camp gives them a login", async () => {
+    await client.query(
+      `INSERT INTO vita_hero.doctors (id, name, specialty, phone, hospital_id)
+       VALUES ('doc_camp', 'Dr Kavita Rao', 'Ophthalmology', '+919812345678', 'hosp_t1')
+       ON CONFLICT (id) DO UPDATE SET phone = EXCLUDED.phone`);
+    const r = await assignDoctorToCamp(sql, admin, campId, "doc_camp");
+    expect(r.assigned.profileId).toBe("ph_9812345678");
+    expect(r.assigned.role).toBe("PHYSICIAN");
+    const prof = await client.query(
+      "SELECT role, provisioned, school_id FROM vita_hero.profiles WHERE id='ph_9812345678'");
+    expect(prof.rows[0].role).toBe("PHYSICIAN");
+    // provisioned is what lets the OTP be sent at all.
+    expect(prof.rows[0].provisioned).toBe(true);
+    expect(prof.rows[0].school_id).toBe(schoolId);
+  });
+
+  test("a doctor with no number cannot be assigned, and is told why", async () => {
+    await client.query(
+      `INSERT INTO vita_hero.doctors (id, name, specialty, phone)
+       VALUES ('doc_nophone', 'Dr No Number', 'Dental', '')
+       ON CONFLICT (id) DO NOTHING`);
+    await expect(assignDoctorToCamp(sql, admin, campId, "doc_nophone"))
+      .rejects.toThrow(/no mobile number/);
+  });
+
+  test("an assigned doctor can open the camp and screen", async () => {
+    const doc: Actor = {
+      profileId: "ph_9812345678", name: "Dr Kavita Rao", role: "PHYSICIAN", schoolId,
+    };
+    const mine = await listMyCamps(sql, doc);
+    expect(mine.camps.some((c) => c.id === campId)).toBe(true);
+    // campPack is what the app downloads for the camp: the children, their
+    // consent, and the checks — usable with no network in a school hall.
+    const pack = await campPack(sql, doc, campId);
+    expect(pack.participants.length).toBeGreaterThan(0);
+  });
+
+  test("a clinician may sign in only while some camp is still theirs", async () => {
+    expect(await canClinicianSignIn(sql, "ph_9812345678", "PHYSICIAN")).toBe(true);
+    await setCampStaffActive(sql, admin, campId, "ph_9812345678", false);
+    expect(await canClinicianSignIn(sql, "ph_9812345678", "PHYSICIAN")).toBe(false);
+  });
+
+  test("revoking ends access to the camp without erasing the assignment", async () => {
+    const doc: Actor = {
+      profileId: "ph_9812345678", name: "Dr Kavita Rao", role: "PHYSICIAN", schoolId,
+    };
+    await expect(campPack(sql, doc, campId)).rejects.toThrow(/access to this camp has ended/);
+    // The row survives: it is how we know who screened whom.
+    const rows = await client.query(
+      "SELECT active, revoked_at FROM vita_hero.camp_staff WHERE camp_id=$1 AND profile_id=$2",
+      [campId, "ph_9812345678"]);
+    expect(rows.rows.length).toBe(1);
+    expect(rows.rows[0].active).toBe(false);
+    expect(rows.rows[0].revoked_at).not.toBeNull();
+  });
+
+  test("a revoked camp drops off the doctor's list but not their history", async () => {
+    const doc: Actor = {
+      profileId: "ph_9812345678", name: "Dr Kavita Rao", role: "PHYSICIAN", schoolId,
+    };
+    const mine = await listMyCamps(sql, doc);
+    expect(mine.camps.some((c) => c.id === campId)).toBe(false);
+    // The school still sees every camp the doctor was on, and its state.
+    const history = await doctorCamps(sql, admin, "doc_camp");
+    const row = history.camps.find((c) => c.campId === campId)!;
+    expect(row.active).toBe(false);
+    expect(row.revokedAt).toMatch(/^\d{4}-/);
+  });
+
+  test("access can be given back", async () => {
+    await setCampStaffActive(sql, admin, campId, "ph_9812345678", true);
+    expect(await canClinicianSignIn(sql, "ph_9812345678", "PHYSICIAN")).toBe(true);
+    const history = await doctorCamps(sql, admin, "doc_camp");
+    expect(history.camps.find((c) => c.campId === campId)!.active).toBe(true);
+  });
+
+  test("revoking one camp leaves a doctor's other camps alone", async () => {
+    const second = await createCamp(sql, admin, schoolId, {
+      title: "Second Camp", date: "2026-11-20", checks: ["Vision"], grades: ["Class 4"],
+    });
+    await assignDoctorToCamp(sql, admin, second.camp.id, "doc_camp");
+    await setCampStaffActive(sql, admin, campId, "ph_9812345678", false);
+    // Still has one, so still gets through the door.
+    expect(await canClinicianSignIn(sql, "ph_9812345678", "PHYSICIAN")).toBe(true);
+    const history = await doctorCamps(sql, admin, "doc_camp");
+    expect(history.camps.length).toBe(2);
+    expect(history.camps.filter((c) => c.active).length).toBe(1);
+    await setCampStaffActive(sql, admin, second.camp.id, "ph_9812345678", true);
+    await setCampStaffActive(sql, admin, campId, "ph_9812345678", true);
   });
 
   // ── the doctor directory ──
