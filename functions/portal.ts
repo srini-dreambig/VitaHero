@@ -3526,14 +3526,19 @@ export const PORTAL_HTML = `<!doctype html>
               el("input", { value: g.name, oninput: db("name") })),
             el("div", { class: "fld" }, el("label", null, "Specialty"),
               el("input", { value: g.specialty, oninput: db("specialty"), placeholder: "Ophthalmology" }))),
-          el("div", { class: "fld" }, el("label", null, "Hospital"),
-            el("select", { onchange: db("hospitalId") },
-              [el("option", { value: "" }, "\u2014 not attached \u2014")].concat(
-                (S.hospitals.hospitals || []).map(function (h) {
-                  return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
-                })))),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Hospital"),
+              el("select", { onchange: db("hospitalId") },
+                [el("option", { value: "" }, "\u2014 not attached \u2014")].concat(
+                  (S.hospitals.hospitals || []).map(function (h) {
+                    return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
+                  })))),
+            el("div", { class: "fld" }, el("label", null, "Direct number (optional)"),
+              el("input", { value: g.phone || "", oninput: db("phone"), placeholder: "+91 98765 43210" }))),
           el("div", { class: "hint" },
-            "A referral names a specialty. Attaching the doctor to a hospital is what lets the app tell a family where to go.")),
+            "A referral names a specialty. Attaching the doctor to a hospital is what lets the app "
+            + "tell a family where to go \u2014 and if this doctor has no direct number, the family "
+            + "is given the hospital's, so leaving it blank is better than guessing one.")),
         el("div", { class: "card-f" }, el("div", { class: "row" },
           el("button", { class: "pri", disabled: S.busy, onclick: saveDoctor }, "Save doctor"),
           el("button", { onclick: function () { set({ docForm: null }); } }, "Cancel"))));
@@ -3555,7 +3560,7 @@ export const PORTAL_HTML = `<!doctype html>
             lat: "", lng: "", isCampPartner: false } });
         } }, icon("plus", 14), " Add hospital") : null,
         canEdit ? el("button", { onclick: function () {
-          set({ docForm: { name: "", specialty: "", hospitalId: "", city: "Hyderabad" } });
+          set({ docForm: { name: "", specialty: "", hospitalId: "", city: "Hyderabad", phone: "" } });
         } }, icon("plus", 14), " Add doctor") : null),
 
       hs.length === 0
@@ -3599,17 +3604,24 @@ export const PORTAL_HTML = `<!doctype html>
               el("p", { style: "font-size:13.5px;margin:0" }, "None yet.")))
           : el("div", { class: "tw" }, el("table", null,
               el("thead", null, el("tr", null, el("th", null, "Doctor"), el("th", null, "Specialty"),
-                el("th", null, "Hospital"), el("th", null, ""))),
+                el("th", null, "Hospital"), el("th", null, "Phone"), el("th", null, ""))),
               el("tbody", null, (S.doctors.doctors || []).map(function (d) {
                 return el("tr", { class: d.active ? "" : "muted" },
                   el("td", null, el("b", null, d.name)),
                   el("td", null, d.specialty),
                   el("td", { class: "muted" }, d.hospitalName || "\u2014"),
+                  // No direct number is a real state, not a blank cell: the
+                  // family is given the hospital's instead, and saying so
+                  // stops it reading like missing data.
+                  el("td", { class: "mono" }, d.phone
+                    ? d.phone
+                    : el("span", { class: "muted", style: "font-family:inherit" },
+                        d.hospitalName ? "via hospital" : "\u2014")),
                   el("td", { style: "text-align:right" }, canEdit
                     ? el("div", { class: "row" },
                         el("button", { class: "sm", onclick: function () {
                           set({ docForm: { id: d.id, name: d.name, specialty: d.specialty,
-                            hospitalId: d.hospitalId, city: d.city } });
+                            hospitalId: d.hospitalId, city: d.city, phone: d.phone || "" } });
                         } }, "Edit"),
                         d.active ? el("button", { class: "sm dang", onclick: function () {
                           retire("doctors", d.id, d.name);

@@ -104,6 +104,7 @@ export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string) {
       hospitalId: (r.hospital_id as string) || "",
       hospitalName: (r.hospital_name as string) || (r.hospital as string) || "",
       city: (r.city as string) || "",
+      phone: (r.phone as string) || "",
       rating: Number(r.rating) || 0,
       active: r.active !== false,
     })),
@@ -125,17 +126,28 @@ export async function upsertDoctor(sql: Sql, actor: Actor, body: Record<string, 
     hospitalName = h[0].name as string;
   }
 
+  // Optional, and normalised when given. A directory entry with no number is
+  // honest — the family falls back to the hospital's switchboard — but a
+  // number that is not a phone number is not.
+  const rawPhone = String(body.phone || "").trim();
+  let phone = "";
+  if (rawPhone) {
+    const norm = normalizePhone(rawPhone);
+    if (!norm) throw new ApiError(400, "That is not a valid mobile number", "BAD_PHONE");
+    phone = norm.e164;
+  }
+
   const id = String(body.id || "").trim() || `doc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
   await sql`
-    INSERT INTO vita_hero.doctors (id, name, specialty, hospital, hospital_id, city, rating, active)
+    INSERT INTO vita_hero.doctors (id, name, specialty, hospital, hospital_id, city, phone, rating, active)
     VALUES (${id}, ${name}, ${specialty}, ${hospitalName}, ${hospitalId || null},
-            ${String(body.city || "")}, ${num(body.rating, 4.5)}, ${body.active !== false})
+            ${String(body.city || "")}, ${phone}, ${num(body.rating, 4.5)}, ${body.active !== false})
     ON CONFLICT (id) DO UPDATE SET
       name = EXCLUDED.name, specialty = EXCLUDED.specialty, hospital = EXCLUDED.hospital,
-      hospital_id = EXCLUDED.hospital_id, city = EXCLUDED.city,
+      hospital_id = EXCLUDED.hospital_id, city = EXCLUDED.city, phone = EXCLUDED.phone,
       rating = EXCLUDED.rating, active = EXCLUDED.active
   `;
-  return { id, name };
+  return { id, name, phone };
 }
 
 export async function deleteDoctor(sql: Sql, actor: Actor, id: string) {

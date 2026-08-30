@@ -44,6 +44,7 @@ import { adminAnalytics } from "./analytics";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import { ensureMediaSchema } from "./media";
 import { markReferralBooked } from "./referrals";
+import { listDoctors, upsertDoctor } from "./directory";
 import { ensureReferralSchema, guardianReferrals, markReferralAttended, declineReferral,
   recordReferralOutcome, referralDashboard, nudgeReferrals, kidReferrals } from "./referrals";
 import { ensureLifecycleSchema, exportGuardianData, requestCorrection, listCorrections,
@@ -190,7 +191,7 @@ beforeAll(async () => {
   await sql`CREATE TABLE IF NOT EXISTS vita_hero.doctors (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, specialty TEXT NOT NULL,
     hospital TEXT DEFAULT '', hospital_id TEXT, city TEXT DEFAULT 'Hyderabad',
-    rating DOUBLE PRECISION DEFAULT 4.5, active BOOLEAN DEFAULT true)`;
+    phone TEXT DEFAULT '', rating DOUBLE PRECISION DEFAULT 4.5, active BOOLEAN DEFAULT true)`;
 });
 afterAll(async () => { if (client) await client.end(); });
 
@@ -1205,6 +1206,49 @@ suite("end to end", () => {
     const attributed = r.hospitals.reduce((a, h) => a + h.sent, 0);
     const total = await client.query("SELECT COUNT(*)::int n FROM vita_hero.referrals");
     expect(attributed + r.notBooked.total).toBeLessThanOrEqual(total.rows[0].n);
+  });
+
+  // ── the doctor directory ──
+  //
+  // A directory doctor's number is a sign-in credential, not a contact for
+  // families: doctors come to camps to screen, and the number is how they get
+  // into the app. It was built the other way round first, which is why these
+  // exist.
+
+  test("a doctor's number is stored normalised", async () => {
+    const r = await upsertDoctor(sql, OPS, {
+      name: "Dr Meera Iyer", specialty: "Ophthalmology",
+      hospitalId: "hosp_t1", phone: "98765 43210",
+    });
+    expect(r.phone).toBe("+919876543210");
+    const listed = await listDoctors(sql, OPS, "hosp_t1");
+    const doc = listed.doctors.find((d) => d.id === r.id)!;
+    expect(doc.phone).toBe("+919876543210");
+  });
+
+  test("a number that is not a phone number is refused", async () => {
+    await expect(upsertDoctor(sql, OPS, {
+      name: "Dr Nobody", specialty: "Dental", phone: "12",
+    })).rejects.toThrow(/valid mobile number/);
+  });
+
+  test("no number is a legitimate state, not an empty string to guess at", async () => {
+    const r = await upsertDoctor(sql, OPS, { name: "Dr Anon", specialty: "Dental" });
+    expect(r.phone).toBe("");
+    const listed = await listDoctors(sql, OPS, "");
+    expect(listed.doctors.find((d) => d.id === r.id)!.phone).toBe("");
+  });
+
+  test("the doctor's number never reaches a family", async () => {
+    // The parent-facing booking payload is built from an explicit column list;
+    // if `phone` is ever added to it, this fails.
+    const src = await import("node:fs").then((fs) =>
+      fs.readFileSync("index.ts", "utf8"));
+    const booking = src.slice(src.indexOf('path === "/api/booking/directory"'));
+    const doctorQuery = booking.slice(0, booking.indexOf("conducted_camps"));
+    expect(doctorQuery).not.toContain("d.phone");
+    const list = src.slice(src.indexOf('path === "/api/doctors"'));
+    expect(list.slice(0, list.indexOf("ORDER BY"))).not.toContain("d.phone");
   });
 
   test("partner performance is ops-only", async () => {

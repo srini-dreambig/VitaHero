@@ -883,6 +883,11 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
   `;
 
   await sql`ALTER TABLE vita_hero.doctors ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
+  // A directory doctor had no phone number at all, which meant a family told
+  // to see Dr X had no way to reach them and the console had nothing to show.
+  // Nullable: a hospital's own switchboard is often the right number, and an
+  // invented one is worse than none.
+  await sql`ALTER TABLE vita_hero.doctors ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT ''`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
 
   const hospitals = [
