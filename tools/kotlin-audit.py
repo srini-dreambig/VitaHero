@@ -483,6 +483,67 @@ if not bad_args:
     print(f"  ok  named arguments match declarations for {len(SCREENS)} composables")
 
 
+# ── 11. lambda arity at a call site matches the parameter ───
+#
+# The one that got through. Removing height and weight from AddKidScreen
+# narrowed its `onSave` from seven parameters to five, and the call site in
+# AppNavigation kept destructuring seven. That is a compile error, and every
+# check here passed it: the name resolved, the import resolved, the argument
+# was spelled correctly. Only the shape was wrong.
+
+fun_type = re.compile(
+    r"(\w+)\s*:\s*\(([^)]*)\)\s*->\s*\w+", re.S)
+
+# name -> {param: declared lambda arity}
+LAMBDA_PARAMS = {}
+for f, src in SRC.items():
+    for m in re.finditer(r"fun\s+(\w+)\s*\(", src):
+        name = m.group(1)
+        i, depth = m.end(), 1
+        while i < len(src) and depth:
+            if src[i] == "(":
+                depth += 1
+            elif src[i] == ")":
+                depth -= 1
+            i += 1
+        for pm in fun_type.finditer(src[m.end():i - 1]):
+            inner = pm.group(2).strip()
+            arity = 0 if not inner else len(split_top(inner))
+            LAMBDA_PARAMS.setdefault(name, {})[pm.group(1)] = arity
+
+bad_arity = []
+for f, src in SRC.items():
+    for name, params in LAMBDA_PARAMS.items():
+        if not params:
+            continue
+        for m in re.finditer(r"(?<![\w.])" + re.escape(name) + r"\s*\(", src):
+            if re.search(r"fun\s+$", src[max(0, m.start() - 40):m.start()]):
+                continue
+            i, depth = m.end(), 1
+            while i < len(src) and depth:
+                if src[i] == "(":
+                    depth += 1
+                elif src[i] == ")":
+                    depth -= 1
+                i += 1
+            for part in split_top(src[m.end():i - 1]):
+                am = re.match(r"\s*(\w+)\s*=(?!=)\s*\{([^}]*?)->", part, re.S)
+                if not am or am.group(1) not in params:
+                    continue
+                names = [x for x in split_top(am.group(2)) if x.strip()]
+                got, want = len(names), params[am.group(1)]
+                if got != want:
+                    bad_arity.append(
+                        f"{rel(f)} passes {name}({am.group(1)} = {{ "
+                        f"{', '.join(x.strip() for x in names)} -> ... }}) with {got} "
+                        f"parameter(s), but {name} declares {want}")
+for x in sorted(set(bad_arity)):
+    fail(x)
+if not bad_arity:
+    n = sum(len(v) for v in LAMBDA_PARAMS.values())
+    print(f"  ok  lambda arity matches at every call site ({n} function parameters)")
+
+
 # ── result ──────────────────────────────────────────────────
 print("\n" + "=" * 60)
 if failures:

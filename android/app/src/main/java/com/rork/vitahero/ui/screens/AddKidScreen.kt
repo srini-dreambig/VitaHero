@@ -195,7 +195,7 @@ private fun GenderChip(text: String, selected: Boolean, modifier: Modifier = Mod
 private fun AddKidScreenPreview() {
     androidx.compose.runtime.CompositionLocalProvider(LocalAppLocale provides AppLocale.ENGLISH) {
         AppTheme {
-            AddKidScreen(onBack = {}, onSave = { _, _, _, _, _, _, _ -> })
+            AddKidScreen(onBack = {}, onSave = { _, _, _, _, _ -> })
         }
     }
 }

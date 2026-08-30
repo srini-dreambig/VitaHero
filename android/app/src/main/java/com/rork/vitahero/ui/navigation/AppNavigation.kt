@@ -449,8 +449,8 @@ fun AppNavigation(
         composable(Routes.ADD_KID) {
             AddKidScreen(
                 onBack = { navController.popBackStack() },
-                onSave = { name, age, gender, school, grade, height, weight ->
-                    kidsViewModel.addKid(name, age, gender, school, grade, height, weight)
+                onSave = { name, age, gender, school, grade ->
+                    kidsViewModel.addKid(name, age, gender, school, grade)
                     navController.popBackStack()
                 }
             )
