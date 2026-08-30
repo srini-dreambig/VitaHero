@@ -56,15 +56,13 @@ import com.rork.vitahero.ui.theme.HeroOrange
 @Composable
 fun AddKidScreen(
     onBack: () -> Unit,
-    onSave: (name: String, age: Int, gender: String, school: String, grade: String, heightCm: Float, weightKg: Float) -> Unit
+    onSave: (name: String, age: Int, gender: String, school: String, grade: String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("Boy") }
     var school by remember { mutableStateOf("") }
     var grade by remember { mutableStateOf("") }
-    var height by remember { mutableStateOf("") }
-    var weight by remember { mutableStateOf("") }
 
     val canSave = name.isNotBlank() && age.isNotBlank()
 
@@ -140,26 +138,13 @@ fun AddKidScreen(
             HeroTextField(value = grade, onValueChange = { grade = it }, placeholder = "e.g. Class 4-B")
             Spacer(Modifier.height(16.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f)) {
-                    FieldLabel(t(S.kidHeight))
-                    HeroTextField(
-                        value = height,
-                        onValueChange = { v -> height = v.filter { it.isDigit() || it == '.' }.take(5) },
-                        placeholder = "cm",
-                        keyboardType = KeyboardType.Decimal
-                    )
-                }
-                Column(Modifier.weight(1f)) {
-                    FieldLabel(t(S.kidWeight))
-                    HeroTextField(
-                        value = weight,
-                        onValueChange = { v -> weight = v.filter { it.isDigit() || it == '.' }.take(5) },
-                        placeholder = "kg",
-                        keyboardType = KeyboardType.Decimal
-                    )
-                }
-            }
+            // Height and weight are not asked for. They are measured at a
+            // school camp by someone trained to measure them, and a number a
+            // parent types at home would be indistinguishable in the record
+            // from one a nurse took — which is exactly the confusion a health
+            // record must not have.
+            Spacer(Modifier.height(20.dp))
+            InfoBanner(t(S.addChildNoMeasurements))
 
             Spacer(Modifier.height(24.dp))
             PrimaryGradientButton(
@@ -172,8 +157,6 @@ fun AddKidScreen(
                         gender,
                         school.trim(),
                         grade.trim(),
-                        height.toFloatOrNull() ?: 0f,
-                        weight.toFloatOrNull() ?: 0f,
                     )
                 },
                 modifier = Modifier.fillMaxWidth()
