@@ -8,7 +8,6 @@ import kotlinx.coroutines.launch
 
 /**
  * Profile settings, notifications preferences, in-app notifications, and family sharing.
- * Uses FirestoreRepository for Firestore operations.
  */
 class ProfileViewModel(
     application: Application,
@@ -17,7 +16,6 @@ class ProfileViewModel(
 
     private val state get() = container.state
     private val auth get() = container.auth
-    private val repo get() = container.repo
 
     fun scheduleAllNotifications() {
         NotificationCoordinator.scheduleAll(getApplication(), state.uiState.value)
@@ -60,7 +58,7 @@ class ProfileViewModel(
         }
         if (ids.isNotEmpty() && auth.isLoggedIn.value) {
             viewModelScope.launch {
-                try { repo.markNotificationsRead(ids) } catch (_: Exception) { }
+                try { container.api.markNotificationsRead(ids) } catch (_: Exception) { }
             }
         }
     }
@@ -81,25 +79,34 @@ class ProfileViewModel(
 
     fun joinFamily(code: String, kidsViewModel: KidsViewModel) {
         viewModelScope.launch {
+            val token = auth.sessionToken.value ?: return@launch
             val locale = state.uiState.value.locale
-            repo.validateFamilyCode(code).let { validation ->
-                if (!validation.valid) {
-                    state.syncMessage.value = validation.error ?: tr(S.familyInvalid, locale)
-                    return@launch
-                }
-                repo.joinFamily(
-                    code = code,
-                    coParentName = state.uiState.value.parentName,
-                    relation = tr(S.coParentRelation, locale),
-                ).let { result ->
-                    if (result.success) {
-                        container.fetchAndApplyBackendData(viewModelScope)
-                        fetchSharedKids(kidsViewModel)
-                    } else {
-                        state.syncMessage.value = result.error ?: tr(S.familyInvalid, locale)
+            FamilySharingService.validateCode(code, token).fold(
+                onSuccess = { validation ->
+                    if (!validation.valid) {
+                        state.syncMessage.value = validation.error ?: tr(S.familyInvalid, locale)
+                        return@launch
                     }
-                }
-            }
+                    FamilySharingService.joinFamily(
+                        code = code,
+                        coParentName = state.uiState.value.parentName,
+                        relation = tr(S.coParentRelation, locale),
+                        accessToken = token,
+                    ).onSuccess { resp ->
+                        if (resp.success) {
+                            container.fetchAndApplyBackendData(viewModelScope)
+                            fetchSharedKids(kidsViewModel)
+                        } else {
+                            state.syncMessage.value = resp.error ?: tr(S.familyInvalid, locale)
+                        }
+                    }.onFailure { e ->
+                        state.syncMessage.value = e.message ?: tr(S.syncFailed, locale)
+                    }
+                },
+                onFailure = { e ->
+                    state.syncMessage.value = e.message ?: tr(S.syncFailed, locale)
+                },
+            )
         }
     }
 
@@ -107,9 +114,10 @@ class ProfileViewModel(
         val code = state.uiState.value.familyCode
         if (code.isBlank()) return
         viewModelScope.launch {
-            repo.fetchSharedKids(code).let { resp ->
+            val token = auth.sessionToken.value ?: return@launch
+            FamilySharingService.fetchSharedKids(code, token).onSuccess { resp ->
                 if (resp.kids.isNotEmpty() && !resp.isOwner) {
-                    val sharedKids = resp.kids.filter { !it.isOwnerKid }.map { dto ->
+                    val sharedKids = resp.kids.map { dto ->
                         Kid(
                             id = dto.id, name = dto.name, age = dto.age,
                             gender = dto.gender, school = dto.school, grade = dto.grade,
@@ -117,9 +125,11 @@ class ProfileViewModel(
                             avatarColor = (dto.name.hashCode() and 0xFFFFFF).toLong() or 0xFF000000,
                             overallScore = dto.overallScore,
                             growth = emptyList(),
-                            dental = runCatching { HealthFlag.valueOf(dto.dental) }.getOrDefault(HealthFlag.GOOD),
-                            eyesight = runCatching { HealthFlag.valueOf(dto.eyesight) }.getOrDefault(HealthFlag.GOOD),
-                            nutrition = runCatching { HealthFlag.valueOf(dto.nutrition) }.getOrDefault(HealthFlag.GOOD),
+                            // A value we cannot parse is an absence of data,
+                            // not a clean result. Same rule as BackendDataMapper.
+                            dental = runCatching { HealthFlag.valueOf(dto.dental) }.getOrDefault(HealthFlag.NOT_MEASURED),
+                            eyesight = runCatching { HealthFlag.valueOf(dto.eyesight) }.getOrDefault(HealthFlag.NOT_MEASURED),
+                            nutrition = runCatching { HealthFlag.valueOf(dto.nutrition) }.getOrDefault(HealthFlag.NOT_MEASURED),
                             lastCheckup = dto.lastCheckup,
                         )
                     }

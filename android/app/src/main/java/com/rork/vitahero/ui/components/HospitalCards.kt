@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.LocalHospital
-import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.Verified
 import androidx.compose.material3.Icon
@@ -28,6 +27,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Doctor
 import com.rork.vitahero.data.Hospital
@@ -58,7 +58,10 @@ fun HospitalDirectoryCard(
                 IconBubble(Icons.Outlined.LocalHospital, if (hospital.userCampLinked) HeroOrange else HeroBlue)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(hospital.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(hospital.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(
                         "${hospital.district}, ${hospital.city}",
                         style = MaterialTheme.typography.bodySmall,
@@ -66,10 +69,25 @@ fun HospitalDirectoryCard(
                     )
                     if (hospital.address.isNotBlank()) {
                         Text(
-                            hospital.address + if (hospital.pincode.isNotBlank()) " - ${hospital.pincode}" else "",
+                            hospital.address,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                    }
+                    hospital.distanceKm?.let { km ->
+                        Text(
+                            String.format(t(S.kmAway), "%.1f".format(km)),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = HeroBlue,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Star, contentDescription = null, tint = HeroYellow, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text("${hospital.rating}", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -135,14 +153,23 @@ fun DoctorDirectoryCard(doctor: Doctor, selected: Boolean, onClick: () -> Unit) 
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(doctor.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(doctor.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     if (doctor.isCampPartner) {
                         Spacer(Modifier.width(6.dp))
                         Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(14.dp))
                     }
                 }
-                Text(doctor.specialty, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(doctor.hospital, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(doctor.specialty, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(doctor.hospital, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Star, contentDescription = null, tint = HeroYellow, modifier = Modifier.size(16.dp))

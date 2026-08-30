@@ -23,13 +23,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetCredentialResponse
+import androidx.credentials.exceptions.GetCredentialException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.google.firebase.FirebaseException
-import com.google.firebase.auth.PhoneAuthCredential
-import com.google.firebase.auth.PhoneAuthOptions
-import com.google.firebase.auth.PhoneAuthProvider
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.android.libraries.identity.googleid.GoogleIdTokenParsingException
 import com.rork.vitahero.data.ApiRepositoryProvider
 import com.rork.vitahero.data.AppViewModel
 import com.rork.vitahero.data.HealthConnectPermissions
@@ -40,7 +45,8 @@ import com.rork.vitahero.data.VitaHeroViewModelFactory
 import com.rork.vitahero.ui.navigation.AppNavigation
 import com.rork.vitahero.ui.theme.AppTheme
 import kotlinx.coroutines.launch
-import java.util.concurrent.TimeUnit
+import java.security.MessageDigest
+import java.util.UUID
 
 class MainActivity : ComponentActivity() {
 
@@ -63,9 +69,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var appViewModel: AppViewModel
     private lateinit var kidsViewModel: KidsViewModel
 
+    // Phone resolved from an invite deep link (SMS), used to prefill the sign-in screen.
     private val invitePhoneState = mutableStateOf("")
-
-    private var resendToken: PhoneAuthProvider.ForceResendingToken? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -114,12 +119,7 @@ class MainActivity : ComponentActivity() {
                 AppTheme(darkTheme = state.darkTheme) {
                     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { _ ->
                         AppNavigation(
-                            onSendPhoneOtp = { phone ->
-                                preVerifyAndStartOtp(phone)
-                            },
-                            onResendOtp = { phone ->
-                                resendFirebasePhoneVerification(phone)
-                            },
+                            onGoogleSignInRequest = { launchGoogleSignIn() },
                             invitePhone = invitePhoneState.value,
                         )
                     }
@@ -134,6 +134,12 @@ class MainActivity : ComponentActivity() {
         handleInviteDeepLink(intent)
     }
 
+    /**
+     * Handles invite links from the SMS landing page:
+     *  - custom scheme: vitahero://invite?token=...
+     *  - app link:      https://<host>/i/<token>
+     * Resolves the token to the registered phone and prefills the sign-in screen.
+     */
     private fun handleInviteDeepLink(intent: Intent?) {
         val data = intent?.data ?: return
         val token = when {
@@ -148,106 +154,58 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ─── Firebase Phone Auth ───────────────────────────────────
-
-    private val phoneCallbacks = object : PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
-        override fun onVerificationCompleted(credential: PhoneAuthCredential) {
-            android.util.Log.d("VitaHeroAuth", "onVerificationCompleted (auto-verified)")
-            appViewModel.setOtpSending(false)
-            appViewModel.setAuthLoading(false)
-            appViewModel.signInWithCredential(credential)
+    private fun launchGoogleSignIn() {
+        val webClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID
+        if (webClientId.isBlank()) {
+            Toast.makeText(this, "Google Sign-In is not configured. Add GOOGLE_WEB_CLIENT_ID.", Toast.LENGTH_LONG).show()
+            return
         }
 
-        override fun onVerificationFailed(e: FirebaseException) {
-            android.util.Log.e("VitaHeroAuth", "onVerificationFailed: ${e.message}", e)
-            appViewModel.setOtpSending(false)
-            appViewModel.setAuthLoading(false)
-            val rawMsg = e.message ?: "Verification failed"
-            val msg = when {
-                rawMsg.contains("NETWORK", ignoreCase = true) ->
-                    "Network error. Check your internet connection and try again."
-                rawMsg.contains("quota", ignoreCase = true) ->
-                    "SMS quota exceeded. Please try again later."
-                rawMsg.contains("INVALID_PHONE", ignoreCase = true) ->
-                    "Invalid phone number. Please check and try again."
-                rawMsg.contains("TOO_SHORT", ignoreCase = true) ->
-                    "Phone number is too short. Please enter a valid 10-digit number."
-                rawMsg.contains("credential-manager", ignoreCase = true) ||
-                rawMsg.contains("PLAY_SERVICES", ignoreCase = true) ->
-                    "Google Play Services required for OTP verification."
-                rawMsg.contains("MISSING_MFA_ENROLLMENT", ignoreCase = true) ||
-                rawMsg.contains("CAPTCHA", ignoreCase = true) ->
-                    "Verification blocked by reCAPTCHA. Please try again."
-                rawMsg.contains("OPERATION_NOT_ALLOWED", ignoreCase = true) ->
-                    "Phone Auth is not enabled in Firebase Console. Please enable it."
-                rawMsg.contains("BILLING", ignoreCase = true) ->
-                    "Firebase billing issue: $rawMsg"
-                else -> "Verification failed: $rawMsg"
-            }
-            appViewModel.setAuthError(msg)
-        }
+        val credentialManager = CredentialManager.create(this)
+        val rawNonce = UUID.randomUUID().toString()
+        val digest = MessageDigest.getInstance("SHA-256").digest(rawNonce.toByteArray())
+        val hashedNonce = digest.fold("") { str, it -> str + "%02x".format(it) }
 
-        override fun onCodeSent(
-            verificationId: String,
-            token: PhoneAuthProvider.ForceResendingToken,
-        ) {
-            super.onCodeSent(verificationId, token)
-            android.util.Log.d("VitaHeroAuth", "onCodeSent: verificationId received")
-            resendToken = token
-            appViewModel.setOtpSending(false)
-            appViewModel.setAuthLoading(false)
-            appViewModel.setVerificationId(verificationId)
-        }
-    }
+        val googleIdOption = GetGoogleIdOption.Builder()
+            .setServerClientId(webClientId)
+            .setFilterByAuthorizedAccounts(false)
+            .setAutoSelectEnabled(true)
+            .setNonce(hashedNonce)
+            .build()
 
-    private fun preVerifyAndStartOtp(phone: String) {
-        val formatted = if (phone.startsWith("+")) phone else "+91$phone"
-        android.util.Log.d("VitaHeroAuth", "Pre-verifying phone: $formatted")
-        appViewModel.setAuthError(null)
-        appViewModel.setAuthLoading(true)
-        appViewModel.setOtpSending(true)
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(googleIdOption)
+            .build()
 
         lifecycleScope.launch {
-            val result = appViewModel.verifyPhoneForLogin(formatted)
-            if (!result.valid) {
-                android.util.Log.d("VitaHeroAuth", "Phone pre-verification denied: ${result.error}")
-                appViewModel.setAuthLoading(false)
-                appViewModel.setOtpSending(false)
-                appViewModel.setAuthError(result.error ?: "This phone number is not registered. Please contact your administrator.")
-                return@launch
+            try {
+                val result = credentialManager.getCredential(
+                    request = request,
+                    context = this@MainActivity,
+                )
+                handleGoogleSignInResult(result)
+            } catch (_: NoCredentialException) {
+                Toast.makeText(this@MainActivity, "No Google accounts found. Try phone sign-in.", Toast.LENGTH_SHORT).show()
+            } catch (e: GetCredentialException) {
+                Toast.makeText(this@MainActivity, "Google Sign-In failed: ${e.message}", Toast.LENGTH_SHORT).show()
             }
-            android.util.Log.d("VitaHeroAuth", "Phone pre-verified. isDoctor=${result.isDoctor}, screens=${result.allowedScreens}")
-            startFirebasePhoneVerification(phone)
         }
     }
 
-    private fun startFirebasePhoneVerification(phone: String) {
-        val formatted = if (phone.startsWith("+")) phone else "+91$phone"
-        android.util.Log.d("VitaHeroAuth", "Starting Phone verification for: $formatted")
-        appViewModel.setAuthError(null)
-        appViewModel.setAuthLoading(true)
-        appViewModel.setOtpSending(true)
-        val options = PhoneAuthOptions.newBuilder()
-            .setPhoneNumber(formatted)
-            .setTimeout(60L, TimeUnit.SECONDS)
-            .setActivity(this)
-            .setCallbacks(phoneCallbacks)
-            .build()
-        PhoneAuthProvider.verifyPhoneNumber(options)
-    }
-
-    private fun resendFirebasePhoneVerification(phone: String) {
-        val formatted = if (phone.startsWith("+")) phone else "+91$phone"
-        android.util.Log.d("VitaHeroAuth", "Resending Phone verification for: $formatted")
-        appViewModel.setAuthError(null)
-        appViewModel.setOtpSending(true)
-        val builder = PhoneAuthOptions.newBuilder()
-            .setPhoneNumber(formatted)
-            .setTimeout(60L, TimeUnit.SECONDS)
-            .setActivity(this)
-            .setCallbacks(phoneCallbacks)
-        resendToken?.let { builder.setForceResendingToken(it) }
-        PhoneAuthProvider.verifyPhoneNumber(builder.build())
+    private fun handleGoogleSignInResult(result: GetCredentialResponse) {
+        val credential = result.credential
+        if (credential is CustomCredential &&
+            credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+        ) {
+            try {
+                val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                appViewModel.signInWithGoogle(googleIdTokenCredential.idToken)
+            } catch (_: GoogleIdTokenParsingException) {
+                Toast.makeText(this, "Failed to parse Google ID token", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            Toast.makeText(this, "Unexpected credential type", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun requestExactAlarmIfNeeded() {

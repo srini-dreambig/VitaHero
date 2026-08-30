@@ -22,7 +22,6 @@ data class AppUiState(
     val notificationsEnabled: Boolean = true,
     val campRemindersEnabled: Boolean = true,
     val authProvider: String = "",
-    val role: String = "PARENT",
     val partnerSchools: List<PartnerSchool> = emptyList(),
     val availableSchools: List<PartnerSchool> = emptyList(),
     val bookingDirectory: BookingDirectory? = null,

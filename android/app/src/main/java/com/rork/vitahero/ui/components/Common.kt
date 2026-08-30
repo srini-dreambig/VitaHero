@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -43,11 +42,24 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.unit.dp
-import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.tr
+
+/**
+ * How much room the bottom navigation bar takes, plus the system navigation
+ * inset beneath it.
+ *
+ * Every tab screen scrolls its own content behind that bar, so each one has to
+ * end with this much padding or its last row sits underneath the tabs. They
+ * used to end with a flat 24.dp, which is roughly a third of what is needed —
+ * on every phone, on all five tabs, the last child, camp and badge were clipped.
+ */
+@Composable
+fun bottomBarClearance(): Dp =
+    72.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
 @Composable
 fun StatusBarSpacer() {
@@ -230,7 +242,6 @@ fun PrimaryGradientButton(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight()
                 .background(
                     if (enabled) Brush.horizontalGradient(listOf(colors.primary, colors.secondary))
                     else Brush.horizontalGradient(listOf(colors.outline, colors.outline))
@@ -343,23 +354,14 @@ fun HeroTextField(
 @Composable
 fun t(key: String): String = tr(key, LocalAppLocale.current)
 
-/** Resolve a translated format string (supports one %d or %s replacement). */
+/** Resolve a translated format string (supports one %s replacement). */
 @Composable
-fun tf(key: String, arg: String): String {
-    val s = tr(key, LocalAppLocale.current)
-    return s.replaceFirst("%d", arg).replaceFirst("%s", arg)
-}
+fun tf(key: String, arg: String): String = tr(key, LocalAppLocale.current).replace("%s", arg)
 
-/** Resolve a translated format string (supports two ordered %d/%s replacements). */
+/** Resolve a translated format string (supports two %s replacements). */
 @Composable
-fun tf2(key: String, arg1: String, arg2: String): String {
-    val s = tr(key, LocalAppLocale.current)
-    if (s.contains("%s1") || s.contains("%d1")) {
-        return s.replace("%s1", arg1).replace("%d1", arg1).replace("%s2", arg2).replace("%d2", arg2)
-    }
-    return s.replaceFirst("%d", arg1).replaceFirst("%s", arg1)
-        .replaceFirst("%d", arg2).replaceFirst("%s", arg2)
-}
+fun tf2(key: String, arg1: String, arg2: String): String =
+    tr(key, LocalAppLocale.current).replace("%s1", arg1).replace("%s2", arg2)
 
 /** Full-screen loading placeholder with a subtle shimmer. */
 @Composable

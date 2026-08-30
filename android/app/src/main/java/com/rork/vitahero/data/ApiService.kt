@@ -10,9 +10,8 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
 /**
- * HTTP client configured for the VitaHero Cloudflare Worker API.
- * Used for Worker-only endpoints (booking directory, AI, food recognition, invite).
- * User data is now handled by FirestoreRepository (direct Firestore).
+ * HTTP client configured for the VitaHero Cloudflare Worker API
+ * (Neon DB backend).
  */
 object ApiService {
     val http: HttpClient by lazy {
@@ -24,7 +23,8 @@ object ApiService {
                     coerceInputValues = true
                 })
             }
-
+            
+            // Set global headers that are required by the backend Auth proxy
             defaultRequest {
                 header("Origin", "https://kidhero.rork.app")
                 header("Referer", "https://kidhero.rork.app/")
@@ -38,16 +38,13 @@ object ApiService {
      */
     val baseUrl: String by lazy {
         BuildConfig.RORK_FUNCTIONS_URL.ifBlank {
-            "https://kidhero-health-sync-backend.rork.app"
+            "https://kidhero-health-backend.rork.app"
         }
     }
 
     val isConfigured: Boolean get() = baseUrl.isNotBlank()
 
-    /**
-     * Firebase Auth ID token — set after successful Firebase Auth.
-     * Used for Worker API calls that need authentication.
-     */
+    /** The current session token, set after successful auth. */
     @Volatile
     var sessionToken: String? = null
 

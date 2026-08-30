@@ -5,36 +5,26 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * Pulls authenticated user data from Firestore and applies it to [AppStateHolder].
- * Uses FirestoreRepository for direct Firestore reads (no Cloudflare Worker in the path).
+ * Pulls authenticated user data from Neon and applies it to [AppStateHolder].
  */
 class BackendDataLoader(
     private val app: Application,
     private val auth: AuthManager,
-    private val repo: FirestoreRepository,
+    private val api: ApiRepository,
     private val state: AppStateHolder,
 ) {
     suspend fun fetchAndApply(onKidIdsLoaded: suspend (List<String>) -> Unit = {}) {
-        if (!auth.isLoggedIn.value) return
+        if (!ApiService.isConfigured || !auth.isLoggedIn.value) return
         if (auth.profileId.value.isBlank()) return
 
-        // Self-heal admin-provisioned data (imported kids, parent name): runs on
-        // every data load — not only fresh logins — so imports added after the
-        // parent signed in, or app updates with a restored session, still show up.
-        // provisioned_parents is admin-only in Firestore rules, so this must go
-        // through the backend Worker (service account), never a direct client read.
-        if (ApiService.isConfigured) {
-            try { ApiRepositoryProvider.repository.resolveProvisionedData() } catch (_: Exception) { }
-        }
-
-        val profile = repo.fetchMyProfile()
-        val kidDtos = repo.fetchKids()
+        val profile = api.fetchMyProfile()
+        val kidDtos = api.fetchKids()
         val kidsFromBackend = kidDtos.map { BackendDataMapper.mapKid(it) }
 
         var allGrowthPoints = emptyMap<String, List<GrowthPoint>>()
         for (kidDto in kidDtos) {
             try {
-                val gps = repo.fetchGrowthPoints(kidDto.id)
+                val gps = api.fetchGrowthPoints(kidDto.id)
                 allGrowthPoints = allGrowthPoints + (kidDto.id to gps.map(BackendDataMapper::mapGrowthPoint))
             } catch (_: Exception) { }
         }
@@ -43,28 +33,18 @@ class BackendDataLoader(
             if (gps != null && gps.isNotEmpty()) kid.copy(growth = gps) else kid
         }
 
-        val appointmentsFromBackend = repo.fetchAppointments().map { dto ->
+        val appointmentsFromBackend = api.fetchAppointments().map { dto ->
             Appointment(
                 dto.id, dto.doctorId.orEmpty(), dto.doctorName,
                 dto.specialty, dto.kidName, dto.date, dto.time,
             )
         }
 
-        val personalCamps = repo.fetchCamps().map(BackendDataMapper::mapCamp)
-        val mySchools = repo.fetchMySchools().map(BackendDataMapper::mapMySchool)
-        val browseSchools = repo.fetchSchools().map(BackendDataMapper::mapPartnerSchool)
+        val campsFromBackend = api.fetchCamps().map(BackendDataMapper::mapCamp)
+        val mySchools = api.fetchMySchools().map(BackendDataMapper::mapMySchool)
+        val browseSchools = api.fetchSchools().map(BackendDataMapper::mapPartnerSchool)
 
-        // Fetch partner (school) camps for enrolled schools
-        val schoolIds = mySchools.map { it.id }.ifEmpty {
-            // Also check if profile has a school_id from provisioning
-            listOfNotNull(profile?.schoolId?.takeIf { it.isNotBlank() })
-        }
-        val partnerCamps = if (schoolIds.isNotEmpty()) {
-            try { repo.fetchSchoolCamps(schoolIds) } catch (_: Exception) { emptyList() }
-        } else emptyList()
-        val campsFromBackend = personalCamps + partnerCamps.map(BackendDataMapper::mapCamp)
-
-        val mealsFromBackend: Map<String, List<MealItem>> = repo.fetchAllMeals()
+        val mealsFromBackend: Map<String, List<MealItem>> = api.fetchAllMeals()
             .groupBy { it.kidId }
             .mapValues { (_, list) -> list.map(BackendDataMapper::mapMeal) }
 
@@ -75,7 +55,7 @@ class BackendDataLoader(
                 mealsWithBootstrap[kid.id] = plan
                 if (auth.isLoggedIn.value) {
                     try {
-                        repo.upsertMeals(plan.map { meal ->
+                        api.upsertMeals(plan.map { meal ->
                             MealItemDto(
                                 id = meal.id,
                                 profileId = auth.profileId.value,
@@ -95,7 +75,7 @@ class BackendDataLoader(
 
         val streaksFromBackend = mutableMapOf<String, StreakInfo>()
         for (kidDto in kidDtos) {
-            repo.fetchStreak(kidDto.id)?.let { streak ->
+            api.fetchStreak(kidDto.id)?.let { streak ->
                 streaksFromBackend[kidDto.id] = StreakInfo(
                     streak.currentStreak, streak.bestStreak, streak.lastLogDate,
                 )
@@ -105,7 +85,7 @@ class BackendDataLoader(
         val aiFromBackend = mutableMapOf<String, AIDietContent>()
         for (kidDto in kidDtos) {
             try {
-                repo.fetchAiDietTip(kidDto.id)?.content?.let { tip ->
+                api.fetchAiDietTip(kidDto.id)?.content?.let { tip ->
                     if (tip.greeting.isNotBlank()) {
                         aiFromBackend[kidDto.id] = AIDietContent(
                             greeting = tip.greeting,
@@ -119,7 +99,7 @@ class BackendDataLoader(
             } catch (_: Exception) { }
         }
 
-        val coParentsFromBackend = repo.fetchCoParents().map { dto ->
+        val coParentsFromBackend = api.fetchCoParents().map { dto ->
             CoParent(dto.id, dto.name, dto.relation, dto.joinedDate)
         }
 
@@ -128,12 +108,12 @@ class BackendDataLoader(
         val lat = state.uiState.value.userLat
         val lng = state.uiState.value.userLng
 
-        val bookingDto = repo.fetchBookingDirectory(bookingCity, lat = lat, lng = lng)
+        val bookingDto = api.fetchBookingDirectory(bookingCity, lat = lat, lng = lng)
         val bookingDirectory = bookingDto?.let { mapBookingDirectory(it) }
         val doctorsFromBackend = bookingDirectory?.hospitals?.flatMap { it.doctors }
-            ?: repo.fetchDoctors(bookingCity).map { mapDoctorDto(it) }
+            ?: api.fetchDoctors(bookingCity).map { mapDoctorDto(it) }
 
-        val notifDtos = repo.fetchNotifications()
+        val notifDtos = api.fetchNotifications()
         val notificationsFromBackend = notifDtos.map { dto ->
             AppNotification(
                 id = dto.id, title = dto.title, body = dto.body, time = dto.time,

@@ -1,37 +1,195 @@
-// VitaHero Backend — Cloudflare Worker + Firestore
-// Migrated from Neon Postgres to Firebase Firestore.
-// Auth is handled by Firebase Phone Auth on the client.
-// Admin panel uses a static API key (ADMIN_API_KEY).
-// AI features (diet tips, food recognition) use the Rork Toolkit.
+// VitaHero Neon DB Backend — Cloudflare Worker
+// Connects to Neon Postgres (vita_hero schema) for all CRUD operations.
+// Auth delegates to Neon Auth (Better Auth) for Google OAuth + email/password.
+// Phone OTP via Twilio is independent.
+// Updated: 2026-06-15 — email/password + Neon Auth social sign-in (idToken exchange, no callbackURL)
 
-import { FirestoreClient, decodeFirebaseToken, verifyFirebaseToken } from "./firestore";
-import { renderAdminPanel } from "./admin-panel";
-import { LOGO_DATA_URI } from "./logo";
-import { PLAYSTORE_ASSETS } from "./playstore-assets";
-import { SEED_SCHOOLS, SEED_HOSPITALS, SEED_DOCTORS } from "./seed-data";
+import { neon } from "@neondatabase/serverless";
+import {
+  Sql,
+  SCHEMA,
+  DEFAULT_COUNTRY_CODE,
+  normalizePhone,
+  profileIdForPhone,
+  slugify,
+  buildStudentRef,
+  parseNum,
+  deriveAge,
+  rowField,
+} from "./common";
+import {
+  Actor,
+  ApiError,
+  ensureStageASchema,
+  createSchool,
+  getSchool,
+  listSchools,
+  updateSchool,
+  listClasses,
+  setClasses,
+  addSchoolAdmin,
+  listSchoolAdmins,
+  removeSchoolAdmin,
+  grantOpsRole,
+} from "./schools";
+import {
+  validateRoster,
+  commitRoster,
+  listRoster,
+  listRosterBatches,
+} from "./roster";
+import {
+  ensureCampSchema,
+  listCamps,
+  listMyCamps,
+  getCamp,
+  createCamp,
+  updateCamp,
+  buildCampRoster,
+  listParticipants,
+  requestConsent,
+  recordConsent,
+  setAttendance,
+  getScreeningForm,
+  saveScreening,
+  campReconciliation,
+  reviewQueue,
+  reviewDetail,
+  reviewParticipant,
+  releaseCamp,
+  pendingConsents,
+  guardianCampResult,
+  adminOverview,
+  addStaffMember,
+  listStaff,
+  assignCampStaff,
+  removeCampStaff,
+  assertCampAccess,
+  campPack,
+  saveScreeningBulk,
+} from "./camps";
+import {
+  ensureReferralSchema,
+  guardianReferrals,
+  markReferralBooked,
+  markReferralAttended,
+  declineReferral,
+  recordReferralOutcome,
+  referralDashboard,
+  referralDetail,
+  nudgeReferrals,
+  kidReferrals,
+  openReferralSpecialties,
+} from "./referrals";
+import {
+  ensureLifecycleSchema,
+  exportGuardianData,
+  requestCorrection,
+  listCorrections,
+  resolveCorrection,
+  withdrawConsent,
+  deleteChild,
+  deleteAccount,
+  rolloverClasses,
+  markStudentLeft,
+  changeGuardianPhone,
+  retentionReport,
+  purgeBeyondRetention,
+  dataRightsHistory,
+  identityChallenge,
+  confirmIdentity,
+  acceptTerms,
+  TERMS_VERSION,
+} from "./lifecycle";
+import {
+  kidHealthHistory,
+  schoolReport,
+  programmeReport,
+  childAccessTrail,
+  guardianNudges,
+} from "./reports";
+import {
+  ensureMediaSchema,
+  uploadFindingPhoto,
+  listFindingPhotos,
+  getFindingPhoto,
+  deleteFindingPhoto,
+  photoAccessTrail,
+  setCampPhotos,
+  guardianPhotos,
+} from "./media";
+import {
+  ensureMessageSchema,
+  questionPolicy,
+  askQuestion,
+  guardianThreads,
+  threadMessages,
+  replyToThread,
+  schoolThreads,
+  setQuestionsEnabled,
+} from "./messages";
+import {
+  ensureLibrarySchema,
+  libraryForGuardian,
+  getArticle,
+  listArticles,
+  upsertArticle,
+  deleteArticle,
+} from "./library";
+import {
+  ensureBillingSchema,
+  setContract,
+  getContract,
+  generateInvoice,
+  getInvoice,
+  listInvoices,
+  setInvoiceStatus,
+  entitlements,
+  setParentPlan,
+  billingSummary,
+} from "./billing";
+import {
+  ensureSymptomSchema,
+  symptomOptions,
+  recordSymptom,
+  kidSymptoms,
+  deleteSymptom,
+  symptomHistoryForClinician,
+} from "./symptoms";
+import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
 
+const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
 const APP_ORIGIN = "https://kidhero.rork.app";
-const ANDROID_PACKAGE = "kallam.healthcare";
-const DEFAULT_COUNTRY_CODE = "91";
-const INVITE_EXPIRY_DAYS = 30;
-const IMPORT_MAX_ROWS = 2000;
+const APP_CALLBACK_URL = "https://kidhero.rork.app/auth/callback";
+const TWILIO_API = "https://api.twilio.com/2010-04-01";
 const OTP_EXPIRY_MINUTES = 5;
-const DOCTOR_SETUP_OTP_EXPIRY_MINUTES = 30;
+const OTP_MAX_ATTEMPTS = 5;
+
+// ── Closed-app configuration ──
+// VitaHero is a closed, admin-provisioned app: parents log in by phone only and
+// must have been imported by an admin first. Public self-signup is disabled.
+const ANDROID_PACKAGE = "com.rork.vitahero";
+const INVITE_EXPIRY_DAYS = 30;
+const INVITE_RESEND_COOLDOWN_HOURS = 24;
+const IMPORT_MAX_ROWS = 2000;
 
 interface Env {
-  FIREBASE_SERVICE_ACCOUNT_KEY: string;
-  ADMIN_API_KEY?: string;
-  INVITE_SIGNING_KEY?: string;
-  ANDROID_CERT_SHA256?: string;
-  APP_PLAY_URL?: string;
+  DATABASE_URL: string;
+  TWILIO_ACCOUNT_SID: string;
+  TWILIO_AUTH_TOKEN: string;
   TOOLKIT_URL?: string;
   TOOLKIT_SECRET_KEY?: string;
-  DEV_MODE?: string;
-  TEXTBEE_API_KEY?: string;
-  TEXTBEE_DEVICE_ID?: string;
+  // Admin import portal auth (bootstrap key; role-based admins also supported).
+  ADMIN_API_KEY?: string;
+  // HMAC key for stateless invite tokens.
+  INVITE_SIGNING_KEY?: string;
+  // Android App Links: comma-separated SHA-256 signing-cert fingerprints.
+  ANDROID_CERT_SHA256?: string;
+  // Play Store listing URL used as install fallback in the invite landing page.
+  APP_PLAY_URL?: string;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────
 
 function cors(response: Response): Response {
   const headers = new Headers(response.headers);
@@ -53,748 +211,333 @@ function extractToken(request: Request): string {
   return (request.headers.get("Authorization") || "").replace("Bearer ", "");
 }
 
+function generateToken(): string {
+  return crypto.randomUUID().replace(/-/g, "") + crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+}
+
 function generateOtp(): string {
   const array = new Uint32Array(1);
   crypto.getRandomValues(array);
   return String(100000 + (array[0] % 900000));
 }
 
-function isDevMode(env: Env): boolean {
-  return env.DEV_MODE === "true" || env.DEV_MODE === "1";
+function sanitizeProfile(row: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!row) return null;
+  const copy = { ...row };
+  delete copy.session_token;
+  return copy;
 }
 
-function normalizePhone(raw: string | number | undefined | null): { e164: string; last10: string } | null {
-  if (raw == null) return null;
-  let digits = String(raw).replace(/\D/g, "");
-  if (digits.length === 10) {
-    return { e164: `+${DEFAULT_COUNTRY_CODE}${digits}`, last10: digits };
-  }
-  if (digits.length > 10 && digits.endsWith(DEFAULT_COUNTRY_CODE)) {
-    const last10 = digits.slice(-10);
-    return { e164: `+${DEFAULT_COUNTRY_CODE}${last10}`, last10 };
-  }
-  if (digits.length > 10) {
-    const last10 = digits.slice(-10);
-    return { e164: `+${DEFAULT_COUNTRY_CODE}${last10}`, last10 };
-  }
-  return null;
+async function kidOwnedByProfile(
+  sql: Sql,
+  kidId: string,
+  profileId: string
+): Promise<boolean> {
+  const rows = await sql`
+    SELECT id FROM ${sql(SCHEMA)}.kids
+    WHERE id = ${kidId} AND profile_id = ${profileId} LIMIT 1
+  `;
+  return rows.length > 0;
 }
 
-/**
- * A doctor (identified by phone) must have exactly one current camp assignment.
- * When a credential is (re)created, revoke every other assignment for this phone
- * so re-assigning to a different camp cleanly switches the doctor over.
- */
-async function revokeOtherAssignments(fs: FirestoreClient, phoneLast10: string, keepAssignmentId: string): Promise<void> {
-  try {
-    const all = await fs.query("doctor_assignments", undefined, undefined, 200);
-    for (const a of all) {
-      if (!a.id || a.id === keepAssignmentId) continue;
-      const digits = String(a.phone || "").replace(/\D/g, "");
-      const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
-      if (last10 === phoneLast10 && a.assignment_status === "ACTIVE") {
-        await fs.mergeDoc("doctor_assignments", String(a.id), { assignment_status: "REVOKED" });
-      }
-    }
-  } catch {
-    // Supersede is best-effort; credential creation itself must not fail because of it.
-  }
-}
+async function ensureSchema(sql: Sql): Promise<void> {
+  await sql`CREATE SCHEMA IF NOT EXISTS ${sql(SCHEMA)}`;
 
-/** Shape returned by resolveProvisionedForParent — used by the app endpoint and admin diagnostics. */
-interface ProvisionedResolution {
-  phoneLast10: string;
-  found: boolean;
-  provisioned: boolean;
-  parentName: string;
-  schoolId: string;
-  schoolName: string;
-  priorUid: string;
-  priorLoggedIn: boolean;
-  kids: Array<Record<string, unknown>>;
-  kidsCopied: number;
-  registrationsLinked: number;
-  profileNameUpdated: boolean;
-  enrolled: boolean;
-  error: string;
-}
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.profiles (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      phone TEXT,
+      name TEXT NOT NULL DEFAULT '',
+      email TEXT,
+      session_token TEXT,
+      auth_provider TEXT,
+      onboarding_complete BOOLEAN DEFAULT false,
+      is_logged_in BOOLEAN DEFAULT false,
+      dark_theme BOOLEAN DEFAULT false,
+      locale_code TEXT DEFAULT 'en',
+      family_code TEXT DEFAULT '',
+      notifications_enabled BOOLEAN DEFAULT true,
+      camp_reminders_enabled BOOLEAN DEFAULT true,
+      consent_accepted BOOLEAN DEFAULT false,
+      consent_declined BOOLEAN DEFAULT false,
+      read_notification_ids JSONB DEFAULT '[]'::jsonb
+    )
+  `;
 
-/**
- * Resolve admin-provisioned data (imported parent profile + kids) for a
- * logged-in parent. provisioned_parents is admin-only in Firestore rules, so
- * the app must go through the Worker (service account) for this.
- * With applyWrites=false this is a read-only dry run that reports exactly what
- * would be resolved and copied.
- */
-async function resolveProvisionedForParent(
-  fs: FirestoreClient,
-  phoneRaw: string | number | undefined | null,
-  uid: string,
-  opts: { applyWrites: boolean },
-): Promise<ProvisionedResolution> {
-  const out: ProvisionedResolution = {
-    phoneLast10: "",
-    found: false,
-    provisioned: false,
-    parentName: "",
-    schoolId: "",
-    schoolName: "",
-    priorUid: "",
-    priorLoggedIn: false,
-    kids: [],
-    kidsCopied: 0,
-    registrationsLinked: 0,
-    profileNameUpdated: false,
-    enrolled: false,
-    error: "",
-  };
-  try {
-    const norm = normalizePhone(phoneRaw);
-    if (!norm) { out.error = "invalid_phone"; return out; }
-    out.phoneLast10 = norm.last10;
-    const prov = await fs.getDoc("provisioned_parents", norm.last10);
-    if (!prov) { out.error = "not_found"; return out; }
-    out.found = true;
-    out.provisioned = prov.provisioned === true;
-    if (!out.provisioned) { out.error = "not_provisioned"; return out; }
-    out.parentName = (prov.name as string) || "";
-    out.schoolId = (prov.school_id as string) || "";
-    out.schoolName = (prov.school_name as string) || "";
-    out.priorUid = (prov.uid as string) || "";
-    out.priorLoggedIn = prov.is_logged_in === true;
-    out.kids = await fs.listDocs(`provisioned_parents/${norm.last10}/kids`);
-    if (!opts.applyWrites) return out;
+  await sql`
+    ALTER TABLE ${sql(SCHEMA)}.profiles
+    ADD COLUMN IF NOT EXISTS read_notification_ids JSONB DEFAULT '[]'::jsonb
+  `;
 
-    // Link the provisioned parent record to this Firebase UID
-    await fs.mergeDoc("provisioned_parents", norm.last10, { uid, is_logged_in: true });
+  // Closed-app: roles + admin provisioning of parents.
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'PARENT'`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS provisioned BOOLEAN DEFAULT false`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invited_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invite_count INT DEFAULT 0`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS school_id TEXT`;
 
-    // Copy provisioned kids into the user's profile subcollection
-    for (const kid of out.kids) {
-      const kidId = String(kid.id || "");
-      if (!kidId) continue;
-      await fs.setDocByPath(`profiles/${uid}/kids/${kidId}`, { ...kid, profile_id: uid, user_id: uid });
-      out.kidsCopied++;
-    }
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.phone_otps (
+      phone TEXT PRIMARY KEY,
+      otp TEXT NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
+      attempts INT DEFAULT 0,
+      last_sent_at TIMESTAMPTZ
+    )
+  `;
 
-    // Re-point camp registrations written by the admin import (they were keyed
-    // to the phone number) at this parent's real account, so the parent app
-    // shows them as registered and doctor camp lists resolve the kids.
-    try {
-      const phoneRegs = await fs.query("camp_registrations", [
-        { field: "user_id", op: "EQUAL", value: norm.last10 },
-      ], undefined, 200);
-      for (const reg of phoneRegs) {
-        if (!reg.id) continue;
-        await fs.mergeDoc("camp_registrations", String(reg.id), { user_id: uid });
-      }
-      out.registrationsLinked = phoneRegs.length;
-    } catch { /* best-effort — registrations stay phone-keyed */ }
+  await sql`
+    ALTER TABLE ${sql(SCHEMA)}.phone_otps
+    ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMPTZ
+  `;
 
-    // Fill in the parent's real name if the profile still has the default
-    const profile = await fs.getDoc("profiles", uid);
-    const existingName = (profile?.name as string) || "";
-    if ((!existingName || existingName === "Parent") && out.parentName) {
-      await fs.mergeDoc("profiles", uid, { name: out.parentName, school_id: out.schoolId });
-      out.profileNameUpdated = true;
-    } else if (out.schoolId) {
-      await fs.mergeDoc("profiles", uid, { school_id: out.schoolId });
-    }
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.kids (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      name TEXT NOT NULL,
+      age INT DEFAULT 0,
+      gender TEXT DEFAULT '',
+      school TEXT DEFAULT '',
+      grade TEXT DEFAULT '',
+      height_cm DOUBLE PRECISION DEFAULT 0,
+      weight_kg DOUBLE PRECISION DEFAULT 0,
+      avatar_color BIGINT DEFAULT 0,
+      overall_score INT DEFAULT 80,
+      dental TEXT DEFAULT 'GOOD',
+      eyesight TEXT DEFAULT 'GOOD',
+      nutrition TEXT DEFAULT 'GOOD',
+      last_checkup TEXT DEFAULT 'Not yet'
+    )
+  `;
 
-    // Auto-enroll in the provisioned school
-    if (out.schoolId) {
-      await fs.mergeDoc("school_enrollments", `${uid}_${out.schoolId}`, {
-        user_id: uid,
-        school_id: out.schoolId,
-        enrolled_at: Date.now().toString(),
-      });
-      out.enrolled = true;
-    }
-    return out;
-  } catch (err) {
-    out.error = (err as Error).message;
-    return out;
-  }
-}
+  // Closed-app: stable identity for idempotent re-imports + provenance.
+  await sql`ALTER TABLE vita_hero.kids ADD COLUMN IF NOT EXISTS student_ref TEXT`;
+  await sql`ALTER TABLE vita_hero.kids ADD COLUMN IF NOT EXISTS source TEXT DEFAULT 'PARENT'`;
+  await sql`
+    CREATE UNIQUE INDEX IF NOT EXISTS kids_profile_studentref
+    ON vita_hero.kids(profile_id, student_ref) WHERE student_ref IS NOT NULL
+  `;
 
-function normalizeFieldKey(s: string): string {
-  return String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().replace(/[^a-z0-9]/g, "");
-}
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.appointments (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      doctor_name TEXT NOT NULL,
+      doctor_id TEXT,
+      specialty TEXT DEFAULT '',
+      kid_name TEXT DEFAULT '',
+      date TEXT NOT NULL,
+      time TEXT NOT NULL
+    )
+  `;
 
-const FIELD_ALIASES: Record<string, string[]> = {
-  phone: ["phone", "parentPhone", "parentphone", "mobile", "contact", "phoneNumber", "phonenumber", "mobilenumber"],
-  studentName: ["studentName", "studentname", "name", "student", "kidName", "kidname", "childName", "childname", "studentFullName", "studentfullname"],
-  parentName: ["parentName", "parentname", "fatherName", "fathername", "motherName", "mothername", "guardianName", "guardianname", "parent"],
-  gender: ["gender", "sex"],
-  grade: ["grade", "class", "className", "classname", "standard", "section"],
-  dob: ["dob", "dateOfBirth", "dateofbirth", "birthDate", "birthdate"],
-  age: ["age"],
-  schoolCode: ["schoolCode", "school_code", "partnerCode", "partnercode", "partner_code", "schoolcode"],
-  schoolName: ["schoolName", "school_name", "school", "schoolname"],
-  campDate: ["campDate", "camp_date", "date"],
-  campTitle: ["campTitle", "camp_title", "camp", "title"],
-  campId: ["campId", "camp_id"],
-  schoolId: ["schoolId", "school_id"],
-  heightCm: ["heightCm", "height_cm", "height", "stature"],
-  weightKg: ["weightKg", "weight_kg", "weight", "mass"],
-  dental: ["dental", "dental_status", "dentalstatus", "teeth"],
-  eyesight: ["eyesight", "vision", "eye_status", "eyestatus", "eye"],
-  nutrition: ["nutrition", "nutrition_status", "nutritionstatus", "bmi"],
-  studentId: ["studentId", "student_id", "rollNumber", "rollnumber", "rollNo", "rollno", "id"],
-};
+  await sql`ALTER TABLE ${sql(SCHEMA)}.appointments ADD COLUMN IF NOT EXISTS doctor_id TEXT`;
 
-function canonicalizeRow(row: Record<string, unknown>): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (const [rawKey, value] of Object.entries(row)) {
-    const normKey = normalizeFieldKey(rawKey);
-    let str = String(value ?? "").trim();
-    if (str.charCodeAt(0) === 0xFEFF) str = str.slice(1);
-    for (const [canonical, aliases] of Object.entries(FIELD_ALIASES)) {
-      if (out[canonical]) continue;
-      for (const alias of aliases) {
-        if (normalizeFieldKey(alias) === normKey) {
-          out[canonical] = str;
-          break;
-        }
-      }
-    }
-    if (!(normKey in out)) {
-      out[normKey] = str;
-    }
-  }
-  return out;
-}
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.camps (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      title TEXT NOT NULL,
+      school TEXT DEFAULT '',
+      date TEXT NOT NULL,
+      time TEXT DEFAULT '',
+      status TEXT DEFAULT 'UPCOMING',
+      checks JSONB DEFAULT '[]'::jsonb,
+      result_summary TEXT
+    )
+  `;
 
-function rowField(row: Record<string, unknown>, ...wanted: string[]): string {
-  const n = canonicalizeRow(row);
-  for (const key of wanted) {
-    const val = n[normalizeFieldKey(key)];
-    if (val && val.trim()) return val.trim();
-  }
-  return "";
-}
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.meal_items (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      kid_id TEXT NOT NULL,
+      time_slot TEXT DEFAULT '',
+      name TEXT NOT NULL,
+      detail TEXT DEFAULT '',
+      kcal INT DEFAULT 0,
+      eaten BOOLEAN DEFAULT false
+    )
+  `;
 
-function normHealthFlag(v: string): string {
-  const upper = v.toUpperCase().trim();
-  if (["GOOD", "WATCH", "ALERT"].includes(upper)) return upper;
-  return "GOOD";
-}
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.streaks (
+      kid_id TEXT PRIMARY KEY,
+      user_id TEXT,
+      current_streak INT DEFAULT 0,
+      best_streak INT DEFAULT 0,
+      last_log_date TEXT DEFAULT ''
+    )
+  `;
 
-function parseNum(v: string): number | null {
-  const n = parseFloat(v);
-  return isNaN(n) ? null : n;
-}
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.growth_points (
+      id TEXT PRIMARY KEY,
+      kid_id TEXT NOT NULL,
+      user_id TEXT,
+      label TEXT DEFAULT '',
+      height DOUBLE PRECISION DEFAULT 0,
+      weight DOUBLE PRECISION DEFAULT 0,
+      recorded_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
 
-function deriveAge(dob: string, age: string): number {
-  if (age) {
-    const n = parseInt(age, 10);
-    if (!isNaN(n) && n > 0 && n < 25) return n;
-  }
-  if (dob) {
-    try {
-      const d = new Date(dob);
-      const now = new Date();
-      let a = now.getFullYear() - d.getFullYear();
-      const m = now.getMonth() - d.getMonth();
-      if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
-      if (a > 0 && a < 25) return a;
-    } catch { /* ignore */ }
-  }
-  return 7;
-}
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.co_parents (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      user_id TEXT,
+      name TEXT NOT NULL,
+      relation TEXT DEFAULT '',
+      joined_date TEXT DEFAULT ''
+    )
+  `;
 
-function kidBmi(heightCm: number, weightKg: number): number {
-  if (heightCm <= 0 || weightKg <= 0) return 0;
-  const m = heightCm / 100;
-  return weightKg / (m * m);
-}
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.doctors (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      specialty TEXT NOT NULL,
+      hospital TEXT DEFAULT '',
+      city TEXT DEFAULT 'Hyderabad',
+      rating DOUBLE PRECISION DEFAULT 4.5,
+      active BOOLEAN DEFAULT true
+    )
+  `;
 
-function nutritionFlagFromBmi(bmi: number): string {
-  if (bmi <= 0) return "GOOD";
-  if (bmi < 14) return "ALERT";
-  if (bmi < 16) return "WATCH";
-  if (bmi > 25) return "ALERT";
-  if (bmi > 22) return "WATCH";
-  return "GOOD";
-}
-
-function stableHash(input: string): number {
-  let h = 0;
-  for (let i = 0; i < input.length; i++) {
-    h = ((h << 5) - h) + input.charCodeAt(i);
-    h |= 0;
-  }
-  return Math.abs(h);
-}
-
-function buildStudentRef(phone: string, studentName: string, studentId: string): string {
-  if (studentId) return `stu_${studentId}`;
-  return `stu_${stableHash(phone + studentName).toString(36)}`;
-}
-
-function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function slugify(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-}
-
-async function getOrCreateSchool(
-  fs: FirestoreClient,
-  schoolCode: string,
-  schoolName: string,
-): Promise<{ schoolId: string; schoolName: string }> {
-  if (!schoolCode && !schoolName) return { schoolId: "", schoolName: "" };
-  const normalizedName = schoolName.toLowerCase().trim();
-  const normalizedCode = schoolCode.toLowerCase().trim();
-  try {
-    const all = await fs.query("schools", [{ field: "active", op: "EQUAL", value: true }], undefined, 1000);
-    for (const s of all) {
-      const code = String(s.partner_code || "").toLowerCase().trim();
-      if (normalizedCode && code === normalizedCode) {
-        return { schoolId: s.id as string, schoolName: (s.name as string) || schoolName };
-      }
-      const name = String(s.name || "").toLowerCase().trim();
-      if (normalizedName && name === normalizedName) {
-        return { schoolId: s.id as string, schoolName: (s.name as string) || schoolName };
-      }
-    }
-  } catch (_) {
-    // ignore and fall through
-  }
-  if (!schoolName) return { schoolId: "", schoolName: "" };
-  const id = schoolCode ? `sch_${slugify(schoolCode)}` : `sch_${slugify(schoolName)}`;
-  const newSchool = {
-    id,
-    name: schoolName,
-    city: "",
-    district: "",
-    partner_code: schoolCode || "",
-    contact_email: "",
-    description: "Imported via admin panel",
-    active: true,
-  };
-  await fs.setDoc("schools", id, newSchool);
-  return { schoolId: id, schoolName };
-}
-
-// ─── HMAC Invite Tokens ─────────────────────────────────────────
-
-async function hmacSign(message: string, secret: string): Promise<string> {
-  const key = await crypto.subtle.importKey(
-    "raw", new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
-  return btoa(String.fromCharCode(...new Uint8Array(sig)))
-    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-async function signInviteToken(last10: string, env: Env): Promise<string | null> {
-  const secret = env.INVITE_SIGNING_KEY || env.ADMIN_API_KEY;
-  if (!secret) return null;
-  const expires = Date.now() + INVITE_EXPIRY_DAYS * 86400000;
-  const payload = `${last10}.${expires}`;
-  const sig = await hmacSign(payload, secret);
-  return `${payload}.${sig}`;
-}
-
-async function verifyInviteToken(token: string, env: Env): Promise<string | null> {
-  const secret = env.INVITE_SIGNING_KEY || env.ADMIN_API_KEY;
-  if (!secret || !token) return null;
-  const parts = token.split(".");
-  if (parts.length < 3) return null;
-  const last10 = parts[0];
-  const expires = parseInt(parts[1], 10);
-  const sig = parts.slice(2).join(".");
-  if (Date.now() > expires) return null;
-  const expected = await hmacSign(`${last10}.${expires}`, secret);
-  if (sig !== expected) return null;
-  return last10;
-}
-
-// ─── textbee.dev SMS (invite link only — login OTP stays 100% Firebase) ─
-// textbee.dev turns your own Android phone into an SMS gateway, so there's
-// no per-message provider fee like Twilio/Plivo — texts go out from your SIM.
-
-function textbeeConfigured(env: Env): boolean {
-  return !!(env.TEXTBEE_API_KEY && env.TEXTBEE_DEVICE_ID);
-}
-
-function buildInviteMessage(link: string, studentName?: string, schoolName?: string): string {
-  const kid = (studentName || "").trim();
-  const school = (schoolName || "").trim();
-  const who = kid ? kid : "your child";
-  const source = school ? `${school} has` : "We've";
-  return `VitaHero: ${source} set up a free health record for ${who} — track growth, vision & nutrition in one app. View it here: ${link}`;
-}
-
-async function sendInviteSms(e164Phone: string, link: string, env: Env, studentName?: string, schoolName?: string): Promise<{ sent: boolean; reason?: string }> {
-  if (!textbeeConfigured(env)) {
-    return { sent: false, reason: "textbee.dev not configured" };
-  }
-  try {
-    const resp = await fetch(`https://api.textbee.dev/api/v1/gateway/devices/${env.TEXTBEE_DEVICE_ID}/send-sms`, {
-      method: "POST",
-      headers: {
-        "x-api-key": env.TEXTBEE_API_KEY as string,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        recipients: [e164Phone],
-        message: buildInviteMessage(link, studentName, schoolName),
-      }),
-    });
-    if (!resp.ok) {
-      const errText = await resp.text();
-      return { sent: false, reason: `textbee.dev error: ${errText.slice(0, 200)}` };
-    }
-    return { sent: true };
-  } catch (err) {
-    return { sent: false, reason: (err as Error).message };
-  }
-}
-
-// ─── Admin Auth ─────────────────────────────────────────────────
-
-function requireAdmin(request: Request, env: Env): boolean {
-  const key = request.headers.get("X-Admin-Key") || "";
-  return !!(env.ADMIN_API_KEY && key === env.ADMIN_API_KEY);
-}
-
-// ─── Firestore Seeding ──────────────────────────────────────────
-
-let seedDone = false;
-
-async function seedFirestore(fs: FirestoreClient): Promise<void> {
-  if (seedDone) return;
-  seedDone = true;
-  try {
-    // Check if schools already exist
-    const existing = await fs.query("schools", [{ field: "active", op: "EQUAL", value: true }]);
-    if (existing.length > 0) return;
-
-    // Seed schools
-    for (const school of SEED_SCHOOLS) {
-      await fs.setDoc("schools", school.id, school as unknown as Record<string, unknown>);
-    }
-    // Seed hospitals
-    for (const hosp of SEED_HOSPITALS) {
-      await fs.setDoc("hospitals", hosp.id, hosp as unknown as Record<string, unknown>);
-    }
-    // Seed doctors
-    for (const doc of SEED_DOCTORS) {
-      await fs.setDoc("doctors", doc.id, doc as unknown as Record<string, unknown>);
-    }
-    console.log("Firestore seeded: schools, hospitals, doctors");
-  } catch (e) {
-    console.error("Seed error:", (e as Error).message);
-    // Don't rethrow — seeding is best-effort
-  }
-}
-
-// ─── CSV Import ─────────────────────────────────────────────────
-
-async function processImport(
-  fs: FirestoreClient,
-  env: Env,
-  rows: Record<string, unknown>[],
-  opts: { dryRun: boolean; generateLinks: boolean; resendExisting: boolean; filename: string; adminId: string; appOrigin: string },
-): Promise<Record<string, unknown>> {
-  const results: Array<Record<string, unknown>> = [];
-  let created = 0, updated = 0, errors = 0, linked = 0;
-
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    const n = canonicalizeRow(row);
-    const phoneRaw = n.phone;
-    const studentName = n.studentName;
-    const parentName = n.parentName;
-    const gender = (n.gender || "").toUpperCase().startsWith("F") ? "F" : "M";
-    const grade = n.grade;
-    const age = deriveAge(n.dob, n.age);
-    const schoolCode = (n.schoolCode || "").toUpperCase();
-    const schoolName = n.schoolName;
-    const campDate = n.campDate;
-    const campTitle = n.campTitle;
-    const campIdParam = n.campId;
-    const schoolIdParam = n.schoolId;
-    const heightCm = parseNum(n.heightCm) ?? 0;
-    const weightKg = parseNum(n.weightKg) ?? 0;
-    const dental = normHealthFlag(n.dental);
-    const eyesight = normHealthFlag(n.eyesight);
-    const nutrition = normHealthFlag(n.nutrition);
-    const studentId = n.studentId;
-
-    const norm = normalizePhone(phoneRaw);
-    if (!norm) {
-      results.push({ row: i + 1, phone: phoneRaw, student: studentName, status: "error", message: "Invalid phone number" });
-      errors++;
-      continue;
-    }
-
-    if (opts.dryRun) {
-      results.push({ row: i + 1, phone: norm.e164, student: studentName, status: "created", message: "Dry run — no data written" });
-      created++;
-      continue;
-    }
-
-    try {
-      // Resolve the school: an explicit school id (admin panel dropdown) wins;
-      // otherwise look up or auto-create by code/name (case-insensitive)
-      let schoolId = "";
-      let resolvedSchoolName = "";
-      if (schoolIdParam) {
-        const schoolDoc = await fs.getDoc("schools", schoolIdParam);
-        if (schoolDoc) {
-          schoolId = schoolIdParam;
-          resolvedSchoolName = (schoolDoc.name as string) || schoolName;
-        }
-      }
-      if (!schoolId) {
-        const lookedUp = await getOrCreateSchool(fs, schoolCode, schoolName);
-        schoolId = lookedUp.schoolId;
-        resolvedSchoolName = lookedUp.schoolName;
-      }
-      const finalSchoolName = resolvedSchoolName || schoolName;
-
-      const studentRef = buildStudentRef(norm.last10, studentName, studentId);
-      const kidId = `kid_${norm.last10}_${studentRef}`;
-      const provisionedId = norm.last10;
-
-      // Check if provisioned parent already exists
-      const existing = await fs.getDoc("provisioned_parents", provisionedId);
-      const isNew = !existing;
-
-      // Build provisioned parent data
-      const parentData: Record<string, unknown> = {
-        id: provisionedId,
-        phone: norm.e164,
-        name: parentName || "Parent",
-        provisioned: true,
-        school_id: schoolId,
-        school_name: finalSchoolName,
-        invited_at: existing?.invited_at || "",
-        invite_count: existing?.invite_count || 0,
-        is_logged_in: existing?.is_logged_in || false,
-        uid: existing?.uid || "",
-      };
-      await fs.setDoc("provisioned_parents", provisionedId, parentData);
-
-      // Build kid data
-      const kidData: Record<string, unknown> = {
-        id: kidId,
-        name: studentName || "Student",
-        age,
-        gender,
-        grade,
-        school: finalSchoolName,
-        school_id: schoolId,
-        height_cm: heightCm,
-        weight_kg: weightKg,
-        dental,
-        eyesight,
-        nutrition,
-        last_checkup: "Not yet",
-        source: "ADMIN",
-        student_ref: studentRef,
-        overall_score: 80,
-      };
-      await fs.setDocByPath(`provisioned_parents/${provisionedId}/kids/${kidId}`, kidData);
-
-      // Handle camp registration. An explicit camp id (admin panel dropdown)
-      // registers into that exact camp; otherwise title+date derive the camp.
-      // Camps run every year: the same title with a new date is a NEW camp
-      // instance, so the kid gets a fresh registration instead of being stuck
-      // in last year's camp. Re-importing the same file stays idempotent.
-      const explicitCampDoc = campIdParam ? await fs.getDoc("school_camps", campIdParam) : null;
-      if (explicitCampDoc) {
-        const regId = `${campIdParam}_${kidId}`;
-        await fs.mergeDoc("camp_registrations", regId, {
-          school_camp_id: campIdParam,
-          kid_id: kidId,
-          user_id: provisionedId,
-          registered_at: Date.now().toString(),
-        });
-      } else if (campDate && campTitle && schoolId) {
-        const slug = slugify(campTitle).slice(0, 12);
-        const legacyCampId = `sc_${schoolId}_${slug}`;
-        const legacyCamp = await fs.getDoc("school_camps", legacyCampId);
-        const campId = legacyCamp && legacyCamp.date === campDate
-          ? legacyCampId
-          : `sc_${schoolId}_${slug}_${campDate}`;
-        const existingCamp = await fs.getDoc("school_camps", campId);
-        if (!existingCamp) {
-          await fs.setDoc("school_camps", campId, {
-            id: campId,
-            school_id: schoolId,
-            title: campTitle,
-            description: "",
-            date: campDate,
-            time: "9:00 AM - 1:00 PM",
-            status: "UPCOMING",
-            checks: ["Height & Weight", "Dental", "Eye Test", "Hemoglobin"],
-            grades: [],
-            capacity: 200,
-            registered_count: 0,
-            result_summary: "",
-            active: true,
-          });
-        }
-        // Register kid for camp
-        const regId = `${campId}_${kidId}`;
-        await fs.mergeDoc("camp_registrations", regId, {
-          school_camp_id: campId,
-          kid_id: kidId,
-          user_id: provisionedId,
-          registered_at: Date.now().toString(),
-        });
-      }
-
-      // Generate an invite link and, if textbee.dev is configured, text it to the parent automatically.
-      // Parents who were already invited before are skipped by default (no repeat SMS on every re-import) —
-      // the admin can explicitly resend to them via the "Resend" action or the resendExisting bulk option.
-      let inviteLink = "";
-      let rowMessage = "";
-      let smsSent = false;
-      const alreadyInvited = !!(existing?.invited_at);
-      if (opts.generateLinks && (!alreadyInvited || opts.resendExisting)) {
-        const token = await signInviteToken(norm.last10, env);
-        if (token) {
-          inviteLink = `${opts.appOrigin}/i/${token}`;
-          linked++;
-          await fs.mergeDoc("provisioned_parents", provisionedId, {
-            invited_at: new Date().toISOString(),
-            invite_count: (existing?.invite_count as number || 0) + 1,
-          });
-          const smsResult = await sendInviteSms(norm.e164, inviteLink, env, studentName, finalSchoolName);
-          smsSent = smsResult.sent;
-          rowMessage = smsResult.sent ? "Invite SMS sent" : (smsResult.reason || "");
-        } else {
-          rowMessage = "Could not sign invite link (INVITE_SIGNING_KEY missing)";
-        }
-      } else if (opts.generateLinks && alreadyInvited) {
-        rowMessage = "Already invited previously — skipped (use Resend to text again)";
-      }
-      results.push({ row: i + 1, phone: norm.e164, student: studentName, status: isNew ? "created" : "updated", message: rowMessage, link: inviteLink, smsSent, alreadyInvited });
-      if (isNew) created++; else updated++;
-    } catch (err) {
-      results.push({ row: i + 1, phone: norm.e164, student: studentName, status: "error", message: (err as Error).message });
-      errors++;
+  const docCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.doctors`;
+  if ((docCount[0]?.c as number) === 0) {
+    const doctors = [
+      ["d1", "Dr. Ananya Rao", "Paediatrics", "Rainbow Children's Hospital", 4.9],
+      ["d2", "Dr. Vikram Reddy", "Dental", "Apollo Cradle", 4.7],
+      ["d3", "Dr. Meera Iyer", "Ophthalmology", "LV Prasad Eye Institute", 4.8],
+      ["d4", "Dr. Karthik Nair", "Nutrition", "KIMS Hospital", 4.6],
+      ["d5", "Dr. Priya Sharma", "General Paediatrics", "Continental Hospitals", 4.5],
+    ] as const;
+    for (const [id, name, specialty, hospital, rating] of doctors) {
+      await sql`
+        INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, rating)
+        VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})
+        ON CONFLICT (id) DO NOTHING
+      `;
     }
   }
 
-  // Store import batch audit
-  if (!opts.dryRun) {
-    const batchId = `batch_${Date.now()}`;
-    await fs.setDoc("import_batches", batchId, {
-      id: batchId,
-      admin_id: opts.adminId,
-      filename: opts.filename,
-      total: rows.length,
-      created,
-      updated,
-      skipped: 0,
-      errors,
-      invited: linked,
-      dry_run: false,
-      created_at: new Date().toISOString(),
-    });
-  }
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.ai_diet_tips (
+      kid_id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      content JSONB NOT NULL,
+      generated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
 
-  return {
-    total: rows.length,
-    created,
-    updated,
-    errors,
-    linked,
-    dryRun: opts.dryRun,
-    results,
-  };
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.schools (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      city TEXT DEFAULT 'Hyderabad',
+      district TEXT DEFAULT '',
+      partner_code TEXT NOT NULL UNIQUE,
+      contact_email TEXT DEFAULT '',
+      description TEXT DEFAULT '',
+      active BOOLEAN DEFAULT true
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.school_enrollments (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      school_id TEXT NOT NULL,
+      kid_id TEXT,
+      status TEXT DEFAULT 'ACTIVE',
+      enrolled_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (profile_id, school_id)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.school_camps (
+      id TEXT PRIMARY KEY,
+      school_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      date TEXT NOT NULL,
+      time TEXT DEFAULT '',
+      status TEXT DEFAULT 'UPCOMING',
+      checks JSONB DEFAULT '[]'::jsonb,
+      grades JSONB DEFAULT '[]'::jsonb,
+      capacity INT DEFAULT 200,
+      registered_count INT DEFAULT 0,
+      result_summary TEXT,
+      active BOOLEAN DEFAULT true
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.camp_registrations (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      school_camp_id TEXT NOT NULL,
+      kid_id TEXT NOT NULL,
+      registered_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (profile_id, school_camp_id, kid_id)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.camp_kid_results (
+      id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      school_camp_id TEXT NOT NULL,
+      kid_id TEXT NOT NULL,
+      dental TEXT DEFAULT 'GOOD',
+      eyesight TEXT DEFAULT 'GOOD',
+      nutrition TEXT DEFAULT 'GOOD',
+      height_cm DOUBLE PRECISION,
+      weight_kg DOUBLE PRECISION,
+      recorded_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (school_camp_id, kid_id)
+    )
+  `;
+
+  // Closed-app: admin import audit + SMS invite ledger.
+  await sql`
+    CREATE TABLE IF NOT EXISTS vita_hero.import_batches (
+      id TEXT PRIMARY KEY,
+      admin_id TEXT DEFAULT '',
+      filename TEXT DEFAULT '',
+      total INT DEFAULT 0,
+      created INT DEFAULT 0,
+      updated INT DEFAULT 0,
+      skipped INT DEFAULT 0,
+      errors INT DEFAULT 0,
+      invited INT DEFAULT 0,
+      dry_run BOOLEAN DEFAULT false,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS vita_hero.sms_log (
+      id TEXT PRIMARY KEY,
+      phone TEXT NOT NULL,
+      type TEXT DEFAULT 'INVITE',
+      status TEXT DEFAULT 'SENT',
+      sent_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
+  await ensureHospitalPartnerships(sql);
+  await seedPartnerSchools(sql);
+  await linkCampHospitals(sql);
 }
-
-// ─── AI Toolkit ─────────────────────────────────────────────────
-
-async function callToolkitDietTip(
-  env: Env,
-  kid: Record<string, unknown>,
-  meals: Record<string, unknown>[],
-  streak: Record<string, unknown> | null,
-): Promise<Record<string, string> | null> {
-  if (!env.TOOLKIT_URL || !env.TOOLKIT_SECRET_KEY) return null;
-  try {
-    const prompt = `You are a paediatric nutrition AI. Generate a personalised diet tip for a child.
-Kid: ${kid.name}, age ${kid.age}, gender ${kid.gender}, nutrition status: ${kid.nutrition}.
-Recent meals: ${meals.map(m => `${m.time_slot}: ${m.name} (${m.eaten ? "eaten" : "skipped"})`).join(", ")}.
-Current streak: ${streak?.current_streak || 0} days.
-Respond as JSON: {"greeting":"","insight":"","suggestion":"","funFact":""}`;
-    const resp = await fetch(`${env.TOOLKIT_URL}/api/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.TOOLKIT_SECRET_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json() as Record<string, unknown>;
-    const content = (data.choices as Array<Record<string, unknown>>)?.[0]?.message?.content as string;
-    if (!content) return null;
-    return JSON.parse(content) as Record<string, string>;
-  } catch {
-    return null;
-  }
-}
-
-async function callToolkitFoodVision(
-  env: Env,
-  dataUrl: string,
-): Promise<Array<{ name: string; kcal: number; confidence: number }> | null> {
-  if (!env.TOOLKIT_URL || !env.TOOLKIT_SECRET_KEY) return null;
-  try {
-    const resp = await fetch(`${env.TOOLKIT_URL}/api/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${env.TOOLKIT_SECRET_KEY}`,
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: "Identify the food items in this image. Respond as JSON: {\"items\":[{\"name\":\"\",\"kcal\":0,\"confidence\":0.8}]}" },
-              { type: "image_url", image_url: { url: dataUrl } },
-            ],
-          },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json() as Record<string, unknown>;
-    const content = (data.choices as Array<Record<string, unknown>>)?.[0]?.message?.content as string;
-    if (!content) return null;
-    const parsed = JSON.parse(content) as { items: Array<{ name: string; kcal: number; confidence: number }> };
-    return parsed.items || [];
-  } catch {
-    return null;
-  }
-}
-
-// ─── Booking Slots Generation ───────────────────────────────────
 
 function generateDoctorSlots(
   doctorId: string,
@@ -805,6 +548,7 @@ function generateDoctorSlots(
   const times = ["10:00 AM", "11:00 AM", "04:30 PM", "05:15 PM"];
   const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
   for (let offset = 1; offset <= 21 && slots.length < 12; offset++) {
     const day = new Date(now);
     day.setDate(day.getDate() + offset);
@@ -814,166 +558,938 @@ function generateDoctorSlots(
     for (const time of times) {
       const key = `${doctorId}|${dateStr}|${time}`;
       if (bookedKeys.has(key)) continue;
-      slots.push({ date: dateStr, time, label: `${dayLabel}, ${time}` });
+      slots.push({
+        date: dateStr,
+        time,
+        label: `${dayLabel}, ${time}`,
+      });
       if (slots.length >= 12) break;
     }
   }
   return slots;
 }
 
-// ─── Privacy Policy & Data Deletion Pages ─────────────────────
+async function seedPartnerSchools(sql: Sql): Promise<void> {
+  const schoolCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.schools`;
+  if ((schoolCount[0]?.c as number) > 0) return;
 
-function renderPrivacyPolicy(): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VitaHero — Privacy Policy</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Host Grotesk',system-ui,-apple-system,sans-serif;background:#F8FAFC;color:#0F172A;line-height:1.6}
-.wrap{max-width:760px;margin:0 auto;padding:48px 24px 80px}
-header{display:flex;align-items:center;gap:12px;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #E2E8F0}
-.mark{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#F47B20,#1FA2DD);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:22px}
-.name{font-size:22px;font-weight:700}.name span{color:#F47B20}
-h1{font-size:30px;font-weight:700;margin:0 0 8px}
-.updated{color:#64748B;font-size:14px;margin-bottom:32px}
-h2{font-size:20px;font-weight:600;margin:32px 0 12px;color:#0F172A}
-p{margin:0 0 14px;color:#334155;font-size:15px}
-ul{margin:0 0 14px 0;padding-left:22px;color:#334155;font-size:15px}
-li{margin-bottom:8px}
-a{color:#1FA2DD;text-decoration:none}
-.contact{background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:24px;margin-top:24px}
-.contact h2{margin-top:0}
-</style></head><body><div class="wrap">
-<header><div class="mark">V</div><div class="name">Vita<span>Hero</span></div></header>
-<h1>Privacy Policy</h1>
-<div class="updated">Last updated: July 27, 2026</div>
+  const schools = [
+    ["sch_oak", "Oakridge International School", "Hyderabad", "Gachibowli", "OAK2026", "health@oakridge.in", "Partner since 2024 · Full annual screening programme"],
+    ["sch_dps", "Delhi Public School Hyderabad", "Hyderabad", "Khajaguda", "DPS2026", "nurse@dpshyd.com", "Vision, dental & nutrition camps every term"],
+    ["sch_jgs", "Johnson Grammar School", "Hyderabad", "Habsiguda", "JGS2026", "wellness@jgs.edu.in", "IAP-aligned growth monitoring"],
+    ["sch_chirec", "CHIREC International School", "Hyderabad", "Kondapur", "CHI2026", "health@chirec.in", "WHO growth charts integrated with camp results"],
+  ] as const;
 
-<p>VitaHero ("we", "us", or "our") operates the VitaHero mobile application (the "App") and the associated backend services. The App helps parents access their children's health check-up reports from school health camps conducted by partner hospitals and doctors. This Privacy Policy explains what information we collect, how we use it, and the choices you have.</p>
+  for (const [id, name, city, district, code, email, desc] of schools) {
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.schools (id, name, city, district, partner_code, contact_email, description)
+      VALUES (${id}, ${name}, ${city}, ${district}, ${code}, ${email}, ${desc})
+      ON CONFLICT (id) DO NOTHING
+    `;
+  }
 
-<h2>1. Information We Collect</h2>
-<ul>
-<li><b>Phone number:</b> Your mobile number is used as your account identifier and to send you a one-time password (OTP) via SMS for sign-in.</li>
-<li><b>Child health records:</b> Health check-up results entered by authorised doctors during school health camps, including vision, dental, BMI, and general paediatric findings. These are associated with your account so you can view your child's reports.</li>
-<li><b>Profile information:</b> Parent name and child name(s), collected during school camp registration or imported by the school administrator.</li>
-<li><b>Optional device data:</b> If you grant permission, the App may read step count, active calories, and exercise data from Android Health Connect to display wellness trends. This data stays on your device unless you choose to share it.</li>
-<li><b>Camera usage:</b> The App uses the camera for food recognition (AI diet tips) only when you choose to scan a meal. Images are processed to generate suggestions and are not stored unless you save them.</li>
-</ul>
+  const now = new Date();
+  const fmt = (d: Date) =>
+    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  const d14 = new Date(now); d14.setDate(d14.getDate() + 14);
+  const d28 = new Date(now); d28.setDate(d28.getDate() + 28);
+  const d45 = new Date(now); d45.setDate(d45.getDate() + 45);
+  const d60 = new Date(now); d60.setDate(d60.getDate() - 30);
 
-<h2>2. How We Use Information</h2>
-<ul>
-<li>To authenticate you via SMS OTP and create your account.</li>
-<li>To display your child's health check-up reports and recommendations.</li>
-<li>To send you SMS invitations and notifications about available health reports.</li>
-<li>To enable doctors and school administrators to manage camp check-ups and generate reports.</li>
-<li>To improve the App's features and AI-based diet and food recognition suggestions.</li>
-</ul>
+  const campHospitalById: Record<string, string> = {
+    sc_oak_1: "hosp_rainbow",
+    sc_oak_2: "hosp_kims",
+    sc_oak_past: "hosp_rainbow",
+    sc_dps_1: "hosp_lvp",
+    sc_jgs_1: "hosp_rainbow",
+    sc_chirec_1: "hosp_continental",
+  };
 
-<h2>3. Data Storage</h2>
-<p>Your data is stored securely in Google Firebase (Firestore and Firebase Authentication), hosted on Google Cloud infrastructure. Access is restricted to authorised administrators and the doctors assigned to your child's health camp. SMS messages are sent through textbee.dev, our SMS gateway provider, which processes the phone number solely to deliver the message.</p>
+  const camps = [
+    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "UPCOMING", ["Height & Weight", "BMI Percentile", "Dental", "Eye Test", "Hemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null],
+    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "UPCOMING", ["Nutrition", "Hemoglobin", "BMI"], ["Class 6", "Class 7", "Class 8"], 180, null],
+    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "UPCOMING", ["Dental", "Eye Test"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null],
+    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "UPCOMING", ["Height & Weight", "Growth Percentile", "Nutrition"], ["Class 4", "Class 5", "Class 6"], 200, null],
+    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "UPCOMING", ["Height & Weight", "Dental", "Eye Test", "Nutrition", "General"], ["All grades"], 400, null],
+    ["sc_oak_past", "sch_oak", "Mid-Term Dental Check", "Completed screening — 3 follow-ups recommended", fmt(d60), "10:00 AM – 12:00 PM", "COMPLETED", ["Dental"], ["Class 3", "Class 4"], 120, "142 children screened · 3 follow-ups recommended"],
+  ] as const;
 
-<h2>4. Data Sharing</h2>
-<p>We do not sell your personal information. We share data only with:</p>
-<ul>
-<li><b>Partner schools and hospitals:</b> To coordinate health camps and deliver reports to parents.</li>
-<li><b>Service providers:</b> Firebase (Google) for authentication and data storage, and textbee.dev for SMS delivery, under their respective privacy policies.</li>
-<li><b>Legal authorities:</b> If required by applicable law.</li>
-</ul>
-
-<h2>5. Data Retention & Deletion</h2>
-<p>We retain your child's health records for as long as your account is active and for a reasonable period thereafter to meet legal or medical record-keeping obligations. You can request deletion of your account and associated data at any time — see the contact section below or visit our <a href="/data-deletion">Data Deletion page</a>.</p>
-
-<h2>6. Children's Privacy</h2>
-<p>The App is designed for parents and guardians to manage health information about their children. We do not knowingly collect personal information directly from children under 13. All accounts are created and controlled by a verified parent or guardian. Health data is collected by authorised doctors during school-organised health camps with the school's consent.</p>
-
-<h2>7. Your Rights</h2>
-<ul>
-<li>Access the health records associated with your account.</li>
-<li>Request correction of inaccurate information.</li>
-<li>Request deletion of your account and associated data.</li>
-<li>Withdraw Health Connect or camera permissions at any time from your Android settings.</li>
-</ul>
-
-<h2>8. Security</h2>
-<p>We protect your data with industry-standard measures including encrypted transport (HTTPS), Firebase security rules, server-side API key authentication for admin access, and scoped doctor credentials. No method of transmission or storage is 100% secure, but we work to protect your information using reasonable safeguards.</p>
-
-<h2>9. Changes to This Policy</h2>
-<p>We may update this Privacy Policy from time to time. We will notify you of significant changes by posting the new policy on this page and updating the "Last updated" date above.</p>
-
-<div class="contact">
-<h2>10. Contact Us</h2>
-<p>If you have questions about this Privacy Policy or want to request data access, correction, or deletion, please contact:</p>
-<ul>
-<li>Email: <a href="mailto:support@vitahero.app">support@vitahero.app</a></li>
-<li>Admin portal: <a href="/admin">VitaHero Admin Panel</a></li>
-</ul>
-</div>
-</div></body></html>`;
+  for (const [id, schoolId, title, desc, date, time, status, checks, grades, cap, summary] of camps) {
+    const hospitalId = campHospitalById[id] || null;
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.school_camps
+        (id, school_id, title, description, date, time, status, checks, grades, capacity, result_summary, hospital_id)
+      VALUES (
+        ${id}, ${schoolId}, ${title}, ${desc}, ${date}, ${time}, ${status},
+        ${JSON.stringify(checks)}::jsonb, ${JSON.stringify(grades)}::jsonb,
+        ${cap}, ${summary}, ${hospitalId}
+      )
+      ON CONFLICT (id) DO NOTHING
+    `;
+  }
 }
 
-function renderDataDeletion(): string {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VitaHero — Data Deletion</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Host Grotesk',system-ui,-apple-system,sans-serif;background:#F8FAFC;color:#0F172A;line-height:1.6}
-.wrap{max-width:680px;margin:0 auto;padding:48px 24px 80px}
-header{display:flex;align-items:center;gap:12px;margin-bottom:40px;padding-bottom:24px;border-bottom:1px solid #E2E8F0}
-.mark{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,#F47B20,#1FA2DD);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:22px}
-.name{font-size:22px;font-weight:700}.name span{color:#F47B20}
-h1{font-size:28px;font-weight:700;margin:0 0 8px}
-.updated{color:#64748B;font-size:14px;margin-bottom:32px}
-h2{font-size:19px;font-weight:600;margin:28px 0 10px}
-p{margin:0 0 14px;color:#334155;font-size:15px}
-ul{margin:0 0 14px 0;padding-left:22px;color:#334155;font-size:15px}
-li{margin-bottom:8px}
-a{color:#1FA2DD;text-decoration:none}
-.card{background:#fff;border:1px solid #E2E8F0;border-radius:16px;padding:28px;margin:24px 0}
-.steps{counter-reset:step;padding:0;list-style:none}
-.steps li{counter-increment:step;position:relative;padding:14px 0 14px 56px;border-bottom:1px solid #F1F5F9}
-.steps li:last-child{border-bottom:none}
-.steps li::before{content:counter(step);position:absolute;left:0;top:12px;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#F47B20,#1FA2DD);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;font-size:15px}
-.btn{display:inline-flex;align-items:center;background:linear-gradient(90deg,#F47B20,#1FA2DD);color:#fff;text-decoration:none;padding:14px 28px;border-radius:14px;font-weight:600;margin-top:16px}
-</style></head><body><div class="wrap">
-<header><div class="mark">V</div><div class="name">Vita<span>Hero</span></div></header>
-<h1>Data Deletion & Account Removal</h1>
-<div class="updated">Last updated: July 27, 2026</div>
-
-<p>You can request deletion of your VitaHero account and all associated data at any time. Once a deletion request is processed, your account, your child's health check-up records, and your phone number will be permanently removed from our systems, usually within 30 days.</p>
-
-<h2>What gets deleted</h2>
-<ul>
-<li>Your parent profile and phone number.</li>
-<li>All health check-up reports associated with your children.</li>
-<li>SMS invite and notification history tied to your number.</li>
-<li>Any locally stored wellness data on your device (you can also clear this from Android Settings → Apps → VitaHero → Storage).</li>
-</ul>
-
-<h2>How to request deletion</h2>
-<div class="card">
-<ol class="steps">
-<li><b>Email us</b> at <a href="mailto:support@vitahero.app?subject=Account%20Deletion%20Request">support@vitahero.app</a> with the subject "Account Deletion Request" and the mobile number registered with VitaHero.</li>
-<li><b>Use the admin portal</b> — if you have access, sign in at <a href="/admin">/admin</a> and use the parent management tools to remove your record.</li>
-<li><b>Withdraw app permissions</b> — open Android Settings → Apps → VitaHero → Permissions, and revoke Camera and Health access at any time.</li>
-</ol>
-<a class="btn" href="mailto:support@vitahero.app?subject=Account%20Deletion%20Request">Request deletion by email</a>
-</div>
-
-<h2>Processing time</h2>
-<p>Deletion requests are processed within 30 days of verification. You will receive a confirmation email once your data has been removed. Some aggregated, anonymised analytics may be retained where required by law, but no personally identifiable information will remain.</p>
-
-<h2>Questions?</h2>
-<p>Contact us at <a href="mailto:support@vitahero.app">support@vitahero.app</a> or read our full <a href="/privacy">Privacy Policy</a>.</p>
-</div></body></html>`;
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ─── Main Worker ────────────────────────────────────────────────
+function kidBmi(heightCm: number, weightKg: number): number {
+  const m = heightCm / 100;
+  return m > 0 ? weightKg / (m * m) : 0;
+}
+
+
+
+
+async function mergeCampResultsIntoKids(
+  sql: Sql,
+  profileId: string
+): Promise<void> {
+  // Projects released camp results onto the child's headline flags. Results are
+  // written only by releaseCamp() in camps.ts, after a physician has approved
+  // them — nothing is derived or guessed here.
+  await sql`
+    UPDATE ${sql(SCHEMA)}.kids k SET
+      dental = COALESCE(l.dental, k.dental),
+      eyesight = COALESCE(l.eyesight, k.eyesight),
+      nutrition = COALESCE(l.nutrition, k.nutrition),
+      last_checkup = COALESCE(l.camp_date, k.last_checkup),
+      height_cm = CASE WHEN l.height_cm > 0 THEN l.height_cm ELSE k.height_cm END,
+      weight_kg = CASE WHEN l.weight_kg > 0 THEN l.weight_kg ELSE k.weight_kg END,
+      overall_score = CASE
+        WHEN l.dental = 'ALERT' OR l.eyesight = 'ALERT' OR l.nutrition = 'ALERT' THEN LEAST(k.overall_score, 58)
+        WHEN l.dental = 'WATCH' OR l.eyesight = 'WATCH' OR l.nutrition = 'WATCH' THEN LEAST(k.overall_score, 72)
+        ELSE GREATEST(k.overall_score, 80)
+      END
+    FROM (
+      SELECT DISTINCT ON (ckr.kid_id)
+        ckr.kid_id,
+        ckr.dental,
+        ckr.eyesight,
+        ckr.nutrition,
+        ckr.height_cm,
+        ckr.weight_kg,
+        sc.date AS camp_date
+      FROM ${sql(SCHEMA)}.camp_kid_results ckr
+      JOIN ${sql(SCHEMA)}.school_camps sc ON sc.id = ckr.school_camp_id
+      WHERE ckr.profile_id = ${profileId}
+      ORDER BY ckr.kid_id, ckr.recorded_at DESC
+    ) l
+    WHERE k.id = l.kid_id AND k.profile_id = ${profileId}
+  `;
+}
+
+async function callToolkitDietTip(
+  env: Env,
+  kid: Record<string, unknown>,
+  meals: Record<string, unknown>[],
+  streak: Record<string, unknown> | null
+): Promise<Record<string, string> | null> {
+  const toolkitUrl = (env.TOOLKIT_URL || "").replace(/\/$/, "");
+  const toolkitKey = env.TOOLKIT_SECRET_KEY || "";
+  if (!toolkitUrl || !toolkitKey) return null;
+
+  const eatenCount = meals.filter((m) => m.eaten).length;
+  const totalKcal = meals
+    .filter((m) => m.eaten)
+    .reduce((sum, m) => sum + (Number(m.kcal) || 0), 0);
+  const mealNames = meals.map((m) => `${m.name} (${m.kcal} kcal)`).join(", ");
+  const heightCm = Number(kid.height_cm) || 0;
+  const weightKg = Number(kid.weight_kg) || 0;
+  const currentStreak = Number(streak?.current_streak) || 0;
+  const bestStreak = Number(streak?.best_streak) || 0;
+
+  const systemPrompt = [
+    "You are a pediatric nutrition coach for VitaHero, an Indian child health app.",
+    "Give culturally relevant, actionable diet tips for Indian parents.",
+    "Focus on Indian foods: dal, roti, rice, sabzi, idli, dosa, poha, paneer, ragi, curd, sprouts.",
+    'Respond ONLY with valid JSON: {"greeting":"...", "insight":"...", "suggestion":"...", "funFact":"..."}',
+    "Keep each field 1-2 sentences max. No markdown, no extra text.",
+  ].join("\n");
+
+  const userLines = [
+    `Child: ${kid.name}, ${kid.age} years, ${kid.gender}`,
+    `Height: ${heightCm} cm, Weight: ${weightKg} kg, Health Score: ${kid.overall_score}/100`,
+    `Dental: ${kid.dental}, Nutrition: ${kid.nutrition}`,
+    `Meals (${eatenCount}/${meals.length} eaten, ${totalKcal} kcal): ${mealNames}`,
+    `Streak: ${currentStreak} days (best ${bestStreak})`,
+  ];
+  if (kid.nutrition === "WATCH") {
+    userLines.push("Nutrition needs attention — suggest calorie-dense, iron and protein rich Indian foods.");
+  }
+  if (kid.nutrition === "ALERT") {
+    userLines.push("Nutrition is a concern — recommend a balanced, fibre-rich Indian diet and a pediatric check-up.");
+  }
+  userLines.push("Generate a personalised Indian diet coaching tip as JSON.");
+
+  const resp = await fetch(`${toolkitUrl}/v2/vercel/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${toolkitKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-4.1-nano",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userLines.join("\n") },
+      ],
+      temperature: 0.7,
+      max_tokens: 400,
+    }),
+  });
+
+  if (!resp.ok) return null;
+  const data = (await resp.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  const raw = data.choices?.[0]?.message?.content?.trim() || "";
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    const jsonBlock = raw.includes("```")
+      ? raw.split("```json").pop()?.split("```")[0]?.trim() || raw
+      : raw;
+    try {
+      return JSON.parse(jsonBlock) as Record<string, string>;
+    } catch {
+      return null;
+    }
+  }
+}
+
+async function callToolkitFoodVision(
+  env: Env,
+  imageDataUrl: string
+): Promise<Array<{ name: string; kcal: number; confidence: number }> | null> {
+  const toolkitUrl = (env.TOOLKIT_URL || "").replace(/\/$/, "");
+  const toolkitKey = env.TOOLKIT_SECRET_KEY || "";
+  if (!toolkitUrl || !toolkitKey) return null;
+
+  const systemPrompt = [
+    "You are a food recognition assistant for VitaHero, an Indian child-nutrition app.",
+    "Identify the edible food and drink items visible in the photo.",
+    "Prefer specific names (e.g. 'Dates', 'Banana', 'Idli & Sambar', 'Dal & Rice', 'Curd Rice').",
+    "Estimate calories (kcal) for a typical child-sized serving of what is shown.",
+    "Return ONLY valid JSON of this exact shape, up to 5 items, most likely first:",
+    '{"items":[{"name":"...","kcal":123,"confidence":0.0}]}',
+    'confidence is 0.0-1.0. If no food is visible, return {"items":[]}. No markdown, no extra text.',
+  ].join("\n");
+
+  const resp = await fetch(`${toolkitUrl}/v2/vercel/v1/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${toolkitKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "openai/gpt-4.1-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Identify the foods in this photo and estimate calories. Respond as JSON only.",
+            },
+            { type: "image_url", image_url: { url: imageDataUrl } },
+          ],
+        },
+      ],
+      temperature: 0.2,
+      max_tokens: 500,
+    }),
+  });
+
+  if (!resp.ok) return null;
+  const data = (await resp.json()) as {
+    choices?: Array<{ message?: { content?: string } }>;
+  };
+  let raw = data.choices?.[0]?.message?.content?.trim() || "";
+  if (!raw) return null;
+  if (raw.includes("```")) {
+    raw =
+      raw.split("```json").pop()?.split("```")[0]?.trim() ||
+      raw.replace(/```/g, "").trim();
+  }
+  try {
+    const parsed = JSON.parse(raw) as {
+      items?: Array<{ name?: unknown; kcal?: unknown; confidence?: unknown }>;
+    };
+    const items = Array.isArray(parsed.items) ? parsed.items : [];
+    return items
+      .map((it) => ({
+        name: String(it.name || "").trim(),
+        kcal: Math.max(0, Math.round(Number(it.kcal) || 0)),
+        confidence: Math.min(1, Math.max(0, Number(it.confidence) || 0.6)),
+      }))
+      .filter((it) => it.name.length > 0)
+      .slice(0, 5);
+  } catch {
+    return null;
+  }
+}
+
+async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.hospitals (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      city TEXT DEFAULT 'Hyderabad',
+      district TEXT DEFAULT '',
+      address TEXT DEFAULT '',
+      lat DOUBLE PRECISION,
+      lng DOUBLE PRECISION,
+      phone TEXT DEFAULT '',
+      rating DOUBLE PRECISION DEFAULT 4.5,
+      is_camp_partner BOOLEAN DEFAULT false,
+      active BOOLEAN DEFAULT true
+    )
+  `;
+
+  await sql`ALTER TABLE ${sql(SCHEMA)}.doctors ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
+  await sql`ALTER TABLE ${sql(SCHEMA)}.school_camps ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
+
+  const hospitals = [
+    ["hosp_rainbow", "Rainbow Children's Hospital", "Hyderabad", "Gachibowli", "Road No. 2, Gachibowli", 17.4401, 78.3489, "+91 40 4244 2222", 4.9, true],
+    ["hosp_apollo", "Apollo Cradle & Children's Hospital", "Hyderabad", "Jubilee Hills", "Road No. 36, Jubilee Hills", 17.4239, 78.4738, "+91 40 2355 1234", 4.8, true],
+    ["hosp_lvp", "LV Prasad Eye Institute", "Hyderabad", "Banjara Hills", "Kallam Anji Reddy Campus, Banjara Hills", 17.4125, 78.4482, "+91 40 3061 2345", 4.8, true],
+    ["hosp_kims", "KIMS Hospital", "Hyderabad", "Secunderabad", "1-112 / 86, Survey No 5, Kondapur", 17.4399, 78.4983, "+91 40 4488 5000", 4.6, true],
+    ["hosp_continental", "Continental Hospitals", "Hyderabad", "Gachibowli", "Plot No. 3, Road No. 2, Gachibowli", 17.4435, 78.3772, "+91 40 6700 0000", 4.7, true],
+    ["hosp_smile", "Smile Care Dental Clinic", "Hyderabad", "Banjara Hills", "Road No. 12, Banjara Hills", 17.4158, 78.4487, "+91 40 2335 6789", 4.7, true],
+    ["hosp_care", "Care Hospital", "Hyderabad", "Banjara Hills", "Road No. 10, Banjara Hills", 17.4122, 78.4489, "+91 40 3041 4141", 4.5, false],
+    ["hosp_yashoda", "Yashoda Hospitals", "Hyderabad", "Somajiguda", "Raj Bhavan Road, Somajiguda", 17.4231, 78.4578, "+91 40 4567 4567", 4.6, false],
+  ] as const;
+
+  for (const [id, name, city, district, address, lat, lng, phone, rating, isPartner] of hospitals) {
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.hospitals
+        (id, name, city, district, address, lat, lng, phone, rating, is_camp_partner)
+      VALUES (${id}, ${name}, ${city}, ${district}, ${address}, ${lat}, ${lng}, ${phone}, ${rating}, ${isPartner})
+      ON CONFLICT (id) DO UPDATE SET
+        name = EXCLUDED.name,
+        city = EXCLUDED.city,
+        district = EXCLUDED.district,
+        address = EXCLUDED.address,
+        lat = EXCLUDED.lat,
+        lng = EXCLUDED.lng,
+        phone = EXCLUDED.phone,
+        rating = EXCLUDED.rating,
+        is_camp_partner = EXCLUDED.is_camp_partner
+    `;
+  }
+
+  const extraDoctors = [
+    ["d6", "Dr. Lakshmi Devi", "Paediatrics", "Rainbow Children's Hospital", "hosp_rainbow", 4.8],
+    ["d7", "Dr. Rohit Verma", "Ophthalmology", "Continental Hospitals", "hosp_continental", 4.7],
+    ["d8", "Dr. Anjali Mehta", "Dental", "Smile Care Dental Clinic", "hosp_smile", 4.7],
+    ["d9", "Dr. Suresh Kumar", "Nutrition", "Apollo Cradle & Children's Hospital", "hosp_apollo", 4.8],
+    ["d10", "Dr. Deepa Singh", "General Paediatrics", "Care Hospital", "hosp_care", 4.5],
+  ] as const;
+
+  for (const [id, name, specialty, hospital, hospitalId, rating] of extraDoctors) {
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, hospital_id, rating)
+      VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${hospitalId}, ${rating})
+      ON CONFLICT (id) DO UPDATE SET
+        hospital_id = EXCLUDED.hospital_id,
+        hospital = EXCLUDED.hospital
+    `;
+  }
+
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_rainbow'
+    WHERE id = 'd1' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_apollo'
+    WHERE id = 'd2' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_lvp'
+    WHERE id = 'd3' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_kims'
+    WHERE id = 'd4' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+  await sql`
+    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_continental'
+    WHERE id = 'd5' AND (hospital_id IS NULL OR hospital_id = '')
+  `;
+}
+
+async function linkCampHospitals(sql: Sql): Promise<void> {
+  const campHospitalLinks: Record<string, string> = {
+    sc_oak_1: "hosp_rainbow",
+    sc_oak_2: "hosp_kims",
+    sc_oak_past: "hosp_rainbow",
+    sc_dps_1: "hosp_lvp",
+    sc_jgs_1: "hosp_rainbow",
+    sc_chirec_1: "hosp_continental",
+  };
+
+  for (const [campId, hospitalId] of Object.entries(campHospitalLinks)) {
+    await sql`
+      UPDATE ${sql(SCHEMA)}.school_camps
+      SET hospital_id = ${hospitalId}
+      WHERE id = ${campId} AND (hospital_id IS NULL OR hospital_id = '')
+    `;
+  }
+}
+
+async function getFamilyOwnerId(
+  sql: Sql,
+  familyCode: string,
+  fallbackProfileId: string
+): Promise<string> {
+  if (!familyCode) return fallbackProfileId;
+  const owners = await sql`
+    SELECT p.id FROM ${sql(SCHEMA)}.profiles p
+    WHERE p.family_code = ${familyCode}
+      AND EXISTS (SELECT 1 FROM ${sql(SCHEMA)}.kids k WHERE k.profile_id = p.id)
+    ORDER BY p.id
+    LIMIT 1
+  `;
+  if (owners.length > 0) return owners[0].id as string;
+  const any = await sql`
+    SELECT id FROM ${sql(SCHEMA)}.profiles
+    WHERE family_code = ${familyCode}
+    ORDER BY id
+    LIMIT 1
+  `;
+  return (any[0]?.id as string) || fallbackProfileId;
+}
+
+function anonymizeLeaderboardName(name: string, rank: number, isYou: boolean): string {
+  if (isYou) return name;
+  return `Hero #${rank}`;
+}
+
+// ─── Session Auth ───────────────────────────────────────────
+
+async function authenticateSession(
+  sql: Sql,
+  token: string
+): Promise<{ profileId: string; userId: string; name: string; role: string; schoolId: string | null } | null> {
+  if (!token || token.length < 30) return null;
+  try {
+    const rows = await sql`
+      SELECT id, user_id, name, role, school_id FROM ${sql(SCHEMA)}.profiles
+      WHERE session_token = ${token} LIMIT 1
+    `;
+    if (rows.length === 0) return null;
+    return {
+      profileId: rows[0].id,
+      userId: rows[0].user_id || "",
+      name: rows[0].name,
+      role: (rows[0].role as string) || "PARENT",
+      schoolId: (rows[0].school_id as string) || null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// ─── Twilio SMS ─────────────────────────────────────────────
+
+async function sendTwilioSms(
+  env: Env,
+  to: string,
+  body: string
+): Promise<boolean> {
+  const sid = env.TWILIO_ACCOUNT_SID;
+  const token = env.TWILIO_AUTH_TOKEN;
+  if (!sid || !token) {
+    console.error("Twilio credentials not configured");
+    return false;
+  }
+  try {
+    const resp = await fetch(
+      `${TWILIO_API}/Accounts/${sid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: "Basic " + btoa(`${sid}:${token}`),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          To: to,
+          From: "+12562828337", // Will be overridden by Twilio trial/project number
+          Body: body,
+        }),
+      }
+    );
+    return resp.ok;
+  } catch (e) {
+    console.error("Twilio send error:", e);
+    return false;
+  }
+}
+
+// ─── Closed-app helpers (provisioning, admin auth, invites) ──
+
+
+function b64urlEncode(bytes: ArrayBuffer | Uint8Array): string {
+  const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let bin = "";
+  for (const b of arr) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+function b64urlToString(s: string): string {
+  const pad = s.length % 4 === 0 ? "" : "=".repeat(4 - (s.length % 4));
+  return atob(s.replace(/-/g, "+").replace(/_/g, "/") + pad);
+}
+
+async function hmacSign(message: string, secret: string): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(message));
+  return b64urlEncode(sig);
+}
+
+/** Stateless, expiring invite token: base64url(payload).hmac. */
+async function signInviteToken(last10: string, env: Env): Promise<string | null> {
+  const secret = env.INVITE_SIGNING_KEY || env.ADMIN_API_KEY;
+  if (!secret) return null;
+  const payload = b64urlEncode(
+    new TextEncoder().encode(
+      JSON.stringify({ p: last10, exp: Date.now() + INVITE_EXPIRY_DAYS * 86400_000 })
+    )
+  );
+  const sig = await hmacSign(payload, secret);
+  return `${payload}.${sig}`;
+}
+
+async function verifyInviteToken(token: string, env: Env): Promise<string | null> {
+  const secret = env.INVITE_SIGNING_KEY || env.ADMIN_API_KEY;
+  if (!secret || !token || !token.includes(".")) return null;
+  const [payload, sig] = token.split(".");
+  const expected = await hmacSign(payload, secret);
+  if (expected !== sig) return null;
+  try {
+    const data = JSON.parse(b64urlToString(payload)) as { p?: string; exp?: number };
+    if (!data.p || !data.exp || Date.now() > data.exp) return null;
+    return data.p;
+  } catch {
+    return null;
+  }
+}
+
+/** Admin gate: ADMIN_API_KEY header (bootstrap) OR a role=ADMIN session. */
+async function requireAdmin(
+  request: Request,
+  sql: Sql,
+  env: Env
+): Promise<{ adminId: string } | null> {
+  const headerKey = request.headers.get("X-Admin-Key") || "";
+  if (env.ADMIN_API_KEY && headerKey && headerKey === env.ADMIN_API_KEY) {
+    return { adminId: "apikey" };
+  }
+  const session = await authenticateSession(sql, extractToken(request));
+  if (session && (session.role === "ADMIN" || session.role === "SUPERADMIN")) {
+    return { adminId: session.profileId };
+  }
+  return null;
+}
+
+/**
+ * Resolve who is calling an administrative endpoint.
+ *
+ * The bootstrap API key acts as SUPERADMIN. Otherwise the session's own role
+ * decides, and parents (or revoked administrators) are refused outright rather
+ * than being allowed through to a per-school check that might pass.
+ */
+async function resolveActor(
+  request: Request,
+  sql: Sql,
+  env: Env
+): Promise<Actor | null> {
+  const headerKey = request.headers.get("X-Admin-Key") || "";
+  if (env.ADMIN_API_KEY && headerKey && headerKey === env.ADMIN_API_KEY) {
+    return { profileId: "apikey", name: "VitaHero Ops", role: "SUPERADMIN", schoolId: null };
+  }
+  const session = await authenticateSession(sql, extractToken(request));
+  if (!session) return null;
+  const staffRoles = ["SCHOOL_ADMIN", "SCREENER", "PHYSICIAN", "ADMIN", "SUPERADMIN"];
+  if (!staffRoles.includes(session.role)) return null;
+  return {
+    profileId: session.profileId,
+    name: session.name,
+    role: session.role,
+    schoolId: session.schoolId,
+  };
+}
+
+// ─── Admin import (CSV/Excel rows → provisioned data) ────────
+
+
+function normHealthFlag(v: string): string {
+  const s = (v || "").trim().toUpperCase();
+  if (s === "GOOD" || s === "OK" || s === "NORMAL" || s === "FINE") return "GOOD";
+  if (s === "WATCH" || s === "MONITOR" || s === "ATTENTION") return "WATCH";
+  if (s === "ALERT" || s === "CRITICAL" || s === "REFER" || s === "BAD") return "ALERT";
+  return "GOOD";
+}
+
+
+
+interface ImportRowResult {
+  row: number;
+  phone: string;
+  student: string;
+  status: "created" | "updated" | "skipped" | "error";
+  message?: string;
+}
+
+interface ImportReport {
+  batchId: string;
+  dryRun: boolean;
+  total: number;
+  created: number;
+  updated: number;
+  skipped: number;
+  errors: number;
+  invited: number;
+  uniqueParents: number;
+  results: ImportRowResult[];
+}
+
+async function processImport(
+  sql: Sql,
+  env: Env,
+  rows: Record<string, unknown>[],
+  opts: { dryRun: boolean; sendInvites: boolean; filename: string; adminId: string; appOrigin: string }
+): Promise<ImportReport> {
+  const report: ImportReport = {
+    batchId: `imp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    dryRun: opts.dryRun,
+    total: rows.length,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    errors: 0,
+    invited: 0,
+    uniqueParents: 0,
+    results: [],
+  };
+  const uniquePhones = new Map<string, string>(); // last10 -> e164
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowNo = i + 1;
+    try {
+      const rawPhone = rowField(row, "phone", "mobile", "mobilenumber", "phonenumber", "contact");
+      const studentName = rowField(row, "studentname", "childname", "kidname", "student", "name");
+      const norm = normalizePhone(rawPhone);
+      if (!norm) {
+        report.errors++;
+        report.results.push({ row: rowNo, phone: rawPhone, student: studentName, status: "error", message: "Invalid phone number" });
+        continue;
+      }
+      if (!studentName) {
+        report.errors++;
+        report.results.push({ row: rowNo, phone: norm.e164, student: "", status: "error", message: "Missing student name" });
+        continue;
+      }
+
+      const parentName = rowField(row, "parentname", "guardianname", "parent", "fathername", "mothername") || "Parent";
+      const gender = rowField(row, "gender", "sex");
+      const grade = rowField(row, "grade", "class", "standard");
+      const dob = rowField(row, "dob", "dateofbirth", "birthdate");
+      const ageStr = rowField(row, "age");
+      const age = deriveAge(dob, ageStr);
+      const schoolCode = rowField(row, "schoolcode", "schoolid");
+      const schoolName = rowField(row, "schoolname", "school");
+      const campCode = rowField(row, "campcode", "campid");
+      const campDate = rowField(row, "campdate", "date");
+      const campTitle = rowField(row, "camptitle", "campname", "camp") || "Health Camp";
+      const heightCm = parseNum(rowField(row, "heightcm", "height"));
+      const weightKg = parseNum(rowField(row, "weightkg", "weight"));
+      const dental = normHealthFlag(rowField(row, "dental", "teeth"));
+      const eyesight = normHealthFlag(rowField(row, "eyesight", "vision", "eye"));
+      const nutrition = normHealthFlag(rowField(row, "nutrition", "nutritionstatus"));
+      const studentId = rowField(row, "studentid", "studentref", "rollno", "rollnumber", "admissionno");
+
+      const profileId = profileIdForPhone(norm.last10);
+      const studentRef = buildStudentRef(studentId, norm.last10, studentName, dob || ageStr);
+
+      // Resolve / upsert school + camp identity (writes skipped on dry run).
+      let schoolId = "";
+      if (schoolCode || schoolName) {
+        schoolId = schoolCode ? `sch_${slugify(schoolCode)}` : `sch_${slugify(schoolName)}`;
+        if (!opts.dryRun) {
+          await sql`
+            INSERT INTO vita_hero.schools (id, name, partner_code, active)
+            VALUES (${schoolId}, ${schoolName || schoolCode}, ${(schoolCode || slugify(schoolName)).toUpperCase()}, true)
+            ON CONFLICT (id) DO UPDATE SET name = COALESCE(NULLIF(EXCLUDED.name, ''), vita_hero.schools.name)
+          `;
+        }
+      }
+
+      let campId = "";
+      if (schoolId && (campCode || campDate || campTitle)) {
+        campId = `sc_${schoolId}_${slugify(campCode || campDate || campTitle)}`;
+        if (!opts.dryRun) {
+          await sql`
+            INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, active)
+            VALUES (${campId}, ${schoolId}, ${campTitle}, ${campDate || new Date().toISOString().slice(0, 10)}, 'COMPLETED', true)
+            ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title
+          `;
+        }
+      }
+
+      // Classify created vs updated by checking the kid's existence.
+      const existingKid = await sql`
+        SELECT id FROM vita_hero.kids WHERE profile_id = ${profileId} AND student_ref = ${studentRef} LIMIT 1
+      `;
+      const isNew = existingKid.length === 0;
+      const kidId = isNew ? `k_${slugify(studentRef)}_${Math.random().toString(36).slice(2, 6)}` : (existingKid[0].id as string);
+
+      if (!opts.dryRun) {
+        // Provision the parent profile (no session, never downgrade an admin).
+        await sql`
+          INSERT INTO vita_hero.profiles (id, phone, name, user_id, auth_provider, role, provisioned, school_id, is_logged_in)
+          VALUES (${profileId}, ${norm.e164}, ${parentName}, ${profileId}, 'PHONE', 'PARENT', true, ${schoolId || null}, false)
+          ON CONFLICT (id) DO UPDATE SET
+            provisioned = true,
+            name = CASE WHEN vita_hero.profiles.name IN ('', 'Parent') THEN EXCLUDED.name ELSE vita_hero.profiles.name END,
+            phone = EXCLUDED.phone,
+            school_id = COALESCE(EXCLUDED.school_id, vita_hero.profiles.school_id)
+        `;
+
+        if (isNew) {
+          await sql`
+            INSERT INTO vita_hero.kids
+              (id, profile_id, user_id, name, age, gender, school, grade, height_cm, weight_kg,
+               dental, eyesight, nutrition, last_checkup, student_ref, source)
+            VALUES (${kidId}, ${profileId}, ${profileId}, ${studentName}, ${age}, ${gender}, ${schoolName || ""}, ${grade},
+                    ${heightCm ?? 0}, ${weightKg ?? 0}, ${dental}, ${eyesight}, ${nutrition},
+                    ${campDate || "Camp"}, ${studentRef}, 'ADMIN')
+          `;
+        } else {
+          await sql`
+            UPDATE vita_hero.kids SET
+              name = ${studentName}, age = ${age}, gender = ${gender},
+              school = ${schoolName || ""}, grade = ${grade},
+              height_cm = ${heightCm ?? 0}, weight_kg = ${weightKg ?? 0},
+              dental = ${dental}, eyesight = ${eyesight}, nutrition = ${nutrition},
+              last_checkup = ${campDate || "Camp"}, source = 'ADMIN'
+            WHERE id = ${kidId}
+          `;
+        }
+
+        // Seed a growth-history point from the camp measurement (height/weight only).
+        // Idempotent: keyed by kid + measurement label so re-imports update in place.
+        if (heightCm != null || weightKg != null) {
+          const gpLabel = campDate || campTitle || "Camp";
+          const gpId = `gp_${kidId}_${slugify(gpLabel)}`;
+          await sql`
+            INSERT INTO vita_hero.growth_points (id, kid_id, user_id, label, height, weight)
+            VALUES (${gpId}, ${kidId}, ${profileId}, ${gpLabel}, ${heightCm ?? 0}, ${weightKg ?? 0})
+            ON CONFLICT (id) DO UPDATE SET
+              label = EXCLUDED.label, height = EXCLUDED.height, weight = EXCLUDED.weight, recorded_at = NOW()
+          `;
+        }
+
+        if (campId) {
+          await sql`
+            INSERT INTO vita_hero.camp_registrations (id, profile_id, school_camp_id, kid_id)
+            VALUES (${"reg_" + kidId + "_" + campId.slice(-6)}, ${profileId}, ${campId}, ${kidId})
+            ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING
+          `;
+          await sql`
+            INSERT INTO vita_hero.camp_kid_results
+              (id, profile_id, school_camp_id, kid_id, dental, eyesight, nutrition, height_cm, weight_kg)
+            VALUES (${"ckr_" + kidId + "_" + campId.slice(-6)}, ${profileId}, ${campId}, ${kidId},
+                    ${dental}, ${eyesight}, ${nutrition}, ${heightCm}, ${weightKg})
+            ON CONFLICT (school_camp_id, kid_id) DO UPDATE SET
+              dental = EXCLUDED.dental, eyesight = EXCLUDED.eyesight, nutrition = EXCLUDED.nutrition,
+              height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg, recorded_at = NOW()
+          `;
+        }
+      }
+
+      uniquePhones.set(norm.last10, norm.e164);
+      if (isNew) report.created++; else report.updated++;
+      report.results.push({ row: rowNo, phone: norm.e164, student: studentName, status: isNew ? "created" : "updated" });
+    } catch (e) {
+      report.errors++;
+      report.results.push({
+        row: rowNo,
+        phone: "",
+        student: "",
+        status: "error",
+        message: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
+
+  report.uniqueParents = uniquePhones.size;
+
+  // Send invites (only on a real run when requested).
+  if (!opts.dryRun && opts.sendInvites) {
+    for (const [last10, e164] of uniquePhones) {
+      const sent = await sendInviteForPhone(sql, env, last10, e164, opts.appOrigin);
+      if (sent) report.invited++;
+    }
+  }
+
+  if (!opts.dryRun) {
+    await sql`
+      INSERT INTO vita_hero.import_batches
+        (id, admin_id, filename, total, created, updated, skipped, errors, invited, dry_run)
+      VALUES (${report.batchId}, ${opts.adminId}, ${opts.filename}, ${report.total},
+              ${report.created}, ${report.updated}, ${report.skipped}, ${report.errors}, ${report.invited}, false)
+    `;
+  }
+
+  return report;
+}
+
+/** Send an invite SMS to a provisioned parent (respects a resend cooldown). */
+async function sendInviteForPhone(
+  sql: Sql,
+  env: Env,
+  last10: string,
+  e164: string,
+  appOrigin: string,
+  force = false
+): Promise<boolean> {
+  const profileId = profileIdForPhone(last10);
+  const prof = await sql`SELECT invited_at FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1`;
+  if (!force && prof[0]?.invited_at) {
+    const elapsed = Date.now() - new Date(prof[0].invited_at as string).getTime();
+    if (elapsed < INVITE_RESEND_COOLDOWN_HOURS * 3600_000) return false;
+  }
+  const token = await signInviteToken(last10, env);
+  const link = token ? `${appOrigin}/i/${token}` : (env.APP_PLAY_URL || appOrigin);
+  const ok = await sendTwilioSms(
+    env,
+    e164,
+    `VitaHero: your child's school health report is ready. Open the app and sign in with this mobile number: ${link}`
+  );
+  await sql`
+    INSERT INTO vita_hero.sms_log (id, phone, type, status)
+    VALUES (${"sms_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)}, ${e164}, 'INVITE', ${ok ? "SENT" : "FAILED"})
+  `;
+  await sql`
+    UPDATE vita_hero.profiles SET invited_at = NOW(), invite_count = invite_count + 1 WHERE id = ${profileId}
+  `;
+  return ok;
+}
+
+interface NeonAuthUser {
+  id: string;
+  name?: string;
+  email: string;
+  emailVerified?: boolean;
+}
+
+interface NeonAuthSession {
+  token: string;
+}
+
+interface NeonAuthResponse {
+  user: NeonAuthUser;
+  session?: NeonAuthSession;
+  token?: string;
+}
+
+// ─── Neon Auth Helpers ─────────────────────────────────────
+
+/** Call Neon Auth REST API. Returns parsed JSON or throws on error. */
+async function callNeonAuth(
+  path: string,
+  body: Record<string, unknown>,
+  request?: Request
+): Promise<NeonAuthResponse> {
+  const origin = request?.headers.get("Origin") || APP_ORIGIN;
+  const url = `${NEON_AUTH}${path}`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Origin: origin,
+      Referer: `${origin}/`,
+    },
+    // Mobile/API flows: rely on Origin header only. Do not send callbackURL —
+    // a relative callbackURL triggers MISSING_ORIGIN; an unlisted absolute URL
+    // triggers INVALID_CALLBACKURL in Neon Auth.
+    body: JSON.stringify(body),
+  });
+  const data = await resp.json() as Record<string, unknown>;
+  if (!resp.ok) {
+    const message =
+      (data.message as string) ||
+      (data.error as string) ||
+      (typeof data === "object" && data !== null && "code" in data
+        ? String((data as { code?: string }).code)
+        : "") ||
+      `Auth error (${resp.status})`;
+    throw new Error(message);
+  }
+  return data as unknown as NeonAuthResponse;
+}
+
+/** Create or update a profile in vita_hero.profiles after Neon Auth success. */
+async function upsertProfileFromNeonAuth(
+  sql: Sql,
+  user: NeonAuthUser,
+  provider: string,
+  role?: string
+): Promise<{ profileId: string; sessionToken: string }> {
+  const profileId = `na_${user.id.slice(0, 24)}`;
+  const sessionToken = generateToken();
+
+  const existing = await sql`
+    SELECT id FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
+  `;
+
+  if (existing.length === 0) {
+    await sql`
+      INSERT INTO ${sql(SCHEMA)}.profiles
+        (id, user_id, name, email, session_token, auth_provider,
+         onboarding_complete, is_logged_in, role)
+      VALUES (
+        ${profileId}, ${user.id}, ${user.name || user.email.split('@')[0]},
+        ${user.email}, ${sessionToken}, ${provider}, true, true, ${role || 'PARENT'}
+      )
+    `;
+  } else {
+    await sql`
+      UPDATE ${sql(SCHEMA)}.profiles
+      SET session_token = ${sessionToken}, is_logged_in = true,
+          name = ${user.name || user.email.split('@')[0]},
+          email = ${user.email}, auth_provider = ${provider},
+          role = COALESCE(${role ?? null}, role)
+      WHERE id = ${profileId}
+    `;
+  }
+
+  return { profileId, sessionToken };
+}
+
+// ─── Entrypoint ─────────────────────────────────────────────
+
+/** Per-isolate latch so schema init does not run on every request. */
+let schemaReady = false;
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -981,1291 +1497,2274 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
+    const dbUrl = env.DATABASE_URL;
 
-    // ── Health check ──
-    if (path === "/ping") {
-      const hasFs = !!env.FIREBASE_SERVICE_ACCOUNT_KEY;
-      return json({ ok: true, firestore: hasFs, dev_mode: isDevMode(env) });
+    if (!dbUrl) {
+      return json({ error: "DATABASE_URL not configured" }, 500);
     }
-
-    // ── Admin panel HTML ──
-    if (path === "/admin") {
-      const html = renderAdminPanel(LOGO_DATA_URI);
-      return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
-    }
-
-    // ── Android App Links ──
-    if (path === "/.well-known/assetlinks.json") {
-      const fingerprints = (env.ANDROID_CERT_SHA256 || "").split(",").map(s => s.trim()).filter(Boolean);
-      return cors(new Response(JSON.stringify([
-        {
-          relation: ["delegate_permission/common.handle_all_urls"],
-          target: {
-            namespace: "android_app",
-            package_name: ANDROID_PACKAGE,
-            sha256_cert_fingerprints: fingerprints,
-          },
-        },
-      ]), { status: 200, headers: { "Content-Type": "application/json" } }));
-    }
-
-    // ── Play Store listing assets (public downloads for Play Console upload) ──
-    if (path.startsWith("/playstore/")) {
-      const name = decodeURIComponent(path.slice("/playstore/".length));
-      const asset = PLAYSTORE_ASSETS[name];
-      if (!asset) return cors(new Response("Not found", { status: 404 }));
-      const bin = atob(asset.b64);
-      const bytes = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      return new Response(bytes, {
-        status: 200,
-        headers: {
-          "Content-Type": asset.mime,
-          "Cache-Control": "public, max-age=86400, immutable",
-          "Access-Control-Allow-Origin": "*",
-        },
-      });
-    }
-    // ── Play Store assets index (HTML list of all assets with download links) ──
-    if (path === "/playstore") {
-      const items = Object.keys(PLAYSTORE_ASSETS)
-        .map((n) => `<li><a href="/playstore/${encodeURIComponent(n)}">${n}</a></li>`)
-        .join("");
-      const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>VitaHero — Play Store Assets</title><style>body{font-family:system-ui,sans-serif;max-width:720px;margin:40px auto;padding:0 20px;color:#0F172A}h1{color:#F47B20}ul{list-style:none;padding:0}li{padding:10px 0;border-bottom:1px solid #eee}a{color:#1FA2DD;text-decoration:none;font-weight:600}a:hover{text-decoration:underline}</style></head><body><h1>VitaHero Play Store Assets</h1><p>Right-click any link and choose “Save link as…” to download.</p><ul>${items}</ul></body></html>`;
-      return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
-    }
-
-    // ── Invite token resolution ──
-    if (path === "/api/invite/resolve" && request.method === "GET") {
-      const token = url.searchParams.get("token") || "";
-      const last10 = await verifyInviteToken(token, env);
-      if (!last10) return json({ valid: false }, 200);
-      return json({ valid: true, phone: `+${DEFAULT_COUNTRY_CODE}${last10}`, last10 });
-    }
-
-    // ── Privacy policy (required for Play Console + health app data safety) ──
-    if (path === "/privacy") {
-      const html = renderPrivacyPolicy();
-      return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
-    }
-
-    // ── Data deletion instructions (required for Play Console data safety form) ──
-    if (path === "/data-deletion") {
-      const html = renderDataDeletion();
-      return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
-    }
-
-    // ── Invite landing page ──
-    if (path.startsWith("/i/")) {
-      const token = path.slice(3);
-      const playUrl = env.APP_PLAY_URL || "https://play.google.com/apps/internaltest/4700990678853594044";
-      const deepLink = `vitahero://invite?token=${encodeURIComponent(token)}`;
-      const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VitaHero — Open your child's health report</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Host Grotesk',system-ui,sans-serif;background:linear-gradient(160deg,#F47B20 0%,#1FA2DD 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
-.card{background:#fff;color:#0F172A;max-width:440px;width:100%;padding:40px 32px;border-radius:28px;box-shadow:0 24px 80px rgba(15,23,42,.22);text-align:center}
-.logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:24px}
-.logo .mark{width:56px;height:56px;border-radius:16px;background:linear-gradient(135deg,#F47B20,#1FA2DD);display:flex;align-items:center;justify-content:center;color:#fff;font-size:28px;font-weight:700}
-.logo .name{font-size:26px;font-weight:700}.logo .name span{color:#F47B20}
-.card h1{font-size:21px;margin:0 0 10px;font-weight:600}
-.card p{color:#475569;line-height:1.55;font-size:15px;margin-bottom:8px}
-a.btn{display:flex;align-items:center;justify-content:center;text-align:center;background:linear-gradient(90deg,#F47B20,#1FA2DD);color:#fff;text-decoration:none;padding:15px;border-radius:14px;font-weight:600;font-size:15px;margin-top:16px}
-a.btn.secondary{background:#0F172A}
-</style></head><body><div class="card">
-<div class="logo"><div class="mark">V</div><div class="name">Vita<span>Hero</span></div></div>
-<h1>Your child's health report is ready</h1>
-<p>Install the VitaHero app, then sign in with the mobile number this link was sent to.</p>
-<a class="btn" href="${playUrl}">Get the app</a>
-<a class="btn secondary" href="${deepLink}">Open in app</a></div>
-<script>try{window.location.href=${JSON.stringify(deepLink)};}catch(e){}</script>
-</body></html>`;
-      return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
-    }
-
-    // ── Initialize Firestore ──
-    if (!env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      return json({ error: "FIREBASE_SERVICE_ACCOUNT_KEY not configured" }, 500);
-    }
-    const fs = new FirestoreClient(env.FIREBASE_SERVICE_ACCOUNT_KEY);
-
-    // Seed on first request
-    await seedFirestore(fs);
 
     try {
-      // ═══════════════════════════════════════════════════
-      // ADMIN ENDPOINTS
-      // ═══════════════════════════════════════════════════
+      const sql = neon(dbUrl);
 
-      // ── Admin verify ──
-      if (path === "/api/admin/verify" && request.method === "GET") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        return json({ valid: true });
+      // Schema init is idempotent but not free: it issues ~46 statements, and
+      // with the Neon HTTP driver each one is its own round trip. Running it per
+      // request put that cost in front of every single call. Once per isolate is
+      // enough; a deploy-time migration would be better still.
+      if (!schemaReady) {
+        try {
+          await ensureSchema(sql);
+          await ensureStageASchema(sql);
+          await ensureCampSchema(sql);
+          await ensureReferralSchema(sql);
+          await ensureLifecycleSchema(sql);
+          await ensureMediaSchema(sql);
+          await ensureMessageSchema(sql);
+          await ensureLibrarySchema(sql);
+          await ensureBillingSchema(sql);
+          await ensureSymptomSchema(sql);
+          schemaReady = true;
+        } catch (schemaErr) {
+          console.error("Schema init error:", schemaErr);
+          return json({ error: "Database schema initialization failed" }, 500);
+        }
       }
 
-      // ── Admin stats (Firestore) ──
-      if (path === "/api/admin/stats" && request.method === "GET") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const parents = await fs.count("provisioned_parents", [{ field: "provisioned", op: "EQUAL", value: true }]);
-        // Count imported kids, active parents, and generated links by iterating provisioned parents
-        let importedKids = 0;
-        let activeParents = 0;
-        let invites = 0;
-        const provParents = await fs.query("provisioned_parents", [{ field: "provisioned", op: "EQUAL", value: true }], undefined, 500);
-        for (const p of provParents) {
-          if (p.is_logged_in === true) activeParents++;
-          if (p.invited_at) invites += (p.invite_count as number) || 1;
-          try {
-            const kids = await fs.listDocs(`provisioned_parents/${p.id}/kids`);
-            importedKids += kids.length;
-          } catch (_) { /* ignore */ }
+      // ── Health Check ─────────────────────────────────
+      if (path === "/ping") {
+        const rows = await sql`SELECT 1 AS ok, NOW() AS now`;
+        return json({ ok: true, db: rows[0] });
+      }
+
+      // ── Android App Links verification ───────────────
+      if (path === "/.well-known/assetlinks.json") {
+        const fingerprints = (env.ANDROID_CERT_SHA256 || "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        const body = [
+          {
+            relation: ["delegate_permission/common.handle_all_urls"],
+            target: {
+              namespace: "android_app",
+              package_name: ANDROID_PACKAGE,
+              sha256_cert_fingerprints: fingerprints,
+            },
+          },
+        ];
+        return cors(new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+
+      // ── Invite token → phone (app prefill) ───────────
+      if (path === "/api/invite/resolve" && request.method === "GET") {
+        const token = url.searchParams.get("token") || "";
+        const last10 = await verifyInviteToken(token, env);
+        if (!last10) return json({ valid: false }, 200);
+        return json({ valid: true, phone: `+${DEFAULT_COUNTRY_CODE}${last10}`, last10 });
+      }
+
+      // ── Invite landing page (opened from SMS) ────────
+      if (path.startsWith("/i/")) {
+        const token = path.slice(3);
+        const playUrl = env.APP_PLAY_URL || `https://play.google.com/store/apps/details?id=${ANDROID_PACKAGE}`;
+        const deepLink = `vitahero://invite?token=${encodeURIComponent(token)}`;
+        const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VitaHero — Open your child's health report</title>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0EA5A4;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center}
+.card{background:#fff;color:#0f172a;max-width:420px;margin:20px;padding:28px;border-radius:20px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
+h1{font-size:20px;margin:0 0 8px}p{color:#475569;line-height:1.5}
+a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decoration:none;padding:14px;border-radius:12px;font-weight:600;margin-top:16px}</style></head>
+<body><div class="card"><h1>VitaHero</h1>
+<p>Your child's school health report is ready. Install the app, then sign in with the mobile number this link was sent to.</p>
+<a class="btn" href="${playUrl}">Get the app</a>
+<a class="btn" style="background:#1e293b" href="${deepLink}">Open in app</a></div>
+<script>try{window.location.href=${JSON.stringify(deepLink)};}catch(e){}</script>
+</body></html>`;
+        return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
+      }
+
+      // ═══════════════════════════════════════════════════
+      // STAGE A — school administration portal + API
+      // ═══════════════════════════════════════════════════
+
+      // The console must open on a device that has been offline since it left
+      // the office, so its shell is cached. Data still comes from the pack the
+      // screener downloaded; this only guarantees the page itself loads.
+      if (path === "/admin/sw.js") {
+        return cors(new Response(SERVICE_WORKER_JS, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/javascript; charset=utf-8",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/admin",
+          },
+        }));
+      }
+
+      if (path === "/admin" || path === "/admin/") {
+        return cors(new Response(PORTAL_HTML, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-cache",
+          },
+        }));
+      }
+
+      // ── Admin: referrals, corrections, lifecycle, reports ──
+      if (path.startsWith("/api/admin/referrals") || path === "/api/admin/programme-report"
+          || path === "/api/admin/retention" || path.startsWith("/api/admin/child/")) {
+        const actor = await resolveActor(request, sql, env);
+        if (!actor) return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try { return (await request.json()) as Record<string, unknown>; }
+          catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
+        };
+        try {
+          if (path === "/api/admin/programme-report" && request.method === "GET") {
+            return json(await programmeReport(sql, actor));
+          }
+          if (path === "/api/admin/retention" && request.method === "POST") {
+            const b = await readBody();
+            return json(await purgeBeyondRetention(sql, actor,
+              parseInt(String(b.years || "7"), 10), parseInt(String(b.confirm || "-1"), 10)));
+          }
+          if (path === "/api/admin/retention" && request.method === "GET") {
+            return json(await retentionReport(sql, actor,
+              parseInt(url.searchParams.get("years") || "7", 10)));
+          }
+          if (path.startsWith("/api/admin/child/")) {
+            const kidId = decodeURIComponent(path.slice("/api/admin/child/".length).split("/")[0]);
+            if (request.method === "GET") return json(await childAccessTrail(sql, actor, kidId));
+            return json({ error: "Method not allowed" }, 405);
+          }
+          const refRest = path.slice("/api/admin/referrals".length).replace(/^\//, "");
+          const refParts = refRest ? refRest.split("/").map(decodeURIComponent) : [];
+          if (refParts.length === 1 && request.method === "GET") {
+            return json(await referralDetail(sql, actor, refParts[0]));
+          }
+          if (refParts.length === 2 && refParts[1] === "outcome" && request.method === "POST") {
+            return json(await recordReferralOutcome(sql, actor, refParts[0], await readBody()));
+          }
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          console.error("Referral route error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
         }
+      }
+
+      // ── Admin: overview, my camps, camp operations ──
+      if (path === "/api/admin/overview" || path === "/api/admin/my-camps"
+          || path === "/api/admin/camps" || path.startsWith("/api/admin/camps/")) {
+        const actor = await resolveActor(request, sql, env);
+        if (!actor) {
+          return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
+        }
+        const method = request.method;
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try { return (await request.json()) as Record<string, unknown>; }
+          catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
+        };
+        const smsSender = (to: string, body: string) => sendTwilioSms(env, to, body);
+
+        try {
+          if (path === "/api/admin/overview" && method === "GET") {
+            return json(await adminOverview(sql, actor));
+          }
+          if (path === "/api/admin/my-camps" && method === "GET") {
+            return json(await listMyCamps(sql, actor));
+          }
+
+          const rest = path.slice("/api/admin/camps".length).replace(/^\//, "");
+          const parts = rest ? rest.split("/").map(decodeURIComponent) : [];
+          if (parts.length === 0) return json({ error: "Not found" }, 404);
+
+          const campId = parts[0];
+          const section = parts[1] || "";
+          const third = parts[2] || "";
+
+          if (!section) {
+            if (method === "GET") return json(await getCamp(sql, actor, campId));
+            if (method === "PATCH" || method === "PUT") {
+              return json(await updateCamp(sql, actor, campId, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          if (section === "roster" && method === "POST") {
+            return json(await buildCampRoster(sql, actor, campId));
+          }
+
+          if (section === "participants" && method === "GET") {
+            return json(await listParticipants(sql, actor, campId, {
+              consent: url.searchParams.get("consent") || undefined,
+              attendance: url.searchParams.get("attendance") || undefined,
+              status: url.searchParams.get("status") || undefined,
+              search: url.searchParams.get("q") || undefined,
+            }));
+          }
+
+          if (section === "reconciliation" && method === "GET") {
+            return json(await campReconciliation(sql, actor, campId));
+          }
+
+          if (section === "consent") {
+            if (third === "request" && method === "POST") {
+              return json(await requestConsent(sql, actor, campId, smsSender, url.origin));
+            }
+            if (third === "record" && method === "POST") {
+              const b = await readBody();
+              const access = await assertCampAccess(sql, actor, campId);
+              if (!access.canSchedule) {
+                return json({ error: "You cannot record consent for this camp", code: "FORBIDDEN" }, 403);
+              }
+              const decision = String(b.decision || "").toUpperCase();
+              if (decision !== "GRANTED" && decision !== "DECLINED" && decision !== "PAPER") {
+                return json({ error: "Decision must be GRANTED, DECLINED or PAPER", code: "BAD_DECISION" }, 400);
+              }
+              return json(await recordConsent(sql, campId, String(b.kidId || ""), decision, {
+                actorId: actor.profileId,
+                source: String(b.source || "PAPER"),
+                checks: Array.isArray(b.checks) ? (b.checks as string[]) : undefined,
+                consentPhotos: b.consentPhotos === true,
+                note: String(b.note || ""),
+              }));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          if (section === "attendance" && method === "POST") {
+            const b = await readBody();
+            return json(await setAttendance(sql, actor, campId, String(b.kidId || ""), String(b.attendance || "")));
+          }
+
+          if (section === "pack" && method === "GET") {
+            return json(await campPack(sql, actor, campId));
+          }
+
+          if (section === "screening-bulk" && method === "POST") {
+            const b = await readBody();
+            return json(await saveScreeningBulk(sql, actor, campId,
+              Array.isArray(b.entries) ? (b.entries as Record<string, unknown>[]) : []));
+          }
+
+          if (section === "screening") {
+            if (!third) return json({ error: "Which child?" }, 400);
+            if (method === "GET") return json(await getScreeningForm(sql, actor, campId, third));
+            if (method === "POST") return json(await saveScreening(sql, actor, campId, third, await readBody()));
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          if (section === "review") {
+            if (!third && method === "GET") return json(await reviewQueue(sql, actor, campId));
+            if (third && method === "GET") return json(await reviewDetail(sql, actor, campId, third));
+            if (third && method === "POST") {
+              return json(await reviewParticipant(sql, actor, campId, third, await readBody(), smsSender));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          if (section === "release" && method === "POST") {
+            return json(await releaseCamp(sql, actor, campId, smsSender));
+          }
+
+          if (section === "staff") {
+            if (method === "POST") return json(await assignCampStaff(sql, actor, campId, await readBody()));
+            if (method === "DELETE" && third) return json(await removeCampStaff(sql, actor, campId, third));
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Photographs of a finding. Gated twice: the camp has to have
+          // photography switched on, and the guardian has to have agreed to it
+          // separately from agreeing to the screening itself.
+          if (section === "photos") {
+            if (!third) return json({ error: "Which child?" }, 400);
+            if (method === "GET") return json(await listFindingPhotos(sql, actor, campId, third));
+            if (method === "POST") return json(await uploadFindingPhoto(sql, actor, campId, third, await readBody()), 201);
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // The family's own account of everyday illness since the last camp.
+          // History for the clinician, never a finding.
+          if (section === "symptoms" && method === "GET") {
+            if (!third) return json({ error: "Which child?" }, 400);
+            return json(await symptomHistoryForClinician(sql, actor, campId, third));
+          }
+
+          if (section === "photo-trail" && method === "GET") {
+            if (!third) return json({ error: "Which child?" }, 400);
+            return json(await photoAccessTrail(sql, actor, campId, third));
+          }
+
+          if (section === "photos-enabled" && method === "POST") {
+            const b = await readBody();
+            return json(await setCampPhotos(sql, actor, campId, b.enabled === true));
+          }
+
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          console.error("Camp route error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════
+      // Photographs, the question channel, the library, billing
+      // ═══════════════════════════════════════════════════
+      if (path.startsWith("/api/admin/photo/")
+          || path === "/api/admin/questions" || path.startsWith("/api/admin/questions/")
+          || path === "/api/admin/library" || path.startsWith("/api/admin/library/")
+          || path === "/api/admin/billing" || path.startsWith("/api/admin/billing/")) {
+        const actor = await resolveActor(request, sql, env);
+        if (!actor) {
+          return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
+        }
+        const method = request.method;
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try { return (await request.json()) as Record<string, unknown>; }
+          catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
+        };
+
+        try {
+          // ── One photograph, by id ──
+          if (path.startsWith("/api/admin/photo/")) {
+            const photoId = decodeURIComponent(path.slice("/api/admin/photo/".length));
+            if (method === "GET") return json(await getFindingPhoto(sql, { actor }, photoId));
+            if (method === "DELETE") return json(await deleteFindingPhoto(sql, actor, photoId));
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // ── Questions from families ──
+          if (path === "/api/admin/questions" && method === "GET") {
+            return json(await schoolThreads(
+              sql,
+              actor,
+              url.searchParams.get("school_id") || actor.schoolId || "",
+              url.searchParams.get("status") || "OPEN"
+            ));
+          }
+          if (path.startsWith("/api/admin/questions/")) {
+            const bits = path.slice("/api/admin/questions/".length).split("/").map(decodeURIComponent);
+            if (bits[0] === "settings" && method === "POST") {
+              const b = await readBody();
+              return json(await setQuestionsEnabled(
+                sql,
+                actor,
+                String(b.schoolId || actor.schoolId || ""),
+                b.enabled === true
+              ));
+            }
+            const threadId = bits[0];
+            const action = bits[1] || "";
+            if (!action && method === "GET") {
+              return json(await threadMessages(sql, { actor }, threadId));
+            }
+            if (action === "reply" && method === "POST") {
+              return json(await replyToThread(sql, actor, threadId, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // ── Education library ──
+          if (path === "/api/admin/library") {
+            if (method === "GET") return json(await listArticles(sql, actor));
+            if (method === "POST" || method === "PUT") {
+              return json(await upsertArticle(sql, actor, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+          if (path.startsWith("/api/admin/library/") && method === "DELETE") {
+            const bits = path.slice("/api/admin/library/".length).split("/").map(decodeURIComponent);
+            return json(await deleteArticle(sql, actor, bits[0] || "", bits[1] || "en"));
+          }
+
+          // ── Contracts and invoices ──
+          if (path === "/api/admin/billing" && method === "GET") {
+            return json(await billingSummary(sql, actor));
+          }
+          if (path.startsWith("/api/admin/billing/")) {
+            const bits = path.slice("/api/admin/billing/".length).split("/").map(decodeURIComponent);
+            const head = bits[0] || "";
+
+            if (head === "contract") {
+              if (method === "GET") {
+                return json(await getContract(sql, actor, url.searchParams.get("school_id") || ""));
+              }
+              if (method === "POST" || method === "PUT") {
+                const b = await readBody();
+                return json(await setContract(sql, actor, String(b.schoolId || ""), b));
+              }
+              return json({ error: "Method not allowed" }, 405);
+            }
+
+            if (head === "invoices") {
+              if (method === "GET") {
+                return json(await listInvoices(sql, actor, url.searchParams.get("school_id") || ""));
+              }
+              if (method === "POST") {
+                const b = await readBody();
+                return json(await generateInvoice(sql, actor, String(b.schoolId || ""), b), 201);
+              }
+              return json({ error: "Method not allowed" }, 405);
+            }
+
+            if (head === "invoice") {
+              const invoiceId = bits[1] || "";
+              const action = bits[2] || "";
+              if (!action && method === "GET") return json(await getInvoice(sql, actor, invoiceId));
+              if (action === "status" && method === "POST") {
+                const b = await readBody();
+                return json(await setInvoiceStatus(sql, actor, invoiceId, String(b.status || "")));
+              }
+              return json({ error: "Method not allowed" }, 405);
+            }
+
+            if (head === "parent-plan" && method === "POST") {
+              const b = await readBody();
+              return json(await setParentPlan(
+                sql,
+                actor,
+                String(b.profileId || ""),
+                String(b.plan || "FREE"),
+                String(b.until || "")
+              ));
+            }
+          }
+
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          console.error("Admin services route error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
+
+      if (path === "/api/admin/schools" || path.startsWith("/api/admin/schools/")) {
+        const actor = await resolveActor(request, sql, env);
+        if (!actor) {
+          return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
+        }
+
+        // /api/admin/schools/<id>/<section>/<extra>
+        const rest = path.slice("/api/admin/schools".length).replace(/^\//, "");
+        const parts = rest ? rest.split("/").map(decodeURIComponent) : [];
+        const method = request.method;
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try {
+            return (await request.json()) as Record<string, unknown>;
+          } catch {
+            throw new ApiError(400, "Expected a JSON body", "BAD_JSON");
+          }
+        };
+
+        try {
+          // Collection
+          if (parts.length === 0) {
+            if (method === "GET") return json(await listSchools(sql, actor));
+            if (method === "POST") return json(await createSchool(sql, actor, await readBody()), 201);
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          const schoolId = parts[0];
+          const section = parts[1] || "";
+
+          // Single school
+          if (!section) {
+            if (method === "GET") return json(await getSchool(sql, actor, schoolId));
+            if (method === "PATCH" || method === "PUT") {
+              return json(await updateSchool(sql, actor, schoolId, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // A4 — classes and sections
+          if (section === "classes") {
+            if (method === "GET") {
+              const year = url.searchParams.get("year") || "";
+              return json(await listClasses(sql, actor, schoolId, year));
+            }
+            if (method === "POST" || method === "PUT") {
+              return json(await setClasses(sql, actor, schoolId, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Referral tracking and closure (G9)
+          if (section === "referrals") {
+            if (!parts[2] && method === "GET") {
+              return json(await referralDashboard(sql, actor, schoolId, {
+                status: url.searchParams.get("status") || undefined,
+                campId: url.searchParams.get("camp") || undefined,
+              }));
+            }
+            if (parts[2] === "nudge" && method === "POST") {
+              return json(await nudgeReferrals(sql, actor, schoolId,
+                (to, b) => sendTwilioSms(env, to, b)));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Correction requests from guardians (J6)
+          if (section === "corrections") {
+            if (!parts[2] && method === "GET") return json(await listCorrections(sql, actor, schoolId));
+            if (parts[2] && method === "POST") {
+              const b = await readBody();
+              return json(await resolveCorrection(sql, actor, parts[2], b.accept === true, String(b.note || "")));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Academic-year rollover and students leaving (J1, J2)
+          if (section === "rollover" && method === "POST") {
+            return json(await rolloverClasses(sql, actor, schoolId, await readBody()));
+          }
+          if (section === "student" && parts[2] && method === "POST") {
+            const b = await readBody();
+            return json(await markStudentLeft(sql, actor, schoolId, parts[2], b.leaving === true));
+          }
+
+          // Guardian account recovery (J4)
+          if (section === "guardian-phone" && method === "POST") {
+            return json(await changeGuardianPhone(sql, actor, schoolId, await readBody()));
+          }
+
+          // Cohort report (I5)
+          if (section === "report" && method === "GET") {
+            return json(await schoolReport(sql, actor, schoolId, url.searchParams.get("year") || ""));
+          }
+
+          // Camps for this school (B1)
+          if (section === "camps") {
+            if (method === "GET") return json(await listCamps(sql, actor, schoolId));
+            if (method === "POST") return json(await createCamp(sql, actor, schoolId, await readBody()), 201);
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Screeners and physicians attached to this school
+          if (section === "staff") {
+            if (method === "GET") return json(await listStaff(sql, actor, schoolId));
+            if (method === "POST") return json(await addStaffMember(sql, actor, schoolId, await readBody()), 201);
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // A3 — school administrators
+          if (section === "admins") {
+            if (method === "GET") return json(await listSchoolAdmins(sql, actor, schoolId));
+            if (method === "POST") {
+              return json(await addSchoolAdmin(sql, actor, schoolId, await readBody()), 201);
+            }
+            if (method === "DELETE" && parts[2]) {
+              return json(await removeSchoolAdmin(sql, actor, schoolId, parts[2]));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // A5-A8 — roster
+          if (section === "roster") {
+            const sub = parts[2] || "";
+            if (!sub && method === "GET") {
+              return json(await listRoster(
+                sql, actor, schoolId,
+                url.searchParams.get("year") || "",
+                (url.searchParams.get("q") || "").toLowerCase(),
+                parseInt(url.searchParams.get("limit") || "100", 10),
+                parseInt(url.searchParams.get("offset") || "0", 10)
+              ));
+            }
+            if (sub === "validate" && method === "POST") {
+              return json(await validateRoster(sql, actor, schoolId, await readBody()));
+            }
+            if (sub === "commit" && method === "POST") {
+              return json(await commitRoster(sql, actor, schoolId, await readBody()));
+            }
+            if (sub === "batches" && method === "GET") {
+              return json(await listRosterBatches(sql, actor, schoolId));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) {
+            return json({ error: e.message, code: e.code }, e.status);
+          }
+          console.error("Stage A error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
+
+      // Bootstrap an operations account from the API key, so the first real
+      // person can sign in by phone instead of pasting the key every time.
+      if (path === "/api/admin/ops/grant" && request.method === "POST") {
+        const headerKey = request.headers.get("X-Admin-Key") || "";
+        if (!env.ADMIN_API_KEY || headerKey !== env.ADMIN_API_KEY) {
+          return json({ error: "Admin API key required", code: "ADMIN_REQUIRED" }, 403);
+        }
+        try {
+          const body: Record<string, unknown> = await request.json();
+          return json(await grantOpsRole(sql, String(body.phone || ""), String(body.name || "")));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════
+      // AUTH ENDPOINTS
+      // ═══════════════════════════════════════════════════
+
+      // ── Email/Password Sign-Up (ADMIN accounts only) ──
+      // Closed app: public self-signup is disabled. Only an existing admin
+      // (X-Admin-Key bootstrap or role=ADMIN session) may create new admin accounts.
+      if (path === "/api/auth/signup" && request.method === "POST") {
+        try {
+          const admin = await requireAdmin(request, sql, env);
+          if (!admin) {
+            return json(
+              { error: "Sign-up is disabled. This is a closed app.", code: "SIGNUP_DISABLED" },
+              403
+            );
+          }
+          const body: Record<string, unknown> = await request.json();
+          const name = (body.name as string)?.trim();
+          const email = (body.email as string)?.trim();
+          const password = body.password as string;
+
+          if (!name || !email || !password) {
+            return json({ error: "name, email, and password are required" }, 400);
+          }
+          if (password.length < 8) {
+            return json({ error: "Password must be at least 8 characters" }, 400);
+          }
+
+          const neonResp = await callNeonAuth("/sign-up/email", { name, email, password }, request);
+          const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
+            sql, neonResp.user, "EMAIL", "ADMIN"
+          );
+
+          return json({
+            token: sessionToken,
+            profile: {
+              id: profileId,
+              user_id: neonResp.user.id,
+              name: neonResp.user.name || email.split("@")[0],
+              email: neonResp.user.email,
+              auth_provider: "EMAIL",
+            },
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          return json({ error: message }, 400);
+        }
+      }
+
+      // ── Email/Password Sign-In ───────────────────────
+      if (path === "/api/auth/signin" && request.method === "POST") {
+        try {
+          const body: Record<string, unknown> = await request.json();
+          const email = (body.email as string)?.trim();
+          const password = body.password as string;
+
+          if (!email || !password) {
+            return json({ error: "email and password are required" }, 400);
+          }
+
+          const neonResp = await callNeonAuth("/sign-in/email", { email, password }, request);
+          const { profileId, sessionToken } = await upsertProfileFromNeonAuth(
+            sql, neonResp.user, "EMAIL"
+          );
+
+          return json({
+            token: sessionToken,
+            profile: {
+              id: profileId,
+              user_id: neonResp.user.id,
+              name: neonResp.user.name || email.split("@")[0],
+              email: neonResp.user.email,
+              auth_provider: "EMAIL",
+            },
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e);
+          return json({ error: message }, 401);
+        }
+      }
+
+      // ── Google Sign-In ───────────────────────────────
+      // Closed app: parents are phone-only, admins use email. Google is disabled.
+      if (path === "/api/auth/google" && request.method === "POST") {
+        return json(
+          {
+            error: "Google sign-in is disabled. Please sign in with your registered mobile number.",
+            code: "GOOGLE_DISABLED",
+          },
+          403
+        );
+      }
+
+      // ── Phone OTP: Send ──────────────────────────────
+      if (path === "/api/auth/phone/send" && request.method === "POST") {
+        const body: Record<string, unknown> = await request.json();
+        const phone = (body.phone as string)?.trim();
+        if (!phone) return json({ error: "Missing phone" }, 400);
+
+        // Closed app: only admin-provisioned numbers may receive an OTP.
+        const norm = normalizePhone(phone);
+        if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
+        const provRows = await sql`
+          SELECT provisioned FROM vita_hero.profiles
+          WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1
+        `;
+        if (provRows.length === 0 || provRows[0].provisioned !== true) {
+          return json(
+            {
+              error: "This number isn't registered. Please contact your school or camp organizer.",
+              code: "NOT_PROVISIONED",
+            },
+            403
+          );
+        }
+
+        const existing = await sql`
+          SELECT last_sent_at FROM ${sql(SCHEMA)}.phone_otps WHERE phone = ${phone} LIMIT 1
+        `;
+        if (existing[0]?.last_sent_at) {
+          const elapsed = Date.now() - new Date(existing[0].last_sent_at as string).getTime();
+          if (elapsed < 60_000) {
+            return json({ error: "Please wait 60 seconds before requesting another OTP." }, 429);
+          }
+        }
+
+        const otp = generateOtp();
+        const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60_000);
+
+        await sql`
+          INSERT INTO ${sql(SCHEMA)}.phone_otps (phone, otp, expires_at, attempts, last_sent_at)
+          VALUES (${phone}, ${otp}, ${expiresAt.toISOString()}, 0, NOW())
+          ON CONFLICT (phone) DO UPDATE SET
+            otp = EXCLUDED.otp,
+            expires_at = EXCLUDED.expires_at,
+            attempts = 0,
+            last_sent_at = NOW()
+        `;
+
+        const sent = await sendTwilioSms(
+          env, phone,
+          `Your VitaHero verification code is: ${otp}`
+        );
+
+        return json({ success: sent, note: sent ? undefined : "OTP generated but SMS delivery may be delayed" });
+      }
+
+      // ── Phone OTP: Verify ────────────────────────────
+      if (path === "/api/auth/phone/verify" && request.method === "POST") {
+        const body: Record<string, unknown> = await request.json();
+        const phone = (body.phone as string)?.trim();
+        const otp = (body.otp as string)?.trim();
+        if (!phone || !otp) return json({ error: "Missing phone or otp" }, 400);
+
+        const rows = await sql`
+          SELECT otp, expires_at, attempts
+          FROM ${sql(SCHEMA)}.phone_otps WHERE phone = ${phone} LIMIT 1
+        `;
+
+        if (rows.length === 0) {
+          return json({ error: "No OTP requested for this number" }, 400);
+        }
+
+        const record = rows[0];
+        if (record.attempts >= OTP_MAX_ATTEMPTS) {
+          return json({ error: "Too many attempts. Request a new OTP." }, 429);
+        }
+        if (new Date(record.expires_at) < new Date()) {
+          return json({ error: "OTP expired. Request a new one." }, 410);
+        }
+
+        // Increment attempts
+        await sql`
+          UPDATE ${sql(SCHEMA)}.phone_otps
+          SET attempts = attempts + 1 WHERE phone = ${phone}
+        `;
+
+        if (record.otp !== otp) {
+          return json({ error: "Invalid OTP" }, 401);
+        }
+
+        // OTP verified — clean up
+        await sql`DELETE FROM ${sql(SCHEMA)}.phone_otps WHERE phone = ${phone}`;
+
+        // Closed app: the parent must have been provisioned by an admin import.
+        // We never auto-create a profile here.
+        const norm = normalizePhone(phone);
+        if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
+        const profileId = profileIdForPhone(norm.last10);
+        const sessionToken = generateToken();
+
+        const existing = await sql`
+          SELECT id, provisioned, name, role, school_id
+          FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
+        `;
+
+        if (existing.length === 0 || existing[0].provisioned !== true) {
+          return json(
+            {
+              error: "This number isn't registered. Please contact your school or camp organizer.",
+              code: "NOT_PROVISIONED",
+            },
+            403
+          );
+        }
+
+        await sql`
+          UPDATE vita_hero.profiles
+          SET session_token = ${sessionToken}, is_logged_in = true, phone = ${phone},
+              user_id = COALESCE(user_id, ${profileId})
+          WHERE id = ${profileId}
+        `;
+
+        // Also delete any old OTPs
+        try {
+          await sql`DELETE FROM ${sql(SCHEMA)}.phone_otps WHERE expires_at < NOW()`;
+        } catch { /* best effort */ }
+
         return json({
-          provisionedParents: parents,
-          activeParents: activeParents,
-          importedKids: importedKids,
-          invitesSent: invites,
+          token: sessionToken,
+          profile: {
+            id: profileId,
+            user_id: profileId,
+            phone,
+            name: (existing[0].name as string) || "Parent",
+            auth_provider: "PHONE",
+            role: (existing[0].role as string) || "PARENT",
+            school_id: (existing[0].school_id as string) || null,
+          },
         });
       }
 
-      // ── Import data ──
+      // ── Verify Session Token ─────────────────────────
+      if (path === "/api/auth/me" && request.method === "GET") {
+        const token = extractToken(request);
+        const session = await authenticateSession(sql, token);
+        if (!session) return json({ error: "Invalid or expired session" }, 401);
+
+        const profile = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.profiles WHERE id = ${session.profileId} LIMIT 1
+        `;
+        return json(sanitizeProfile(profile[0] as Record<string, unknown>));
+      }
+
+      // ── Logout ───────────────────────────────────────
+      if (path === "/api/auth/logout" && request.method === "POST") {
+        const token = extractToken(request);
+        if (token) {
+          await sql`
+            UPDATE ${sql(SCHEMA)}.profiles
+            SET session_token = NULL, is_logged_in = false
+            WHERE session_token = ${token}
+          `;
+        }
+        return json({ success: true });
+      }
+
+      // ═══════════════════════════════════════════════════
+      // ADMIN ENDPOINTS (X-Admin-Key or role=ADMIN session)
+      // ═══════════════════════════════════════════════════
+
       if (path === "/api/admin/import" && request.method === "POST") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+
         const body: Record<string, unknown> = await request.json();
-        const rows = Array.isArray(body.rows) ? body.rows as Record<string, unknown>[] : [];
+        const rows = Array.isArray(body.rows) ? (body.rows as Record<string, unknown>[]) : [];
         if (rows.length === 0) return json({ error: "No rows provided" }, 400);
-        if (rows.length > IMPORT_MAX_ROWS) return json({ error: `Too many rows (max ${IMPORT_MAX_ROWS})` }, 413);
-        const report = await processImport(fs, env, rows, {
+        if (rows.length > IMPORT_MAX_ROWS) {
+          return json({ error: `Too many rows (max ${IMPORT_MAX_ROWS}). Split the file into chunks.` }, 413);
+        }
+
+        const report = await processImport(sql, env, rows, {
           dryRun: body.dryRun === true,
-          generateLinks: body.generateLinks === true,
-          resendExisting: body.resendExisting === true,
+          sendInvites: body.sendInvites === true,
           filename: (body.filename as string) || "",
-          adminId: "admin",
+          adminId: admin.adminId,
           appOrigin: url.origin,
         });
         return json(report);
       }
 
-      // ── Import history ──
       if (path === "/api/admin/import-batches" && request.method === "GET") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const rows = await fs.query("import_batches", undefined, undefined, 50);
-        rows.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const rows = await sql`
+          SELECT id, admin_id, filename, total, created, updated, skipped, errors, invited, dry_run, created_at
+          FROM vita_hero.import_batches ORDER BY created_at DESC LIMIT 50
+        `;
         return json(rows);
       }
 
-      // ── Generate invite link(s) and text them via textbee.dev automatically ──
       if (path === "/api/admin/invite" && request.method === "POST") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
         const body: Record<string, unknown> = await request.json();
-        const phones = Array.isArray(body.phones) ? (body.phones as unknown[]).map(String) : [];
-        let linked = 0;
-        let smsSentCount = 0;
+        const phones = Array.isArray(body.phones) ? (body.phones as string[]) : [];
+        const force = body.force === true;
+        let invited = 0;
         const skipped: string[] = [];
-        const details: Array<Record<string, unknown>> = [];
         for (const raw of phones) {
           const norm = normalizePhone(raw);
-          if (!norm) { skipped.push(raw); details.push({ phone: raw, status: "skipped", reason: "Invalid phone number" }); continue; }
-          const prof = await fs.getDoc("provisioned_parents", norm.last10);
-          if (!prof || prof.provisioned !== true) { skipped.push(norm.e164); details.push({ phone: norm.e164, status: "skipped", reason: "Not provisioned" }); continue; }
-          const token = await signInviteToken(norm.last10, env);
-          if (!token) { skipped.push(norm.e164); details.push({ phone: norm.e164, status: "skipped", reason: "Invite token could not be signed" }); continue; }
-          const inviteUrl = `${url.origin}/i/${token}`;
-          linked++;
-          await fs.mergeDoc("provisioned_parents", norm.last10, {
-            invited_at: new Date().toISOString(),
-            invite_count: ((prof.invite_count as number) || 0) + 1,
-          });
-          let firstKidName = "";
-          try {
-            const kids = await fs.listDocs(`provisioned_parents/${norm.last10}/kids`);
-            firstKidName = (kids?.[0]?.name as string) || "";
-          } catch {
-            // personalization is best-effort — fall back to generic wording
-          }
-          const smsResult = await sendInviteSms(norm.e164, inviteUrl, env, firstKidName, prof.school_name as string);
-          if (smsResult.sent) smsSentCount++;
-          details.push({ phone: norm.e164, status: "linked", link: inviteUrl, smsSent: smsResult.sent, smsReason: smsResult.reason || "" });
+          if (!norm) { skipped.push(raw); continue; }
+          const prof = await sql`
+            SELECT provisioned FROM vita_hero.profiles WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1
+          `;
+          if (prof.length === 0 || prof[0].provisioned !== true) { skipped.push(norm.e164); continue; }
+          const sent = await sendInviteForPhone(sql, env, norm.last10, norm.e164, url.origin, force);
+          if (sent) invited++; else skipped.push(norm.e164);
         }
-        return json({ linked, smsSent: smsSentCount, smsConfigured: textbeeConfigured(env), skipped, details });
+        return json({ invited, skipped });
       }
 
-      // ── List provisioned parents ──
-      if (path === "/api/admin/parents" && request.method === "GET") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const search = (url.searchParams.get("q") || "").trim();
-        const limit = Math.min(parseInt(url.searchParams.get("limit") || "100", 10) || 100, 500);
-        let rows = await fs.query("provisioned_parents",
-          [{ field: "provisioned", op: "EQUAL", value: true }],
-          undefined,
-          limit,
-        );
-        rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-        if (search) {
-          const q = search.toLowerCase();
-          rows = rows.filter(r =>
-            String(r.phone || "").includes(q) ||
-            String(r.name || "").toLowerCase().includes(q),
-          );
-        }
-        // Enrich with kid count and school name
-        const result = [];
-        for (const r of rows) {
-          const kids = await fs.listDocs(`provisioned_parents/${r.id}/kids`);
-          let schoolName = "";
-          if (r.school_id) {
-            const school = await fs.getDoc("schools", r.school_id as string);
-            schoolName = (school?.name as string) || "";
-          }
-          if (!schoolName && r.school_name) {
-            schoolName = String(r.school_name);
-          }
-          result.push({
-            id: r.id,
-            phone: r.phone,
-            name: r.name,
-            school_id: r.school_id,
-            school_name: schoolName,
-            invited_at: r.invited_at,
-            invite_count: r.invite_count,
-            is_logged_in: r.is_logged_in,
-            provisioned: r.provisioned,
-            kid_count: kids.length,
-            kid_names: kids.map(k => String(k.name || "")).filter(Boolean),
-          });
-        }
-        return json(result);
-      }
-
-      // ── Admin: List students (imported kids) joined with parent info ──
-      if (path === "/api/admin/students" && request.method === "GET") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const search = (url.searchParams.get("q") || "").trim().toLowerCase();
-        const provParents = await fs.query("provisioned_parents", [{ field: "provisioned", op: "EQUAL", value: true }], undefined, 500);
-        // Build a kid -> camps map. A kid can be registered for multiple camps
-        // over the years — show all of them, oldest first.
-        const allRegs = await fs.query("camp_registrations", undefined, undefined, 2000);
-        const campsById = new Map<string, Record<string, unknown>>();
-        for (const reg of allRegs) {
-          const campId = String(reg.school_camp_id || "");
-          if (!campId || campsById.has(campId)) continue;
-          const campDoc = await fs.getDoc("school_camps", campId);
-          if (campDoc) campsById.set(campId, campDoc);
-        }
-        const campsByKid = new Map<string, Array<Record<string, unknown>>>();
-        for (const reg of allRegs) {
-          const regKidId = String(reg.kid_id || "");
-          const campDoc = campsById.get(String(reg.school_camp_id || ""));
-          if (!regKidId || !campDoc) continue;
-          const list = campsByKid.get(regKidId) || [];
-          list.push({ camp_id: reg.school_camp_id, title: campDoc.title || "", date: campDoc.date || "", status: campDoc.status || "" });
-          campsByKid.set(regKidId, list);
-        }
-        for (const list of campsByKid.values()) list.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
-        // Kids only show health flags once a doctor has actually done a
-        // checkup — the import seeds placeholder values we must not display.
-        const checkupKidIds = new Set<string>();
-        try {
-          const allCheckups = await fs.query("health_checkups", undefined, undefined, 2000);
-          for (const c of allCheckups) checkupKidIds.add(String(c.kid_id || ""));
-        } catch { /* flags stay hidden if the query fails */ }
-        const rows: Array<Record<string, unknown>> = [];
-        for (const p of provParents) {
-          let kids: Array<Record<string, unknown>> = [];
-          try { kids = await fs.listDocs(`provisioned_parents/${p.id}/kids`); } catch (_) { continue; }
-          for (const kid of kids) {
-            const hasCheckup = checkupKidIds.has(String(kid.id || ""));
-            rows.push({
-              kid_id: kid.id,
-              name: kid.name || "",
-              age: kid.age ?? null,
-              gender: kid.gender || "",
-              grade: kid.grade || "",
-              school: kid.school || p.school_name || "",
-              height_cm: kid.height_cm ?? null,
-              weight_kg: kid.weight_kg ?? null,
-              dental: hasCheckup ? (kid.dental || null) : null,
-              eyesight: hasCheckup ? (kid.eyesight || null) : null,
-              nutrition: hasCheckup ? (kid.nutrition || null) : null,
-              last_checkup: kid.last_checkup || "Not yet",
-              student_ref: kid.student_ref || "",
-              student_id: kid.student_id || String(kid.student_ref || "").replace(/^stu_/, "") || null,
-              parent_name: p.name || "Parent",
-              parent_phone: p.phone || "",
-              parent_logged_in: p.is_logged_in === true,
-              invite_count: p.invite_count || 0,
-              camps: campsByKid.get(String(kid.id || "")) || [],
-            });
-          }
-        }
-        rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-        const filtered = search ? rows.filter(r =>
-          String(r.name || "").toLowerCase().includes(search) ||
-          String(r.parent_name || "").toLowerCase().includes(search) ||
-          String(r.parent_phone || "").includes(search) ||
-          String(r.school || "").toLowerCase().includes(search) ||
-          (Array.isArray(r.camps) && r.camps.some((c: Record<string, unknown>) => String(c.title || "").toLowerCase().includes(search)))
-        ) : rows;
-        return json(filtered);
-      }
-
-      // ── Admin: Verify provisioned-data resolution for a phone (diagnostics) ──
-      // Runs the exact same code path as POST /api/parent/provisioned-data.
-      // applyWrites=false → read-only dry run. With applyWrites=true and a
-      // debug_-prefixed uid, all test writes are cleaned up afterwards.
-      if (path === "/api/admin/resolve-provisioned" && request.method === "POST") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const body: Record<string, unknown> = await request.json();
-        const phone = (body.phone as string) || "";
-        const testUid = ((body.uid as string) || "debug_test_uid").trim();
-        const applyWrites = body.applyWrites === true;
-        const dry = await resolveProvisionedForParent(fs, phone, testUid, { applyWrites: false });
-        if (!dry.provisioned) return json({ ok: false, stage: "dryrun", dry });
-        if (!applyWrites) return json({ ok: true, stage: "dryrun", dry });
-        const live = await resolveProvisionedForParent(fs, phone, testUid, { applyWrites: true });
-        let readback: Array<Record<string, unknown>> = [];
-        try { readback = await fs.listDocs(`profiles/${testUid}/kids`); } catch (_) { /* ignore */ }
-        const cleanup: string[] = [];
-        if (testUid.startsWith("debug_")) {
-          for (const kid of readback) {
-            const kidId = String(kid.id || "");
-            if (!kidId) continue;
-            try { await fs.deleteDocByPath(`profiles/${testUid}/kids/${kidId}`); cleanup.push(`kids/${kidId}`); } catch (_) { /* ignore */ }
-          }
-          try { await fs.deleteDocByPath(`profiles/${testUid}`); cleanup.push("profile"); } catch (_) { /* ignore */ }
-          // Restore the provisioned record's link fields to their prior values
-          try {
-            await fs.mergeDoc("provisioned_parents", dry.phoneLast10, { uid: dry.priorUid, is_logged_in: dry.priorLoggedIn });
-            cleanup.push("provisioned_link_restored");
-          } catch (_) { /* ignore */ }
-        }
-        return json({ ok: true, stage: "live", dry, live, readbackCount: readback.length, cleanup });
-      }
-
-      // ── List schools ──
-      if (path === "/api/admin/schools" && request.method === "GET") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const rows = await fs.query("schools", [{ field: "active", op: "EQUAL", value: true }]);
-        rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-        return json(rows);
-      }
-
-      // ── List hospitals ──
-      if (path === "/api/admin/hospitals" && request.method === "GET") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const rows = await fs.query("hospitals", undefined, undefined, 500);
-        rows.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
-        return json(rows);
-      }
-
-      // ── Create hospital ──
-      if (path === "/api/admin/hospitals" && request.method === "POST") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const body: Record<string, unknown> = await request.json();
-        const name = (body.name as string)?.trim();
-        const address = (body.address as string)?.trim();
-        if (!name) return json({ error: "name is required" }, 400);
-        if (!address) return json({ error: "address is required" }, 400);
-        const hospId = `hosp_${crypto.randomUUID().slice(0, 10)}`;
-        const hospData = {
-          id: hospId,
-          name,
-          city: (body.city as string)?.trim() || "",
-          district: (body.district as string)?.trim() || "",
-          address,
-          phone: (body.phone as string)?.trim() || "",
-          pincode: (body.pincode as string)?.trim() || "",
-          is_camp_partner: !!body.is_camp_partner,
-          active: true,
-        };
-        await fs.setDoc("hospitals", hospId, hospData);
-        return json(hospData);
-      }
-
-      // ── Update hospital ──
-      if (path.startsWith("/api/admin/hospitals/") && request.method === "PUT") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const hospId = path.split("/")[4];
-        const body: Record<string, unknown> = await request.json();
-        const update: Record<string, unknown> = {};
-        if (body.name !== undefined) update.name = String(body.name).trim();
-        if (body.city !== undefined) update.city = String(body.city).trim();
-        if (body.district !== undefined) update.district = String(body.district).trim();
-        if (body.address !== undefined) update.address = String(body.address).trim();
-        if (body.phone !== undefined) update.phone = String(body.phone).trim();
-        if (body.pincode !== undefined) update.pincode = String(body.pincode).trim();
-        if (body.is_camp_partner !== undefined) update.is_camp_partner = !!body.is_camp_partner;
-        if (body.active !== undefined) update.active = !!body.active;
-        if (!Object.prototype.hasOwnProperty.call(update, "address") && update.address === undefined) {
-          // no-op guard; explicit checks above already handle presence
-        }
-        await fs.mergeDoc("hospitals", hospId, update);
-        const updated = await fs.getDoc("hospitals", hospId);
-        return json(updated || {});
-      }
-
-      // ── List camps ──
-      if (path === "/api/admin/camps" && request.method === "GET") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        let rows = await fs.query("school_camps", undefined, undefined, 200);
-        rows.sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
-        const search = (url.searchParams.get("q") || "").trim().toLowerCase();
-        if (search) {
-          rows = rows.filter(c =>
-            String(c.title || "").toLowerCase().includes(search) ||
-            String(c.school_name || "").toLowerCase().includes(search),
-          );
-        }
-        // Enrich with school name and registered count
-        const result = [];
-        for (const c of rows) {
-          let schoolName = "";
-          if (c.school_id) {
-            const school = await fs.getDoc("schools", c.school_id as string);
-            schoolName = (school?.name as string) || "";
-          }
-          const regCount = await fs.count("camp_registrations", [{ field: "school_camp_id", op: "EQUAL", value: c.id }]);
-          result.push({
-            ...c,
-            school_name: schoolName,
-            school_city: "",
-            registered_count: regCount,
-          });
-        }
-        return json(result);
-      }
-
-      // ── Create camp ──
-      if (path === "/api/admin/camps" && request.method === "POST") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const body: Record<string, unknown> = await request.json();
-        const schoolId = (body.school_id as string)?.trim();
-        const title = (body.title as string)?.trim();
-        const date = (body.date as string)?.trim();
-        if (!title || !date || !schoolId) return json({ error: "title, date, and school_id are required" }, 400);
-        const campId = `sc_${schoolId}_${crypto.randomUUID().slice(0, 8)}`;
-        const campData = {
-          id: campId,
-          school_id: schoolId,
-          title,
-          description: (body.description as string) || "",
-          date,
-          time: (body.time as string) || "9:00 AM - 1:00 PM",
-          status: (body.status as string) || "UPCOMING",
-          checks: Array.isArray(body.checks) ? body.checks : [],
-          grades: Array.isArray(body.grades) ? body.grades : [],
-          capacity: parseInt(String(body.capacity || 200), 10) || 200,
-          registered_count: 0,
-          result_summary: "",
-          active: true,
-        };
-        await fs.setDoc("school_camps", campId, campData);
-        const school = await fs.getDoc("schools", schoolId);
-        return json({ ...campData, school_name: school?.name || "", school_city: school?.city || "" });
-      }
-
-      // ── Update camp ──
-      if (path.startsWith("/api/admin/camps/") && request.method === "PUT") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const campId = path.split("/")[4];
-        const body: Record<string, unknown> = await request.json();
-        const update: Record<string, unknown> = {};
-        if (body.title !== undefined) update.title = body.title;
-        if (body.date !== undefined) update.date = body.date;
-        if (body.time !== undefined) update.time = body.time;
-        if (body.description !== undefined) update.description = body.description;
-        if (body.status !== undefined) update.status = body.status;
-        if (body.capacity !== undefined) update.capacity = parseInt(String(body.capacity), 10);
-        if (body.checks !== undefined) update.checks = body.checks;
-        if (body.grades !== undefined) update.grades = body.grades;
-        if (body.active !== undefined) update.active = !!body.active;
-        await fs.mergeDoc("school_camps", campId, update);
-        const updated = await fs.getDoc("school_camps", campId);
-        let schoolName = "";
-        if (updated?.school_id) {
-          const school = await fs.getDoc("schools", updated.school_id as string);
-          schoolName = school?.name as string || "";
-        }
-        return json({ ...(updated || {}), school_name: schoolName, school_city: "" });
-      }
-
-      // ── Delete camp ──
-      if (path.startsWith("/api/admin/camps/") && request.method === "DELETE") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const campId = path.split("/")[4];
-        await fs.mergeDoc("school_camps", campId, { active: false });
-        return json({ success: true, deactivated: campId });
-      }
-
-      // ── Generate doctor credential ──
-      if (path === "/api/admin/doctors/generate" && request.method === "POST") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const body: Record<string, unknown> = await request.json();
-        const doctorName = (body.doctor_name as string)?.trim();
-        const phone = (body.phone as string)?.trim();
-        const schoolCampId = (body.school_camp_id as string)?.trim();
-        const specialty = (body.specialty as string)?.trim() || "General Paediatrics";
-        const hospitalId = (body.hospital_id as string)?.trim() || "";
-        let hospital = (body.hospital as string)?.trim() || "";
-        let hospitalCity = "";
-        if (hospitalId) {
-          const hospDoc = await fs.getDoc("hospitals", hospitalId);
-          if (hospDoc) {
-            hospital = (hospDoc.name as string) || hospital;
-            hospitalCity = (hospDoc.city as string) || "";
-          }
-        }
-        if (!doctorName || !phone || !schoolCampId) {
-          return json({ error: "doctor_name, phone, and school_camp_id are required" }, 400);
-        }
-        const norm = normalizePhone(phone);
-        if (!norm) return json({ error: "Invalid phone number" }, 400);
-        const allowedScreens = Array.isArray(body.allowed_screens)
-          ? body.allowed_screens.filter((s: string) => typeof s === "string" && s.trim())
-          : ["DASHBOARD", "CHECKUP"];
-        const assignId = `dca_${norm.last10}_${schoolCampId}`;
-        // A doctor (phone) has exactly one current camp: re-creating for any
-        // camp supersedes and revokes all previous assignments for this number.
-        await revokeOtherAssignments(fs, norm.last10, assignId);
-        await fs.setDoc("doctor_assignments", assignId, {
-          id: assignId,
-          phone: norm.e164,
-          doctor_name: doctorName,
-          specialty,
-          doctor_type: specialty,
-          hospital,
-          hospital_id: hospitalId,
-          camp_id: schoolCampId,
-          assignment_status: "ACTIVE",
-          allowed_screens: allowedScreens,
-          assigned_at: new Date().toISOString(),
-        });
-        // Also create/update doctor directory entry
-        const docDirId = `doc_${norm.last10}`;
-        await fs.setDoc("doctors", docDirId, {
-          id: docDirId,
-          name: doctorName,
-          specialty,
-          hospital,
-          hospital_id: hospitalId,
-          city: hospitalCity || "Hyderabad",
-          rating: 4.5,
-          active: true,
-        });
+      if (path === "/api/admin/stats" && request.method === "GET") {
+        const admin = await requireAdmin(request, sql, env);
+        if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
+        const parents = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true`;
+        const active = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE provisioned = true AND is_logged_in = true`;
+        const kids = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.kids WHERE source = 'ADMIN'`;
+        const invites = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.sms_log WHERE type = 'INVITE' AND status = 'SENT'`;
         return json({
-          success: true,
-          phone: norm.e164,
-          doctor_name: doctorName,
-          school_camp_id: schoolCampId,
-          specialty,
-          doctor_type: specialty,
-          allowed_screens: allowedScreens,
-          message: `Doctor credential created for ${doctorName}. They can log in via the VitaHero app with ${norm.e164}.`,
-        });
-      }
-
-      // ── Batch generate doctor credentials ──
-      if (path === "/api/admin/doctors/generate-batch" && request.method === "POST") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const body: Record<string, unknown> = await request.json();
-        const doctors = body.doctors as Array<Record<string, string>> | undefined;
-        const schoolCampId = (body.school_camp_id as string)?.trim();
-        if (!Array.isArray(doctors) || doctors.length === 0) return json({ error: "doctors array is required" }, 400);
-        if (!schoolCampId) return json({ error: "school_camp_id is required" }, 400);
-        if (doctors.length > 50) return json({ error: "Max 50 doctors per batch" }, 400);
-        const results: Array<Record<string, unknown>> = [];
-        let created = 0, errors = 0;
-        for (let i = 0; i < doctors.length; i++) {
-          const doc = doctors[i];
-          const doctorName = (doc.doctor_name as string)?.trim();
-          const phone = (doc.phone as string)?.trim();
-          const specialty = (doc.specialty as string)?.trim() || "General Paediatrics";
-          const hospitalId = (doc.hospital_id as string)?.trim() || "";
-          let hospital = (doc.hospital as string)?.trim() || "";
-          let hospitalCity = "";
-          if (hospitalId) {
-            const hospDoc = await fs.getDoc("hospitals", hospitalId);
-            if (hospDoc) {
-              hospital = (hospDoc.name as string) || hospital;
-              hospitalCity = (hospDoc.city as string) || "";
-            }
-          }
-          if (!doctorName || !phone) {
-            results.push({ row: i + 1, doctor_name: doctorName || "", phone: phone || "", status: "error", message: "Missing name or phone" });
-            errors++;
-            continue;
-          }
-          const norm = normalizePhone(phone);
-          if (!norm) {
-            results.push({ row: i + 1, doctor_name: doctorName, phone, status: "error", message: "Invalid phone number" });
-            errors++;
-            continue;
-          }
-          try {
-            const docScreens = Array.isArray(doc.allowed_screens)
-              ? doc.allowed_screens.filter((s: string) => typeof s === "string" && s.trim())
-              : ["DASHBOARD", "CHECKUP"];
-            const assignId = `dca_${norm.last10}_${schoolCampId}`;
-            // A doctor (phone) has exactly one current camp: re-creating for any
-            // camp supersedes and revokes all previous assignments for this number.
-            await revokeOtherAssignments(fs, norm.last10, assignId);
-            await fs.setDoc("doctor_assignments", assignId, {
-              id: assignId,
-              phone: norm.e164,
-              doctor_name: doctorName,
-              specialty,
-              doctor_type: specialty,
-              hospital,
-              hospital_id: hospitalId,
-              camp_id: schoolCampId,
-              assignment_status: "ACTIVE",
-              allowed_screens: docScreens,
-              assigned_at: new Date().toISOString(),
-            });
-            const docDirId = `doc_${norm.last10}`;
-            await fs.setDoc("doctors", docDirId, {
-              id: docDirId,
-              name: doctorName,
-              specialty,
-              hospital,
-              hospital_id: hospitalId,
-              city: hospitalCity || "Hyderabad",
-              rating: 4.5,
-              active: true,
-            });
-            results.push({ row: i + 1, doctor_name: doctorName, phone: norm.e164, status: "created", specialty: specialty, allowed_screens: docScreens });
-            created++;
-          } catch (err) {
-            results.push({ row: i + 1, doctor_name: doctorName, phone, status: "error", message: (err as Error).message });
-            errors++;
-          }
-        }
-        return json({ success: true, total: doctors.length, created, errors, results });
-      }
-
-      // ── List doctor credentials ──
-      if (path === "/api/admin/doctors" && request.method === "GET") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const assignments = await fs.query("doctor_assignments", undefined, undefined, 200);
-        assignments.sort((a, b) => String(b.assigned_at || "").localeCompare(String(a.assigned_at || "")));
-        const result = [];
-        for (const a of assignments) {
-          const campId = a.camp_id as string;
-          let campTitle = "", campDate = "", schoolName = "";
-          if (campId) {
-            const camp = await fs.getDoc("school_camps", campId);
-            if (camp) {
-              campTitle = camp.title as string || "";
-              campDate = camp.date as string || "";
-              if (camp.school_id) {
-                const school = await fs.getDoc("schools", camp.school_id as string);
-                schoolName = school?.name as string || "";
-              }
-            }
-          }
-          // Check if doctor has logged in (profile exists with this phone)
-          const isLoggedIn = false; // Can't easily check without querying all profiles
-          result.push({
-            assignment_id: a.id,
-            doctor_name: a.doctor_name,
-            phone: a.phone,
-            specialty: a.specialty,
-            doctor_type: a.doctor_type || a.specialty || "General Paediatrics",
-            hospital: a.hospital,
-            camp_id: campId,
-            camp_title: campTitle,
-            camp_date: campDate,
-            school_name: schoolName,
-            assignment_status: a.assignment_status,
-            allowed_screens: a.allowed_screens || ["DASHBOARD", "CHECKUP"],
-            is_logged_in: isLoggedIn,
-          });
-        }
-        return json(result);
-      }
-
-      // ── Revoke doctor ──
-      if (path.startsWith("/api/admin/doctors/revoke/") && request.method === "POST") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        const assignmentId = path.split("/").pop() || "";
-        await fs.mergeDoc("doctor_assignments", assignmentId, { assignment_status: "REVOKED" });
-        return json({ success: true });
-      }
-
-      // ── Verify phone for login (public, no auth required) ──
-      // Checks if a phone number is registered as an active doctor or provisioned parent.
-      // Used by the app BEFORE sending Firebase OTP to prevent unauthorized logins.
-      if (path === "/api/doctor/verify-phone" && request.method === "POST") {
-        const body: Record<string, unknown> = await request.json();
-        const phoneRaw = (body.phone as string)?.trim();
-        if (!phoneRaw) return json({ valid: false, error: "Phone number required" }, 400);
-        const norm = normalizePhone(phoneRaw);
-        if (!norm) return json({ valid: false, error: "Invalid phone number" }, 400);
-
-        // Check if this phone has an ACTIVE doctor assignment
-        const doctorAssignments = await fs.query("doctor_assignments", [
-          { field: "phone", op: "EQUAL", value: norm.e164 },
-          { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
-        ], undefined, 50);
-
-        if (doctorAssignments.length > 0) {
-          // Collect all allowed_screens from all active assignments
-          const allScreens = new Set<string>();
-          for (const a of doctorAssignments) {
-            const screens = a.allowed_screens as string[] | undefined;
-            if (Array.isArray(screens)) {
-              screens.forEach(s => allScreens.add(s));
-            } else {
-              allScreens.add("DASHBOARD");
-              allScreens.add("CHECKUP");
-            }
-          }
-          return json({
-            valid: true,
-            is_doctor: true,
-            doctor_name: doctorAssignments[0].doctor_name as string || "Doctor",
-            specialty: doctorAssignments[0].doctor_type as string || doctorAssignments[0].specialty as string || "General Paediatrics",
-            allowed_screens: [...allScreens],
-            assignment_count: doctorAssignments.length,
-          });
-        }
-
-        // Check if this phone is a provisioned parent
-        const provParent = await fs.getDoc("provisioned_parents", norm.last10);
-        if (provParent && provParent.provisioned === true) {
-          return json({
-            valid: true,
-            is_doctor: false,
-          });
-        }
-
-        // Not registered — deny login
-        return json({
-          valid: false,
-          is_doctor: false,
-          error: "This phone number is not registered. Please contact your administrator to get access.",
-        });
-      }
-
-      // ── Resend OTP (not applicable with Firebase Auth — return info message) ──
-      if (path === "/api/admin/doctors/resend-otp" && request.method === "POST") {
-        if (!requireAdmin(request, env)) return json({ error: "Admin authorization required" }, 403);
-        return json({
-          success: false,
-          message: "OTP is now managed by Firebase Phone Auth. The doctor should open the VitaHero app and enter their phone number to receive an OTP automatically.",
+          provisionedParents: parents[0].n,
+          activeParents: active[0].n,
+          importedKids: kids[0].n,
+          invitesSent: invites[0].n,
         });
       }
 
       // ═══════════════════════════════════════════════════
-      // AUTHENTICATED ENDPOINTS (Firebase ID token required)
+      // AUTHENTICATED DATA ENDPOINTS
       // ═══════════════════════════════════════════════════
 
       const token = extractToken(request);
-      // In production: verify the Firebase ID token signature via JWKS.
-      // In DEV_MODE: decode-only (no signature check) for local testing.
-      const decoded = token
-        ? (isDevMode(env)
-            ? decodeFirebaseToken(token)
-            : await verifyFirebaseToken(token, fs.getProjectId()))
-        : null;
-      const uid = decoded?.uid || "";
+      const session = await authenticateSession(sql, token);
 
-      // ── Doctor: My assigned camps ──
-      // Looks up doctor_assignments by the phone number in the Firebase ID token.
-      // doctor_assignments is admin-only in Firestore rules, so this must go through
-      // the Worker (service account bypasses rules).
-      if (path === "/api/doctor/camps" && request.method === "GET") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const doctorPhone = decoded?.phone || "";
-        if (!doctorPhone) return json({ error: "Phone number not found in token" }, 403);
-        // Normalize the phone to match how admin stores it
-        const normDoc = normalizePhone(doctorPhone);
-        if (!normDoc) return json({ error: "Invalid phone number" }, 400);
-        const assignments = await fs.query("doctor_assignments", [
-          { field: "phone", op: "EQUAL", value: normDoc.e164 },
-          { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
-        ], undefined, 50);
-        // Also try last10 in case admin stored it differently
-        if (assignments.length === 0) {
-          const allAssignments = await fs.query("doctor_assignments", [
-            { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
-          ], undefined, 200);
-          const phoneLast10 = normDoc.last10;
-          const matched = allAssignments.filter(a => {
-            const aPhone = String(a.phone || "");
-            const aDigits = aPhone.replace(/\D/g, "");
-            const aLast10 = aDigits.length >= 10 ? aDigits.slice(-10) : aDigits;
-            return aLast10 === phoneLast10;
-          });
-          if (matched.length > 0) {
-            assignments.push(...matched);
-          }
-        }
-        const result = [];
-        for (const a of assignments) {
-          const campId = a.camp_id as string;
-          if (!campId) continue;
-          const campDoc = await fs.getDoc("school_camps", campId);
-          if (!campDoc) continue;
-          // Count registrations and checkups
-          const regs = await fs.query("camp_registrations", [
-            { field: "school_camp_id", op: "EQUAL", value: campId },
-          ], undefined, 1000);
-          const checkups = await fs.query("health_checkups", [
-            { field: "school_camp_id", op: "EQUAL", value: campId },
-          ], undefined, 1000);
-          const checks = Array.isArray(campDoc.checks) ? campDoc.checks : [];
-          result.push({
-            assignment_id: a.id,
-            assignment_status: a.assignment_status || "ACTIVE",
-            camp_id: campId,
-            camp_title: campDoc.title || "",
-            camp_date: campDoc.date || "",
-            camp_time: campDoc.time || "",
-            camp_status: campDoc.status || "UPCOMING",
-            checks: checks,
-            school_id: campDoc.school_id || null,
-            school_name: campDoc.school_name || "",
-            school_city: campDoc.school_city || "",
-            registered_count: regs.length,
-            checked_count: checkups.length,
-          });
-        }
-        return json(result);
+      // ═══════════════════════════════════════════════════
+      // Profiles
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/api/profiles" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.profiles WHERE id = ${session.profileId} LIMIT 1`;
+        // Don't leak session token
+        if (rows[0]) delete rows[0].session_token;
+        return json(rows[0] || null);
       }
 
-      // ── Doctor: Kids registered for a camp ──
-      if (path === "/api/doctor/camp-kids" && request.method === "GET") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const campId = (url.searchParams.get("camp_id") || "").trim();
-        if (!campId) return json({ error: "camp_id required" }, 400);
-        // Verify this doctor is assigned to this camp
-        const doctorPhone = decoded?.phone || "";
-        const normDoc = doctorPhone ? normalizePhone(doctorPhone) : null;
-        if (normDoc) {
-          const myAssignments = await fs.query("doctor_assignments", [
-            { field: "phone", op: "EQUAL", value: normDoc.e164 },
-            { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
-          ], undefined, 50);
-          const assignedCampIds = new Set(myAssignments.map(a => a.camp_id as string));
-          if (!assignedCampIds.has(campId)) {
-            // Also try last10 matching
-            const allAssignments = await fs.query("doctor_assignments", [
-              { field: "assignment_status", op: "EQUAL", value: "ACTIVE" },
-            ], undefined, 200);
-            const phoneLast10 = normDoc.last10;
-            const matched = allAssignments.filter(a => {
-              const aPhone = String(a.phone || "");
-              const aDigits = aPhone.replace(/\D/g, "");
-              const aLast10 = aDigits.length >= 10 ? aDigits.slice(-10) : aDigits;
-              return aLast10 === phoneLast10 && a.camp_id === campId;
-            });
-            if (matched.length === 0) {
-              return json({ error: "You are not assigned to this camp" }, 403);
-            }
-          }
-        }
-        const registrations = await fs.query("camp_registrations", [
-          { field: "school_camp_id", op: "EQUAL", value: campId },
-        ], undefined, 1000);
-        const result = [];
-        for (const reg of registrations) {
-          const kidId = reg.kid_id as string;
-          const parentUid = reg.user_id as string;
-          if (!kidId || !parentUid) continue;
-          // Read kid from parent's subcollection. Registrations written by the
-          // admin import may still be phone-keyed — fall back to the
-          // provisioned data so imported kids always appear in the list.
-          let kidDoc = await fs.getDoc(`profiles/${parentUid}/kids`, kidId);
-          if (!kidDoc && /^\d{10}$/.test(parentUid)) {
-            kidDoc = await fs.getDoc(`provisioned_parents/${parentUid}/kids`, kidId);
-          }
-          if (!kidDoc) continue;
-          // Check if a checkup already exists
-          const existingCheckups = await fs.query("health_checkups", [
-            { field: "kid_id", op: "EQUAL", value: kidId },
-            { field: "school_camp_id", op: "EQUAL", value: campId },
-          ], undefined, 1);
-          const checkup = existingCheckups[0];
-          // Get parent info (fall back to provisioned parent for imported data)
-          let parentDoc = await fs.getDoc("profiles", parentUid);
-          if (!parentDoc) {
-            parentDoc = await fs.getDoc("provisioned_parents", parentUid);
-          }
-          result.push({
-            kid_id: kidId,
-            name: kidDoc.name || "",
-            age: kidDoc.age || 0,
-            gender: kidDoc.gender || "",
-            grade: kidDoc.grade || "",
-            school: kidDoc.school || "",
-            height_cm: kidDoc.height_cm || 0,
-            weight_kg: kidDoc.weight_kg || 0,
-            dental: kidDoc.dental || "GOOD",
-            eyesight: kidDoc.eyesight || "GOOD",
-            nutrition: kidDoc.nutrition || "GOOD",
-            last_checkup: kidDoc.last_checkup || "Not yet",
-            student_ref: kidDoc.student_ref || null,
-            parent_name: parentDoc?.name || "",
-            parent_phone: parentDoc?.phone || "",
-            checkup_id: checkup?.id || null,
-            checkup_status: checkup?.overall_status || null,
-            checkup_at: checkup?.updated_at || null,
-            referral_needed: checkup?.referral_needed || null,
-          });
-        }
-        return json(result);
-      }
-
-      // ── Doctor: Get existing checkup ──
-      if (path === "/api/doctor/checkup" && request.method === "GET") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const kidId = (url.searchParams.get("kid_id") || "").trim();
-        const campId = (url.searchParams.get("camp_id") || "").trim();
-        if (!kidId || !campId) return json({ error: "kid_id and camp_id required" }, 400);
-        const existing = await fs.query("health_checkups", [
-          { field: "kid_id", op: "EQUAL", value: kidId },
-          { field: "school_camp_id", op: "EQUAL", value: campId },
-        ], undefined, 1);
-        if (existing.length === 0) return json(null);
-        const cp = existing[0];
-        return json({
-          id: cp.id,
-          kid_id: cp.kid_id,
-          school_camp_id: cp.school_camp_id,
-          doctor_name: cp.doctor_name || "",
-          form_data: cp.form_data || {},
-          summary: cp.summary || "",
-          referral_needed: cp.referral_needed || false,
-          referral_notes: cp.referral_notes || "",
-          overall_status: cp.overall_status || "GOOD",
-          updated_at: cp.updated_at || null,
-        });
-      }
-
-      // ── Doctor: Submit checkup ──
-      if (path === "/api/doctor/checkup" && request.method === "POST") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
+      if (path === "/api/profiles" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
-        const kidId = (body.kid_id as string)?.trim();
-        const campId = (body.school_camp_id as string)?.trim();
-        if (!kidId || !campId) return json({ error: "kid_id and school_camp_id required" }, 400);
-        const formData = body.form_data || {};
-        const summary = (body.summary as string) || "";
-        const referralNeeded = !!body.referral_needed;
-        const referralNotes = (body.referral_notes as string) || "";
-        const overallStatus = (body.overall_status as string) || "GOOD";
-        // Look up parent UID via camp_registrations. Registrations written by
-        // the admin import may still be keyed by phone — resolve the real
-        // account so the parent sees the checkup in the app.
-        const regs = await fs.query("camp_registrations", [
-          { field: "school_camp_id", op: "EQUAL", value: campId },
-          { field: "kid_id", op: "EQUAL", value: kidId },
-        ], undefined, 1);
-        let parentUid = regs[0]?.user_id as string || "";
-        if (parentUid && !(await fs.getDoc("profiles", parentUid))) {
-          const provParent = await fs.getDoc("provisioned_parents", parentUid.replace(/\D/g, "").slice(-10));
-          const realUid = (provParent?.uid as string) || "";
-          if (realUid) {
-            parentUid = realUid;
-            if (regs[0]?.id) {
-              // Self-heal: re-point the registration at the real account
-              await fs.mergeDoc("camp_registrations", String(regs[0].id), { user_id: realUid });
-            }
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.profiles
+            (id, user_id, phone, name, email,
+             onboarding_complete, is_logged_in,
+             dark_theme, locale_code, family_code,
+             notifications_enabled, camp_reminders_enabled,
+             consent_accepted, consent_declined,
+             auth_provider, session_token)
+          VALUES (
+            ${session.profileId},
+            ${(body.user_id as string) || session.userId},
+            ${(body.phone as string) || null},
+            ${(body.name as string) || session.name},
+            ${(body.email as string) || null},
+            ${(body.onboarding_complete as boolean) || false},
+            ${(body.is_logged_in as boolean) || false},
+            ${(body.dark_theme as boolean) || false},
+            ${(body.locale_code as string) || "en"},
+            ${(body.family_code as string) || ""},
+            ${(body.notifications_enabled as boolean) ?? true},
+            ${(body.camp_reminders_enabled as boolean) ?? true},
+            ${(body.consent_accepted as boolean) || false},
+            ${(body.consent_declined as boolean) || false},
+            ${(body.auth_provider as string) || "GOOGLE"},
+            ${token}
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            user_id = EXCLUDED.user_id, phone = EXCLUDED.phone,
+            name = EXCLUDED.name, email = EXCLUDED.email,
+            onboarding_complete = EXCLUDED.onboarding_complete,
+            is_logged_in = EXCLUDED.is_logged_in,
+            dark_theme = EXCLUDED.dark_theme,
+            locale_code = EXCLUDED.locale_code,
+            family_code = EXCLUDED.family_code,
+            notifications_enabled = EXCLUDED.notifications_enabled,
+            camp_reminders_enabled = EXCLUDED.camp_reminders_enabled,
+            consent_accepted = EXCLUDED.consent_accepted,
+            consent_declined = EXCLUDED.consent_declined,
+            auth_provider = EXCLUDED.auth_provider
+          RETURNING *
+        `;
+        if (row[0]) delete row[0].session_token;
+        return json(row[0], 201);
+      }
+
+      // ═══════════════════════════════════════════════════
+      // Kids
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/api/kids" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const profileId = session.profileId;
+        await mergeCampResultsIntoKids(sql, profileId);
+        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.kids WHERE profile_id = ${profileId} ORDER BY name`;
+        return json(rows);
+      }
+
+      if (path === "/api/kids" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.kids
+            (id, profile_id, user_id, name, age, gender, school, grade,
+             height_cm, weight_kg, avatar_color, overall_score, dental,
+             eyesight, nutrition, last_checkup)
+          VALUES (
+            ${body.id as string}, ${session.profileId},
+            ${session.userId || null}, ${body.name as string},
+            ${body.age as number}, ${body.gender as string},
+            ${(body.school as string) || ""}, ${(body.grade as string) || ""},
+            ${(body.height_cm as number) || 0}, ${(body.weight_kg as number) || 0},
+            ${(body.avatar_color as number) || 0}, ${(body.overall_score as number) || 80},
+            ${(body.dental as string) || "GOOD"}, ${(body.eyesight as string) || "GOOD"},
+            ${(body.nutrition as string) || "GOOD"}, ${(body.last_checkup as string) || "Not yet"}
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            name = EXCLUDED.name, age = EXCLUDED.age, gender = EXCLUDED.gender,
+            school = EXCLUDED.school, grade = EXCLUDED.grade,
+            avatar_color = EXCLUDED.avatar_color,
+            height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg,
+            dental = COALESCE(
+              (SELECT ckr.dental FROM ${sql(SCHEMA)}.camp_kid_results ckr
+               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
+              EXCLUDED.dental),
+            eyesight = COALESCE(
+              (SELECT ckr.eyesight FROM ${sql(SCHEMA)}.camp_kid_results ckr
+               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
+              EXCLUDED.eyesight),
+            nutrition = COALESCE(
+              (SELECT ckr.nutrition FROM ${sql(SCHEMA)}.camp_kid_results ckr
+               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
+              EXCLUDED.nutrition),
+            last_checkup = COALESCE(
+              (SELECT sc.date FROM ${sql(SCHEMA)}.camp_kid_results ckr
+               JOIN ${sql(SCHEMA)}.school_camps sc ON sc.id = ckr.school_camp_id
+               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
+              EXCLUDED.last_checkup),
+            overall_score = CASE
+              WHEN EXISTS (
+                SELECT 1 FROM ${sql(SCHEMA)}.camp_kid_results ckr WHERE ckr.kid_id = EXCLUDED.id
+              ) THEN ${sql(SCHEMA)}.kids.overall_score
+              ELSE EXCLUDED.overall_score END
+          RETURNING *
+        `;
+        return json(row[0], 201);
+      }
+
+      if (path.startsWith("/api/kids/") && request.method === "DELETE") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const kidId = path.split("/")[3];
+        // Full erasure, including camp findings and referrals. The earlier
+        // version left camp_kid_results and camp_registrations behind, so a
+        // deleted child's clinical record survived attached to nothing.
+        try {
+          return json(await deleteChild(sql, session.profileId, kidId, session.profileId));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message }, 500);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════
+      // Appointments
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/api/appointments" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.appointments WHERE profile_id = ${session.profileId} ORDER BY date, time`;
+        return json(rows);
+      }
+
+      if (path === "/api/appointments" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const doctorId = (body.doctor_id as string) || "";
+        const date = body.date as string;
+        const time = body.time as string;
+        if (doctorId) {
+          const clash = await sql`
+            SELECT id FROM ${sql(SCHEMA)}.appointments
+            WHERE doctor_id = ${doctorId} AND date = ${date} AND time = ${time}
+            LIMIT 1
+          `;
+          if (clash.length > 0) {
+            return json({ error: "This slot is no longer available" }, 409);
           }
         }
-        // Look up doctor name from profile
-        const doctorProfile = await fs.getDoc("profiles", uid);
-        const doctorName = doctorProfile?.name || "Doctor";
-        // Check if checkup already exists
-        const existing = await fs.query("health_checkups", [
-          { field: "kid_id", op: "EQUAL", value: kidId },
-          { field: "school_camp_id", op: "EQUAL", value: campId },
-        ], undefined, 1);
-        const checkupId = existing[0]?.id || `hc_${kidId}_${campId}`;
-        await fs.setDoc("health_checkups", checkupId, {
-          id: checkupId,
-          kid_id: kidId,
-          school_camp_id: campId,
-          user_id: parentUid,
-          doctor_uid: uid,
-          doctor_name: doctorName,
-          form_data: formData,
-          summary,
-          referral_needed: referralNeeded,
-          referral_notes: referralNotes,
-          overall_status: overallStatus,
-          updated_at: new Date().toISOString(),
-        });
-        return json({ success: true, checkup_id: checkupId });
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.appointments
+            (id, profile_id, user_id, doctor_id, doctor_name, specialty, kid_name, date, time)
+          VALUES (
+            ${body.id as string}, ${session.profileId},
+            ${session.userId || null}, ${doctorId || null}, ${body.doctor_name as string},
+            ${body.specialty as string}, ${body.kid_name as string},
+            ${date}, ${time}
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            doctor_id = EXCLUDED.doctor_id,
+            doctor_name = EXCLUDED.doctor_name, specialty = EXCLUDED.specialty,
+            kid_name = EXCLUDED.kid_name, date = EXCLUDED.date, time = EXCLUDED.time
+          RETURNING *
+        `;
+        return json(row[0], 201);
       }
 
-      // ── Parent: Resolve admin-provisioned data (imported kids, school) ──
-      // provisioned_parents is admin-only in Firestore rules, so the app cannot
-      // read it client-side — this must run server-side with the service account.
-      if (path === "/api/parent/provisioned-data" && request.method === "POST") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const r = await resolveProvisionedForParent(fs, decoded?.phone, uid, { applyWrites: true });
-        if (!r.provisioned) return json({ resolved: false, reason: r.error || "not_provisioned" });
-        return json({
-          resolved: true,
-          parent_name: r.parentName,
-          school_id: r.schoolId,
-          school_name: r.schoolName,
-          kids_copied: r.kidsCopied,
-        });
+      if (path.startsWith("/api/appointments/") && request.method === "DELETE") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const apptId = path.split("/")[3];
+        await sql`DELETE FROM ${sql(SCHEMA)}.appointments WHERE id = ${apptId} AND profile_id = ${session.profileId}`;
+        return json({ deleted: true });
       }
 
-      // ── Parent: Log a health visit (hospital/clinic checkup, non-camp) ──
-      if (path === "/api/parent/health-visits" && request.method === "POST") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const body: Record<string, unknown> = await request.json();
-        const kidId = (body.kid_id as string)?.trim();
-        if (!kidId) return json({ error: "kid_id required" }, 400);
-        const visitId = `hv_${kidId}_${Date.now().toString(36)}`;
-        const visitData = {
-          id: visitId,
-          kid_id: kidId,
-          user_id: uid,
-          visit_type: (body.visit_type as string) || "HOSPITAL",
-          hospital_name: (body.hospital_name as string) || "",
-          doctor_name: (body.doctor_name as string) || "",
-          visit_date: (body.visit_date as string) || new Date().toISOString(),
-          reason: (body.reason as string) || "",
-          diagnosis: (body.diagnosis as string) || "",
-          prescription: (body.prescription as string) || "",
-          notes: (body.notes as string) || "",
-          next_followup: (body.next_followup as string) || "",
-          height_cm: body.height_cm || null,
-          weight_kg: body.weight_kg || null,
-          overall_status: (body.overall_status as string) || "GOOD",
-          created_at: new Date().toISOString(),
+      // ═══════════════════════════════════════════════════
+      // Camps
+      // ═══════════════════════════════════════════════════
+
+      // ── Guardian: referrals, history, and data rights ──
+      if (path === "/api/referrals" || path.startsWith("/api/referrals/")
+          || path === "/api/me/export" || path === "/api/me/correction"
+          || path === "/api/me/consent/withdraw" || path === "/api/me/rights"
+          || path === "/api/me/identity" || path === "/api/me/terms" || path === "/api/me/nudges"
+          || path === "/api/referral-specialties"
+          || path === "/api/me/photos" || path.startsWith("/api/me/photo/")
+          || path === "/api/me/questions" || path.startsWith("/api/me/questions/")
+          || path === "/api/me/question-policy" || path === "/api/me/entitlements"
+          || path === "/api/me/symptoms" || path.startsWith("/api/me/symptoms/")
+          || path === "/api/library" || path.startsWith("/api/library/")
+          || path === "/api/me" || path === "/api/kids/history") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const pid = session.profileId;
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try { return (await request.json()) as Record<string, unknown>; }
+          catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
         };
-        await fs.setDoc("health_visits", visitId, visitData);
-        return json({ success: true, visit_id: visitId });
-      }
-
-      // ── Parent: List health visits for a kid ──
-      if (path === "/api/parent/health-visits" && request.method === "GET") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const kidId = (url.searchParams.get("kid_id") || "").trim();
-        if (!kidId) return json({ error: "kid_id required" }, 400);
-        const visits = await fs.query("health_visits", [
-          { field: "user_id", op: "EQUAL", value: uid },
-          { field: "kid_id", op: "EQUAL", value: kidId },
-        ], { field: "visit_date", direction: "DESCENDING" }, 100);
-        return json(visits);
-      }
-
-      // ── Parent: Delete a health visit ──
-      if (path.startsWith("/api/parent/health-visits/") && request.method === "DELETE") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const visitId = path.split("/").pop() || "";
-        const visit = await fs.getDoc("health_visits", visitId);
-        if (!visit || visit.user_id !== uid) {
-          return json({ error: "Visit not found or not authorized" }, 404);
-        }
-        await fs.deleteDoc("health_visits", visitId);
-        return json({ success: true });
-      }
-
-      // ── Booking directory ──
-      if (path === "/api/booking/directory" && request.method === "GET") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const city = (url.searchParams.get("city") || "Hyderabad").trim();
-        const specialty = (url.searchParams.get("specialty") || "").trim();
-        const userPincode = (url.searchParams.get("pincode") || "").trim();
-
-        // Get user's enrolled schools
-        const enrollments = await fs.query("school_enrollments", [{ field: "user_id", op: "EQUAL", value: uid }]);
-        const userSchoolIds = enrollments.map(e => e.school_id as string);
-
-        // Get hospitals
-        const hospitals = await fs.query("hospitals", [{ field: "active", op: "EQUAL", value: true }]);
-        const cityHospitals = hospitals.filter(h => String(h.city || "").toLowerCase().includes(city.toLowerCase()));
-
-        // Get doctors
-        const doctors = await fs.query("doctors", [{ field: "active", op: "EQUAL", value: true }]);
-
-        // Get school camps for camp count per hospital
-        const schoolCamps = await fs.query("school_camps", [{ field: "active", op: "EQUAL", value: true }]);
-
-        const allSpecialties = new Set<string>();
-        const hospitalsOut: Array<Record<string, unknown>> = [];
-
-        for (const h of cityHospitals) {
-          const hid = h.id as string;
-          const docs = doctors.filter(d => d.hospital_id === hid);
-          if (specialty && !docs.some(d => d.specialty === specialty)) continue;
-
-          const conductedCamps = schoolCamps.filter(sc => sc.school_id && userSchoolIds.includes(sc.school_id as string)).length;
-          const isCampPartner = h.is_camp_partner === true || conductedCamps > 0;
-
-          const samePincode = !!userPincode && !!h.pincode && String(h.pincode) === userPincode;
-
-          const specialties = [...new Set(docs.map(d => d.specialty as string))].sort();
-          for (const s of specialties) allSpecialties.add(s);
-
-          const priorityScore =
-            (isCampPartner ? 5000 : 0) +
-            (samePincode ? 1000 : 0) +
-            conductedCamps * 100;
-
-          hospitalsOut.push({
-            id: hid,
-            name: h.name,
-            city: h.city,
-            district: h.district,
-            address: h.address,
-            pincode: h.pincode || "",
-            phone: h.phone,
-            is_camp_partner: isCampPartner,
-            conducted_camps: conductedCamps,
-            user_camp_linked: conductedCamps > 0,
-            user_linked_camps: conductedCamps,
-            same_pincode: samePincode,
-            priority_score: priorityScore,
-            specialties,
-            doctors: docs
-              .filter(d => !specialty || d.specialty === specialty)
-              .sort((a, b) => (b.rating || 0) - (a.rating || 0))
-              .map(d => ({
-                id: d.id,
-                name: d.name,
-                specialty: d.specialty,
-                hospital: h.name,
-                hospital_id: hid,
-                city: d.city || h.city,
-                rating: d.rating,
-                is_camp_partner: isCampPartner,
-              })),
-          });
-        }
-
-        hospitalsOut.sort((a, b) => (b.priority_score as number) - (a.priority_score as number));
-        return json({ city, hospitals: hospitalsOut, specialties: [...allSpecialties].sort() });
-      }
-
-      // ── Doctors list ──
-      if (path === "/api/doctors" && request.method === "GET") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const city = (url.searchParams.get("city") || "").trim();
-        const hospitalId = (url.searchParams.get("hospital_id") || "").trim();
-        const specialty = (url.searchParams.get("specialty") || "").trim();
-        let doctors = await fs.query("doctors", [{ field: "active", op: "EQUAL", value: true }]);
-        if (city) doctors = doctors.filter(d => String(d.city || "").toLowerCase().includes(city.toLowerCase()));
-        if (hospitalId) doctors = doctors.filter(d => d.hospital_id === hospitalId);
-        if (specialty) doctors = doctors.filter(d => d.specialty === specialty);
-        // Enrich with hospital info
-        const result = [];
-        for (const d of doctors) {
-          let hospitalName = "", isCampPartner = false;
-          if (d.hospital_id) {
-            const h = await fs.getDoc("hospitals", d.hospital_id as string);
-            hospitalName = h?.name as string || "";
-            isCampPartner = h?.is_camp_partner as boolean || false;
+        try {
+          if (path === "/api/referrals" && request.method === "GET") {
+            return json(await guardianReferrals(sql, pid, url.searchParams.get("all") === "1"));
           }
+          if (path.startsWith("/api/referrals/")) {
+            const bits = path.slice("/api/referrals/".length).split("/").map(decodeURIComponent);
+            const refId = bits[0];
+            const action = bits[1] || "";
+            const b = request.method === "POST" ? await readBody() : {};
+            if (action === "booked" && request.method === "POST") {
+              return json(await markReferralBooked(sql, pid, refId, (b.appointmentId as string) || null));
+            }
+            if (action === "attended" && request.method === "POST") {
+              return json(await markReferralAttended(sql, pid, refId, String(b.note || "")));
+            }
+            if (action === "decline" && request.method === "POST") {
+              return json(await declineReferral(sql, pid, refId, String(b.reason || "")));
+            }
+            if (!action && request.method === "GET") {
+              return json(await kidReferrals(sql, pid, url.searchParams.get("kid_id") || ""));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+          if (path === "/api/kids/history" && request.method === "GET") {
+            return json(await kidHealthHistory(sql, pid, url.searchParams.get("kid_id") || ""));
+          }
+          if (path === "/api/me/export" && request.method === "GET") {
+            return json(await exportGuardianData(sql, pid));
+          }
+          if (path === "/api/me/identity" && request.method === "GET") {
+            return json(await identityChallenge(sql, pid));
+          }
+          if (path === "/api/me/identity" && request.method === "POST") {
+            const b = await readBody();
+            return json(await confirmIdentity(sql, pid, String(b.answer || "")));
+          }
+          if (path === "/api/me/terms" && request.method === "POST") {
+            const b = await readBody();
+            return json(await acceptTerms(sql, pid, String(b.version || TERMS_VERSION)));
+          }
+          if (path === "/api/me/nudges" && request.method === "GET") {
+            return json(await guardianNudges(sql, pid));
+          }
+          if (path === "/api/referral-specialties" && request.method === "GET") {
+            return json(await openReferralSpecialties(sql, pid));
+          }
+          if (path === "/api/me/rights" && request.method === "GET") {
+            return json(await dataRightsHistory(sql, pid));
+          }
+          if (path === "/api/me/correction" && request.method === "POST") {
+            return json(await requestCorrection(sql, pid, await readBody()));
+          }
+          if (path === "/api/me/consent/withdraw" && request.method === "POST") {
+            const b = await readBody();
+            return json(await withdrawConsent(sql, pid, String(b.reason || "")));
+          }
+          if (path === "/api/me" && request.method === "DELETE") {
+            return json(await deleteAccount(sql, pid));
+          }
+
+          // ── Photographs of this child's findings ──
+          if (path === "/api/me/photos" && request.method === "GET") {
+            return json(await guardianPhotos(sql, pid, url.searchParams.get("kid_id") || ""));
+          }
+          if (path.startsWith("/api/me/photo/") && request.method === "GET") {
+            const photoId = decodeURIComponent(path.slice("/api/me/photo/".length));
+            return json(await getFindingPhoto(sql, { guardianProfileId: pid }, photoId));
+          }
+
+          // ── The question channel ──
+          if (path === "/api/me/question-policy" && request.method === "GET") {
+            return json(await questionPolicy(sql, pid));
+          }
+          if (path === "/api/me/questions" && request.method === "GET") {
+            return json(await guardianThreads(sql, pid));
+          }
+          if (path === "/api/me/questions" && request.method === "POST") {
+            return json(await askQuestion(sql, pid, session.name || "", await readBody()), 201);
+          }
+          if (path.startsWith("/api/me/questions/") && request.method === "GET") {
+            const threadId = decodeURIComponent(path.slice("/api/me/questions/".length));
+            return json(await threadMessages(sql, { profileId: pid }, threadId));
+          }
+
+          // ── Reading, chosen for what this child's report actually said ──
+          if (path === "/api/library" && request.method === "GET") {
+            return json(await libraryForGuardian(sql, pid, url.searchParams.get("locale") || "en"));
+          }
+          if (path.startsWith("/api/library/") && request.method === "GET") {
+            const slug = decodeURIComponent(path.slice("/api/library/".length));
+            return json(await getArticle(sql, slug, url.searchParams.get("locale") || "en"));
+          }
+
+          // ── What this account can and cannot use ──
+          if (path === "/api/me/entitlements" && request.method === "GET") {
+            return json(await entitlements(sql, pid));
+          }
+
+          // ── Everyday illness, the one clinical thing a parent may write ──
+          if (path === "/api/me/symptoms" && request.method === "GET") {
+            const kidId = url.searchParams.get("kid_id") || "";
+            if (!kidId) return json(symptomOptions());
+            return json({ ...symptomOptions(), ...(await kidSymptoms(sql, pid, kidId)) });
+          }
+          if (path === "/api/me/symptoms" && request.method === "POST") {
+            const b = await readBody();
+            return json(await recordSymptom(sql, pid, String(b.kidId || ""), b), 201);
+          }
+          if (path.startsWith("/api/me/symptoms/") && request.method === "DELETE") {
+            const id = decodeURIComponent(path.slice("/api/me/symptoms/".length));
+            return json(await deleteSymptom(sql, pid, id));
+          }
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          console.error("Guardian route error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
+
+      // ── Guardian: camp consent and released results ──
+      if (path === "/api/camps/consents" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          return json(await pendingConsents(sql, session.profileId));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message }, 500);
+        }
+      }
+
+      if (path === "/api/camps/consent" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          const body: Record<string, unknown> = await request.json();
+          const decision = String(body.decision || "").toUpperCase();
+          if (decision !== "GRANTED" && decision !== "DECLINED") {
+            return json({ error: "Decision must be GRANTED or DECLINED", code: "BAD_DECISION" }, 400);
+          }
+          return json(await recordConsent(
+            sql,
+            String(body.campId || ""),
+            String(body.kidId || ""),
+            decision,
+            {
+              actorId: session.profileId,
+              source: "APP",
+              checks: Array.isArray(body.checks) ? (body.checks as string[]) : undefined,
+              consentPhotos: body.consentPhotos === true,
+              profileId: session.profileId,
+            }
+          ));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message }, 500);
+        }
+      }
+
+      if (path === "/api/camps/result" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          return json(await guardianCampResult(
+            sql,
+            session.profileId,
+            url.searchParams.get("camp_id") || "",
+            url.searchParams.get("kid_id") || ""
+          ));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message }, 500);
+        }
+      }
+
+      if (path === "/api/camps" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        await mergeCampResultsIntoKids(sql, session.profileId);
+        let rows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.camps
+          WHERE profile_id = ${session.profileId}
+          ORDER BY date
+        `;
+        const personal = rows.map((r: Record<string, unknown>) => ({
+          ...r,
+          is_partner: false,
+          school_id: null,
+          school_camp_id: null,
+          description: "",
+          grades: [],
+          capacity: 0,
+          registered_kid_ids: [],
+        }));
+
+        const enrollments = await sql`
+          SELECT school_id FROM ${sql(SCHEMA)}.school_enrollments
+          WHERE profile_id = ${session.profileId} AND status = 'ACTIVE'
+        `;
+        const schoolIds = enrollments.map((e: Record<string, unknown>) => e.school_id as string);
+        let partner: Record<string, unknown>[] = [];
+        if (schoolIds.length > 0) {
+          for (const sid of schoolIds) {
+            const partnerRows = await sql`
+              SELECT sc.*, s.name AS school_name, s.city AS school_city
+              FROM ${sql(SCHEMA)}.school_camps sc
+              JOIN ${sql(SCHEMA)}.schools s ON s.id = sc.school_id
+              WHERE sc.school_id = ${sid} AND sc.active = true
+              ORDER BY sc.date
+            `;
+            partner.push(...(partnerRows as Record<string, unknown>[]));
+          }
+          partner.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+          const regs = await sql`
+            SELECT school_camp_id, kid_id FROM ${sql(SCHEMA)}.camp_registrations
+            WHERE profile_id = ${session.profileId}
+          `;
+          const regMap = new Map<string, string[]>();
+          for (const r of regs) {
+            const campId = r.school_camp_id as string;
+            const list = regMap.get(campId) || [];
+            list.push(r.kid_id as string);
+            regMap.set(campId, list);
+          }
+          partner = partner.map((sc: Record<string, unknown>) => ({
+            id: sc.id,
+            profile_id: session.profileId,
+            title: sc.title,
+            school: sc.school_name,
+            date: sc.date,
+            time: sc.time,
+            status: sc.status,
+            checks: sc.checks,
+            result_summary: sc.result_summary,
+            is_partner: true,
+            school_id: sc.school_id,
+            school_camp_id: sc.id,
+            description: sc.description,
+            grades: sc.grades,
+            capacity: sc.capacity,
+            registered_count: sc.registered_count,
+            registered_kid_ids: regMap.get(sc.id as string) || [],
+          }));
+        }
+        return json([...personal, ...partner]);
+      }
+
+      if (path === "/api/camps" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.camps
+            (id, profile_id, user_id, title, school, date, time, status, checks, result_summary)
+          VALUES (
+            ${body.id as string}, ${session.profileId},
+            ${session.userId || null}, ${body.title as string},
+            ${body.school as string}, ${body.date as string}, ${body.time as string},
+            ${(body.status as string) || "UPCOMING"},
+            ${JSON.stringify(body.checks || [])}::jsonb,
+            ${(body.result_summary as string) || null}
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            title = EXCLUDED.title, school = EXCLUDED.school,
+            date = EXCLUDED.date, time = EXCLUDED.time,
+            status = EXCLUDED.status, checks = EXCLUDED.checks,
+            result_summary = EXCLUDED.result_summary
+          RETURNING *
+        `;
+        return json(row[0], 201);
+      }
+
+      // ═══════════════════════════════════════════════════
+      // Meals
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/api/meals" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.meal_items WHERE profile_id = ${session.profileId} ORDER BY kid_id, time_slot`;
+        return json(rows);
+      }
+
+      if (path === "/api/meals" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body = await request.json() as Record<string, unknown>[];
+        const meals = Array.isArray(body) ? body : [body];
+        const results = [];
+        for (const m of meals) {
+          const row = await sql`
+            INSERT INTO ${sql(SCHEMA)}.meal_items
+              (id, profile_id, user_id, kid_id, time_slot, name, detail, kcal, eaten)
+            VALUES (
+              ${m.id as string}, ${session.profileId},
+              ${session.userId || null}, ${m.kid_id as string},
+              ${m.time_slot as string}, ${m.name as string},
+              ${(m.detail as string) || ""}, ${(m.kcal as number) || 0},
+              ${(m.eaten as boolean) || false}
+            )
+            ON CONFLICT (id) DO UPDATE SET
+              profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+              kid_id = EXCLUDED.kid_id, time_slot = EXCLUDED.time_slot,
+              name = EXCLUDED.name, detail = EXCLUDED.detail,
+              kcal = EXCLUDED.kcal, eaten = EXCLUDED.eaten
+            RETURNING *
+          `;
+          results.push(row[0]);
+        }
+        return json(results, 201);
+      }
+
+      // ═══════════════════════════════════════════════════
+      // Streaks
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/api/streaks" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const kidId = url.searchParams.get("kid_id");
+        if (!kidId) return json({ error: "Missing kid_id" }, 400);
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.streaks WHERE kid_id = ${kidId} LIMIT 1`;
+        return json(rows[0] || null);
+      }
+
+      if (path === "/api/streaks" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const kidId = body.kid_id as string;
+        if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.streaks
+            (kid_id, user_id, current_streak, best_streak, last_log_date)
+          VALUES (
+            ${kidId}, ${session.userId || session.profileId},
+            ${(body.current_streak as number) || 0},
+            ${(body.best_streak as number) || 0},
+            ${(body.last_log_date as string) || ""}
+          )
+          ON CONFLICT (kid_id) DO UPDATE SET
+            user_id = EXCLUDED.user_id, current_streak = EXCLUDED.current_streak,
+            best_streak = EXCLUDED.best_streak, last_log_date = EXCLUDED.last_log_date
+          RETURNING *
+        `;
+        return json(row[0], 201);
+      }
+
+      // ═══════════════════════════════════════════════════
+      // Growth Points
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/api/growth-points" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const kidId = url.searchParams.get("kid_id");
+        if (!kidId) return json({ error: "Missing kid_id" }, 400);
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.growth_points WHERE kid_id = ${kidId} ORDER BY recorded_at`;
+        return json(rows);
+      }
+
+      if (path === "/api/growth-points" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const kidId = body.kid_id as string;
+        if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.growth_points
+            (id, kid_id, user_id, label, height, weight, recorded_at)
+          VALUES (
+            ${body.id as string}, ${kidId},
+            ${session.userId || session.profileId}, ${body.label as string},
+            ${(body.height as number) || 0}, ${(body.weight as number) || 0}, NOW()
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            kid_id = EXCLUDED.kid_id, user_id = EXCLUDED.user_id,
+            label = EXCLUDED.label, height = EXCLUDED.height,
+            weight = EXCLUDED.weight
+          RETURNING *
+        `;
+        return json(row[0], 201);
+      }
+
+      // ═══════════════════════════════════════════════════
+      // Co-Parents
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/api/co-parents" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const profileRows = await sql`
+          SELECT family_code, name FROM ${sql(SCHEMA)}.profiles
+          WHERE id = ${session.profileId} LIMIT 1
+        `;
+        const familyCode = (profileRows[0]?.family_code as string) || "";
+        const ownerId = await getFamilyOwnerId(sql, familyCode, session.profileId);
+        const rows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.co_parents
+          WHERE profile_id = ${ownerId}
+          ORDER BY joined_date, name
+        `;
+        const ownerProfile = await sql`
+          SELECT id, name FROM ${sql(SCHEMA)}.profiles WHERE id = ${ownerId} LIMIT 1
+        `;
+        const ownerName = (ownerProfile[0]?.name as string) || "Parent";
+        const ownerInList = rows.some(
+          (r: Record<string, unknown>) => r.user_id === ownerId || r.name === ownerName
+        );
+        const result: Record<string, unknown>[] = [];
+        if (familyCode && ownerId && !ownerInList) {
           result.push({
-            id: d.id,
-            name: d.name,
-            specialty: d.specialty,
-            hospital: hospitalName || d.hospital,
-            hospital_id: d.hospital_id,
-            city: d.city,
-            rating: d.rating,
-            is_camp_partner: isCampPartner,
+            id: `owner_${ownerId}`,
+            profile_id: ownerId,
+            user_id: ownerId,
+            name: ownerName,
+            relation: "Primary parent",
+            joined_date: "",
           });
         }
-        return json(result.sort((a, b) => (b.rating || 0) - (a.rating || 0)));
+        result.push(...(rows as Record<string, unknown>[]));
+        return json(result);
       }
 
-      // ── Booking slots ──
-      if (path === "/api/booking/slots" && request.method === "GET") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const doctorId = (url.searchParams.get("doctor_id") || "").trim();
-        if (!doctorId) return json({ error: "doctor_id required" }, 400);
-        const doctor = await fs.getDoc("doctors", doctorId);
-        if (!doctor) return json({ error: "Doctor not found" }, 404);
-        // Get booked appointments for this doctor (collection group query)
-        const booked = await fs.collectionGroup("appointments", [{ field: "doctor_id", op: "EQUAL", value: doctorId }]);
-        const bookedKeys = new Set(booked.map(r => `${r.doctor_id}|${r.date}|${r.time}`));
-        const slots = generateDoctorSlots(doctorId, bookedKeys);
-        return json({ doctor_id: doctorId, slots });
-      }
-
-      // ── AI Diet Tips: Generate ──
-      if (path === "/api/ai-diet-tips/generate" && request.method === "POST") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
+      if (path === "/api/co-parents" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
-        const kidId = (body.kid_id as string)?.trim();
-        if (!kidId) return json({ error: "kid_id required" }, 400);
-        // Read kid from Firestore
-        const kid = await fs.getDocByPath(`profiles/${uid}/kids/${kidId}`);
-        if (!kid) return json({ error: "Kid not found" }, 404);
-        // Read meals (list all and filter by kid_id in memory to avoid index requirements)
-        const allMeals = await fs.listDocs(`profiles/${uid}/meals`);
-        const meals = allMeals.filter(m => m.kid_id === kidId);
-        // Read streak
-        const streak = await fs.getDocByPath(`profiles/${uid}/streaks/${kidId}`);
-        // Call AI
-        const aiJson = await callToolkitDietTip(env, kid, meals, streak);
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.co_parents
+            (id, profile_id, user_id, name, relation, joined_date)
+          VALUES (
+            ${body.id as string}, ${session.profileId},
+            ${session.userId || null}, ${body.name as string},
+            ${body.relation as string}, ${(body.joined_date as string) || ""}
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            name = EXCLUDED.name, relation = EXCLUDED.relation,
+            joined_date = EXCLUDED.joined_date
+          RETURNING *
+        `;
+        return json(row[0], 201);
+      }
+
+      // ═══════════════════════════════════════════════════
+      // Family Code Lookup
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/api/family-lookup" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const code = url.searchParams.get("code");
+        if (!code) return json({ error: "Missing code" }, 400);
+        const rows = await sql`
+          SELECT id, name, family_code FROM ${sql(SCHEMA)}.profiles
+          WHERE family_code = ${code} AND id != ${session.profileId} LIMIT 1
+        `;
+        return json(rows[0] || null);
+      }
+
+      // ── Family Sharing: Validate Code ─────────────────
+      if (path === "/api/family-sharing/validate" && request.method === "POST") {
+        if (!session) return json({ error: "Authentication required" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const code = ((body.code as string) || "").toUpperCase().trim();
+        if (code.length < 4) {
+          return json({ valid: false, error: "Code too short" }, 400);
+        }
+        const rows = await sql`
+          SELECT id, name, family_code FROM ${sql(SCHEMA)}.profiles
+          WHERE family_code = ${code} LIMIT 1
+        `;
+        if (rows.length === 0) {
+          return json({ valid: false, error: "Family not found. Check the code and try again." });
+        }
+        return json({
+          valid: true,
+          familyOwner: rows[0].name,
+          profileId: rows[0].id,
+        });
+      }
+
+      // ── Family Sharing: Join ────────────────────────
+      if (path === "/api/family-sharing/join" && request.method === "POST") {
+        if (!session) return json({ error: "Authentication required" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const code = ((body.code as string) || "").toUpperCase().trim();
+        const coParentName = ((body.coParentName as string) || "").trim();
+        const relation = ((body.relation as string) || "Co-parent").trim();
+        if (!code || !coParentName) {
+          return json({ error: "Code and name required" }, 400);
+        }
+        const familyRows = await sql`
+          SELECT id, user_id, family_code FROM ${sql(SCHEMA)}.profiles
+          WHERE family_code = ${code} LIMIT 1
+        `;
+        if (familyRows.length === 0) {
+          return json({ error: "Family not found" }, 404);
+        }
+        const familyProfile = familyRows[0];
+        if (familyProfile.id === session.profileId) {
+          return json({ error: "You cannot join your own family" }, 400);
+        }
+        const coParentId = `cp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        await sql`
+          INSERT INTO ${sql(SCHEMA)}.co_parents
+            (id, profile_id, user_id, name, relation, joined_date)
+          VALUES (
+            ${coParentId}, ${familyProfile.id}, ${session.userId || session.profileId},
+            ${coParentName}, ${relation}, ${new Date().toISOString().split("T")[0]}
+          )
+          ON CONFLICT (id) DO UPDATE SET
+            name = EXCLUDED.name, relation = EXCLUDED.relation
+        `;
+        await sql`
+          UPDATE ${sql(SCHEMA)}.profiles
+          SET family_code = ${code}
+          WHERE id = ${session.profileId}
+        `;
+        return json({ success: true, coParentId, familyCode: code });
+      }
+
+      // ── Family Sharing: Shared Kids ───────────────────
+      if (path === "/api/family-sharing/kids" && request.method === "GET") {
+        if (!session) return json({ error: "Authentication required" }, 401);
+        const familyCode = url.searchParams.get("familyCode")?.toUpperCase().trim();
+        if (!familyCode) return json({ error: "familyCode query parameter required" }, 400);
+        const familyRows = await sql`
+          SELECT id, user_id FROM ${sql(SCHEMA)}.profiles
+          WHERE family_code = ${familyCode} LIMIT 1
+        `;
+        if (familyRows.length === 0) {
+          return json({ error: "Family not found" }, 404);
+        }
+        const familyProfile = familyRows[0];
+        const isOwner = familyProfile.id === session.profileId ||
+          familyProfile.user_id === session.userId;
+        let isCoParent = false;
+        if (!isOwner) {
+          const cpRows = await sql`
+            SELECT id FROM ${sql(SCHEMA)}.co_parents
+            WHERE profile_id = ${familyProfile.id}
+              AND user_id = ${session.userId || session.profileId}
+            LIMIT 1
+          `;
+          isCoParent = cpRows.length > 0;
+        }
+        if (!isOwner && !isCoParent) {
+          return json({ error: "Not authorized to view this family" }, 403);
+        }
+        const kids = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.kids
+          WHERE profile_id = ${familyProfile.id}
+          ORDER BY name
+        `;
+        return json({
+          kids: kids.map((k: Record<string, unknown>) => ({
+            id: k.id,
+            name: k.name,
+            age: k.age,
+            gender: k.gender,
+            school: k.school,
+            grade: k.grade,
+            heightCm: k.height_cm,
+            weightKg: k.weight_kg,
+            overallScore: k.overall_score,
+            dental: k.dental,
+            eyesight: k.eyesight,
+            nutrition: k.nutrition,
+            lastCheckup: k.last_checkup,
+          })),
+          isOwner,
+        });
+      }
+
+      // ── Leaderboard ───────────────────────────────────
+      if (path === "/api/leaderboard" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const currentKidId = (body.current_kid_id as string) || "";
+
+        // The kid must be the caller's, otherwise "is_you" can be pointed at
+        // any child in the country.
+        const owned = await sql`
+          SELECT id, school_id, grade FROM vita_hero.kids
+          WHERE id = ${currentKidId} AND profile_id = ${session.profileId} LIMIT 1
+        `;
+        if (owned.length === 0) return json({ error: "That is not your child" }, 403);
+        const schoolId = (owned[0].school_id as string) || "";
+        const grade = (owned[0].grade as string) || "";
+
+        // Scoped to the child's own school, and their class where we know it.
+        // A national ranking of every child in the app is neither motivating
+        // nor something to put in front of a parent.
+        const rows = await sql`
+          WITH scored AS (
+            SELECT k.id, k.name, k.overall_score AS score,
+              COALESCE(s.current_streak, 0) AS streak,
+              (k.overall_score * 10 + COALESCE(s.current_streak, 0) * 50)::INT AS points
+            FROM vita_hero.kids k
+            LEFT JOIN vita_hero.streaks s ON s.kid_id = k.id
+            WHERE k.profile_id IS NOT NULL
+              AND COALESCE(k.status,'ACTIVE') = 'ACTIVE'
+              AND (
+                (${schoolId} <> '' AND k.school_id = ${schoolId}
+                  AND (${grade} = '' OR k.grade = ${grade}))
+                OR (${schoolId} = '' AND k.id = ${currentKidId})
+              )
+          ),
+          ranked AS (
+            SELECT ROW_NUMBER() OVER (ORDER BY s.points DESC, s.score DESC) AS rank,
+              s.name AS kid_name, (s.id = ${currentKidId}) AS is_you, s.score, s.points
+            FROM scored s
+          )
+          SELECT rank, kid_name, is_you, score, points
+          FROM ranked r WHERE r.is_you OR r.rank <= 20
+          ORDER BY rank LIMIT 20
+        `;
+        const anonymized = rows.map((r: Record<string, unknown>) => ({
+          ...r,
+          kid_name: anonymizeLeaderboardName(
+            r.kid_name as string,
+            r.rank as number,
+            r.is_you as boolean
+          ),
+        }));
+        return json(anonymized);
+      }
+
+      // ── AI Diet Tips (persisted) ──────────────────────
+      if (path === "/api/ai-diet-tips" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const kidId = url.searchParams.get("kid_id");
+        if (!kidId) return json({ error: "Missing kid_id" }, 400);
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const rows = await sql`
+          SELECT content, generated_at FROM ${sql(SCHEMA)}.ai_diet_tips
+          WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}
+          LIMIT 1
+        `;
+        return json(rows[0] || null);
+      }
+
+      if (path === "/api/ai-diet-tips" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const kidId = body.kid_id as string;
+        if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const content = body.content as Record<string, unknown>;
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.ai_diet_tips (kid_id, profile_id, content, generated_at)
+          VALUES (${kidId}, ${session.profileId}, ${JSON.stringify(content)}::jsonb, NOW())
+          ON CONFLICT (kid_id) DO UPDATE SET
+            content = EXCLUDED.content,
+            generated_at = NOW()
+          RETURNING content, generated_at
+        `;
+        return json(row[0], 201);
+      }
+
+      if (path === "/api/ai-diet-tips/generate" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const kidId = body.kid_id as string;
+        if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+
+        await mergeCampResultsIntoKids(sql, session.profileId);
+        const kidRows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.kids
+          WHERE id = ${kidId} AND profile_id = ${session.profileId}
+          LIMIT 1
+        `;
+        const mealRows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.meal_items
+          WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}
+          ORDER BY time_slot
+        `;
+        const streakRows = await sql`
+          SELECT * FROM ${sql(SCHEMA)}.streaks
+          WHERE kid_id = ${kidId}
+          LIMIT 1
+        `;
+
+        const aiJson = await callToolkitDietTip(
+          env,
+          kidRows[0] as Record<string, unknown>,
+          mealRows as Record<string, unknown>[],
+          (streakRows[0] as Record<string, unknown>) || null
+        );
         if (!aiJson) {
           return json({ error: "AI not configured", code: "TOOLKIT_NOT_CONFIGURED" }, 503);
         }
+
         const content = {
           greeting: String(aiJson.greeting || ""),
           insight: String(aiJson.insight || ""),
           suggestion: String(aiJson.suggestion || ""),
           funFact: String(aiJson.funFact || ""),
-          generatedAt: `AI-generated for ${kid.name}`,
+          generatedAt: `AI-generated for ${kidRows[0].name}`,
         };
-        // Save to Firestore
-        await fs.setDocByPath(`profiles/${uid}/ai_diet_tips/${kidId}`, {
-          content,
-          generated_at: new Date().toISOString(),
-        });
-        return json({ content, generated_at: new Date().toISOString() }, 201);
+        const row = await sql`
+          INSERT INTO ${sql(SCHEMA)}.ai_diet_tips (kid_id, profile_id, content, generated_at)
+          VALUES (${kidId}, ${session.profileId}, ${JSON.stringify(content)}::jsonb, NOW())
+          ON CONFLICT (kid_id) DO UPDATE SET
+            content = EXCLUDED.content,
+            generated_at = NOW()
+          RETURNING content, generated_at
+        `;
+        return json(row[0], 201);
       }
 
-      // ── AI Diet Tips: Get ──
-      if (path === "/api/ai-diet-tips" && request.method === "GET") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const kidId = url.searchParams.get("kid_id");
-        if (!kidId) return json({ error: "Missing kid_id" }, 400);
-        const tip = await fs.getDocByPath(`profiles/${uid}/ai_diet_tips/${kidId}`);
-        return json(tip || null);
-      }
-
-      // ── AI Diet Tips: Save ──
-      if (path === "/api/ai-diet-tips" && request.method === "POST") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
-        const body: Record<string, unknown> = await request.json();
-        const kidId = (body.kid_id as string)?.trim();
-        if (!kidId) return json({ error: "kid_id required" }, 400);
-        const content = body.content as Record<string, unknown>;
-        await fs.setDocByPath(`profiles/${uid}/ai_diet_tips/${kidId}`, {
-          content,
-          generated_at: new Date().toISOString(),
-        });
-        return json({ content, generated_at: new Date().toISOString() }, 201);
-      }
-
-      // ── Food recognition ──
+      // ── Food recognition (AI vision) ──────────────────
       if (path === "/api/food-recognition" && request.method === "POST") {
-        if (!uid) return json({ error: "Unauthorized" }, 401);
+        if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
         const imageBase64 = String(body.image_base64 || "").trim();
         if (!imageBase64) return json({ error: "Missing image_base64" }, 400);
         const mime = String(body.mime || "image/jpeg");
-        const dataUrl = imageBase64.startsWith("data:") ? imageBase64 : `data:${mime};base64,${imageBase64}`;
+        const dataUrl = imageBase64.startsWith("data:")
+          ? imageBase64
+          : `data:${mime};base64,${imageBase64}`;
         const items = await callToolkitFoodVision(env, dataUrl);
-        if (items === null) return json({ error: "AI not configured", code: "TOOLKIT_NOT_CONFIGURED" }, 503);
+        if (items === null) {
+          return json(
+            { error: "AI not configured", code: "TOOLKIT_NOT_CONFIGURED" },
+            503
+          );
+        }
         return json({ items });
+      }
+
+      // ── Doctors directory ─────────────────────────────
+      if (path === "/api/schools" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const rows = await sql`
+          SELECT id, name, city, district, description, active
+          FROM ${sql(SCHEMA)}.schools
+          WHERE active = true
+          ORDER BY name
+        `;
+        return json(rows);
+      }
+
+      if (path === "/api/schools/my" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const rows = await sql`
+          SELECT s.id, s.name, s.city, s.district, s.description, e.enrolled_at, e.kid_id
+          FROM ${sql(SCHEMA)}.school_enrollments e
+          JOIN ${sql(SCHEMA)}.schools s ON s.id = e.school_id
+          WHERE e.profile_id = ${session.profileId} AND e.status = 'ACTIVE'
+          ORDER BY s.name
+        `;
+        return json(rows);
+      }
+
+      if (path === "/api/schools/enroll" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const code = ((body.partner_code as string) || "").toUpperCase().trim();
+        const kidId = (body.kid_id as string) || null;
+        if (code.length < 4) return json({ error: "Partner code required" }, 400);
+
+        const schoolRows = await sql`
+          SELECT id, name FROM ${sql(SCHEMA)}.schools
+          WHERE partner_code = ${code} AND active = true LIMIT 1
+        `;
+        if (schoolRows.length === 0) {
+          return json({ error: "Invalid partner code. Check with your school nurse." }, 404);
+        }
+        const school = schoolRows[0];
+        if (kidId && !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const enrollId = `enr_${session.profileId}_${school.id}`;
+        await sql`
+          INSERT INTO ${sql(SCHEMA)}.school_enrollments
+            (id, profile_id, school_id, kid_id, status)
+          VALUES (${enrollId}, ${session.profileId}, ${school.id}, ${kidId}, 'ACTIVE')
+          ON CONFLICT (profile_id, school_id) DO UPDATE SET
+            kid_id = EXCLUDED.kid_id,
+            status = 'ACTIVE',
+            enrolled_at = NOW()
+        `;
+        return json({ success: true, schoolId: school.id, schoolName: school.name });
+      }
+
+      if (path === "/api/school-camps/register" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const schoolCampId = body.school_camp_id as string;
+        const kidId = body.kid_id as string;
+        if (!schoolCampId || !kidId) return json({ error: "school_camp_id and kid_id required" }, 400);
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        const campRows = await sql`
+          SELECT sc.*, s.name AS school_name FROM ${sql(SCHEMA)}.school_camps sc
+          JOIN ${sql(SCHEMA)}.schools s ON s.id = sc.school_id
+          WHERE sc.id = ${schoolCampId} AND sc.active = true LIMIT 1
+        `;
+        if (campRows.length === 0) return json({ error: "Camp not found" }, 404);
+        const camp = campRows[0];
+        const enrolled = await sql`
+          SELECT id FROM ${sql(SCHEMA)}.school_enrollments
+          WHERE profile_id = ${session.profileId} AND school_id = ${camp.school_id} AND status = 'ACTIVE'
+          LIMIT 1
+        `;
+        if (enrolled.length === 0) {
+          return json({ error: "Enroll with your school partner code first" }, 403);
+        }
+        const regId = `reg_${schoolCampId}_${kidId}`;
+        await sql`
+          INSERT INTO ${sql(SCHEMA)}.camp_registrations
+            (id, profile_id, school_camp_id, kid_id)
+          VALUES (${regId}, ${session.profileId}, ${schoolCampId}, ${kidId})
+          ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING
+        `;
+        await sql`
+          UPDATE ${sql(SCHEMA)}.school_camps
+          SET registered_count = (
+            SELECT COUNT(*)::int FROM ${sql(SCHEMA)}.camp_registrations
+            WHERE school_camp_id = ${schoolCampId}
+          )
+          WHERE id = ${schoolCampId}
+        `;
+        await mergeCampResultsIntoKids(sql, session.profileId);
+        return json({ success: true, registrationId: regId });
+      }
+
+      if (path === "/api/booking/slots" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const doctorId = (url.searchParams.get("doctor_id") || "").trim();
+        if (!doctorId) return json({ error: "doctor_id required" }, 400);
+
+        const doctorRows = await sql`
+          SELECT id, name FROM ${sql(SCHEMA)}.doctors
+          WHERE id = ${doctorId} AND active = true LIMIT 1
+        `;
+        if (doctorRows.length === 0) return json({ error: "Doctor not found" }, 404);
+
+        const booked = await sql`
+          SELECT doctor_id, date, time FROM ${sql(SCHEMA)}.appointments
+          WHERE doctor_id = ${doctorId}
+        `;
+        const bookedKeys = new Set(
+          booked.map((r: Record<string, unknown>) =>
+            `${r.doctor_id}|${r.date}|${r.time}`
+          )
+        );
+        const slots = generateDoctorSlots(doctorId, bookedKeys);
+        return json({ doctor_id: doctorId, slots });
+      }
+
+      if (path === "/api/booking/directory" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const city = (url.searchParams.get("city") || "Hyderabad").trim();
+        const specialty = (url.searchParams.get("specialty") || "").trim();
+        const latParam = url.searchParams.get("lat");
+        const lngParam = url.searchParams.get("lng");
+        const userLat = latParam ? parseFloat(latParam) : null;
+        const userLng = lngParam ? parseFloat(lngParam) : null;
+
+        const enrolledSchools = await sql`
+          SELECT school_id FROM ${sql(SCHEMA)}.school_enrollments
+          WHERE profile_id = ${session.profileId} AND status = 'ACTIVE'
+        `;
+        const userSchoolIds = enrolledSchools.map((r) => r.school_id as string);
+
+        const hospitalRows = await sql`
+          SELECT h.id, h.name, h.city, h.district, h.address, h.lat, h.lng,
+                 h.phone, h.rating, h.is_camp_partner,
+                 COUNT(DISTINCT sc.id)::int AS conducted_camps,
+                 COUNT(DISTINCT CASE
+                   WHEN sc.school_id = ANY(${userSchoolIds.length ? userSchoolIds : ["__none__"]}::text[])
+                   THEN sc.id END)::int AS user_linked_camps
+          FROM ${sql(SCHEMA)}.hospitals h
+          LEFT JOIN ${sql(SCHEMA)}.school_camps sc
+            ON sc.hospital_id = h.id AND sc.active = true
+          WHERE h.active = true AND h.city ILIKE ${city}
+          GROUP BY h.id
+        `;
+
+        const doctorRows = await sql`
+          SELECT d.id, d.name, d.specialty, d.hospital, d.city, d.rating, d.hospital_id,
+                 h.name AS hospital_name, h.is_camp_partner,
+                 COUNT(DISTINCT sc.id)::int AS conducted_camps
+          FROM ${sql(SCHEMA)}.doctors d
+          LEFT JOIN ${sql(SCHEMA)}.hospitals h ON h.id = d.hospital_id
+          LEFT JOIN ${sql(SCHEMA)}.school_camps sc
+            ON sc.hospital_id = d.hospital_id AND sc.active = true
+          WHERE d.active = true AND (d.city ILIKE ${city} OR h.city ILIKE ${city})
+          GROUP BY d.id, h.name, h.is_camp_partner
+        `;
+
+        type DoctorRow = {
+          id: string;
+          name: string;
+          specialty: string;
+          hospital: string;
+          city: string;
+          rating: number;
+          hospital_id: string | null;
+          hospital_name: string | null;
+          is_camp_partner: boolean | null;
+          conducted_camps: number;
+        };
+
+        const doctorsByHospital = new Map<string, DoctorRow[]>();
+        const allSpecialties = new Set<string>();
+
+        for (const row of doctorRows as DoctorRow[]) {
+          if (specialty && row.specialty !== specialty) continue;
+          allSpecialties.add(row.specialty);
+          const hid = row.hospital_id || "unlinked";
+          if (!doctorsByHospital.has(hid)) doctorsByHospital.set(hid, []);
+          doctorsByHospital.get(hid)!.push(row);
+        }
+
+        type HospitalOut = Record<string, unknown>;
+        const hospitals: HospitalOut[] = [];
+
+        for (const h of hospitalRows) {
+          const hid = h.id as string;
+          const docs = doctorsByHospital.get(hid) || [];
+          if (docs.length === 0 && specialty) continue;
+
+          const lat = h.lat as number | null;
+          const lng = h.lng as number | null;
+          const distanceKm =
+            userLat != null && userLng != null && lat != null && lng != null
+              ? Math.round(haversineKm(userLat, userLng, lat, lng) * 10) / 10
+              : null;
+
+          const conductedCamps = (h.conducted_camps as number) || 0;
+          const userLinkedCamps = (h.user_linked_camps as number) || 0;
+          const userCampLinked = userLinkedCamps > 0;
+          const isCampPartner = (h.is_camp_partner as boolean) || conductedCamps > 0;
+
+          const specialties = [...new Set(docs.map((d) => d.specialty))].sort();
+          for (const s of specialties) allSpecialties.add(s);
+
+          const priorityScore =
+            (userCampLinked ? 10000 : 0) +
+            conductedCamps * 100 +
+            (isCampPartner ? 500 : 0) +
+            ((h.rating as number) || 0) * 10 -
+            (distanceKm ?? 999);
+
+          hospitals.push({
+            id: hid,
+            name: h.name,
+            city: h.city,
+            district: h.district,
+            address: h.address,
+            lat,
+            lng,
+            phone: h.phone,
+            rating: h.rating,
+            is_camp_partner: isCampPartner,
+            conducted_camps: conductedCamps,
+            user_camp_linked: userCampLinked,
+            user_linked_camps: userLinkedCamps,
+            distance_km: distanceKm,
+            priority_score: priorityScore,
+            specialties,
+            doctors: docs
+              .sort((a, b) => (b.rating || 0) - (a.rating || 0))
+              .map((d) => ({
+                id: d.id,
+                name: d.name,
+                specialty: d.specialty,
+                hospital: d.hospital_name || d.hospital,
+                hospital_id: d.hospital_id,
+                city: d.city,
+                rating: d.rating,
+                is_camp_partner: d.is_camp_partner || isCampPartner,
+              })),
+          });
+        }
+
+        hospitals.sort(
+          (a, b) => (b.priority_score as number) - (a.priority_score as number)
+        );
+
+        return json({
+          city,
+          hospitals,
+          specialties: [...allSpecialties].sort(),
+        });
+      }
+
+      if (path === "/api/doctors" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const city = (url.searchParams.get("city") || "").trim();
+        const hospitalId = (url.searchParams.get("hospital_id") || "").trim();
+        const specialty = (url.searchParams.get("specialty") || "").trim();
+
+        const rows = await sql`
+          SELECT d.id, d.name, d.specialty, d.hospital, d.city, d.rating,
+                 d.hospital_id, h.name AS hospital_name, h.is_camp_partner
+          FROM ${sql(SCHEMA)}.doctors d
+          LEFT JOIN ${sql(SCHEMA)}.hospitals h ON h.id = d.hospital_id
+          WHERE d.active = true
+            AND (${city} = '' OR d.city ILIKE ${city} OR h.city ILIKE ${city})
+            AND (${hospitalId} = '' OR d.hospital_id = ${hospitalId})
+            AND (${specialty} = '' OR d.specialty = ${specialty})
+          ORDER BY d.rating DESC, d.name
+        `;
+        return json(rows);
+      }
+
+      // ── Mark notifications read ───────────────────────
+      if (path === "/api/notifications/read" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const body: Record<string, unknown> = await request.json();
+        const ids = Array.isArray(body.ids) ? (body.ids as string[]) : [];
+        if (ids.length === 0) return json({ success: true });
+
+        const profileRows = await sql`
+          SELECT read_notification_ids FROM ${sql(SCHEMA)}.profiles
+          WHERE id = ${session.profileId} LIMIT 1
+        `;
+        const existing = (profileRows[0]?.read_notification_ids as string[]) || [];
+        const merged = [...new Set([...existing, ...ids])];
+        await sql`
+          UPDATE ${sql(SCHEMA)}.profiles
+          SET read_notification_ids = ${JSON.stringify(merged)}::jsonb
+          WHERE id = ${session.profileId}
+        `;
+        return json({ success: true, readCount: merged.length });
+      }
+
+      // ── In-app notifications feed ─────────────────────
+      if (path === "/api/notifications" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const items: Array<Record<string, unknown>> = [];
+
+        const profileRows = await sql`
+          SELECT read_notification_ids FROM ${sql(SCHEMA)}.profiles
+          WHERE id = ${session.profileId} LIMIT 1
+        `;
+        const readIds = new Set<string>(
+          ((profileRows[0]?.read_notification_ids as string[]) || [])
+        );
+
+        const camps = await sql`
+          SELECT title, school, date, time, status FROM ${sql(SCHEMA)}.camps
+          WHERE profile_id = ${session.profileId} AND status = 'UPCOMING'
+          ORDER BY date LIMIT 5
+        `;
+        for (const c of camps) {
+          const id = `camp_${c.title}_${c.date}`;
+          items.push({
+            id,
+            title: "Upcoming health camp",
+            body: `${c.title} at ${c.school || "school"} on ${c.date}`,
+            time: c.date as string,
+            type: "CAMP",
+            unread: !readIds.has(id),
+          });
+        }
+
+        const appts = await sql`
+          SELECT doctor_name, kid_name, date, time FROM ${sql(SCHEMA)}.appointments
+          WHERE profile_id = ${session.profileId}
+          ORDER BY date, time LIMIT 5
+        `;
+        for (const a of appts) {
+          const id = `appt_${a.doctor_name}_${a.date}_${a.time}`;
+          items.push({
+            id,
+            title: "Checkup reminder",
+            body: `${a.kid_name} with ${a.doctor_name} on ${a.date} at ${a.time}`,
+            time: a.date as string,
+            type: "CHECKUP",
+            unread: !readIds.has(id),
+          });
+        }
+
+        const kids = await sql`
+          SELECT k.name, COALESCE(s.current_streak, 0) AS streak
+          FROM ${sql(SCHEMA)}.kids k
+          LEFT JOIN ${sql(SCHEMA)}.streaks s ON s.kid_id = k.id
+          WHERE k.profile_id = ${session.profileId}
+        `;
+        for (const k of kids) {
+          if ((k.streak as number) >= 3) {
+            const id = `streak_${k.name}`;
+            items.push({
+              id,
+              title: "Streak milestone",
+              body: `${k.name} is on a ${k.streak}-day meal logging streak!`,
+              time: new Date().toISOString().split("T")[0],
+              type: "REWARD",
+              unread: !readIds.has(id),
+            });
+          }
+        }
+
+        return json(items);
       }
 
       return json({ error: "Not found", path }, 404);

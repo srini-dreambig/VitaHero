@@ -12,16 +12,6 @@ data class InviteResolveDto(
     val last10: String? = null,
 )
 
-/** Response for POST /api/parent/provisioned-data — admin-imported parent/kids data. */
-@Serializable
-data class ProvisionedDataResponse(
-    val resolved: Boolean = false,
-    @SerialName("parent_name") val parentName: String = "",
-    @SerialName("school_id") val schoolId: String = "",
-    @SerialName("school_name") val schoolName: String = "",
-    @SerialName("kids_copied") val kidsCopied: Int = 0,
-)
-
 @Serializable
 data class ProfileDto(
     val id: String,
@@ -39,18 +29,16 @@ data class ProfileDto(
     @SerialName("consent_accepted") val consentAccepted: Boolean = false,
     @SerialName("consent_declined") val consentDeclined: Boolean = false,
     @SerialName("auth_provider") val authProvider: String? = null,
-    val role: String = "PARENT",
-    @SerialName("school_id") val schoolId: String? = null,
 )
 
 @Serializable
 data class KidDto(
     val id: String,
-    @SerialName("profile_id") val profileId: String = "",
+    @SerialName("profile_id") val profileId: String,
     @SerialName("user_id") val userId: String? = null,
-    val name: String = "",
-    val age: Int = 0,
-    val gender: String = "",
+    val name: String,
+    val age: Int,
+    val gender: String,
     val school: String = "",
     val grade: String = "",
     @SerialName("height_cm") val heightCm: Double = 0.0,
@@ -69,10 +57,10 @@ data class CampDto(
     val id: String,
     @SerialName("profile_id") val profileId: String = "",
     @SerialName("user_id") val userId: String? = null,
-    val title: String = "",
-    val school: String = "",
-    val date: String = "",
-    val time: String = "",
+    val title: String,
+    val school: String,
+    val date: String,
+    val time: String,
     val status: String = "UPCOMING",
     val checks: List<String> = emptyList(),
     @SerialName("result_summary") val resultSummary: String? = null,
@@ -88,24 +76,24 @@ data class CampDto(
 @Serializable
 data class AppointmentDto(
     val id: String,
-    @SerialName("profile_id") val profileId: String = "",
+    @SerialName("profile_id") val profileId: String,
     @SerialName("user_id") val userId: String? = null,
-    @SerialName("doctor_name") val doctorName: String = "",
+    @SerialName("doctor_name") val doctorName: String,
     @SerialName("doctor_id") val doctorId: String? = null,
-    val specialty: String = "",
-    @SerialName("kid_name") val kidName: String = "",
-    val date: String = "",
-    val time: String = "",
+    val specialty: String,
+    @SerialName("kid_name") val kidName: String,
+    val date: String,
+    val time: String,
 )
 
 @Serializable
 data class MealItemDto(
     val id: String,
-    @SerialName("profile_id") val profileId: String = "",
+    @SerialName("profile_id") val profileId: String,
     @SerialName("user_id") val userId: String? = null,
-    @SerialName("kid_id") val kidId: String = "",
-    @SerialName("time_slot") val timeSlot: String = "",
-    val name: String = "",
+    @SerialName("kid_id") val kidId: String,
+    @SerialName("time_slot") val timeSlot: String,
+    val name: String,
     val detail: String = "",
     val kcal: Int = 0,
     val eaten: Boolean = false,
@@ -133,10 +121,10 @@ data class StreakDto(
 @Serializable
 data class CoParentDto(
     val id: String,
-    @SerialName("profile_id") val profileId: String = "",
+    @SerialName("profile_id") val profileId: String,
     @SerialName("user_id") val userId: String? = null,
-    val name: String = "",
-    val relation: String = "",
+    val name: String,
+    val relation: String,
     @SerialName("joined_date") val joinedDate: String = "",
 )
 
@@ -171,12 +159,15 @@ data class BookingHospitalDto(
     val city: String = "",
     val district: String = "",
     val address: String = "",
-    val pincode: String = "",
+    val lat: Double? = null,
+    val lng: Double? = null,
     val phone: String = "",
+    val rating: Double = 4.5,
     @SerialName("is_camp_partner") val isCampPartner: Boolean = false,
     @SerialName("conducted_camps") val conductedCamps: Int = 0,
     @SerialName("user_camp_linked") val userCampLinked: Boolean = false,
     @SerialName("user_linked_camps") val userLinkedCamps: Int = 0,
+    @SerialName("distance_km") val distanceKm: Double? = null,
     val specialties: List<String> = emptyList(),
     val doctors: List<BookingDirectoryDoctorDto> = emptyList(),
 )
@@ -204,8 +195,8 @@ data class BookingSlotsResponse(
 @Serializable
 data class NotificationDto(
     val id: String,
-    val title: String = "",
-    val body: String = "",
+    val title: String,
+    val body: String,
     val time: String = "",
     val type: String = "CAMP",
     val unread: Boolean = true,
@@ -214,7 +205,7 @@ data class NotificationDto(
 @Serializable
 data class SchoolDto(
     val id: String,
-    val name: String = "",
+    val name: String,
     val city: String = "",
     val district: String = "",
     val description: String = "",
@@ -224,7 +215,7 @@ data class SchoolDto(
 @Serializable
 data class MySchoolDto(
     val id: String,
-    val name: String = "",
+    val name: String,
     val city: String = "",
     val district: String = "",
     val description: String = "",
@@ -262,27 +253,6 @@ data class AiDietTipContentDto(
     @SerialName("generatedAt") val generatedAt: String = "",
 )
 
-/** DTO for the /api/doctor/verify-phone endpoint. */
-@Serializable
-data class PhoneVerifyDto(
-    val valid: Boolean = false,
-    @SerialName("is_doctor") val is_doctor: Boolean = false,
-    @SerialName("doctor_name") val doctor_name: String? = null,
-    val specialty: String? = null,
-    @SerialName("allowed_screens") val allowed_screens: List<String>? = null,
-    val error: String? = null,
-)
-
-/** Result of phone pre-verification before sending OTP. */
-data class PhoneVerifyResult(
-    val valid: Boolean,
-    val isDoctor: Boolean = false,
-    val doctorName: String = "",
-    val specialty: String = "",
-    val allowedScreens: List<String> = emptyList(),
-    val error: String? = null,
-)
-
 @Serializable
 data class FoodRecognitionResponseDto(
     val items: List<DetectedFoodDto> = emptyList(),
@@ -294,96 +264,4 @@ data class DetectedFoodDto(
     val name: String = "",
     val kcal: Int = 0,
     val confidence: Float = 0.6f,
-)
-
-@Serializable
-data class DoctorCampDto(
-    @SerialName("assignment_id") val assignmentId: String = "",
-    @SerialName("assignment_status") val assignmentStatus: String = "ACTIVE",
-    @SerialName("camp_id") val campId: String = "",
-    @SerialName("camp_title") val campTitle: String = "",
-    @SerialName("camp_date") val campDate: String = "",
-    @SerialName("camp_time") val campTime: String = "",
-    @SerialName("camp_status") val campStatus: String = "UPCOMING",
-    val checks: List<String> = emptyList(),
-    @SerialName("school_id") val schoolId: String? = null,
-    @SerialName("school_name") val schoolName: String = "",
-    @SerialName("school_city") val schoolCity: String = "",
-    @SerialName("registered_count") val registeredCount: Int = 0,
-    @SerialName("checked_count") val checkedCount: Int = 0,
-)
-
-@Serializable
-data class DoctorCampKidDto(
-    @SerialName("kid_id") val kidId: String = "",
-    val name: String = "",
-    val age: Int = 0,
-    val gender: String = "",
-    val grade: String = "",
-    val school: String = "",
-    @SerialName("height_cm") val heightCm: Double = 0.0,
-    @SerialName("weight_kg") val weightKg: Double = 0.0,
-    val dental: String = "GOOD",
-    val eyesight: String = "GOOD",
-    val nutrition: String = "GOOD",
-    @SerialName("last_checkup") val lastCheckup: String = "Not yet",
-    @SerialName("student_ref") val studentRef: String? = null,
-    @SerialName("parent_name") val parentName: String = "",
-    @SerialName("parent_phone") val parentPhone: String = "",
-    @SerialName("checkup_id") val checkupId: String? = null,
-    @SerialName("checkup_status") val checkupStatus: String? = null,
-    @SerialName("checkup_at") val checkupAt: String? = null,
-    @SerialName("referral_needed") val referralNeeded: Boolean? = null,
-)
-
-@Serializable
-data class HealthCheckupDto(
-    val id: String = "",
-    @SerialName("kid_id") val kidId: String = "",
-    @SerialName("school_camp_id") val schoolCampId: String = "",
-    @SerialName("doctor_name") val doctorName: String = "",
-    @SerialName("form_data") val formData: Map<String, kotlinx.serialization.json.JsonElement> = emptyMap(),
-    val summary: String = "",
-    @SerialName("referral_needed") val referralNeeded: Boolean = false,
-    @SerialName("referral_notes") val referralNotes: String = "",
-    @SerialName("overall_status") val overallStatus: String = "GOOD",
-    @SerialName("updated_at") val updatedAt: String? = null,
-)
-
-@Serializable
-data class HealthCheckupResultDto(
-    val id: String = "",
-    @SerialName("kid_id") val kidId: String = "",
-    @SerialName("kid_name") val kidName: String = "",
-    @SerialName("school_camp_id") val schoolCampId: String = "",
-    @SerialName("doctor_name") val doctorName: String = "",
-    @SerialName("form_data") val formData: Map<String, kotlinx.serialization.json.JsonElement> = emptyMap(),
-    val summary: String = "",
-    @SerialName("referral_needed") val referralNeeded: Boolean = false,
-    @SerialName("referral_notes") val referralNotes: String = "",
-    @SerialName("overall_status") val overallStatus: String = "GOOD",
-    @SerialName("camp_title") val campTitle: String = "",
-    @SerialName("camp_date") val campDate: String = "",
-    @SerialName("school_name") val schoolName: String = "",
-    @SerialName("updated_at") val updatedAt: String? = null,
-)
-
-@Serializable
-data class HealthVisitDto(
-    val id: String = "",
-    @SerialName("kid_id") val kidId: String = "",
-    @SerialName("user_id") val userId: String = "",
-    @SerialName("visit_type") val visitType: String = "HOSPITAL",
-    @SerialName("hospital_name") val hospitalName: String = "",
-    @SerialName("doctor_name") val doctorName: String = "",
-    @SerialName("visit_date") val visitDate: String = "",
-    val reason: String = "",
-    val diagnosis: String = "",
-    val prescription: String = "",
-    val notes: String = "",
-    @SerialName("next_followup") val nextFollowup: String = "",
-    @SerialName("height_cm") val heightCm: Double? = null,
-    @SerialName("weight_kg") val weightKg: Double? = null,
-    @SerialName("overall_status") val overallStatus: String = "GOOD",
-    @SerialName("created_at") val createdAt: String = "",
 )

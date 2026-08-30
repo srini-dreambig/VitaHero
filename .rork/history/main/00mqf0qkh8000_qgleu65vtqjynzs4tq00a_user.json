@@ -1,0 +1,8 @@
+{
+  "id": "qgleu65vtqjynzs4tq00a",
+  "role": "user",
+  "content": "There are so many console errors and warnings. Please fix them.\n\n\n0ydtwj9~x4qg4.js?dpl…DXcqYfCzC5rYK8uvN:2 WebSocket connection to 'wss://eu-hel1-32-2673227.limrun.net/v1/organizations/org_01k3v8mbfbfysbr86r…dpointWebSocket?token=lim_265c91c…' failed: \r\n\r\n0ydtwj9~x4qg4.js?dpl…DXcqYfCzC5rYK8uvN:2 WebSocket connection to 'wss://eu-hel1-32-2673227.limrun.net/v1/organizations/org_01k3v8mbfbfysbr86r…dpointWebSocket?token=lim_265c91c…' failed: \r\n0ydtwj9~x4qg4.js?dpl…DXcqYfCzC5rYK8uvN:2 WebSocket connection to 'wss://eu-hel1-32-2673227.limrun.net/v1/organizations/org_01k3v8mbfbfysbr86r…dpointWebSocket?token=lim_265c91c…' failed: \r\n﻿\r\n\r\nPress ctrl i to turn on code suggestions. Press ctrl x to disable code suggestions.\r\nctrl\r\ni\r\n to turn on code suggestions. Don't show again",
+  "attachments": [],
+  "sourceAttachments": [],
+  "userId": "5059c92d-3bf5-486a-b43c-24c3a79f30f1"
+}

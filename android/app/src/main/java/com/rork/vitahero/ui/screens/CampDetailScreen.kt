@@ -19,7 +19,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Verified
@@ -34,15 +33,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Camp
 import com.rork.vitahero.data.CampStatus
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
-import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
@@ -57,6 +55,8 @@ fun CampDetailScreen(
     onBack: () -> Unit,
     onRegister: (kidId: String) -> Unit,
     onBookFollowUp: () -> Unit,
+    /** Open what a doctor released for one child at this camp. */
+    onOpenResult: (campId: String, kidId: String) -> Unit = { _, _ -> },
 ) {
     var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
     val upcoming = camp.status == CampStatus.UPCOMING
@@ -95,12 +95,18 @@ fun CampDetailScreen(
                         }
                         Spacer(Modifier.height(10.dp))
                     }
-                    Text(camp.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text(camp.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Spacer(Modifier.height(8.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(camp.school, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(camp.school, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -181,8 +187,14 @@ fun CampDetailScreen(
                     ) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
-                                Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Text("${kid.grade} · ${kid.school}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text("${kid.grade} · ${kid.school}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                             if (isRegistered) {
                                 Text(t(S.registered), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.Bold)
@@ -201,6 +213,47 @@ fun CampDetailScreen(
                     )
                 }
                 Spacer(Modifier.height(16.dp))
+            }
+        }
+
+        // After a school camp, each child's own result is a separate screen —
+        // the flags on the Kids tab are the summary, this is what the doctor
+        // actually wrote.
+        if (!upcoming && camp.isPartnerCamp && kids.isNotEmpty()) {
+            item {
+                Text(t(S.campResultTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))
+                kids.forEach { kid ->
+                    HeroCard(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp)
+                            .clickable {
+                                onOpenResult(camp.schoolCampId.ifBlank { camp.id }, kid.id)
+                            }
+                    ) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    t(S.campResultTitle),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Text(
+                                t(S.viewLabel),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = HeroBlue,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
 

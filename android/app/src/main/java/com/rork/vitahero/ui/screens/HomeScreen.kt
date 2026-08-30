@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppLocale
@@ -43,6 +44,7 @@ import com.rork.vitahero.data.Appointment
 import com.rork.vitahero.data.Camp
 import com.rork.vitahero.data.CampStatus
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
@@ -50,10 +52,12 @@ import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.ProgressRing
 import com.rork.vitahero.ui.components.SectionHeader
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.bottomBarClearance
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
+import com.rork.vitahero.ui.theme.FlagNeutral
 import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
 import com.rork.vitahero.ui.theme.HeroYellow
@@ -78,7 +82,7 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = 24.dp)
+        contentPadding = PaddingValues(bottom = bottomBarClearance())
     ) {
         item {
             StatusBarSpacer()
@@ -214,23 +218,35 @@ private fun KidStatCard(kid: Kid, onClick: () -> Unit) {
                 KidAvatar(kid.name, kid.avatarColor, size = 44.dp)
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    Text(kid.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(kid.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(
                         "${kid.age} yrs · ${kid.grade}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
             Spacer(Modifier.height(16.dp))
+            // A child nobody has examined has no health score. The column
+            // defaults to 80, which used to render here as a confident "80%,
+            // doing well" for a child who had never been screened — the most
+            // prominent number in the app, and invented.
+            val screened = kid.dental != HealthFlag.NOT_MEASURED ||
+                kid.eyesight != HealthFlag.NOT_MEASURED ||
+                kid.nutrition != HealthFlag.NOT_MEASURED
             Row(verticalAlignment = Alignment.CenterVertically) {
                 ProgressRing(
-                    progress = kid.overallScore / 100f,
+                    progress = if (screened) kid.overallScore / 100f else 0f,
                     size = 58.dp,
-                    color = Color(kid.avatarColor)
+                    color = if (screened) Color(kid.avatarColor) else FlagNeutral
                 ) {
                     Text(
-                        "${kid.overallScore}%",
+                        if (screened) "${kid.overallScore}%" else "\u2014",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -243,10 +259,16 @@ private fun KidStatCard(kid: Kid, onClick: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        if (kid.overallScore >= 85) t(S.growthOnTrack) else t(S.doingWell),
+                        when {
+                            !screened -> t(S.notScreenedYet)
+                            kid.overallScore >= 85 -> t(S.growthOnTrack)
+                            else -> t(S.doingWell)
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(kid.avatarColor)
+                        color = if (screened) Color(kid.avatarColor) else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
@@ -296,7 +318,10 @@ private fun CampBanner(camp: Camp, modifier: Modifier = Modifier, onClick: () ->
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Text(camp.title, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(camp.title, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             Spacer(Modifier.height(4.dp))
             Text("${camp.date} · ${camp.time}", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodyMedium)
             Spacer(Modifier.height(14.dp))
@@ -325,11 +350,16 @@ private fun AppointmentRow(appt: Appointment, modifier: Modifier = Modifier) {
             com.rork.vitahero.ui.components.IconBubble(Icons.Outlined.CalendarMonth, HeroBlue)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(appt.doctorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(appt.doctorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(
                     "${appt.specialty} · for ${appt.kidName}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             Column(horizontalAlignment = Alignment.End) {

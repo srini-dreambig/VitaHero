@@ -3,12 +3,20 @@ package com.rork.vitahero.data
 import androidx.compose.ui.graphics.Color
 import com.rork.vitahero.ui.theme.FlagAlert
 import com.rork.vitahero.ui.theme.FlagGood
+import com.rork.vitahero.ui.theme.FlagNeutral
 import com.rork.vitahero.ui.theme.FlagWatch
 
 enum class HealthFlag(val label: String, val color: Color) {
     GOOD("On track", FlagGood),
     WATCH("Needs attention", FlagWatch),
-    ALERT("See a doctor", FlagAlert)
+    ALERT("See a doctor", FlagAlert),
+
+    /**
+     * Nothing has been measured yet — no camp has screened this, or the camp
+     * did not include this check. Distinct from GOOD on purpose: silence is
+     * not a clean bill of health, and showing it as one misleads a parent.
+     */
+    NOT_MEASURED("Not measured yet", FlagNeutral)
 }
 
 data class HealthMetric(
@@ -101,10 +109,11 @@ data class Hospital(
     val city: String,
     val district: String,
     val address: String,
-    val pincode: String = "",
+    val rating: Float,
     val isCampPartner: Boolean,
     val conductedCamps: Int,
     val userCampLinked: Boolean,
+    val distanceKm: Float?,
     val specialties: List<String>,
     val doctors: List<Doctor>,
 )
@@ -142,8 +151,12 @@ data class MealItem(
 
 data class Badge(
     val id: String,
-    val title: String,
-    val description: String,
+    /**
+     * Locale keys, not English. A badge is chrome a child reads, and it was
+     * the last place in the app still hardcoding English.
+     */
+    val titleKey: String,
+    val descriptionKey: String,
     val earned: Boolean,
     val progress: Float, // 0..1
     val accent: Long,
@@ -188,3 +201,14 @@ data class AppNotification(
 )
 
 enum class NotificationType { CAMP, CHECKUP, DIET, REWARD }
+
+/**
+ * A measurement as a parent should see it.
+ *
+ * Height and weight default to zero for a child no camp has screened, and
+ * "0 cm" is not a height — it is the absence of one, and it must not be
+ * rendered as a number.
+ */
+fun Kid.heightText(): String = if (heightCm > 0f) "${heightCm.toInt()} cm" else "\u2014"
+
+fun Kid.weightText(): String = if (weightKg > 0f) "${weightKg.toInt()} kg" else "\u2014"

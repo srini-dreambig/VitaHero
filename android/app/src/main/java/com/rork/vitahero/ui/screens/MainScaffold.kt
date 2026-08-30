@@ -10,18 +10,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.material3.Scaffold
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -52,17 +51,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppViewModel
+import com.rork.vitahero.data.S
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.data.KidsViewModel
 import com.rork.vitahero.data.ProfileViewModel
 
-private enum class Tab(val label: String, val filled: ImageVector, val outlined: ImageVector) {
-    HOME("Home", Icons.Filled.Home, Icons.Outlined.Home),
-    KIDS("Kids", Icons.Filled.Groups, Icons.Outlined.Groups),
-    CAMPS("Camps", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth),
-    REWARDS("Rewards", Icons.Filled.WorkspacePremium, Icons.Outlined.WorkspacePremium),
-    PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.Person),
+/** `labelKey` rather than a literal: this bar was the last English-only chrome. */
+private enum class Tab(val labelKey: String, val filled: ImageVector, val outlined: ImageVector) {
+    HOME(S.navHome, Icons.Filled.Home, Icons.Outlined.Home),
+    KIDS(S.navKids, Icons.Filled.Groups, Icons.Outlined.Groups),
+    CAMPS(S.navCamps, Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth),
+    REWARDS(S.navRewards, Icons.Filled.WorkspacePremium, Icons.Outlined.WorkspacePremium),
+    PROFILE(S.navProfile, Icons.Filled.Person, Icons.Outlined.Person),
 }
 
 @Composable
@@ -76,10 +79,18 @@ fun MainScaffold(
     onOpenDiet: (String) -> Unit,
     onOpenBooking: () -> Unit,
     onOpenNotifications: () -> Unit,
+    onAddKid: () -> Unit,
     onOpenFamilySharing: () -> Unit,
     onOpenSchools: () -> Unit = {},
     onOpenHospitals: () -> Unit = {},
     onOpenCamp: (String) -> Unit = {},
+    onOpenConsent: () -> Unit = {},
+    onOpenReferrals: () -> Unit = {},
+    onOpenQuestions: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
+    onOpenRecord: () -> Unit = {},
+    /** How many camps are waiting on this guardian to answer. */
+    pendingConsents: Int = 0,
     onOpenGrowthCharts: (String) -> Unit = {},
     onOpenFoodRecognition: (String, String) -> Unit,
     onLogout: () -> Unit,
@@ -88,20 +99,16 @@ fun MainScaffold(
     val state by appViewModel.uiState.collectAsState()
     val unread = state.notifications.count { it.unread }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets.statusBars,
-        bottomBar = {
-            BottomBar(selected = tab, onSelect = { tab = it })
-        }
-    ) { padding ->
+    Box(
+        Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         AnimatedContent(
             targetState = tab,
             transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(150)) },
             label = "tab",
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
+            modifier = Modifier.fillMaxSize()
         ) { current ->
             when (current) {
                 Tab.HOME -> HomeScreen(
@@ -120,12 +127,15 @@ fun MainScaffold(
                 Tab.KIDS -> KidsScreen(
                     kids = state.kids,
                     onOpenKid = onOpenKid,
+                    onAddKid = onAddKid
                 )
                 Tab.CAMPS -> CampsScreen(
                     camps = state.camps,
                     onBookFollowUp = onOpenBooking,
                     onOpenCamp = onOpenCamp,
                     onOpenSchools = onOpenSchools,
+                    pendingConsents = pendingConsents,
+                    onOpenConsent = onOpenConsent,
                 )
                 Tab.REWARDS -> {
                     val leaderboards by kidsViewModel.leaderboards.collectAsState()
@@ -150,10 +160,20 @@ fun MainScaffold(
                     onSelectLocale = { profileViewModel.setLocale(it) },
                     onOpenFamilySharing = onOpenFamilySharing,
                     onOpenHospitals = onOpenHospitals,
+                    onOpenReferrals = onOpenReferrals,
+                    onOpenQuestions = onOpenQuestions,
+                    onOpenLibrary = onOpenLibrary,
+                    onOpenRecord = onOpenRecord,
                     onLogout = onLogout
                 )
             }
         }
+
+        BottomBar(
+            selected = tab,
+            onSelect = { tab = it },
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 
@@ -163,21 +183,24 @@ private fun BottomBar(
     onSelect: (Tab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val navBarPadding = WindowInsets.navigationBars.asPaddingValues()
     Surface(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(bottom = navBarPadding.calculateBottomPadding()),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = 8.dp,
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             Tab.entries.forEach { tab ->
                 val isSelected = tab == selected
                 val scale by animateFloatAsState(if (isSelected) 1.1f else 1f, label = "tabScale")
+                val label = t(tab.labelKey)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -190,14 +213,16 @@ private fun BottomBar(
                 ) {
                     Icon(
                         imageVector = if (isSelected) tab.filled else tab.outlined,
-                        contentDescription = tab.label,
+                        contentDescription = label,
                         tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
                         modifier = Modifier.size((22 * scale).dp),
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        tab.label,
+                        label,
                         style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
                     )

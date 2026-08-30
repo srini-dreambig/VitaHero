@@ -2,6 +2,7 @@ package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,14 +10,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,9 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
-
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -60,33 +56,23 @@ import com.rork.vitahero.ui.theme.HeroOrange
 import kotlinx.coroutines.delay
 
 /**
- * OTP verification screen for Firebase Phone Auth.
- * The verificationId is provided by Firebase Auth callbacks and passed from the Activity.
+ * OTP verification screen for phone OTP via the Cloudflare Worker.
  */
 @Composable
 fun OtpScreen(
     phone: String,
-    verificationId: String?,
+    parentName: String,
     onBack: () -> Unit,
     onVerified: (code: String) -> Unit,
     onResend: (() -> Unit)? = null,
     isVerifying: Boolean = false,
-    isSending: Boolean = false,
-    error: String? = null,
-    parentName: String = "",
-    devOtp: String? = null,
+    error: String? = null
 ) {
     var code by remember { mutableStateOf("") }
     var seconds by remember { mutableIntStateOf(30) }
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    val otpReady = !verificationId.isNullOrBlank()
 
-    // Request focus + keyboard immediately on screen entry — do NOT wait for
-    // verificationId (Firebase's onCodeSent can take 50-60s due to reCAPTCHA /
-    // SafetyNet / backend pre-verification). The user already has the SMS code
-    // and should be able to type it right away. Only the Verify button is gated
-    // on otpReady, not the input field itself.
     LaunchedEffect(Unit) {
         focus.requestFocus()
         keyboard?.show()
@@ -103,7 +89,6 @@ fun OtpScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.systemBars)
-            .imePadding()
             .padding(horizontal = 24.dp)
     ) {
         IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
@@ -147,97 +132,49 @@ fun OtpScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // Sending OTP state — waiting for Firebase to send the SMS
-        if (isSending && verificationId.isNullOrBlank()) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp,
-                        color = HeroOrange
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(
-                        "Sending OTP to +91 $phone...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
+        // OTP input
+        Box {
+            // Invisible text field for keyboard
+            BasicTextField(
+                value = code,
+                onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                modifier = Modifier
+                    .focusRequester(focus)
+                    .focusable()
+                    .size(1.dp),
+                textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground)
+            ) {}
 
-        // OTP input — the real BasicTextField is stacked in the SAME 58dp row as
-        // the visible digit boxes, not in a separate box above or below them. The
-        // digit boxes are drawn on top but have no interactive modifiers, so every
-        // tap passes through to the real focusable input behind them. This is the
-        // only layout that Android's TextInputService / OEM keyboards treat as a
-        // genuine, visible, tappable input on every real device.
-        BasicTextField(
-            value = code,
-            onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
-            enabled = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(58.dp)
-                .focusRequester(focus)
-                .onFocusChanged { state -> if (state.isFocused) keyboard?.show() },
-            textStyle = TextStyle(color = Color.Transparent),
-            cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.Transparent)
-        ) { innerTextField ->
-            Box(Modifier.fillMaxSize()) {
-                // Real input node: fills the entire 58dp row, invisible text/cursor.
-                // Placed first so it owns the touch area and the IME bounds.
-                Box(Modifier.fillMaxSize()) {
-                    innerTextField()
-                }
-                // Visual digit boxes on top — no click/focus, so taps pass through.
-                Row(
-                    Modifier.fillMaxSize(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    repeat(6) { i ->
-                        val char = code.getOrNull(i)?.toString() ?: ""
-                        val active = i == code.length && otpReady
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(
-                                    if (otpReady) MaterialTheme.colorScheme.surface
-                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                                )
-                                .border(
-                                    width = if (active) 2.dp else 1.dp,
-                                    color = if (active) HeroOrange else MaterialTheme.colorScheme.outline,
-                                    shape = RoundedCornerShape(14.dp)
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            if (isVerifying && code.length == 6 && i == 5) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
-                                    color = HeroOrange
-                                )
-                            } else {
-                                Text(
-                                    char,
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (otpReady) MaterialTheme.colorScheme.onSurface
-                                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                                )
-                            }
+            // Visible digit boxes
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                repeat(6) { i ->
+                    val char = code.getOrNull(i)?.toString() ?: ""
+                    val active = i == code.length
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(58.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(MaterialTheme.colorScheme.surface)
+                            .border(
+                                width = if (active) 2.dp else 1.dp,
+                                color = if (active) HeroOrange else MaterialTheme.colorScheme.outline,
+                                shape = RoundedCornerShape(14.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isVerifying && code.length == 6 && i == 5) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = HeroOrange
+                            )
+                        } else {
+                            Text(char, fontSize = 24.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -263,19 +200,15 @@ fun OtpScreen(
                     seconds = 30
                     onResend?.invoke()
                 }) {
-                    Text(t(S.resend), color = HeroOrange, fontWeight = FontWeight.SemiBold)
+                    Text(t(S.resend).take(10), color = HeroOrange, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
 
         Spacer(Modifier.weight(1f))
         PrimaryGradientButton(
-            text = when {
-                isVerifying -> t(S.pleaseWait)
-                isSending && verificationId.isNullOrBlank() -> "Sending OTP..."
-                else -> t(S.verify)
-            },
-            enabled = code.length == 6 && !isVerifying && !isSending && !verificationId.isNullOrBlank(),
+            text = if (isVerifying) t(S.pleaseWait) else t(S.verify),
+            enabled = code.length == 6 && !isVerifying,
             onClick = { onVerified(code) },
             modifier = Modifier
                 .fillMaxWidth()

@@ -48,15 +48,6 @@
 -keep class com.google.mlkit.** { *; }
 -dontwarn com.google.mlkit.**
 
-# ── Firebase ──────────────────────────────────────────────────
--keep class com.google.firebase.** { *; }
--dontwarn com.google.firebase.**
--keep class com.google.android.gms.** { *; }
--dontwarn com.google.android.gms.**
-
-# ── BuildConfig ───────────────────────────────────────────────
--keep class com.rork.vitahero.BuildConfig { *; }
-
 # ── General Kotlin ────────────────────────────────────────────
 -keepattributes Signature
 -keepattributes *Annotation*

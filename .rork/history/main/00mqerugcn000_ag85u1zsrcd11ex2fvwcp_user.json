@@ -1,0 +1,8 @@
+{
+  "id": "ag85u1zsrcd11ex2fvwcp",
+  "role": "user",
+  "content": "AAB build failed\r\nFAILURE: Build failed with an exception.\r\n\r\n* What went wrong:\r\ncom/google/common/util/concurrent/Uninterruptibles\r\n> com.google.common.util.concurrent.Uninterruptibles\r\n\r\n* Try:\r\n> Run with --info or --debug option to get more log output.\r\n> Run with --scan to get full insights.\r\n> Get more help at https://help.gradle.org.",
+  "attachments": [],
+  "sourceAttachments": [],
+  "userId": "5059c92d-3bf5-486a-b43c-24c3a79f30f1"
+}

@@ -2,40 +2,71 @@
 # Copy to functions/.dev.vars for local worker testing — never commit real values.
 
 DATABASE_URL=postgresql://user:pass@host/neondb?sslmode=require
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
 
 # Rork Toolkit — used server-side for AI diet tips (NOT in the Android app)
 TOOLKIT_URL=https://toolkit.rork.app
 TOOLKIT_SECRET_KEY=
 
 # Closed-app admin import + invites
-# ADMIN_API_KEY doubles as the login credential for the web admin portal
-# (visit https://kidhero-health-backend.rork.app/admin and paste this key).
-# It also lets you create admin accounts via POST /api/auth/signup with
-# the X-Admin-Key header.
+# ADMIN_API_KEY doubles as a one-time admin credential for the web portal
+# (paste it into the portal's "Admin API Key" tab) and lets you create admin
+# accounts via POST /api/auth/signup with the X-Admin-Key header.
 ADMIN_API_KEY=
 # HMAC key used to sign stateless invite tokens (keep separate from ADMIN_API_KEY).
 INVITE_SIGNING_KEY=
 # Android App Links: comma-separated SHA-256 signing-cert fingerprints.
 ANDROID_CERT_SHA256=
-# Play Store URL used as the "Get the app" download link on the invite landing page.
-# Defaults to the internal test track link below; override once the app is in production.
-APP_PLAY_URL=https://play.google.com/apps/internaltest/4700990678853594044
+# Optional Play Store URL used as the install fallback on the invite landing page.
+APP_PLAY_URL=
 
-# Invite links are texted to the parent automatically via textbee.dev the
-# moment the admin clicks Invite (single, bulk, or right after an import).
-# textbee.dev uses your own registered Android phone as the SMS gateway, so
-# there's no per-message provider fee. If it isn't configured yet, the link
-# is still generated and shown in the admin panel so you can copy/share it
-# manually as a fallback.
-# Login OTP is handled entirely by Firebase Phone Auth on the client, so no
-# SMS provider is needed for that.
-# Get both from https://app.textbee.dev/dashboard after installing the
-# textbee.dev Android app on the phone you want sending texts.
-TEXTBEE_API_KEY=
-TEXTBEE_DEVICE_ID=
+# ─── VitaHero Console ─────────────────────────────────────────
+# Served by this worker at  https://<worker-host>/admin
+#
+# First-time setup:
+#   1. Set ADMIN_API_KEY above and deploy.
+#   2. Open /admin and sign in with that key ("Ops key" tab).
+#   3. Give yourself a phone login so you stop pasting the key:
+#      curl -X POST https://<worker-host>/api/admin/ops/grant \
+#        -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
+#        -d '{"phone":"9876543210","name":"Your Name"}'
+#
+# Running a camp, end to end:
+#   1. Add a school and the checks it has agreed to (Programme).
+#   2. Set its classes and sections.
+#   3. Upload the student roster (CSV).
+#   4. Add people: an administrator, screeners, and a supervising physician.
+#      They all sign in at /admin with their mobile number and an OTP.
+#   5. Schedule a camp: date, checks, which classes.
+#   6. Build the list of children  <-- without this the camp has nobody on it
+#      and a screener signing in sees an empty list.
+#   7. Assign screeners and a physician to that camp.
+#   8. Request consent by SMS. Paper forms can be recorded in the console.
+#   9. Camp day: the screening team records findings per child.
+#  10. The physician reviews every child and approves.
+#  11. Release. Only then do guardians see anything in the app.
+#  12. Follow-ups: every flagged child gets a tracked referral. Families
+#      confirm they went; a clinician records the outcome, which closes it.
+#      "Closure rate" on the Follow-ups tab is the programme's real KPI.
+#  13. Report: coverage, what was found, and whether families acted — per
+#      school and academic year. Ops sees the same across every school.
+#
+# Each year: Classes -> "Start a new academic year" moves students up one
+# class and marks the final year as having left.
+#
+# Guardians can, from the app: export everything held about them, ask for a
+# correction (an administrator accepts or rejects it), withdraw consent, and
+# delete a child or the whole account. Deletion erases camp findings too.
 
-# ── DEV MODE (testing only) ───────────────────────────────────
-# Set DEV_MODE=true to decode Firebase ID tokens without signature
-# verification, for local/dev testing of authenticated endpoints.
-# NEVER enable in production.
-DEV_MODE=
+# ─── Camp day without a signal ────────────────────────────────
+# School halls rarely have coverage. Before leaving the office, the screening
+# team opens the camp and presses "Download for offline use". Captures are then
+# saved on the device and upload automatically when a network returns; the
+# "Sync now" button forces it. The server stays authoritative on consent, so a
+# capture for a child whose guardian withdrew consent meanwhile is rejected on
+# sync and reported, never written.
+#
+# Two rules for the team: download while still on wi-fi, and do not clear
+# browser data before syncing.
+

@@ -25,10 +25,11 @@ fun mapBookingDirectory(dto: BookingDirectoryDto): BookingDirectory = BookingDir
             city = h.city,
             district = h.district,
             address = h.address,
-            pincode = h.pincode,
+            rating = h.rating.toFloat(),
             isCampPartner = h.isCampPartner,
             conductedCamps = h.conductedCamps,
             userCampLinked = h.userCampLinked,
+            distanceKm = h.distanceKm?.toFloat(),
             specialties = h.specialties,
             doctors = h.doctors.map { d ->
                 Doctor(

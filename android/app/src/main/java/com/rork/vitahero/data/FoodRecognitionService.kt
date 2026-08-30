@@ -19,6 +19,12 @@ import kotlin.coroutines.resume
  * Primary path: an AI vision model via the backend worker (accurate, specific dish
  * names + calorie estimates). Falls back to on-device ML Kit labeling when the backend
  * is unconfigured, the user is signed out, or the vision call fails/returns nothing.
+ *
+ * The ML Kit default model returns broad labels (e.g. "Fruit", "Food", "Dessert"),
+ * not exact dish names. We map specific labels to a calorie dictionary and otherwise
+ * surface the actual detected label. Previously every photo was force-matched into a
+ * fixed Indian-meal list via the generic "food" keyword, so unrelated items (e.g. a
+ * cup of dates) were reported as "Rice & Dal". This keeps results relevant instead.
  */
 object FoodRecognitionService {
 
@@ -82,9 +88,8 @@ object FoodRecognitionService {
 
     /** AI vision via the backend worker. Returns null when unavailable so we fall back. */
     private suspend fun analyseRemote(bitmap: Bitmap): List<DetectedFood>? {
-        val repo = ApiRepositoryProvider.firestoreRepo ?: return null
         if (!ApiService.isConfigured || ApiService.sessionToken.isNullOrBlank()) return null
-        val response = repo.recognizeFood(encodeJpeg(bitmap)) ?: return null
+        val response = ApiRepositoryProvider.repository.recognizeFood(encodeJpeg(bitmap)) ?: return null
         return response.items
             .filter { it.name.isNotBlank() }
             .map {
@@ -146,6 +151,7 @@ object FoodRecognitionService {
             val food = if (entry != null) {
                 DetectedFood(entry.name, label.confidence.coerceIn(0.4f, 0.97f), entry.kcal)
             } else {
+                // Identifiable but undictionaried label — show it as-is so the result stays relevant.
                 DetectedFood(
                     label.text.replaceFirstChar { it.titlecase(Locale.ROOT) },
                     label.confidence.coerceIn(0.4f, 0.95f),
@@ -155,6 +161,7 @@ object FoodRecognitionService {
             results.putIfAbsent(food.name, food)
         }
 
+        // Nothing specific matched but the model is confident it's food — avoid a wrong dish guess.
         if (results.isEmpty() && (sawGenericFood || relevant.isNotEmpty())) {
             results["Mixed Meal"] = DetectedFood("Mixed Meal", 0.5f, 300)
         }

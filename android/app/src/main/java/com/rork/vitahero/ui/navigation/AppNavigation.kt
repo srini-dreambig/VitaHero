@@ -3,48 +3,37 @@ package com.rork.vitahero.ui.navigation
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.rork.vitahero.data.AppViewModel
 import com.rork.vitahero.data.PdfReportGenerator
 import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.data.rememberVitaHeroViewModels
+import com.rork.vitahero.ui.screens.AddKidScreen
 import com.rork.vitahero.ui.screens.AuthScreen
 import com.rork.vitahero.ui.screens.BookingScreen
+import com.rork.vitahero.ui.screens.CampConsentScreen
+import com.rork.vitahero.ui.screens.CampResultScreen
+import com.rork.vitahero.ui.screens.LibraryScreen
+import com.rork.vitahero.ui.screens.PrivacyScreen
+import com.rork.vitahero.ui.screens.QuestionsScreen
+import com.rork.vitahero.ui.screens.ReferralsScreen
 import com.rork.vitahero.ui.screens.CampDetailScreen
-import com.rork.vitahero.ui.screens.CampsScreen
 import com.rork.vitahero.ui.screens.ConsentScreen
 import com.rork.vitahero.ui.screens.DietScreen
-import com.rork.vitahero.ui.screens.DoctorDashboardScreen
 import com.rork.vitahero.ui.screens.FamilySharingScreen
 import com.rork.vitahero.ui.screens.FoodRecognitionScreen
 import com.rork.vitahero.ui.screens.GrowthChartsScreen
-import com.rork.vitahero.ui.screens.HealthCheckupDetailScreen
-import com.rork.vitahero.ui.screens.HealthCheckupFormScreen
 import com.rork.vitahero.ui.screens.HospitalsScreen
 import com.rork.vitahero.ui.screens.KidDetailScreen
 import com.rork.vitahero.ui.screens.MainScaffold
@@ -53,27 +42,33 @@ import com.rork.vitahero.ui.screens.OnboardingScreen
 import com.rork.vitahero.ui.screens.OtpScreen
 import com.rork.vitahero.ui.screens.SchoolsScreen
 import com.rork.vitahero.ui.screens.SplashScreen
+import com.rork.vitahero.ui.screens.SymptomScreen
 
 object Routes {
     const val SPLASH = "splash"
     const val CONSENT = "consent"
     const val ONBOARDING = "onboarding"
     const val AUTH = "auth"
-    const val OTP = "otp/{phone}"
+    const val OTP = "otp/{phone}/{name}"
     const val MAIN = "main"
     const val KID_DETAIL = "kid/{kidId}"
     const val DIET = "diet/{kidId}"
     const val BOOKING = "booking"
     const val NOTIFICATIONS = "notifications"
+    const val ADD_KID = "addKid"
     const val FAMILY_SHARING = "familySharing"
     const val FOOD_RECOGNITION = "foodRecognition/{kidId}/{kidName}"
     const val SCHOOLS = "schools"
     const val CAMP_DETAIL = "camp/{campId}"
     const val GROWTH_CHARTS = "growth/{kidId}"
     const val HOSPITALS = "hospitals"
-    const val DOCTOR_DASHBOARD = "doctorDashboard"
-    const val DOCTOR_CHECKUP = "doctorCheckup/{campId}/{kidId}"
-    const val HEALTH_CHECKUP_DETAIL = "checkupDetail/{checkupId}"
+    const val CAMP_CONSENT = "campConsent"
+    const val CAMP_RESULT = "campResult/{campId}/{kidId}"
+    const val REFERRALS = "referrals"
+    const val QUESTIONS = "questions"
+    const val LIBRARY = "library"
+    const val RECORD = "record"
+    const val SYMPTOMS = "symptoms/{kidId}"
 }
 
 private val OnboardingImages = listOf(
@@ -85,8 +80,7 @@ private val OnboardingImages = listOf(
 
 @Composable
 fun AppNavigation(
-    onSendPhoneOtp: (phone: String) -> Unit = {},
-    onResendOtp: (phone: String) -> Unit = {},
+    onGoogleSignInRequest: () -> Unit = {},
     invitePhone: String = "",
 ) {
     val navController = rememberNavController()
@@ -96,23 +90,20 @@ fun AppNavigation(
     val campsViewModel = vms.camps
     val bookingViewModel = vms.booking
     val profileViewModel = vms.profile
+    val guardianViewModel = vms.guardian
 
     val state by appViewModel.uiState.collectAsState()
     val onboardingComplete by appViewModel.onboardingComplete.collectAsState()
     val isLoggedIn by appViewModel.isLoggedIn.collectAsState()
     val authLoading by appViewModel.authLoading.collectAsState()
     val authError by appViewModel.authError.collectAsState()
-    val userRole by appViewModel.role.collectAsState()
-    val allowedScreens by appViewModel.allowedScreens.collectAsState()
-    val doctorSpecialty by appViewModel.doctorSpecialty.collectAsState()
-    val verificationId by appViewModel.verificationId.collectAsState()
 
     var phone by rememberSaveable { mutableStateOf("") }
+    var pendingName by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) {
-            val dest = if (userRole == "DOCTOR") Routes.DOCTOR_DASHBOARD else Routes.MAIN
-            navController.navigate(dest) {
+            navController.navigate(Routes.MAIN) {
                 popUpTo(Routes.SPLASH) { inclusive = true }
                 launchSingleTop = true
             }
@@ -120,13 +111,21 @@ fun AppNavigation(
     }
 
     LaunchedEffect(isLoggedIn, state.kids) {
-        if (isLoggedIn && userRole != "DOCTOR") {
+        if (isLoggedIn) {
             state.kids.forEach { kidsViewModel.refreshLeaderboard(it.id) }
         }
     }
 
+    // Consents, referrals, questions and the plan, once. These are what tell a
+    // parent something is waiting for them, so they load with the session
+    // rather than when a screen is first opened.
+    LaunchedEffect(isLoggedIn) {
+        if (isLoggedIn) guardianViewModel.refreshAll()
+    }
+    val pendingConsents by guardianViewModel.pendingConsents.collectAsState()
+
     val startDest = when {
-        isLoggedIn -> if (userRole == "DOCTOR") Routes.DOCTOR_DASHBOARD else Routes.MAIN
+        isLoggedIn -> Routes.MAIN
         onboardingComplete -> Routes.AUTH
         else -> Routes.CONSENT
     }
@@ -142,6 +141,8 @@ fun AppNavigation(
         composable(Routes.SPLASH) {
             SplashScreen(
                 onTimeout = {
+                    // If a session restored while the splash was showing, the top-level
+                    // effect already routed to MAIN and this destination is gone.
                     if (!isLoggedIn) {
                         navController.navigate(startDest) {
                             popUpTo(Routes.SPLASH) { inclusive = true }
@@ -186,15 +187,21 @@ fun AppNavigation(
             LaunchedEffect(Unit) { appViewModel.clearAuthError() }
 
             AuthScreen(
-                isLoading = authLoading || appViewModel.otpSending.collectAsState().value,
+                isLoading = authLoading,
                 authError = authError,
                 prefilledPhone = invitePhone,
+                onSignInWithGoogle = { onGoogleSignInRequest() },
+                onSignUpWithEmail = { name, email, password ->
+                    appViewModel.signUpWithEmail(name, email, password)
+                },
+                onSignInWithEmail = { email, password ->
+                    appViewModel.signInWithEmail(email, password)
+                },
                 onContinueWithPhone = { p ->
                     phone = p
-                    appViewModel.clearAuthError()
-                    onSendPhoneOtp(p)
-                    // Navigate to OTP screen — verificationId will arrive via Firebase callback
-                    navController.navigate("otp/$p")
+                    pendingName = "Parent"
+                    appViewModel.sendPhoneOtp(p)
+                    navController.navigate("otp/$p/$pendingName")
                 },
             )
         }
@@ -203,43 +210,30 @@ fun AppNavigation(
             Routes.OTP,
             arguments = listOf(
                 navArgument("phone") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType }
             )
         ) { backStack ->
             val p = backStack.arguments?.getString("phone").orEmpty()
+            val n = backStack.arguments?.getString("name").orEmpty()
 
-            LaunchedEffect(Unit) {
-                appViewModel.clearAuthError()
-            }
+            LaunchedEffect(Unit) { appViewModel.clearAuthError() }
 
             val otpError by appViewModel.authError.collectAsState()
             val otpVerifying by appViewModel.authLoading.collectAsState()
-            val otpSending by appViewModel.otpSending.collectAsState()
-            val currentVerificationId by appViewModel.verificationId.collectAsState()
 
             OtpScreen(
                 phone = p,
-                verificationId = currentVerificationId,
+                parentName = n,
                 onBack = {
                     appViewModel.clearAuthError()
                     appViewModel.clearAuthLoading()
-                    appViewModel.setOtpSending(false)
-                    appViewModel.clearVerificationId()
                     navController.popBackStack()
                 },
                 onVerified = { code ->
-                    // Use Firebase verificationId + code
-                    val vId = currentVerificationId
-                    if (!vId.isNullOrBlank()) {
-                        appViewModel.verifyPhoneOtp(vId, code)
-                    }
+                    appViewModel.verifyPhoneOtp(p, code)
                 },
-                onResend = {
-                    appViewModel.clearAuthError()
-                    appViewModel.clearVerificationId()
-                    onResendOtp(p)
-                },
+                onResend = { appViewModel.sendPhoneOtp(p) },
                 isVerifying = otpVerifying,
-                isSending = otpSending,
                 error = otpError
             )
         }
@@ -255,10 +249,17 @@ fun AppNavigation(
                 onOpenDiet = { navController.navigate("diet/$it") },
                 onOpenBooking = { navController.navigate(Routes.BOOKING) },
                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
+                onAddKid = { navController.navigate(Routes.ADD_KID) },
                 onOpenFamilySharing = { navController.navigate(Routes.FAMILY_SHARING) },
                 onOpenSchools = { navController.navigate(Routes.SCHOOLS) },
                 onOpenHospitals = { navController.navigate(Routes.HOSPITALS) },
                 onOpenCamp = { navController.navigate("camp/$it") },
+                onOpenConsent = { navController.navigate(Routes.CAMP_CONSENT) },
+                onOpenReferrals = { navController.navigate(Routes.REFERRALS) },
+                onOpenQuestions = { navController.navigate(Routes.QUESTIONS) },
+                onOpenLibrary = { navController.navigate(Routes.LIBRARY) },
+                onOpenRecord = { navController.navigate(Routes.RECORD) },
+                pendingConsents = pendingConsents.size,
                 onOpenGrowthCharts = { navController.navigate("growth/$it") },
                 onOpenFoodRecognition = { kidId, kidName ->
                     navController.navigate("foodRecognition/$kidId/$kidName")
@@ -292,17 +293,9 @@ fun AppNavigation(
                         val file = PdfReportGenerator.generate(ctx, reportData)
                         PdfReportGenerator.shareReport(ctx, file)
                     },
-                    onAddGrowth = { height, weight, label ->
-                        kidsViewModel.addGrowthPoint(kid.id, height, weight, label)
-                    },
                     onRefreshWearable = { kidsViewModel.refreshWearableData(kid.id) },
-                    onDeleteKid = {
-                        kidsViewModel.deleteKid(kid.id) {
-                            navController.popBackStack()
-                        }
-                    },
+                    onLogSymptom = { navController.navigate("symptoms/${kid.id}") },
                     onOpenGrowthCharts = { navController.navigate("growth/${kid.id}") },
-                    onOpenCheckup = { checkupId -> navController.navigate("checkupDetail/$checkupId") },
                     growthAssessment = kidsViewModel.growthAssessmentForKid(kid.id),
                 )
             }
@@ -374,12 +367,90 @@ fun AppNavigation(
             )
         }
 
+        // ── The school screening pathway, as a guardian sees it ──
+
+        composable(Routes.CAMP_CONSENT) {
+            CampConsentScreen(
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            Routes.CAMP_RESULT,
+            arguments = listOf(
+                navArgument("campId") { type = NavType.StringType },
+                navArgument("kidId") { type = NavType.StringType },
+            )
+        ) { backStack ->
+            CampResultScreen(
+                campId = backStack.arguments?.getString("campId").orEmpty(),
+                kidId = backStack.arguments?.getString("kidId").orEmpty(),
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.REFERRALS) {
+            ReferralsScreen(
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.QUESTIONS) {
+            QuestionsScreen(
+                kids = state.kids,
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.LIBRARY) {
+            LibraryScreen(
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.RECORD) {
+            PrivacyScreen(
+                kids = state.kids,
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+                onErased = { kidsViewModel.forgetKidLocally(it) },
+            )
+        }
+
+        composable(
+            Routes.SYMPTOMS,
+            arguments = listOf(navArgument("kidId") { type = NavType.StringType })
+        ) { backStack ->
+            val id = backStack.arguments?.getString("kidId").orEmpty()
+            SymptomScreen(
+                kidId = id,
+                kidName = kidsViewModel.kidById(id)?.name.orEmpty(),
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
         composable(Routes.NOTIFICATIONS) {
             val state by appViewModel.uiState.collectAsState()
             NotificationsScreen(
                 notifications = state.notifications,
                 onBack = {
                     profileViewModel.markAllNotificationsRead()
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(Routes.ADD_KID) {
+            AddKidScreen(
+                onBack = { navController.popBackStack() },
+                onSave = { name, age, gender, school, grade, height, weight ->
+                    kidsViewModel.addKid(name, age, gender, school, grade, height, weight)
                     navController.popBackStack()
                 }
             )
@@ -414,6 +485,9 @@ fun AppNavigation(
                         }
                     },
                     onBookFollowUp = { navController.navigate(Routes.BOOKING) },
+                    onOpenResult = { campId, kidId ->
+                        navController.navigate("campResult/$campId/$kidId")
+                    },
                 )
             }
         }
@@ -474,121 +548,6 @@ fun AppNavigation(
                         timeSlot = "Snack"
                     )
                 }
-            )
-        }
-
-        // ── Doctor Dashboard ──
-        composable(Routes.DOCTOR_DASHBOARD) {
-            // Check if doctor has DASHBOARD screen access
-            val hasDashboardAccess = allowedScreens.isEmpty() || allowedScreens.contains("DASHBOARD")
-            if (!hasDashboardAccess) {
-                // Doctor doesn't have dashboard access — show access denied
-                Box(
-                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            "Access Denied",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                        )
-                        Text(
-                            "You do not have access to the Doctor Dashboard.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            "Contact your administrator.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Text(
-                            "Logout",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = androidx.compose.ui.graphics.Color(0xFFF47B20),
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.clickable {
-                                appViewModel.logout()
-                                navController.navigate(Routes.AUTH) {
-                                    popUpTo(Routes.DOCTOR_DASHBOARD) { inclusive = true }
-                                }
-                            }.padding(16.dp)
-                        )
-                    }
-                }
-            } else {
-                DoctorDashboardScreen(
-                    doctorViewModel = vms.doctor,
-                    doctorName = state.parentName.ifBlank { "Doctor" },
-                    doctorSpecialty = doctorSpecialty,
-                    allowedScreens = allowedScreens,
-                    onBack = {
-                        appViewModel.logout()
-                        navController.navigate(Routes.AUTH) {
-                            popUpTo(Routes.DOCTOR_DASHBOARD) { inclusive = true }
-                        }
-                    },
-                    onOpenCheckup = { kid, camp ->
-                        // Gate checkup screen by allowed_screens
-                        val hasCheckupAccess = allowedScreens.isEmpty() || allowedScreens.contains("CHECKUP")
-                        if (hasCheckupAccess) {
-                            navController.navigate("doctorCheckup/${camp.campId}/${kid.kidId}")
-                        }
-                    },
-                    onLogout = {
-                        appViewModel.logout()
-                        navController.navigate(Routes.AUTH) {
-                            popUpTo(Routes.DOCTOR_DASHBOARD) { inclusive = true }
-                        }
-                    },
-                )
-            }
-        }
-
-        // ── Doctor Health Checkup Form ──
-        composable(
-            Routes.DOCTOR_CHECKUP,
-            arguments = listOf(
-                navArgument("campId") { type = NavType.StringType },
-                navArgument("kidId") { type = NavType.StringType },
-            )
-        ) { backStack ->
-            val campId = backStack.arguments?.getString("campId").orEmpty()
-            val kidId = backStack.arguments?.getString("kidId").orEmpty()
-            val docState by vms.doctor.uiState.collectAsState()
-            val camp = docState.selectedCamp ?: docState.camps.firstOrNull { it.campId == campId }
-            val kid = docState.campKids.firstOrNull { it.kidId == kidId }
-            // Gate by allowed_screens
-            val hasCheckupAccess = allowedScreens.isEmpty() || allowedScreens.contains("CHECKUP")
-            if (camp != null && kid != null && hasCheckupAccess) {
-                HealthCheckupFormScreen(
-                    doctorViewModel = vms.doctor,
-                    kid = kid,
-                    camp = camp,
-                    doctorSpecialty = doctorSpecialty,
-                    onBack = { navController.popBackStack() },
-                    onSubmitted = { navController.popBackStack() },
-                )
-            } else if (!hasCheckupAccess) {
-                Box(
-                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("Access Denied: You do not have checkup access.", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-
-        // ── Parent: Health Checkup Detail ──
-        composable(
-            Routes.HEALTH_CHECKUP_DETAIL,
-            arguments = listOf(navArgument("checkupId") { type = NavType.StringType })
-        ) { backStack ->
-            val checkupId = backStack.arguments?.getString("checkupId").orEmpty()
-            HealthCheckupDetailScreen(
-                checkupId = checkupId,
-                onBack = { navController.popBackStack() },
             )
         }
     }

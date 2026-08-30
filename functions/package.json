@@ -5,5 +5,14 @@
   "type": "module",
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.0"
+  },
+  "scripts": {
+    "test": "bun test",
+    "test:db": "bun test",
+    "typecheck": "tsc -p ."
   }
 }

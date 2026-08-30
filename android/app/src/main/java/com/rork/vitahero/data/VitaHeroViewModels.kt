@@ -12,7 +12,7 @@ data class VitaHeroViewModels(
     val camps: CampsViewModel,
     val booking: BookingViewModel,
     val profile: ProfileViewModel,
-    val doctor: DoctorViewModel,
+    val guardian: GuardianViewModel,
 )
 
 @Composable
@@ -27,6 +27,6 @@ fun rememberVitaHeroViewModels(): VitaHeroViewModels {
         camps = viewModel(factory = factory),
         booking = viewModel(factory = factory),
         profile = viewModel(factory = factory),
-        doctor = viewModel(factory = factory),
+        guardian = viewModel(factory = factory),
     )
 }

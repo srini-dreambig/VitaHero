@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Badge
@@ -47,9 +48,9 @@ import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.ProgressRing
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.bottomBarClearance
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
-import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroYellow
 
@@ -80,7 +81,7 @@ fun RewardsScreen(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = bottomBarClearance())
     ) {
         item {
             StatusBarSpacer()
@@ -116,7 +117,9 @@ fun RewardsScreen(
                                 color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(
                                     top = 4.dp, bottom = 4.dp, end = 4.dp
-                                )
+                                ),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
@@ -186,9 +189,29 @@ fun RewardsScreen(
             }
             Spacer(Modifier.height(12.dp))
             HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(vertical = 6.dp)) {
-                    leaderboard.forEach { entry ->
-                        LeaderRow(entry)
+                // Empty is a real state now. It used to be filled with one
+                // invented entry scoring 1500 against nobody.
+                if (leaderboard.isEmpty()) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            t(S.leaderboardEmpty),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            t(S.leaderboardEmptySub),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                } else {
+                    Column(Modifier.padding(vertical = 6.dp)) {
+                        leaderboard.forEach { entry -> LeaderRow(entry) }
                     }
                 }
             }
@@ -226,7 +249,7 @@ private fun BadgeCard(badge: Badge, modifier: Modifier = Modifier) {
             }
             Spacer(Modifier.height(10.dp))
             Text(
-                badge.title,
+                t(badge.titleKey),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
@@ -234,7 +257,7 @@ private fun BadgeCard(badge: Badge, modifier: Modifier = Modifier) {
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                badge.description,
+                t(badge.descriptionKey),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -302,7 +325,9 @@ private fun LeaderRow(entry: LeaderEntry) {
             style = MaterialTheme.typography.titleSmall,
             fontWeight = if (entry.isYou) FontWeight.Bold else FontWeight.Medium,
             color = if (entry.isYou) HeroOrange else MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
         Text("${entry.points} ${t(S.points)}", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
     }

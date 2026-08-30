@@ -12,7 +12,6 @@ import kotlinx.coroutines.withContext
 
 /**
  * App shell: auth, consent, onboarding, sync bootstrap, session lifecycle.
- * Uses Firebase Auth for authentication — no custom session tokens.
  */
 class AppViewModel(
     application: Application,
@@ -29,14 +28,7 @@ class AppViewModel(
     val isLoggedIn: StateFlow<Boolean> get() = auth.isLoggedIn
     val authError: StateFlow<String?> get() = auth.authError
     val authLoading: StateFlow<Boolean> get() = auth.authLoading
-    val devOtp: StateFlow<String?> get() = auth.devOtp
-    val verificationId: StateFlow<String?> get() = auth.verificationId
-    val otpSending: StateFlow<Boolean> get() = auth.otpSending
     val sessionToken: StateFlow<String?> get() = auth.sessionToken
-    val role: StateFlow<String> get() = auth.role
-    val allowedScreens: StateFlow<List<String>> get() = auth.allowedScreens
-    val isDoctor: StateFlow<Boolean> get() = auth.isDoctor
-    val doctorSpecialty: StateFlow<String> get() = auth.doctorSpecialty
 
     private var initComplete = false
 
@@ -100,61 +92,22 @@ class AppViewModel(
 
     fun completeOnboarding() = auth.completeOnboarding()
 
-    // ─── Firebase Phone Auth ───────────────────────────────────
-
-    /** Verify the OTP code with the stored verificationId. */
-    fun verifyPhoneOtp(verificationId: String, code: String) {
-        auth.verifyPhoneOtp(verificationId, code)
-    }
-
-    /** Sign in with auto-verified credential. */
-    fun signInWithCredential(credential: com.google.firebase.auth.PhoneAuthCredential) {
-        auth.signInWithCredential(credential)
-    }
-
-    fun setVerificationId(id: String) = auth.setVerificationId(id)
+    fun signInWithGoogle(idToken: String) = auth.signInWithGoogle(idToken)
+    fun signUpWithEmail(name: String, email: String, password: String) =
+        auth.signUpWithEmail(name, email, password)
+    fun signInWithEmail(email: String, password: String) = auth.signInWithEmail(email, password)
+    fun sendPhoneOtp(phone: String) = auth.sendPhoneOtp(phone)
+    fun verifyPhoneOtp(phone: String, token: String) = auth.verifyPhoneOtp(phone, token)
     fun clearAuthError() = auth.clearAuthError()
     fun clearAuthLoading() = auth.clearAuthLoading()
-    fun clearDevOtp() = auth.clearDevOtp()
-    fun setAuthLoading(loading: Boolean) = auth.setAuthLoading(loading)
-    fun setAuthError(msg: String?) = auth.setAuthError(msg)
-    fun setOtpSending(sending: Boolean) = auth.setOtpSending(sending)
-    fun clearVerificationId() = auth.clearVerificationId()
-
-    // ─── Phone Pre-Verification ────────────────────────────────
-
-    /**
-     * Pre-verify a phone number before sending Firebase OTP.
-     * Returns a [PhoneVerifyResult] — if invalid, shows error and blocks OTP.
-     * If valid and doctor, stores doctor info for post-auth role assignment.
-     */
-    suspend fun verifyPhoneForLogin(phone: String): PhoneVerifyResult {
-        val result = container.repo.verifyPhoneForLogin(phone)
-        if (result.valid && result.isDoctor) {
-            auth.setDoctorVerification(
-                isDoctor = true,
-                doctorName = result.doctorName,
-                specialty = result.specialty,
-                allowedScreens = result.allowedScreens,
-            )
-        } else if (result.valid) {
-            auth.setDoctorVerification(false, "", "", emptyList())
-        }
-        return result
-    }
-
-    /** Check if a screen is allowed for the current doctor. */
-    fun isScreenAllowed(screen: String): Boolean = auth.isScreenAllowed(screen)
 
     fun onBackendLogin(userId: String, email: String, phone: String, name: String) {
-        val userRole = auth.role.value
         state.uiState.update {
             it.copy(
                 userId = auth.profileId.value.ifBlank { userId },
                 email = email,
                 phone = phone,
                 parentName = name.ifBlank { it.parentName },
-                role = userRole,
                 consentAccepted = true,
                 kids = emptyList(),
                 camps = emptyList(),

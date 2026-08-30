@@ -89,7 +89,7 @@ class ApiRepository {
         }
     }
 
-    suspend fun sendPhoneOtp(phone: String): Result<PhoneSendResponse> = onIo {
+    suspend fun sendPhoneOtp(phone: String): Result<Unit> = onIo {
         if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
         try {
             val resp = http.post("$base/api/auth/phone/send") {
@@ -98,7 +98,7 @@ class ApiRepository {
             }
             if (resp.status.isSuccess()) {
                 val body = try { resp.body<PhoneSendResponse>() } catch (_: Exception) { PhoneSendResponse(true) }
-                if (body.success) Result.success(body)
+                if (body.success) Result.success(Unit)
                 else Result.failure(Exception(body.note ?: "SMS delivery failed"))
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
@@ -149,21 +149,6 @@ class ApiRepository {
 
     // ─── Profiles ──────────────────────────────────────────────
 
-    /**
-     * Resolve admin-provisioned data (imported kids, school enrollment) for the
-     * logged-in parent. provisioned_parents is admin-only in Firestore rules, so
-     * this must go through the backend Worker (service account), never directly.
-     */
-    suspend fun resolveProvisionedData(): ProvisionedDataResponse? = onIo {
-        if (skipNetwork) return@onIo null
-        try {
-            val resp = http.post("$base/api/parent/provisioned-data") {
-                authHeaders().forEach { (k, v) -> header(k, v) }
-            }
-            if (resp.status.isSuccess()) resp.body<ProvisionedDataResponse>() else null
-        } catch (_: Exception) { null }
-    }
-
     suspend fun upsertProfile(dto: ProfileDto): Result<Unit> = onIo {
         postResult("/api/profiles", dto)
     }
@@ -181,12 +166,6 @@ class ApiRepository {
         postResult("/api/kids", dto)
     }
 
-    suspend fun deleteKid(kidId: String) = onIo {
-        val h = authHeaders()
-        http.delete("$base/api/kids/$kidId") {
-            h.forEach { (k, v) -> header(k, v) }
-        }
-    }
 
     // ─── Camps ─────────────────────────────────────────────────
 
@@ -467,94 +446,6 @@ class ApiRepository {
         }
     }
 
-    // ─── Doctor endpoints ────────────────────────────────────
-
-    suspend fun fetchDoctorCamps(): List<DoctorCampDto> = onIo {
-        if (skipNetwork) return@onIo emptyList()
-        val resp = http.get("$base/api/doctor/camps") {
-            authHeaders().forEach { (k, v) -> header(k, v) }
-        }
-        if (resp.status.isSuccess()) resp.body<List<DoctorCampDto>>() else emptyList()
-    }
-
-    suspend fun fetchDoctorCampKids(campId: String): List<DoctorCampKidDto> = onIo {
-        if (skipNetwork) return@onIo emptyList()
-        val resp = http.get("$base/api/doctor/camp-kids") {
-            authHeaders().forEach { (k, v) -> header(k, v) }
-            url { parameters.append("camp_id", campId) }
-        }
-        if (resp.status.isSuccess()) resp.body<List<DoctorCampKidDto>>() else emptyList()
-    }
-
-    suspend fun fetchDoctorCheckup(kidId: String, campId: String): HealthCheckupDto? = onIo {
-        if (skipNetwork) return@onIo null
-        val resp = http.get("$base/api/doctor/checkup") {
-            authHeaders().forEach { (k, v) -> header(k, v) }
-            url {
-                parameters.append("kid_id", kidId)
-                parameters.append("camp_id", campId)
-            }
-        }
-        if (resp.status.isSuccess()) {
-            try { resp.body<HealthCheckupDto?>() } catch (_: Exception) { null }
-        } else null
-    }
-
-    suspend fun submitDoctorCheckup(
-        kidId: String,
-        campId: String,
-        formData: Map<String, Any>,
-        summary: String,
-        referralNeeded: Boolean,
-        referralNotes: String,
-        overallStatus: String,
-    ): Result<Unit> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val resp = http.post("$base/api/doctor/checkup") {
-                authHeaders().forEach { (k, v) -> header(k, v) }
-                contentType(ContentType.Application.Json)
-                setBody(mapOf(
-                    "kid_id" to kidId,
-                    "school_camp_id" to campId,
-                    "form_data" to formData,
-                    "summary" to summary,
-                    "referral_needed" to referralNeeded,
-                    "referral_notes" to referralNotes,
-                    "overall_status" to overallStatus,
-                ))
-            }
-            if (resp.status.isSuccess()) Result.success(Unit)
-            else {
-                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
-                Result.failure(Exception(err?.error ?: "Submit failed"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    // ─── Parent: Health checkup results ────────────────────────
-
-    suspend fun fetchHealthCheckups(kidId: String? = null): List<HealthCheckupResultDto> = onIo {
-        if (skipNetwork) return@onIo emptyList()
-        val resp = http.get("$base/api/health-checkups") {
-            authHeaders().forEach { (k, v) -> header(k, v) }
-            kidId?.let { id -> url { parameters.append("kid_id", id) } }
-        }
-        if (resp.status.isSuccess()) resp.body<List<HealthCheckupResultDto>>() else emptyList()
-    }
-
-    suspend fun fetchHealthCheckup(checkupId: String): HealthCheckupResultDto? = onIo {
-        if (skipNetwork) return@onIo null
-        val resp = http.get("$base/api/health-checkups/$checkupId") {
-            authHeaders().forEach { (k, v) -> header(k, v) }
-        }
-        if (resp.status.isSuccess()) {
-            try { resp.body<HealthCheckupResultDto?>() } catch (_: Exception) { null }
-        } else null
-    }
-
     suspend fun saveAiDietTip(kidId: String, content: AIDietContent) = onIo {
         if (skipNetwork) return@onIo
         val h = authHeaders()
@@ -571,76 +462,6 @@ class ApiRepository {
                     "generatedAt" to content.generatedAt,
                 )
             ))
-        }
-    }
-
-    // ─── Parent: Health visits (hospital/clinic, non-camp) ────
-
-    suspend fun fetchHealthVisits(kidId: String): List<HealthVisitDto> = onIo {
-        if (skipNetwork) return@onIo emptyList()
-        val resp = http.get("$base/api/parent/health-visits") {
-            authHeaders().forEach { (k, v) -> header(k, v) }
-            url { parameters.append("kid_id", kidId) }
-        }
-        if (resp.status.isSuccess()) resp.body<List<HealthVisitDto>>() else emptyList()
-    }
-
-    suspend fun saveHealthVisit(
-        kidId: String,
-        visitType: String,
-        hospitalName: String,
-        doctorName: String,
-        visitDate: String,
-        reason: String,
-        diagnosis: String,
-        prescription: String,
-        notes: String,
-        nextFollowup: String,
-        heightCm: Double?,
-        weightKg: Double?,
-        overallStatus: String,
-    ): Result<Unit> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val resp = http.post("$base/api/parent/health-visits") {
-                authHeaders().forEach { (k, v) -> header(k, v) }
-                contentType(ContentType.Application.Json)
-                setBody(mapOf(
-                    "kid_id" to kidId,
-                    "visit_type" to visitType,
-                    "hospital_name" to hospitalName,
-                    "doctor_name" to doctorName,
-                    "visit_date" to visitDate,
-                    "reason" to reason,
-                    "diagnosis" to diagnosis,
-                    "prescription" to prescription,
-                    "notes" to notes,
-                    "next_followup" to nextFollowup,
-                    "height_cm" to heightCm,
-                    "weight_kg" to weightKg,
-                    "overall_status" to overallStatus,
-                ))
-            }
-            if (resp.status.isSuccess()) Result.success(Unit)
-            else {
-                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
-                Result.failure(Exception(err?.error ?: "Save failed"))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    suspend fun deleteHealthVisit(visitId: String): Result<Unit> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val resp = http.delete("$base/api/parent/health-visits/$visitId") {
-                authHeaders().forEach { (k, v) -> header(k, v) }
-            }
-            if (resp.status.isSuccess()) Result.success(Unit)
-            else Result.failure(Exception("Delete failed"))
-        } catch (e: Exception) {
-            Result.failure(e)
         }
     }
 
@@ -683,7 +504,6 @@ data class AuthProfile(
     val email: String? = null,
     val phone: String? = null,
     val auth_provider: String = "",
-    val role: String = "PARENT",
 )
 
 @kotlinx.serialization.Serializable
@@ -695,6 +515,4 @@ data class ErrorBody(
 data class PhoneSendResponse(
     val success: Boolean = false,
     val note: String? = null,
-    val dev_otp: String? = null,
-    val dev_mode: Boolean = false,
 )

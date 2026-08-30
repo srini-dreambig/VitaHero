@@ -1,35 +1,31 @@
 package com.rork.vitahero.ui.screens
 
-import android.content.Intent
-import android.content.pm.PackageInfo
-import android.net.Uri
-import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.ChildCare
 import androidx.compose.material.icons.outlined.DarkMode
-import androidx.compose.material.icons.outlined.HealthAndSafety
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.LocalHospital
+import androidx.compose.material.icons.outlined.MedicalServices
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.People
@@ -41,8 +37,6 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,12 +44,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.rork.vitahero.BuildConfig
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.LocalAppLocale
@@ -64,27 +57,14 @@ import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.bottomBarClearance
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
-
-private fun getVersionInfo(context: android.content.Context): Pair<String, String> {
-    return try {
-        val packageInfo: PackageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-        val name = packageInfo.versionName?.takeIf { it.isNotBlank() } ?: BuildConfig.VERSION_NAME
-        val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.longVersionCode.toString()
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.versionCode.toString()
-        }
-        Pair(name, code)
-    } catch (e: Exception) {
-        Pair(BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE.toString())
-    }
-}
+import android.content.Intent
+import android.net.Uri
 
 @Composable
 fun ProfileScreen(
@@ -101,23 +81,21 @@ fun ProfileScreen(
     onSelectLocale: (AppLocale) -> Unit,
     onOpenFamilySharing: () -> Unit,
     onOpenHospitals: () -> Unit = {},
+    onOpenReferrals: () -> Unit = {},
+    onOpenQuestions: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
+    onOpenRecord: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
-    val versionInfo = remember { getVersionInfo(context) }
-    val scrollState = rememberScrollState()
 
-    Column(
+    LazyColumn(
         modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 20.dp)
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = bottomBarClearance())
     ) {
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(scrollState)
-        ) {
+        item {
             StatusBarSpacer()
             Spacer(Modifier.height(8.dp))
             // Parent header
@@ -131,11 +109,17 @@ fun ProfileScreen(
                                 .background(Brush.linearGradient(listOf(HeroOrange, HeroBlue))),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(parentName.take(1).uppercase(), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text(parentName.take(1).uppercase(), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                         Spacer(Modifier.width(16.dp))
                         Column {
-                            Text(parentName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(parentName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                             Text(
                                 if (phone.isNotBlank()) "+91 $phone" else t(S.phonePlaceholder),
                                 style = MaterialTheme.typography.bodyMedium,
@@ -160,8 +144,14 @@ fun ProfileScreen(
                             KidAvatar(kid.name, kid.avatarColor, size = 40.dp)
                             Spacer(Modifier.width(14.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                Text("${kid.age} yrs · ${kid.grade}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text("${kid.age} yrs · ${kid.grade}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                     }
@@ -223,6 +213,19 @@ fun ProfileScreen(
             Spacer(Modifier.height(12.dp))
             HeroCard(Modifier.fillMaxWidth()) {
                 Column {
+                    // The school pathway, in the order a parent meets it.
+                    LinkRow(
+                        Icons.Outlined.MedicalServices, HeroOrange, t(S.referralsTitle),
+                        t(S.referralsSub), onClick = onOpenReferrals
+                    )
+                    LinkRow(
+                        Icons.AutoMirrored.Outlined.HelpOutline, HeroBlue, t(S.questionsTitle),
+                        t(S.questionsSub), onClick = onOpenQuestions
+                    )
+                    LinkRow(
+                        Icons.AutoMirrored.Outlined.MenuBook, HeroPurple, t(S.libraryTitle),
+                        t(S.librarySub), onClick = onOpenLibrary
+                    )
                     LinkRow(
                         Icons.Outlined.LocalHospital, HeroPurple, t(S.linkedHospitals),
                         t(S.linkedHospitalsSub),
@@ -244,27 +247,18 @@ fun ProfileScreen(
                             Icon(Icons.AutoMirrored.Outlined.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                         }
                     }
+                    // Was a link to a web privacy page. A parent asking this
+                    // question wants to act on their own child's record, not
+                    // read a policy, so it opens the record itself.
                     LinkRow(
-                        Icons.Outlined.Lock, HeroBlue, t(S.privacyData), t(S.privacyDataSub),
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://kidhero.rork.app/privacy")))
-                        }
+                        Icons.Outlined.Lock, HeroBlue, t(S.privacyTitle), t(S.privacySub),
+                        onClick = onOpenRecord
                     )
                     LinkRow(
                         Icons.Outlined.SupportAgent, Color(0xFFF59E0B), t(S.helpSupport), t(S.helpSupportSub),
                         onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("mailto:support@kidhero.rork.app")))
+                            context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@kidhero.rork.app")))
                         }
-                    )
-                    LinkRow(
-                        Icons.Outlined.Info, Color(0xFF3B82F6), "VitaHero",
-                        "v${versionInfo.first} · build ${versionInfo.second}",
-                        onClick = {}
-                    )
-                    LinkRow(
-                        Icons.Outlined.HealthAndSafety, Color(0xFF22C55E), "Medical disclaimer",
-                        "For informational purposes only. Always consult a doctor.",
-                        onClick = {}
                     )
                 }
             }
@@ -284,8 +278,14 @@ fun ProfileScreen(
                 Text(t(S.logout), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(16.dp))
+            Text(
+                "VitaHero v1.0 · For informational purposes only.\nAlways consult a doctor for medical advice.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.fillMaxWidth(),
+                fontWeight = FontWeight.Normal
+            )
         }
-
     }
 }
 
