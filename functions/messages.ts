@@ -319,7 +319,7 @@ export async function schoolThreads(sql: Sql, actor: Actor, schoolId: string, st
   return {
     enabled: schoolRow[0]?.questions_enabled !== false,
     responseWindowDays: RESPONSE_WINDOW_DAYS,
-    counts: counts[0],
+    counts: counts[0] || { waiting_on_us: 0, overdue: 0, closed: 0 },
     threads: rows.map((r) => ({
       id: r.id as string,
       guardianName: (r.guardian_name as string) || "",

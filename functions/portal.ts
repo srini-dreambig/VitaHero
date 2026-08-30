@@ -276,6 +276,8 @@ export const PORTAL_HTML = `<!doctype html>
     referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
     programme: null, rollover: null, refForm: null, refFilter: "",
     pack: null, forceOffline: false, syncRejects: null, packInfo: null,
+    photos: null, photosKid: null, photoOpen: null,
+    threads: null, thread: null, billing: null, library: null, libForm: null,
   };
   function set(p) { for (var k in p) S[k] = p[k]; render(); }
 
@@ -556,6 +558,7 @@ export const PORTAL_HTML = `<!doctype html>
       S.classes = null; S.admins = null; S.staff = null; S.roster = null; S.batches = null;
       S.camps = null; S.upload = null; S.form = null;
       S.referrals = null; S.report = null; S.corrections = null; S.refKid = null;
+      S.threads = null; S.thread = null; S.billing = null;
       loadSchoolTab();
     });
   }
@@ -574,6 +577,14 @@ export const PORTAL_HTML = `<!doctype html>
     else if (t === "referrals" && !S.referrals) run(api("/api/admin/schools/" + id + "/referrals"), function (d) { S.referrals = d; });
     else if (t === "report" && !S.report) run(api("/api/admin/schools/" + id + "/report"), function (d) { S.report = d; });
     else if (t === "requests" && !S.corrections) run(api("/api/admin/schools/" + id + "/corrections"), function (d) { S.corrections = d.corrections; });
+    else if (t === "questions" && !S.threads) run(api("/api/admin/questions?school_id=" + encodeURIComponent(id)), function (d) { S.threads = d; });
+    else if (t === "billing" && !S.billing) {
+      run(api("/api/admin/billing/contract?school_id=" + encodeURIComponent(id)), function (d) {
+        S.billing = { contract: d.contract, invoices: null };
+        api("/api/admin/billing/invoices?school_id=" + encodeURIComponent(id))
+          .then(function (r) { S.billing.invoices = r.invoices; render(); }).catch(function () {});
+      });
+    }
   }
 
   function openCamp(id, tab) {
@@ -768,8 +779,9 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ school detail
   function viewSchool() {
     var s = S.school;
-    var tabs = [["roster","Roster"],["camps","Camps"],["referrals","Follow-ups"],["report","Report"],
-      ["classes","Classes"],["people","People"],["requests","Requests"],["programme","Programme"],["history","Uploads"]];
+    var tabs = [["roster","Roster"],["camps","Camps"],["referrals","Follow-ups"],["questions","Questions"],
+      ["report","Report"],["classes","Classes"],["people","People"],["requests","Requests"],
+      ["billing","Billing"],["programme","Programme"],["history","Uploads"]];
     return el("div", null,
       el("div", { class: "tabs" }, tabs.map(function (t) {
         return el("button", { class: "tab" + (S.schoolTab === t[0] ? " on" : ""),
@@ -780,6 +792,8 @@ export const PORTAL_HTML = `<!doctype html>
       S.schoolTab === "roster" ? tabRoster()
         : S.schoolTab === "camps" ? tabCamps()
         : S.schoolTab === "referrals" ? tabReferrals()
+        : S.schoolTab === "questions" ? tabQuestions()
+        : S.schoolTab === "billing" ? tabBilling()
         : S.schoolTab === "report" ? tabReport()
         : S.schoolTab === "classes" ? tabClasses()
         : S.schoolTab === "people" ? tabPeople()
@@ -1438,6 +1452,217 @@ export const PORTAL_HTML = `<!doctype html>
         open.length + " waiting.") : null);
   }
 
+  // ══════════════════════════════════════ questions from families
+  //
+  // The number that matters on this screen is days waited, not message count.
+  // A school that cannot answer should turn the channel off honestly rather
+  // than leave families waiting, and the server will not let them do that
+  // until the queue is clear.
+  function tabQuestions() {
+    if (!S.threads) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    var q = S.threads, id = S.school.id;
+
+    function reloadQ() { S.threads = null; S.thread = null; loadSchoolTab(); }
+    function openThread(t) {
+      run(api("/api/admin/questions/" + encodeURIComponent(t.id)), function (d) { S.thread = d; });
+    }
+    function toggleChannel(on) {
+      run(api("/api/admin/questions/settings", { method: "POST", body: { schoolId: id, enabled: on } }),
+        function () { S.notice = on ? "Families can ask questions again." : "The question channel is off."; reloadQ(); });
+    }
+
+    if (S.thread) return threadPanel(reloadQ);
+
+    var overdue = q.counts ? (q.counts.overdue || 0) : 0;
+    return el("div", null,
+      el("div", { class: "msg info" },
+        "Families can ask about their child's check-up here. It is not urgent care, and the app tells them so before they write. You have said you will reply within "
+        + q.responseWindowDays + " days."),
+      overdue
+        ? el("div", { class: "msg err" }, overdue + " question" + (overdue === 1 ? " has" : "s have")
+            + " been waiting longer than " + q.responseWindowDays + " days. Answer them, or switch the channel off so families stop expecting a reply.")
+        : null,
+      el("div", { class: "stats" },
+        el("div", { class: "stat warn" }, el("b", null, q.counts ? (q.counts.waiting_on_us || 0) : 0), el("span", null, "waiting on you")),
+        el("div", { class: "stat err" }, el("b", null, overdue), el("span", null, "overdue")),
+        el("div", { class: "stat ok" }, el("b", null, q.counts ? (q.counts.closed || 0) : 0), el("span", null, "closed"))),
+      el("div", { class: "row", style: "margin-bottom:12px" },
+        el("span", { class: "pill " + (q.enabled ? "ok" : "") }, q.enabled ? "Open to questions" : "Closed"),
+        el("button", { class: "sm" + (q.enabled ? " dang" : ""), disabled: S.busy,
+          onclick: function () { toggleChannel(!q.enabled); } },
+          q.enabled ? "Stop taking questions" : "Start taking questions")),
+      q.threads.length === 0
+        ? el("div", { class: "card" }, el("div", { class: "empty" },
+            el("h3", null, "No questions"),
+            el("p", { style: "font-size:13.5px" }, "Nothing waiting.")))
+        : el("div", { class: "tw" }, el("table", null,
+            el("thead", null, el("tr", null, el("th", null, "Family"), el("th", null, "Child"),
+              el("th", null, "Last message"), el("th", { class: "num" }, "Waiting"),
+              el("th", null, "Status"), el("th", null, ""))),
+            el("tbody", null, q.threads.map(function (t) {
+              return el("tr", { class: "click", onclick: function () { openThread(t); } },
+                el("td", null, el("b", null, t.guardianName || "\u2014"),
+                  el("div", { class: "muted mono", style: "font-size:12px" }, t.guardianPhone || "")),
+                el("td", null, t.kidName || el("span", { class: "muted" }, "\u2014")),
+                el("td", { class: "muted", style: "font-size:12.5px" },
+                  (t.lastMessage || "").slice(0, 90) + ((t.lastMessage || "").length > 90 ? "\u2026" : "")),
+                el("td", { class: "num" }, t.awaiting === "SCHOOL"
+                  ? el("span", { class: "pill " + (t.waitingDays > q.responseWindowDays ? "err" : "warn") },
+                      t.waitingDays + "d")
+                  : el("span", { class: "muted" }, "\u2014")),
+                el("td", null, statusPill(t.status)),
+                el("td", null, el("button", { class: "sm" }, "Open")));
+            })))));
+  }
+
+  function threadPanel(reloadQ) {
+    var d = S.thread, t = d.thread;
+    var box;
+    function send(close) {
+      var text = box.value.trim();
+      if (text.length < 2) { set({ error: "Write a reply." }); return; }
+      run(api("/api/admin/questions/" + encodeURIComponent(t.id) + "/reply",
+        { method: "POST", body: { body: text, close: close === true } }),
+        function () { S.notice = close ? "Replied and closed." : "Replied."; reloadQ(); });
+    }
+    return el("div", null,
+      el("button", { class: "sm", onclick: function () { set({ thread: null }); } }, "\u2190 All questions"),
+      el("div", { class: "card", style: "margin-top:12px" },
+        el("div", { class: "card-h" },
+          el("div", { style: "flex:1" }, el("h2", null, t.subject || "Question"),
+            el("div", { class: "muted", style: "font-size:12.5px" },
+              [t.kidName, t.schoolName].filter(Boolean).join(" \u00b7 "))),
+          statusPill(t.status)),
+        el("div", { class: "card-b" },
+          d.messages.map(function (m) {
+            return el("div", { style: "margin-bottom:12px;padding-left:" + (m.side === "SCHOOL" ? "28px" : "0") },
+              el("div", { class: "muted", style: "font-size:12px" },
+                (m.side === "SCHOOL" ? "You \u00b7 " : "") + (m.name || "") + " \u00b7 " + fmtDate(m.at)),
+              el("div", { style: "font-size:13.5px;white-space:pre-wrap" }, m.body));
+          }))),
+      t.status === "CLOSED"
+        ? el("div", { class: "msg info" }, "This question is closed. The family can open a new one if they need to.")
+        : el("div", { class: "card" },
+            el("div", { class: "card-b" },
+              el("div", { class: "fld" },
+                el("label", null, "Your reply"),
+                box = el("textarea", { rows: 4, placeholder: "Answer plainly. If it is clinical, say what the physician advised." })),
+              el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 10px" },
+                "This goes to the family in the app. Do not put anything here that belongs in a referral letter.")),
+            el("div", { class: "card-f" }, el("div", { class: "row" },
+              el("button", { class: "pri", disabled: S.busy, onclick: function () { send(false); } }, "Send reply"),
+              el("button", { disabled: S.busy, onclick: function () { send(true); } }, "Reply and close")))));
+  }
+
+  // ══════════════════════════════════════ contracts and invoices
+  //
+  // Prices are not baked in anywhere. A contract is a shape and a rate, and an
+  // invoice is built from what was actually delivered \u2014 children whose
+  // results were released \u2014 with the evidence printed on every line.
+  function tabBilling() {
+    if (!S.billing) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    var id = S.school.id, c = S.billing.contract, invs = S.billing.invoices;
+
+    function reloadB() { S.billing = null; loadSchoolTab(); }
+    function saveContract() {
+      var f = S.form || {};
+      run(api("/api/admin/billing/contract", { method: "POST", body: {
+        schoolId: id, shape: f.shape, ratePaise: Math.round((Number(f.rateRupees) || 0) * 100),
+        academicYear: f.academicYear, startsOn: f.startsOn, endsOn: f.endsOn, notes: f.notes } }),
+        function () { S.notice = "Contract saved."; S.form = null; reloadB(); });
+    }
+    function raise() {
+      run(api("/api/admin/billing/invoices", { method: "POST", body: { schoolId: id, academicYear: c.academicYear } }),
+        function (r) { S.notice = "Invoice " + r.invoice.number + " drafted."; reloadB(); });
+    }
+    function mark(inv, status) {
+      run(api("/api/admin/billing/invoice/" + encodeURIComponent(inv.id) + "/status",
+        { method: "POST", body: { status: status } }),
+        function () { S.notice = "Marked " + status.toLowerCase() + "."; reloadB(); });
+    }
+
+    var editing = S.form && S.form.contract;
+    if (editing && isOps()) {
+      var f = S.form;
+      function b(k) { return function (e) { f[k] = e.target.value; }; }
+      return el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, c ? "Change the contract" : "Set a contract")),
+        el("div", { class: "card-b" },
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Shape"),
+              el("select", { onchange: b("shape") },
+                [["PER_STUDENT_YEAR","Per student, per year"],["PER_CAMP","Per camp"],
+                 ["FLAT_ANNUAL","Flat annual fee"],["FREE","Free \u2014 nothing is invoiced"]].map(function (o) {
+                  return el("option", { value: o[0], selected: f.shape === o[0] }, o[1]); }))),
+            el("div", { class: "fld" }, el("label", null, "Rate (\u20b9)"),
+              el("input", { type: "number", step: "0.01", value: f.rateRupees, oninput: b("rateRupees") }))),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Academic year"),
+              el("input", { value: f.academicYear, oninput: b("academicYear") })),
+            el("div", { class: "fld" }, el("label", null, "Notes"),
+              el("input", { value: f.notes, oninput: b("notes") }))),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Starts"),
+              el("input", { type: "date", value: f.startsOn, oninput: b("startsOn") })),
+            el("div", { class: "fld" }, el("label", null, "Ends"),
+              el("input", { type: "date", value: f.endsOn, oninput: b("endsOn") }))),
+          el("p", { class: "hint" },
+            "Rates are stored in paise, so nothing here is ever a rounding error. A free contract is a real option and invoices nothing.")),
+        el("div", { class: "card-f" }, el("div", { class: "row" },
+          el("button", { class: "pri", disabled: S.busy, onclick: saveContract }, "Save contract"),
+          el("button", { onclick: function () { set({ form: null }); } }, "Cancel"))));
+    }
+
+    return el("div", null,
+      el("div", { class: "msg info" },
+        "Invoices are built from children whose results were actually released \u2014 never from a headcount. There is no payment gateway here: mark an invoice paid when the money arrives."),
+      el("div", { class: "card" },
+        el("div", { class: "card-h" },
+          el("div", { style: "flex:1" }, el("h2", null, "Contract")),
+          c ? el("span", { class: "pill info" }, c.shape.replace(/_/g, " ").toLowerCase()) : null),
+        el("div", { class: "card-b" },
+          c
+            ? el("dl", { class: "kv", style: "margin:0" },
+                el("dt", null, "Shape"), el("dd", null, c.shape.replace(/_/g, " ").toLowerCase()),
+                el("dt", null, "Rate"), el("dd", null, c.shape === "FREE" ? "\u2014" : "\u20b9 " + c.rateRupees),
+                el("dt", null, "Year"), el("dd", null, c.academicYear || "\u2014"),
+                el("dt", null, "Period"), el("dd", null, (c.startsOn || "\u2014") + " to " + (c.endsOn || "\u2014")),
+                el("dt", null, "Notes"), el("dd", null, c.notes || "\u2014"))
+            : el("p", { class: "muted", style: "font-size:13.5px;margin:0" },
+                "No contract yet. Nothing can be invoiced until VitaHero operations sets one.")),
+        isOps() ? el("div", { class: "card-f" }, el("div", { class: "row" },
+          el("button", { onclick: function () {
+            set({ form: { contract: true, shape: c ? c.shape : "PER_STUDENT_YEAR",
+              rateRupees: c ? c.rateRupees : "", academicYear: c ? c.academicYear : (S.school.academicYear || ""),
+              startsOn: c ? c.startsOn : "", endsOn: c ? c.endsOn : "", notes: c ? c.notes : "" } }); } },
+            c ? "Change contract" : "Set a contract"),
+          c && c.shape !== "FREE"
+            ? el("button", { class: "pri", disabled: S.busy, onclick: raise }, "Raise an invoice")
+            : null)) : null),
+      el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, "Invoices")),
+        !invs
+          ? el("div", { class: "empty" }, "Loading\u2026")
+          : invs.length === 0
+            ? el("div", { class: "empty" }, el("p", { style: "font-size:13.5px;margin:0" }, "None raised."))
+            : el("table", null,
+                el("thead", null, el("tr", null, el("th", null, "Number"), el("th", null, "Year"),
+                  el("th", { class: "num" }, "Amount"), el("th", null, "Status"), el("th", null, ""))),
+                el("tbody", null, invs.map(function (iv) {
+                  return el("tr", null,
+                    el("td", { class: "mono" }, iv.number),
+                    el("td", null, iv.academicYear || "\u2014"),
+                    el("td", { class: "num" }, "\u20b9 " + iv.amountRupees),
+                    el("td", null, statusPill(iv.status)),
+                    el("td", { style: "text-align:right" }, isOps()
+                      ? el("div", { class: "row" },
+                          iv.status === "DRAFT" ? el("button", { class: "sm", onclick: function () { mark(iv, "SENT"); } }, "Mark sent") : null,
+                          iv.status === "SENT" ? el("button", { class: "sm pri", onclick: function () { mark(iv, "PAID"); } }, "Mark paid") : null,
+                          iv.status !== "PAID" ? el("button", { class: "sm dang", onclick: function () { mark(iv, "VOID"); } }, "Void") : null)
+                      : null));
+                })))));
+  }
+
   // ══════════════════════════════════════ camps list
   function tabCamps() {
     if (S.form && S.form.newCamp) return newCampForm();
@@ -1587,6 +1812,7 @@ export const PORTAL_HTML = `<!doctype html>
             c.participants
               ? c.participants + " children are on this camp. Rebuild after changing classes or uploading a new roster."
               : "This pulls every child in the selected classes onto the camp. Nothing can happen until you do this."))),
+      photosCard(c),
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "Team on this camp")),
         staff.length === 0
           ? el("div", { class: "empty" },
@@ -1601,6 +1827,38 @@ export const PORTAL_HTML = `<!doctype html>
                     function () { refreshCamp(); }); } }, "Remove")));
             }))),
         el("div", { class: "card-f" }, assignStaffRow(c))));
+  }
+
+  // Photography is a second consent, not a setting. The copy says so, because
+  // whoever flips this switch is the person who has to ask guardians again.
+  function photosCard(c) {
+    function toggle(on) {
+      if (on && !confirm("Turn photographs on for this camp?\\n\\nEvery guardian must be asked separately before any photo can be taken. Consent to the check-up is not consent to a camera.")) return;
+      run(api("/api/admin/camps/" + c.id + "/photos-enabled", { method: "POST", body: { enabled: on } }),
+        function () {
+          S.notice = on
+            ? "Photographs are on. Guardians will now be asked the photography question as well."
+            : "Photographs are off for this camp.";
+          refreshCamp();
+        });
+    }
+    return el("div", { class: "card" },
+      el("div", { class: "card-h" },
+        el("div", { style: "flex:1" }, el("h2", null, "Photographs")),
+        el("span", { class: "pill " + (c.photosEnabled ? "warn" : "") }, c.photosEnabled ? "On" : "Off")),
+      el("div", { class: "card-b" },
+        el("p", { class: "muted", style: "font-size:13px;margin:0 0 10px" },
+          c.photosEnabled
+            ? "A screener can attach a photograph to a finding, but only for a child whose guardian said yes to photographs specifically. Every photograph opened is recorded against the person who opened it."
+            : "Off, which is right for almost every camp. Turn this on only where a picture changes a clinical decision \\u2014 a skin lesion, a squint, a caries pattern."),
+        el("div", { class: "row" },
+          el("button", { class: c.photosEnabled ? "dang" : "", disabled: S.busy,
+            onclick: function () { toggle(!c.photosEnabled); } },
+            c.photosEnabled ? "Turn photographs off" : "Turn photographs on"),
+          el("span", { class: "muted", style: "font-size:12.5px" },
+            c.photosEnabled
+              ? "Cannot be switched off once photographs exist \\u2014 delete them first."
+              : "Guardians are not shown the photography question while this is off.")))); 
   }
 
   function assignStaffRow(c) {
@@ -1624,18 +1882,25 @@ export const PORTAL_HTML = `<!doctype html>
   function campConsent() {
     if (!S.participants) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var c = S.camp.camp;
-    function paper(kid, decision) {
+    function paper(kid, decision, photos) {
       run(api("/api/admin/camps/" + c.id + "/consent/record", { method: "POST",
-        body: { kidId: kid.kidId, decision: decision, source: "PAPER", note: "Recorded in the console" } }),
+        body: { kidId: kid.kidId, decision: decision, source: "PAPER",
+                consentPhotos: photos === true, note: "Recorded in the console" } }),
         function () { S.participants = null; S.notice = "Recorded for " + kid.name + "."; refreshCamp("consent"); });
     }
     var pend = S.participants.filter(function (p) { return p.consentStatus === "PENDING"; });
     return el("div", null,
       el("div", { class: "msg info" },
         "Consent is per camp and per child. A child cannot be screened without it \\u2014 that rule is enforced by the server, not by this screen."),
+      c.photosEnabled
+        ? el("div", { class: "msg warn" },
+            "Photographs are on for this camp, so the paper form has two questions. Tick photographs only where the guardian ticked it themselves \\u2014 agreeing to a check-up is not agreeing to a camera.")
+        : null,
       el("div", { class: "tw" }, el("table", null,
         el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"), el("th", null, "Guardian"),
-          el("th", null, "Mobile"), el("th", null, "Consent"), el("th", null, "Record a paper form"))),
+          el("th", null, "Mobile"), el("th", null, "Consent"),
+          c.photosEnabled ? el("th", null, "Photographs") : null,
+          el("th", null, "Record a paper form"))),
         el("tbody", null, S.participants.map(function (p) {
           return el("tr", null,
             el("td", null, el("b", null, p.name)),
@@ -1643,9 +1908,19 @@ export const PORTAL_HTML = `<!doctype html>
             el("td", null, p.guardianName || el("span", { class: "muted" }, "\\u2014")),
             el("td", { class: "mono" }, p.guardianPhone),
             el("td", null, statusPill(p.consentStatus)),
+            c.photosEnabled
+              ? el("td", null, p.consentStatus === "PENDING"
+                  ? el("span", { class: "muted" }, "\\u2014")
+                  : el("span", { class: "pill " + (p.consentPhotos ? "warn" : "") },
+                      p.consentPhotos ? "Allowed" : "Not allowed"))
+              : null,
             el("td", null, p.consentStatus === "PENDING"
               ? el("div", { class: "row" },
-                  el("button", { class: "sm", onclick: function () { paper(p, "PAPER"); } }, "Granted on paper"),
+                  el("button", { class: "sm", onclick: function () { paper(p, "PAPER", false); } },
+                    c.photosEnabled ? "Check-up only" : "Granted on paper"),
+                  c.photosEnabled
+                    ? el("button", { class: "sm", onclick: function () { paper(p, "PAPER", true); } }, "Check-up + photographs")
+                    : null,
                   el("button", { class: "sm dang", onclick: function () { paper(p, "DECLINED"); } }, "Declined"))
               : el("span", { class: "muted", style: "font-size:12.5px" }, "Answered")));
         })))),
@@ -1746,6 +2021,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   function openScreening(kidId) {
     S.screenKid = kidId; S.screenForm = null; S.error = ""; S.saved = null;
+    S.photos = null; S.photosKid = null; S.photoOpen = null;
 
     // Offline, build the same shape from the downloaded pack plus anything
     // already queued on this device, so the form looks identical either way.
@@ -1864,9 +2140,93 @@ export const PORTAL_HTML = `<!doctype html>
 
       blocked ? null : el("div", null,
         (d.checks || []).map(function (ct) { return checkBlock(ct, form); }),
+        photoBlock(d, ch),
         el("div", { class: "row" },
           el("button", { class: "pri big", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save check-up"),
           el("button", { onclick: function () { set({ screenKid: null, screenData: null, saved: null }); } }, "Done"))));
+  }
+
+  /**
+   * Photographs, shown only where both switches are on. Offline it is not
+   * offered at all: the queue carries measurements, and a photo taken with no
+   * way to check consent on the server is a photo that should not be taken.
+   */
+  function photoBlock(d, ch) {
+    if (!d.photosEnabled) return null;
+    if (!d.consentPhotos) {
+      return el("div", { class: "msg info" },
+        "This guardian agreed to the check-up but not to photographs. No camera for this child.");
+    }
+    if (isOffline()) {
+      return el("div", { class: "msg warn" },
+        "Photographs need a connection, because consent is checked on the server. Record the measurements now and add the photograph when you are back online.");
+    }
+    if (S.photos === null || S.photos === undefined || S.photosKid !== ch.kidId) {
+      S.photosKid = ch.kidId;
+      S.photos = [];
+      api("/api/admin/camps/" + S.camp.camp.id + "/photos/" + encodeURIComponent(ch.kidId))
+        .then(function (r) { S.photos = r.photos; render(); }).catch(function () {});
+    }
+
+    var sel, cap, file;
+    function upload() {
+      var f = file.files && file.files[0];
+      if (!f) { set({ error: "Choose a photograph first." }); return; }
+      if (f.size > 220 * 1024) {
+        set({ error: "That photograph is " + Math.round(f.size / 1024) + " KB. The limit is 220 KB \\u2014 use your camera's smallest setting." });
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function () {
+        run(api("/api/admin/camps/" + S.camp.camp.id + "/photos/" + encodeURIComponent(ch.kidId),
+          { method: "POST", body: { checkType: sel.value, mime: f.type, caption: cap.value, data: String(reader.result) } }),
+          function () { S.notice = "Photograph attached."; S.photos = null; S.photosKid = null; render(); });
+      };
+      reader.readAsDataURL(f);
+    }
+    function open(id) {
+      run(api("/api/admin/photo/" + encodeURIComponent(id)), function (r) {
+        S.photoOpen = r; render();
+      });
+    }
+    function remove(id) {
+      if (!confirm("Delete this photograph? This cannot be undone.")) return;
+      run(api("/api/admin/photo/" + encodeURIComponent(id), { method: "DELETE" }), function () {
+        S.notice = "Photograph deleted."; S.photos = null; S.photosKid = null; S.photoOpen = null; render();
+      });
+    }
+
+    return el("div", { class: "card" },
+      el("div", { class: "card-h" },
+        el("div", { style: "flex:1" }, el("h2", null, "Photographs")),
+        el("span", { class: "pill warn" }, "Consented")),
+      el("div", { class: "card-b" },
+        el("p", { class: "muted", style: "font-size:13px;margin:0 0 10px" },
+          "Only where a picture changes the decision. Four per child, 220 KB each. The guardian and this camp's clinical team can see them; the school office cannot. Every time one is opened, it is recorded."),
+        (S.photos || []).length
+          ? el("table", null, el("tbody", null, (S.photos || []).map(function (ph) {
+              return el("tr", null,
+                el("td", null, el("b", null, ph.checkType),
+                  ph.caption ? el("div", { class: "muted", style: "font-size:12.5px" }, ph.caption) : null),
+                el("td", { class: "muted", style: "font-size:12px" }, Math.round(ph.bytes / 1024) + " KB \\u00b7 " + (ph.uploadedBy || "")),
+                el("td", { style: "text-align:right" }, el("div", { class: "row" },
+                  el("button", { class: "sm", onclick: function () { open(ph.id); } }, "View"),
+                  el("button", { class: "sm dang", onclick: function () { remove(ph.id); } }, "Delete"))));
+            })))
+          : el("p", { class: "muted", style: "font-size:13px;margin:0" }, "None attached."),
+        S.photoOpen
+          ? el("div", { style: "margin-top:12px" },
+              el("img", { src: "data:" + S.photoOpen.mime + ";base64," + S.photoOpen.base64,
+                style: "max-width:320px;border-radius:10px;border:1px solid var(--line)" }),
+              el("div", null, el("button", { class: "sm", onclick: function () { set({ photoOpen: null }); } }, "Close")))
+          : null),
+      el("div", { class: "card-f" },
+        el("div", { class: "row" },
+          sel = el("select", { style: "max-width:180px" }, (d.checks || []).map(function (ct) {
+            return el("option", { value: ct }, ct); })),
+          file = el("input", { type: "file", accept: "image/jpeg,image/png,image/webp", capture: "environment" }),
+          cap = el("input", { type: "text", placeholder: "What this shows", style: "max-width:220px" }),
+          el("button", { disabled: S.busy, onclick: upload }, "Attach"))));
   }
 
   function checkBlock(ct, form) {
@@ -2058,6 +2418,104 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   // ══════════════════════════════════════ chrome
+  // ══════════════════════════════════════ the reading library
+  //
+  // Articles are matched to a child's own released findings, so what a family
+  // is offered is about their child rather than health advice in general. That
+  // makes the tags the important field on this screen, not the prose.
+  function loadLibrary() {
+    run(api("/api/admin/library"), function (d) { S.library = d; S.view = "library"; S.libForm = null; });
+  }
+
+  function viewLibrary() {
+    if (!S.library) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    var lib = S.library;
+
+    function edit(a) {
+      set({ libForm: a
+        ? { slug: a.slug, locale: a.locale, title: a.title, summary: a.summary, body: a.body,
+            checkTypes: (a.checkTypes || []).slice(), flags: (a.flags || []).slice(),
+            minAge: a.minAge, maxAge: a.maxAge, published: a.published }
+        : { slug: "", locale: "en", title: "", summary: "", body: "",
+            checkTypes: [], flags: [], minAge: 0, maxAge: 99, published: true } });
+    }
+    function save() {
+      run(api("/api/admin/library", { method: "POST", body: S.libForm }), function () {
+        S.notice = "Saved."; S.libForm = null; loadLibrary();
+      });
+    }
+    function del(a) {
+      if (!confirm("Delete " + a.slug + " (" + a.locale + ")?")) return;
+      run(api("/api/admin/library/" + encodeURIComponent(a.slug) + "/" + encodeURIComponent(a.locale),
+        { method: "DELETE" }), function () { S.notice = "Deleted."; loadLibrary(); });
+    }
+
+    if (S.libForm) {
+      var f = S.libForm;
+      function b(k) { return function (e) { f[k] = e.target.value; }; }
+      function tog(list, v) { var i = list.indexOf(v); if (i >= 0) list.splice(i, 1); else list.push(v); render(); }
+      return el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, f.slug ? "Edit article" : "New article")),
+        el("div", { class: "card-b" },
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Slug"),
+              el("input", { value: f.slug, oninput: b("slug"), placeholder: "iron-rich-foods" })),
+            el("div", { class: "fld" }, el("label", null, "Language"),
+              el("select", { onchange: b("locale") }, (lib.locales || ["en"]).map(function (l) {
+                return el("option", { value: l, selected: f.locale === l }, l); })))),
+          el("div", { class: "fld" }, el("label", null, "Title"),
+            el("input", { value: f.title, oninput: b("title") })),
+          el("div", { class: "fld" }, el("label", null, "One-line summary"),
+            el("input", { value: f.summary, oninput: b("summary") })),
+          el("div", { class: "fld" }, el("label", null, "Body"),
+            el("textarea", { rows: 10, value: f.body, oninput: b("body") })),
+          el("div", { class: "fld" },
+            el("label", null, "Shown to families whose child has one of these checks flagged"),
+            el("div", { class: "chips" }, (lib.checkTypes || []).map(function (ct) {
+              return el("button", { class: "chip" + (f.checkTypes.indexOf(ct) >= 0 ? " on" : ""),
+                onclick: function () { tog(f.checkTypes, ct); } }, ct); }))),
+          el("div", { class: "fld" }, el("label", null, "At these flags"),
+            el("div", { class: "chips" }, ["WATCH", "ALERT"].map(function (fl) {
+              return el("button", { class: "chip" + (f.flags.indexOf(fl) >= 0 ? " on" : ""),
+                onclick: function () { tog(f.flags, fl); } }, fl); }))),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Youngest age"),
+              el("input", { type: "number", value: f.minAge, oninput: b("minAge") })),
+            el("div", { class: "fld" }, el("label", null, "Oldest age"),
+              el("input", { type: "number", value: f.maxAge, oninput: b("maxAge") }))),
+          el("p", { class: "hint" },
+            "Leave the checks empty to put an article on the general shelf, shown to every family. Tagged articles appear only for a child who actually has that finding, at that age.")),
+        el("div", { class: "card-f" }, el("div", { class: "row" },
+          el("button", { class: "pri", disabled: S.busy, onclick: save }, "Save article"),
+          el("button", { onclick: function () { set({ libForm: null }); } }, "Cancel"))));
+    }
+
+    return el("div", null,
+      el("div", { class: "msg info" },
+        "This is what families read after a camp. Write plainly, in the second person, and never write anything that reads like a diagnosis \u2014 the physician's recommendation does that job."),
+      el("div", { class: "row", style: "margin-bottom:14px" },
+        el("div", { style: "flex:1" }),
+        el("button", { class: "pri", onclick: function () { edit(null); } }, "New article")),
+      el("div", { class: "tw" }, el("table", null,
+        el("thead", null, el("tr", null, el("th", null, "Article"), el("th", null, "Language"),
+          el("th", null, "Shown for"), el("th", null, "Ages"), el("th", null, "Status"), el("th", null, ""))),
+        el("tbody", null, lib.articles.map(function (a) {
+          return el("tr", null,
+            el("td", null, el("b", null, a.title),
+              el("div", { class: "muted mono", style: "font-size:12px" }, a.slug)),
+            el("td", null, a.locale),
+            el("td", { class: "muted", style: "font-size:12.5px" },
+              (a.checkTypes || []).length
+                ? (a.checkTypes.join(", ") + ((a.flags || []).length ? " \u00b7 " + a.flags.join("/") : ""))
+                : "Everyone"),
+            el("td", { class: "muted" }, a.minAge + "\u2013" + a.maxAge),
+            el("td", null, el("span", { class: "pill " + (a.published ? "ok" : "") }, a.published ? "Published" : "Draft")),
+            el("td", { style: "text-align:right" }, el("div", { class: "row" },
+              el("button", { class: "sm", onclick: function () { edit(a); } }, "Edit"),
+              el("button", { class: "sm dang", onclick: function () { del(a); } }, "Delete"))));
+        })))));
+  }
+
   function navItem(icon, label, view, onclick) {
     return el("button", { class: "navi" + (S.view === view ? " on" : ""), onclick: onclick },
       el("span", { class: "ic" }, icon), label);
@@ -2073,6 +2531,7 @@ export const PORTAL_HTML = `<!doctype html>
           if (isSchoolAdmin() && S.school) openSchool(S.school.id); else loadSchools();
         }) : null,
         isClinical() ? navItem("\\u2695", "My camps", "mycamps", loadMyCamps) : null,
+        isOps() ? navItem("\\u2637", "Library", "library", loadLibrary) : null,
         S.camp ? navItem("\\u2691", "Current camp", "camp", function () { set({ view: "camp" }); }) : null),
       el("div", { class: "navfoot" },
         el("b", null, S.auth.name),
@@ -2104,6 +2563,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.view === "school" && S.school) return S.school.name;
     if (S.view === "camp" && S.camp) return S.camp.camp.title;
     if (S.view === "mycamps") return "My camps";
+    if (S.view === "library") return "Reading for families";
     return "VitaHero";
   }
 
@@ -2117,6 +2577,7 @@ export const PORTAL_HTML = `<!doctype html>
     else if (S.view === "school" && S.school) body = viewSchool();
     else if (S.view === "camp" && S.camp) body = viewCamp();
     else if (S.view === "mycamps") body = viewMyCamps();
+    else if (S.view === "library") body = viewLibrary();
     else if (S.view === "schools") body = viewSchools();
     else body = viewOverview();
 

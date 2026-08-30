@@ -467,7 +467,9 @@ export async function billingSummary(sql: Sql, actor: Actor) {
     SELECT COALESCE(plan,'FREE') AS plan, COUNT(*)::int AS n
     FROM vita_hero.profiles WHERE role = 'PARENT' GROUP BY plan
   `;
-  const i = inv[0] as Record<string, unknown>;
+  // An aggregate always returns a row against Postgres, but a caller that
+  // hands us an empty result should get zeros rather than a 500.
+  const i = (inv[0] || {}) as Record<string, unknown>;
   return {
     invoices: {
       total: (i.total as number) || 0,

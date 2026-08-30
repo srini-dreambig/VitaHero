@@ -534,3 +534,117 @@ describe("routing", () => {
     expect((await r.json()).role).toBe("ADMIN");
   });
 });
+
+// ── the four late surfaces ──
+//
+// The failure these guard against is not a logic bug: it is a module that
+// exists, typechecks and is tested, and that nothing routes to. Each case
+// below asks only "does a request reach this code", plus the authorisation
+// gate in front of it.
+describe("photographs, questions, library and billing", () => {
+  const parentBearer = { Authorization: "Bearer " + "t".repeat(40), "Content-Type": "application/json" };
+  const parentSession = {
+    match: /session_token/,
+    rows: [{ id: "ph_9876543210", user_id: "ph_9876543210", name: "Priya", role: "PARENT", school_id: null }],
+  };
+
+  test("every staff surface refuses an anonymous caller", async () => {
+    for (const path of [
+      "/api/admin/photo/ph_1",
+      "/api/admin/questions",
+      "/api/admin/questions/qt_1",
+      "/api/admin/library",
+      "/api/admin/billing",
+      "/api/admin/billing/contract",
+      "/api/admin/billing/invoices",
+      "/api/admin/billing/invoice/inv_1",
+    ]) {
+      const r = await call(path);
+      expect(r.status).toBe(401);
+      expect((await r.json()).code).toBe("ADMIN_REQUIRED");
+    }
+  });
+
+  test("every guardian surface refuses an anonymous caller", async () => {
+    for (const path of [
+      "/api/me/photos?kid_id=k1",
+      "/api/me/photo/ph_1",
+      "/api/me/questions",
+      "/api/me/question-policy",
+      "/api/me/entitlements",
+      "/api/library",
+      "/api/library/iron-rich-foods",
+    ]) {
+      expect((await call(path)).status).toBe(401);
+    }
+  });
+
+  test("the ops key reaches the library, the question queue and billing", async () => {
+    expect((await call("/api/admin/library", { headers: opsHeaders })).status).toBe(200);
+    expect((await call("/api/admin/billing", { headers: opsHeaders })).status).toBe(200);
+    expect((await call("/api/admin/questions?school_id=sch_oak", { headers: opsHeaders })).status).toBe(200);
+  });
+
+  test("a signed-in guardian reaches their own entitlements, and care is not gated", async () => {
+    handlers = [parentSession];
+    const r = await call("/api/me/entitlements", { headers: parentBearer });
+    expect(r.status).toBe(200);
+    const d = await r.json();
+    expect(d.plan).toBe("FREE");
+    for (const key of Object.keys(d.care)) expect(d.care[key]).toBe(true);
+  });
+
+  test("a guardian reaches the question policy, and it warns about urgency", async () => {
+    handlers = [parentSession];
+    const r = await call("/api/me/question-policy", { headers: parentBearer });
+    expect(r.status).toBe(200);
+    expect((await r.json()).notice).toMatch(/not monitored around the clock/i);
+  });
+
+  test("a question without the urgency acknowledgement is refused at the route", async () => {
+    handlers = [parentSession];
+    const r = await call("/api/me/questions", {
+      method: "POST", headers: parentBearer, body: JSON.stringify({ body: "Is this normal?" }),
+    });
+    expect(r.status).toBe(400);
+    expect((await r.json()).code).toBe("URGENCY_ACK_REQUIRED");
+  });
+
+  test("photo consent travels through the guardian consent route", async () => {
+    handlers = [
+      parentSession,
+      { match: /SELECT profile_id, status FROM vita_hero\.camp_participants/,
+        rows: [{ profile_id: "ph_9876543210", status: "NOT_SCREENED" }] },
+    ];
+    const r = await call("/api/camps/consent", {
+      method: "POST", headers: parentBearer,
+      body: JSON.stringify({ campId: "cmp_1", kidId: "k1", decision: "GRANTED", consentPhotos: true }),
+    });
+    expect(r.status).toBe(200);
+    expect((await r.json()).consentPhotos).toBe(true);
+    const update = calls.find((c) => /UPDATE vita_hero\.camp_participants/.test(c.text));
+    expect(update).toBeTruthy();
+    expect(update!.params).toContain(true);
+  });
+
+  test("declining clears photo consent even when the client asks for it", async () => {
+    handlers = [
+      parentSession,
+      { match: /SELECT profile_id, status FROM vita_hero\.camp_participants/,
+        rows: [{ profile_id: "ph_9876543210", status: "NOT_SCREENED" }] },
+    ];
+    const r = await call("/api/camps/consent", {
+      method: "POST", headers: parentBearer,
+      body: JSON.stringify({ campId: "cmp_1", kidId: "k1", decision: "DECLINED", consentPhotos: true }),
+    });
+    expect((await r.json()).consentPhotos).toBe(false);
+  });
+
+  test("an unknown sub-resource in this block is a 404, not a 500", async () => {
+    expect((await call("/api/admin/billing/nonsense", { headers: opsHeaders })).status).toBe(404);
+  });
+
+  test("a wrong method on the library is a 405", async () => {
+    expect((await call("/api/admin/library", { method: "PATCH", headers: opsHeaders })).status).toBe(405);
+  });
+});

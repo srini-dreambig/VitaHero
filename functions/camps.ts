@@ -214,6 +214,7 @@ function mapCamp(r: Record<string, unknown>) {
     academicYear: (r.academic_year as string) || "",
     capacity: (r.capacity as number) || 0,
     consentDeadline: (r.consent_deadline as string) || "",
+    photosEnabled: r.photos_enabled === true,
     releasedAt: r.released_at ? String(r.released_at) : "",
     resultSummary: (r.result_summary as string) || "",
     participants: typeof r.participant_count === "number" ? r.participant_count : undefined,
@@ -563,6 +564,7 @@ export async function listParticipants(
   `;
   return {
     can: { schedule: access.canSchedule, screen: access.canScreen, review: access.canReview },
+    photosEnabled: access.camp.photos_enabled === true,
     participants: rows.map((r) => ({
       kidId: r.kid_id as string,
       name: r.name as string,
@@ -575,6 +577,7 @@ export async function listParticipants(
       guardianName: (r.guardian_name as string) || "",
       guardianPhone: (r.guardian_phone as string) || "",
       consentStatus: (r.consent_status as string) || "PENDING",
+      consentPhotos: r.consent_photos === true,
       attendance: (r.attendance as string) || "UNKNOWN",
       status: (r.status as string) || "NOT_SCREENED",
       urgency: (r.urgency as string) || "NONE",
@@ -758,6 +761,10 @@ export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, k
       previousWeightKg: (p.prev_weight as number) || null,
     },
     consentStatus: (p.consent_status as string) || "PENDING",
+    // Both must be true before the console offers a camera at all, and the
+    // server checks them again on upload.
+    photosEnabled: access.camp.photos_enabled === true,
+    consentPhotos: p.consent_photos === true,
     attendance: (p.attendance as string) || "UNKNOWN",
     status: (p.status as string) || "NOT_SCREENED",
     checks: allowed,
