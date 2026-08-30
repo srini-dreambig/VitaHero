@@ -61,7 +61,12 @@ data class CampDto(
     val school: String,
     val date: String,
     val time: String,
-    val status: String = "UPCOMING",
+    // The server's camp lifecycle has no UPCOMING; a camp starts at DRAFT and
+    // is SCHEDULED once it has a date. Defaulting to a status the server never
+    // sends meant a malformed payload rendered as a scheduled camp.
+    val status: String = "DRAFT",
+    val venue: String = "",
+    @SerialName("consent_deadline") val consentDeadline: String = "",
     val checks: List<String> = emptyList(),
     @SerialName("result_summary") val resultSummary: String? = null,
     @SerialName("is_partner") val isPartner: Boolean = false,

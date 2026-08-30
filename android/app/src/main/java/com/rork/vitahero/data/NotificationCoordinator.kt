@@ -16,7 +16,7 @@ object NotificationCoordinator {
         val locale = ui.locale
         if (ui.notificationsEnabled) {
             if (ui.campRemindersEnabled) {
-                ui.camps.filter { it.status == CampStatus.UPCOMING }.forEach { camp ->
+                ui.camps.filter { it.status.isUpcoming }.forEach { camp ->
                     NotificationScheduler.scheduleCampReminder(
                         app, camp.title, camp.date, camp.time, locale,
                     )
@@ -36,7 +36,7 @@ object NotificationCoordinator {
 
     fun cancelAll(app: Application, ui: AppUiState) {
         val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        ui.camps.filter { it.status == CampStatus.UPCOMING }.forEach { camp ->
+        ui.camps.filter { it.status.isUpcoming }.forEach { camp ->
             cancelAlarm(app, alarmManager, camp.title.hashCode())
         }
         ui.appointments.forEach { appt ->
@@ -47,7 +47,7 @@ object NotificationCoordinator {
 
     fun cancelCampReminders(app: Application, ui: AppUiState) {
         val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        ui.camps.filter { it.status == CampStatus.UPCOMING }.forEach { camp ->
+        ui.camps.filter { it.status.isUpcoming }.forEach { camp ->
             cancelAlarm(app, alarmManager, camp.title.hashCode())
         }
     }

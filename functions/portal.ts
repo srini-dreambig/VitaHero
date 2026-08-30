@@ -2840,6 +2840,7 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     render();
+    S.symptoms = null;
     run(api("/api/admin/camps/" + S.camp.camp.id + "/screening/" + encodeURIComponent(kidId)), function (d) {
       S.screenData = d;
       var form = {};
@@ -2849,6 +2850,46 @@ export const PORTAL_HTML = `<!doctype html>
       });
       S.screenForm = form;
     });
+    // What the family reported since the last camp. Loaded alongside rather
+    // than blocking the form: a clinician should never wait on history to
+    // start examining the child in front of them. School administrators are
+    // refused this by the API, so a failure here is quietly nothing.
+    api("/api/admin/camps/" + S.camp.camp.id + "/symptoms/" + encodeURIComponent(kidId))
+      .then(function (h) { S.symptoms = h; }, function () { S.symptoms = null; })
+      .then(render);
+  }
+
+  /**
+   * The family's own account of everyday illness, shown while screening.
+   *
+   * Three fevers since June changes what a clinician looks for, and the parent
+   * already typed it into the app. It was reaching the database and no screen
+   * ever asked for it. Labelled as reported, never as a finding: nobody
+   * examined this child when it was written down.
+   */
+  function symptomHistoryCard() {
+    var h = S.symptoms;
+    if (!h || !h.events || h.events.length === 0) return null;
+    var sevLabel = { MILD: "Mild", MODERATE: "Moderate" };
+    return el("div", { class: "card", style: "margin-bottom:14px" },
+      el("div", { class: "card-h" },
+        el("h2", null, "What the family reported"),
+        el("span", { class: "pill warn" }, "Not examined")),
+      el("div", { class: "card-b" },
+        el("p", { class: "muted", style: "font-size:12.5px;margin-top:0" }, h.caution),
+        el("div", { class: "tws" }, el("table", null,
+          el("thead", null, el("tr", null,
+            el("th", null, "What"), el("th", null, "When"), el("th", null, "How bad"),
+            el("th", null, "Saw a doctor"), el("th", null, "Note"))),
+          el("tbody", null, h.events.map(function (e) {
+            return el("tr", null,
+              el("td", null, el("b", null, e.symptom)),
+              el("td", { class: "muted" }, fmtDate(e.startedOn)
+                + (e.endedOn && e.endedOn !== e.startedOn ? " \u2013 " + fmtDate(e.endedOn) : "")),
+              el("td", null, sevLabel[e.severity] || e.severity),
+              el("td", null, e.sawDoctor ? "Yes" : el("span", { class: "muted" }, "No")),
+              el("td", { class: "muted" }, e.note || ""));
+          }))))));
   }
 
   function screeningPanel() {
@@ -2905,6 +2946,10 @@ export const PORTAL_HTML = `<!doctype html>
             el("button", { class: "sm" + (d.attendance === "PRESENT" ? " pri" : ""), onclick: function () { mark("PRESENT"); } }, "Present"),
             el("button", { class: "sm" + (d.attendance === "ABSENT" ? " pri" : ""), onclick: function () { mark("ABSENT"); } }, "Absent"),
             el("button", { class: "sm" + (d.attendance === "REFUSED" ? " pri" : ""), onclick: function () { mark("REFUSED"); } }, "Refused")))),
+
+      // Before the checks, not after: what the family reported is context for
+      // the examination, not a footnote to it.
+      symptomHistoryCard(),
 
       blocked
         ? el("div", { class: "msg warn" },

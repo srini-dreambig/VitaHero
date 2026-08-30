@@ -59,7 +59,7 @@ fun CampDetailScreen(
     onOpenResult: (campId: String, kidId: String) -> Unit = { _, _ -> },
 ) {
     var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
-    val upcoming = camp.status == CampStatus.UPCOMING
+    val upcoming = camp.status.isUpcoming
     val accent = if (upcoming) HeroBlue else HeroOrange
     val registered = camp.registeredKidIds
 

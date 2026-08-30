@@ -3154,7 +3154,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
               SELECT sc.*, s.name AS school_name, s.city AS school_city
               FROM vita_hero.school_camps sc
               JOIN vita_hero.schools s ON s.id = sc.school_id
+              -- A camp the school is still drafting, or has cancelled, is not
+              -- something a parent should be shown.
               WHERE sc.school_id = ${sid} AND sc.active = true
+                AND sc.status NOT IN ('DRAFT', 'CANCELLED')
               ORDER BY sc.date
             `;
             partner.push(...(partnerRows as Record<string, unknown>[]));
@@ -3178,6 +3181,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             school: sc.school_name,
             date: sc.date,
             time: sc.time,
+            // The console asks for a venue and a consent deadline on every
+            // camp; neither reached the app's camp list, so a parent was told
+            // a camp was happening but not where, and not by when to reply.
+            venue: sc.venue,
+            consent_deadline: sc.consent_deadline,
             status: sc.status,
             checks: sc.checks,
             result_summary: sc.result_summary,

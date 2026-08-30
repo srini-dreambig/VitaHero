@@ -735,3 +735,76 @@ describe("the console offers only what can actually be recorded", () => {
     }
   });
 });
+
+// The console and the app have to agree about camps.
+//
+// Three ways they did not, all of which typechecked and passed every test:
+// the app's CampStatus enum held UPCOMING and COMPLETED while the server's
+// lifecycle produces SCHEDULED / IN_PROGRESS / SCREENED / RELEASED, so
+// valueOf threw on every partner camp and fell back to UPCOMING — the "past
+// camps" list was permanently empty, a released camp still read as upcoming,
+// and reminders kept firing for camps that had already happened. The venue and
+// the consent deadline were asked for on every camp and sent to nobody. And a
+// camp the school was still drafting was shown to parents.
+describe("the app and the server agree about camps", () => {
+  const kotlin = async (rel: string) => {
+    const { readFileSync } = await import("node:fs");
+    return readFileSync("../android/app/src/main/java/com/rork/vitahero/" + rel, "utf8");
+  };
+
+  test("every status the server can send is a value the app can parse", async () => {
+    const { CAMP_STATUSES } = await import("./camps");
+    const src = await kotlin("data/Models.kt");
+    const body = src.slice(src.indexOf("enum class CampStatus"));
+    const members = body.slice(0, body.indexOf(";")).match(/\b[A-Z_]{3,}\b/g) || [];
+    for (const st of CAMP_STATUSES) {
+      // DRAFT is filtered out before a parent ever sees it; everything else
+      // must be nameable, or valueOf throws and the camp silently mis-renders.
+      if (st === "DRAFT") continue;
+      expect(members).toContain(st);
+    }
+  });
+
+  test("a released camp is past, not upcoming", async () => {
+    const src = await kotlin("data/Models.kt");
+    const up = src.slice(src.indexOf("val isUpcoming"), src.indexOf("val isPast"));
+    const past = src.slice(src.indexOf("val isPast"));
+    expect(past).toContain("RELEASED");
+    expect(past).toContain("SCREENED");
+    expect(up).not.toContain("RELEASED");
+  });
+
+  test("a camp still being drafted is not sent to a parent", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("index.ts", "utf8");
+    const at = src.indexOf('path === "/api/camps"');
+    const block = src.slice(at, at + 3000);
+    expect(block).toContain("NOT IN ('DRAFT', 'CANCELLED')");
+  });
+
+  test("the venue and the consent deadline reach the app", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("index.ts", "utf8");
+    const at = src.indexOf('path === "/api/camps"');
+    expect(src.slice(at, at + 3000)).toContain("venue: sc.venue");
+    const dto = await kotlin("data/Dtos.kt");
+    const camp = dto.slice(dto.indexOf("data class CampDto"));
+    expect(camp.slice(0, camp.indexOf("\n)"))).toContain("val venue");
+  });
+});
+
+// A clinician has to be able to see what the family reported.
+describe("the family's illness history reaches the person examining the child", () => {
+  test("the screening screen asks for it", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    // Built, routed and tested server-side, but for a while no screen called
+    // it: the parent logged three fevers and the doctor never saw them.
+    expect(PORTAL_HTML).toContain("/symptoms/");
+    expect(PORTAL_HTML).toContain("What the family reported");
+  });
+
+  test("it is labelled as reported, never as a finding", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    expect(PORTAL_HTML).toContain("Not examined");
+  });
+});

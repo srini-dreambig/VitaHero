@@ -76,7 +76,7 @@ fun HomeScreen(
     onOpenRewards: () -> Unit,
     onBookAppointment: () -> Unit
 ) {
-    val nextCamp = camps.firstOrNull { it.status == CampStatus.UPCOMING }
+    val nextCamp = camps.firstOrNull { it.status.isUpcoming }
 
     LazyColumn(
         modifier = Modifier

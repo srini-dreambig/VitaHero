@@ -63,8 +63,8 @@ fun CampsScreen(
     pendingConsents: Int = 0,
     onOpenConsent: () -> Unit = {},
 ) {
-    val upcoming = camps.filter { it.status == CampStatus.UPCOMING }
-    val past = camps.filter { it.status == CampStatus.COMPLETED }
+    val upcoming = camps.filter { it.status.isUpcoming }
+    val past = camps.filter { it.status.isPast }
 
     LazyColumn(
         modifier = Modifier
@@ -169,7 +169,7 @@ fun CampsScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit, onOpenCamp: (String) -> Unit) {
-    val upcoming = camp.status == CampStatus.UPCOMING
+    val upcoming = camp.status.isUpcoming
     val accent = if (upcoming) HeroBlue else HeroOrange
     HeroCard(
         Modifier
