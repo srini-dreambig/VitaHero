@@ -66,9 +66,12 @@ const suite = URL ? describe : describe.skip;
 
 let client: pg.Client;
 let sql: Sql;
-const noSms = async () => true;
+const noSms = async () => ({ ok: true, reason: "" });
 const smsLog: Array<{ to: string; body: string }> = [];
-const captureSms = async (to: string, body: string) => { smsLog.push({ to, body }); return true; };
+const captureSms = async (to: string, body: string) => {
+  smsLog.push({ to, body });
+  return { ok: true, reason: "" };
+};
 
 function neonShim(c: pg.Client): Sql {
   const q = (s: string) => '"' + s.replace(/"/g, '""') + '"';
@@ -661,7 +664,7 @@ suite("end to end", () => {
     const r = await reviewParticipant(sql, physician, camp2, q.queue[0].kidId, {
       recommendation: "Please see an eye doctor within a few days.",
       urgency: "URGENT",
-    }, async (to) => { sent.push(to); return true; });
+    }, async (to) => { sent.push(to); return { ok: true, reason: "" }; });
     expect(r.escalated).toBe(true);
     expect(sent.length).toBe(1);
 

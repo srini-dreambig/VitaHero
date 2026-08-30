@@ -97,7 +97,7 @@ const suite = URL ? describe : describe.skip;
 
 let client: pg.Client;
 let sql: Sql;
-const noSms = async () => true;
+const noSms = async () => ({ ok: true, reason: "" });
 
 function neonShim(c: pg.Client): Sql {
   const q = (s: string) => '"' + s.replace(/"/g, '""') + '"';

@@ -73,6 +73,7 @@ import {
   setCampStaffActive,
 } from "./camps";
 import { adminAnalytics } from "./analytics";
+import { makeSender, smsProvider } from "./messaging";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import {
   ensureReferralSchema,
@@ -180,7 +181,6 @@ import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
 const APP_ORIGIN = "https://kidhero.rork.app";
 const APP_CALLBACK_URL = "https://kidhero.rork.app/auth/callback";
-const TWILIO_API = "https://api.twilio.com/2010-04-01";
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
 
@@ -194,8 +194,16 @@ const IMPORT_MAX_ROWS = 2000;
 
 interface Env {
   DATABASE_URL: string;
-  TWILIO_ACCOUNT_SID: string;
-  TWILIO_AUTH_TOKEN: string;
+  // Which SMS gateway this deployment uses: "twilio" or "textbee". Inferred
+  // from whichever credentials are set when it is not named. See messaging.ts.
+  SMS_PROVIDER?: string;
+  TWILIO_ACCOUNT_SID?: string;
+  TWILIO_AUTH_TOKEN?: string;
+  /** A number the Twilio account owns, or a Messaging Service SID (MG…). */
+  TWILIO_FROM?: string;
+  TEXTBEE_API_KEY?: string;
+  TEXTBEE_DEVICE_ID?: string;
+  TEXTBEE_BASE_URL?: string;
   TOOLKIT_URL?: string;
   TOOLKIT_SECRET_KEY?: string;
   // Admin import portal auth (bootstrap key; role-based admins also supported).
@@ -1036,41 +1044,6 @@ async function authenticateSession(
   }
 }
 
-// ─── Twilio SMS ─────────────────────────────────────────────
-
-async function sendTwilioSms(
-  env: Env,
-  to: string,
-  body: string
-): Promise<boolean> {
-  const sid = env.TWILIO_ACCOUNT_SID;
-  const token = env.TWILIO_AUTH_TOKEN;
-  if (!sid || !token) {
-    console.error("Twilio credentials not configured");
-    return false;
-  }
-  try {
-    const resp = await fetch(
-      `${TWILIO_API}/Accounts/${sid}/Messages.json`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: "Basic " + btoa(`${sid}:${token}`),
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-        body: new URLSearchParams({
-          To: to,
-          From: "+12562828337", // Will be overridden by Twilio trial/project number
-          Body: body,
-        }),
-      }
-    );
-    return resp.ok;
-  } catch (e) {
-    console.error("Twilio send error:", e);
-    return false;
-  }
-}
 
 // ─── Closed-app helpers (provisioning, admin auth, invites) ──
 
@@ -1415,11 +1388,10 @@ async function sendInviteForPhone(
   }
   const token = await signInviteToken(last10, env);
   const link = token ? `${appOrigin}/i/${token}` : (env.APP_PLAY_URL || appOrigin);
-  const ok = await sendTwilioSms(
-    env,
+  const ok = (await makeSender(env)(
     e164,
     `VitaHero: your child's school health report is ready. Open the app and sign in with this mobile number: ${link}`
-  );
+  )).ok;
   await sql`
     INSERT INTO vita_hero.sms_log (id, phone, type, status)
     VALUES (${"sms_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)}, ${e164}, 'INVITE', ${ok ? "SENT" : "FAILED"})
@@ -1741,6 +1713,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
       // ── Admin: overview, my camps, camp operations ──
       if (path === "/api/admin/overview" || path === "/api/admin/analytics"
+          || path === "/api/admin/sms-status"
           || path === "/api/admin/partners" || path === "/api/admin/access-log"
           || path.startsWith("/api/admin/doctor-camps/")
           || path === "/api/admin/my-camps"
@@ -1754,7 +1727,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           try { return (await request.json()) as Record<string, unknown>; }
           catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
         };
-        const smsSender = (to: string, body: string) => sendTwilioSms(env, to, body);
+        const smsSender = makeSender(env);
 
         try {
           if (path === "/api/admin/overview" && method === "GET") {
@@ -1775,6 +1748,12 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
               actorId: url.searchParams.get("actor_id") || "",
               days: parseInt(url.searchParams.get("days") || "30", 10),
             }));
+          }
+          // Is this deployment able to send a text at all? Asked before
+          // anything is sent, so "0 of 2" is never the first time anyone
+          // learns the gateway is not configured.
+          if (path === "/api/admin/sms-status" && method === "GET") {
+            return json(smsProvider(env));
           }
           if (path === "/api/admin/analytics" && method === "GET") {
             return json(await adminAnalytics(sql, actor, {
@@ -2084,6 +2063,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           try { return (await request.json()) as Record<string, unknown>; }
           catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
         };
+        const smsSender = makeSender(env);
 
         try {
           if (path === "/api/admin/hospitals") {
@@ -2133,7 +2113,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             }
             return json(await inviteGuardians(
               sql, actor, String(b.schoolId || ""),
-              (to, body) => sendTwilioSms(env, to, body),
+              smsSender,
               (last10) => links.get(last10) || (env.APP_PLAY_URL || url.origin),
               {
                 onlyNotJoined: b.onlyNotJoined !== false,
@@ -2175,6 +2155,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             throw new ApiError(400, "Expected a JSON body", "BAD_JSON");
           }
         };
+        const smsSender = makeSender(env);
 
         try {
           // Collection
@@ -2218,7 +2199,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             }
             if (parts[2] === "nudge" && method === "POST") {
               return json(await nudgeReferrals(sql, actor, schoolId,
-                (to, b) => sendTwilioSms(env, to, b)));
+                smsSender));
             }
             return json({ error: "Method not allowed" }, 405);
           }
@@ -2293,9 +2274,9 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
                   otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at,
                   attempts = 0, last_sent_at = NOW()
               `;
-              const delivered = await sendTwilioSms(
-                env, phone, `Your VitaHero sign-in code is: ${code}`
-              );
+              const delivered = (await makeSender(env)(
+                phone, `Your VitaHero sign-in code is: ${code}`
+              )).ok;
               await sql`
                 INSERT INTO vita_hero.data_rights_log (id, profile_id, action, detail, actor_id)
                 VALUES (${"drl_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)},
@@ -2537,10 +2518,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             last_sent_at = NOW()
         `;
 
-        const sent = await sendTwilioSms(
-          env, phone,
-          `Your VitaHero verification code is: ${otp}`
+        const smsRes = await makeSender(env)(
+          phone, `Your VitaHero verification code is: ${otp}`
         );
+        const sent = smsRes.ok;
 
         // Saying "sent" when nothing was sent is why staff sign-in looked
         // broken: the console showed "Code sent", the phone stayed silent, and

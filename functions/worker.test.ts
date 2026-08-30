@@ -808,3 +808,95 @@ describe("the family's illness history reaches the person examining the child", 
     expect(PORTAL_HTML).toContain("Not examined");
   });
 });
+
+// Sending a text, and saying why one did not go.
+//
+// The console reported "Sent to 0 of 2. Could not reach: <two names>" while
+// the real cause was that the worker had no SMS credentials at all. That
+// wording blames the family's mobile number for a deployment gap, and an
+// operator reading it re-checks numbers that were never wrong.
+describe("sms configuration is legible before and after a send", () => {
+  const load = async () => await import("./messaging");
+
+  test("nothing configured is reported as nothing configured", async () => {
+    const { smsProvider } = await load();
+    const st = smsProvider({});
+    expect(st.provider).toBe("none");
+    expect(st.configured).toBe(false);
+    expect(st.detail).toMatch(/No SMS gateway is configured/);
+  });
+
+  test("a send with nothing configured blames the config, not the number", async () => {
+    const { makeSender } = await load();
+    const r = await makeSender({})("+919876543210", "hello");
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/No SMS gateway is configured/);
+    // The failure must never read as though the mobile number were at fault.
+    expect(r.reason).not.toMatch(/could not reach|unreachable|invalid number/i);
+  });
+
+  test("Twilio without a From is incomplete, and says which setting is missing", async () => {
+    const { smsProvider } = await load();
+    // The old code hard-coded a US number it did not own and claimed Twilio
+    // would override it. Twilio rejects that, so every send failed even with
+    // valid credentials.
+    const st = smsProvider({ TWILIO_ACCOUNT_SID: "AC1", TWILIO_AUTH_TOKEN: "t" });
+    expect(st.provider).toBe("twilio");
+    expect(st.configured).toBe(false);
+    expect(st.missing).toContain("TWILIO_FROM");
+  });
+
+  test("credentials alone pick the provider, so a deployment need not name it", async () => {
+    const { smsProvider } = await load();
+    expect(smsProvider({ TEXTBEE_API_KEY: "k", TEXTBEE_DEVICE_ID: "d" }).provider).toBe("textbee");
+    expect(smsProvider({
+      TWILIO_ACCOUNT_SID: "AC1", TWILIO_AUTH_TOKEN: "t", TWILIO_FROM: "+1555",
+    }).provider).toBe("twilio");
+    // An explicit choice beats inference.
+    expect(smsProvider({
+      SMS_PROVIDER: "twilio", TEXTBEE_API_KEY: "k", TEXTBEE_DEVICE_ID: "d",
+    }).provider).toBe("twilio");
+  });
+
+  test("a provider's own words survive to the caller", async () => {
+    const { makeSender } = await load();
+    const real = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response("device is offline", { status: 409 })) as typeof fetch;
+    try {
+      const r = await makeSender({ TEXTBEE_API_KEY: "k", TEXTBEE_DEVICE_ID: "d" })("+91", "x");
+      expect(r.ok).toBe(false);
+      // Whatever the gateway said, verbatim — that is what makes a wrong
+      // integration visible on the first send instead of silently.
+      expect(r.reason).toContain("409");
+      expect(r.reason).toContain("device is offline");
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+
+  test("a Messaging Service SID is sent as one, not as a phone number", async () => {
+    const { makeSender } = await load();
+    const real = globalThis.fetch;
+    let sentBody = "";
+    globalThis.fetch = (async (_u: unknown, init: RequestInit) => {
+      sentBody = String(init.body);
+      return new Response("{}", { status: 201 });
+    }) as unknown as typeof fetch;
+    try {
+      await makeSender({
+        TWILIO_ACCOUNT_SID: "AC1", TWILIO_AUTH_TOKEN: "t", TWILIO_FROM: "MG123",
+      })("+919876543210", "x");
+      expect(sentBody).toContain("MessagingServiceSid=MG123");
+      expect(sentBody).not.toContain("From=MG123");
+    } finally {
+      globalThis.fetch = real;
+    }
+  });
+
+  test("no caller still uses the old hard-coded sender", async () => {
+    const { readFileSync } = await import("node:fs");
+    // The US number that was hard-coded into every message.
+    expect(readFileSync("index.ts", "utf8")).not.toContain("+12562828337");
+  });
+});
