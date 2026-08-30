@@ -49,8 +49,12 @@ function recorder(): { sql: Sql; statements: Recorded[] } {
   const quote = (s: string) => '"' + s.replace(/"/g, '""') + '"';
 
   const fn: unknown = (strings: TemplateStringsArray | string, ...values: unknown[]) => {
-    // sql(SCHEMA) — an identifier, not a query.
-    if (typeof strings === "string") return { __ident: strings };
+    // The real driver refuses this call, so the recorder must too — a
+    // recorder more permissive than production is how the outage stayed
+    // invisible to a full test suite.
+    if (typeof strings === "string") {
+      throw new Error("sql(identifier) is not supported by the Neon driver");
+    }
     let text = "";
     const params: unknown[] = [];
     for (let i = 0; i < strings.length; i++) {

@@ -247,17 +247,17 @@ async function kidOwnedByProfile(
   profileId: string
 ): Promise<boolean> {
   const rows = await sql`
-    SELECT id FROM ${sql(SCHEMA)}.kids
+    SELECT id FROM vita_hero.kids
     WHERE id = ${kidId} AND profile_id = ${profileId} LIMIT 1
   `;
   return rows.length > 0;
 }
 
 async function ensureSchema(sql: Sql): Promise<void> {
-  await sql`CREATE SCHEMA IF NOT EXISTS ${sql(SCHEMA)}`;
+  await sql`CREATE SCHEMA IF NOT EXISTS vita_hero`;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.profiles (
+    CREATE TABLE IF NOT EXISTS vita_hero.profiles (
       id TEXT PRIMARY KEY,
       user_id TEXT,
       phone TEXT,
@@ -279,7 +279,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    ALTER TABLE ${sql(SCHEMA)}.profiles
+    ALTER TABLE vita_hero.profiles
     ADD COLUMN IF NOT EXISTS read_notification_ids JSONB DEFAULT '[]'::jsonb
   `;
 
@@ -291,7 +291,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS school_id TEXT`;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.phone_otps (
+    CREATE TABLE IF NOT EXISTS vita_hero.phone_otps (
       phone TEXT PRIMARY KEY,
       otp TEXT NOT NULL,
       expires_at TIMESTAMPTZ NOT NULL,
@@ -301,12 +301,12 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    ALTER TABLE ${sql(SCHEMA)}.phone_otps
+    ALTER TABLE vita_hero.phone_otps
     ADD COLUMN IF NOT EXISTS last_sent_at TIMESTAMPTZ
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.kids (
+    CREATE TABLE IF NOT EXISTS vita_hero.kids (
       id TEXT PRIMARY KEY,
       profile_id TEXT NOT NULL,
       user_id TEXT,
@@ -335,7 +335,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.appointments (
+    CREATE TABLE IF NOT EXISTS vita_hero.appointments (
       id TEXT PRIMARY KEY,
       profile_id TEXT NOT NULL,
       user_id TEXT,
@@ -348,10 +348,10 @@ async function ensureSchema(sql: Sql): Promise<void> {
     )
   `;
 
-  await sql`ALTER TABLE ${sql(SCHEMA)}.appointments ADD COLUMN IF NOT EXISTS doctor_id TEXT`;
+  await sql`ALTER TABLE vita_hero.appointments ADD COLUMN IF NOT EXISTS doctor_id TEXT`;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.camps (
+    CREATE TABLE IF NOT EXISTS vita_hero.camps (
       id TEXT PRIMARY KEY,
       profile_id TEXT NOT NULL,
       user_id TEXT,
@@ -366,7 +366,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.meal_items (
+    CREATE TABLE IF NOT EXISTS vita_hero.meal_items (
       id TEXT PRIMARY KEY,
       profile_id TEXT NOT NULL,
       user_id TEXT,
@@ -380,7 +380,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.streaks (
+    CREATE TABLE IF NOT EXISTS vita_hero.streaks (
       kid_id TEXT PRIMARY KEY,
       user_id TEXT,
       current_streak INT DEFAULT 0,
@@ -390,7 +390,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.growth_points (
+    CREATE TABLE IF NOT EXISTS vita_hero.growth_points (
       id TEXT PRIMARY KEY,
       kid_id TEXT NOT NULL,
       user_id TEXT,
@@ -402,7 +402,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.co_parents (
+    CREATE TABLE IF NOT EXISTS vita_hero.co_parents (
       id TEXT PRIMARY KEY,
       profile_id TEXT NOT NULL,
       user_id TEXT,
@@ -413,7 +413,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.doctors (
+    CREATE TABLE IF NOT EXISTS vita_hero.doctors (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       specialty TEXT NOT NULL,
@@ -426,7 +426,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
 
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.ai_diet_tips (
+    CREATE TABLE IF NOT EXISTS vita_hero.ai_diet_tips (
       kid_id TEXT PRIMARY KEY,
       profile_id TEXT NOT NULL,
       content JSONB NOT NULL,
@@ -435,7 +435,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.schools (
+    CREATE TABLE IF NOT EXISTS vita_hero.schools (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       city TEXT DEFAULT 'Hyderabad',
@@ -448,7 +448,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.school_enrollments (
+    CREATE TABLE IF NOT EXISTS vita_hero.school_enrollments (
       id TEXT PRIMARY KEY,
       profile_id TEXT NOT NULL,
       school_id TEXT NOT NULL,
@@ -460,7 +460,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.school_camps (
+    CREATE TABLE IF NOT EXISTS vita_hero.school_camps (
       id TEXT PRIMARY KEY,
       school_id TEXT NOT NULL,
       title TEXT NOT NULL,
@@ -478,7 +478,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.camp_registrations (
+    CREATE TABLE IF NOT EXISTS vita_hero.camp_registrations (
       id TEXT PRIMARY KEY,
       profile_id TEXT NOT NULL,
       school_camp_id TEXT NOT NULL,
@@ -489,7 +489,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.camp_kid_results (
+    CREATE TABLE IF NOT EXISTS vita_hero.camp_kid_results (
       id TEXT PRIMARY KEY,
       profile_id TEXT NOT NULL,
       school_camp_id TEXT NOT NULL,
@@ -543,7 +543,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
  * reads a result has to run on its own.
  */
 async function seedDoctorsIfEmpty(sql: Sql): Promise<void> {
-  const docCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.doctors`;
+  const docCount = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.doctors`;
   if ((docCount[0]?.c as number) === 0) {
     const doctors = [
       ["d1", "Dr. Ananya Rao", "Paediatrics", "Rainbow Children's Hospital", 4.9],
@@ -554,7 +554,7 @@ async function seedDoctorsIfEmpty(sql: Sql): Promise<void> {
     ] as const;
     for (const [id, name, specialty, hospital, rating] of doctors) {
       await sql`
-        INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, rating)
+        INSERT INTO vita_hero.doctors (id, name, specialty, hospital, rating)
         VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})
         ON CONFLICT (id) DO NOTHING
       `;
@@ -594,7 +594,7 @@ function generateDoctorSlots(
 }
 
 async function seedPartnerSchools(sql: Sql): Promise<void> {
-  const schoolCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.schools`;
+  const schoolCount = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.schools`;
   if ((schoolCount[0]?.c as number) > 0) return;
 
   const schools = [
@@ -606,7 +606,7 @@ async function seedPartnerSchools(sql: Sql): Promise<void> {
 
   for (const [id, name, city, district, code, email, desc] of schools) {
     await sql`
-      INSERT INTO ${sql(SCHEMA)}.schools (id, name, city, district, partner_code, contact_email, description)
+      INSERT INTO vita_hero.schools (id, name, city, district, partner_code, contact_email, description)
       VALUES (${id}, ${name}, ${city}, ${district}, ${code}, ${email}, ${desc})
       ON CONFLICT (id) DO NOTHING
     `;
@@ -641,7 +641,7 @@ async function seedPartnerSchools(sql: Sql): Promise<void> {
   for (const [id, schoolId, title, desc, date, time, status, checks, grades, cap, summary] of camps) {
     const hospitalId = campHospitalById[id] || null;
     await sql`
-      INSERT INTO ${sql(SCHEMA)}.school_camps
+      INSERT INTO vita_hero.school_camps
         (id, school_id, title, description, date, time, status, checks, grades, capacity, result_summary, hospital_id)
       VALUES (
         ${id}, ${schoolId}, ${title}, ${desc}, ${date}, ${time}, ${status},
@@ -680,7 +680,7 @@ async function mergeCampResultsIntoKids(
   // written only by releaseCamp() in camps.ts, after a physician has approved
   // them — nothing is derived or guessed here.
   await sql`
-    UPDATE ${sql(SCHEMA)}.kids k SET
+    UPDATE vita_hero.kids k SET
       dental = COALESCE(l.dental, k.dental),
       eyesight = COALESCE(l.eyesight, k.eyesight),
       nutrition = COALESCE(l.nutrition, k.nutrition),
@@ -701,8 +701,8 @@ async function mergeCampResultsIntoKids(
         ckr.height_cm,
         ckr.weight_kg,
         sc.date AS camp_date
-      FROM ${sql(SCHEMA)}.camp_kid_results ckr
-      JOIN ${sql(SCHEMA)}.school_camps sc ON sc.id = ckr.school_camp_id
+      FROM vita_hero.camp_kid_results ckr
+      JOIN vita_hero.school_camps sc ON sc.id = ckr.school_camp_id
       WHERE ckr.profile_id = ${profileId}
       ORDER BY ckr.kid_id, ckr.recorded_at DESC
     ) l
@@ -866,7 +866,7 @@ async function callToolkitFoodVision(
 
 async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
   await sql`
-    CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.hospitals (
+    CREATE TABLE IF NOT EXISTS vita_hero.hospitals (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       city TEXT DEFAULT 'Hyderabad',
@@ -881,8 +881,8 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
     )
   `;
 
-  await sql`ALTER TABLE ${sql(SCHEMA)}.doctors ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
-  await sql`ALTER TABLE ${sql(SCHEMA)}.school_camps ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
+  await sql`ALTER TABLE vita_hero.doctors ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
+  await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
 
   const hospitals = [
     ["hosp_rainbow", "Rainbow Children's Hospital", "Hyderabad", "Gachibowli", "Road No. 2, Gachibowli", 17.4401, 78.3489, "+91 40 4244 2222", 4.9, true],
@@ -897,7 +897,7 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
 
   for (const [id, name, city, district, address, lat, lng, phone, rating, isPartner] of hospitals) {
     await sql`
-      INSERT INTO ${sql(SCHEMA)}.hospitals
+      INSERT INTO vita_hero.hospitals
         (id, name, city, district, address, lat, lng, phone, rating, is_camp_partner)
       VALUES (${id}, ${name}, ${city}, ${district}, ${address}, ${lat}, ${lng}, ${phone}, ${rating}, ${isPartner})
       ON CONFLICT (id) DO UPDATE SET
@@ -923,7 +923,7 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
 
   for (const [id, name, specialty, hospital, hospitalId, rating] of extraDoctors) {
     await sql`
-      INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, hospital_id, rating)
+      INSERT INTO vita_hero.doctors (id, name, specialty, hospital, hospital_id, rating)
       VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${hospitalId}, ${rating})
       ON CONFLICT (id) DO UPDATE SET
         hospital_id = EXCLUDED.hospital_id,
@@ -932,23 +932,23 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
   }
 
   await sql`
-    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_rainbow'
+    UPDATE vita_hero.doctors SET hospital_id = 'hosp_rainbow'
     WHERE id = 'd1' AND (hospital_id IS NULL OR hospital_id = '')
   `;
   await sql`
-    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_apollo'
+    UPDATE vita_hero.doctors SET hospital_id = 'hosp_apollo'
     WHERE id = 'd2' AND (hospital_id IS NULL OR hospital_id = '')
   `;
   await sql`
-    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_lvp'
+    UPDATE vita_hero.doctors SET hospital_id = 'hosp_lvp'
     WHERE id = 'd3' AND (hospital_id IS NULL OR hospital_id = '')
   `;
   await sql`
-    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_kims'
+    UPDATE vita_hero.doctors SET hospital_id = 'hosp_kims'
     WHERE id = 'd4' AND (hospital_id IS NULL OR hospital_id = '')
   `;
   await sql`
-    UPDATE ${sql(SCHEMA)}.doctors SET hospital_id = 'hosp_continental'
+    UPDATE vita_hero.doctors SET hospital_id = 'hosp_continental'
     WHERE id = 'd5' AND (hospital_id IS NULL OR hospital_id = '')
   `;
 }
@@ -965,7 +965,7 @@ async function linkCampHospitals(sql: Sql): Promise<void> {
 
   for (const [campId, hospitalId] of Object.entries(campHospitalLinks)) {
     await sql`
-      UPDATE ${sql(SCHEMA)}.school_camps
+      UPDATE vita_hero.school_camps
       SET hospital_id = ${hospitalId}
       WHERE id = ${campId} AND (hospital_id IS NULL OR hospital_id = '')
     `;
@@ -979,15 +979,15 @@ async function getFamilyOwnerId(
 ): Promise<string> {
   if (!familyCode) return fallbackProfileId;
   const owners = await sql`
-    SELECT p.id FROM ${sql(SCHEMA)}.profiles p
+    SELECT p.id FROM vita_hero.profiles p
     WHERE p.family_code = ${familyCode}
-      AND EXISTS (SELECT 1 FROM ${sql(SCHEMA)}.kids k WHERE k.profile_id = p.id)
+      AND EXISTS (SELECT 1 FROM vita_hero.kids k WHERE k.profile_id = p.id)
     ORDER BY p.id
     LIMIT 1
   `;
   if (owners.length > 0) return owners[0].id as string;
   const any = await sql`
-    SELECT id FROM ${sql(SCHEMA)}.profiles
+    SELECT id FROM vita_hero.profiles
     WHERE family_code = ${familyCode}
     ORDER BY id
     LIMIT 1
@@ -1009,7 +1009,7 @@ async function authenticateSession(
   if (!token || token.length < 30) return null;
   try {
     const rows = await sql`
-      SELECT id, user_id, name, role, school_id FROM ${sql(SCHEMA)}.profiles
+      SELECT id, user_id, name, role, school_id FROM vita_hero.profiles
       WHERE session_token = ${token} LIMIT 1
     `;
     if (rows.length === 0) return null;
@@ -1483,12 +1483,12 @@ async function upsertProfileFromNeonAuth(
   const sessionToken = generateToken();
 
   const existing = await sql`
-    SELECT id FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
+    SELECT id FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1
   `;
 
   if (existing.length === 0) {
     await sql`
-      INSERT INTO ${sql(SCHEMA)}.profiles
+      INSERT INTO vita_hero.profiles
         (id, user_id, name, email, session_token, auth_provider,
          onboarding_complete, is_logged_in, role)
       VALUES (
@@ -1498,7 +1498,7 @@ async function upsertProfileFromNeonAuth(
     `;
   } else {
     await sql`
-      UPDATE ${sql(SCHEMA)}.profiles
+      UPDATE vita_hero.profiles
       SET session_token = ${sessionToken}, is_logged_in = true,
           name = ${user.name || user.email.split('@')[0]},
           email = ${user.email}, auth_provider = ${provider},
@@ -2438,7 +2438,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
 
         const existing = await sql`
-          SELECT last_sent_at FROM ${sql(SCHEMA)}.phone_otps WHERE phone = ${phone} LIMIT 1
+          SELECT last_sent_at FROM vita_hero.phone_otps WHERE phone = ${phone} LIMIT 1
         `;
         if (existing[0]?.last_sent_at) {
           const elapsed = Date.now() - new Date(existing[0].last_sent_at as string).getTime();
@@ -2451,7 +2451,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60_000);
 
         await sql`
-          INSERT INTO ${sql(SCHEMA)}.phone_otps (phone, otp, expires_at, attempts, last_sent_at)
+          INSERT INTO vita_hero.phone_otps (phone, otp, expires_at, attempts, last_sent_at)
           VALUES (${phone}, ${otp}, ${expiresAt.toISOString()}, 0, NOW())
           ON CONFLICT (phone) DO UPDATE SET
             otp = EXCLUDED.otp,
@@ -2486,7 +2486,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
         const rows = await sql`
           SELECT otp, expires_at, attempts
-          FROM ${sql(SCHEMA)}.phone_otps WHERE phone = ${phone} LIMIT 1
+          FROM vita_hero.phone_otps WHERE phone = ${phone} LIMIT 1
         `;
 
         if (rows.length === 0) {
@@ -2503,7 +2503,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
         // Increment attempts
         await sql`
-          UPDATE ${sql(SCHEMA)}.phone_otps
+          UPDATE vita_hero.phone_otps
           SET attempts = attempts + 1 WHERE phone = ${phone}
         `;
 
@@ -2512,7 +2512,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
 
         // OTP verified — clean up
-        await sql`DELETE FROM ${sql(SCHEMA)}.phone_otps WHERE phone = ${phone}`;
+        await sql`DELETE FROM vita_hero.phone_otps WHERE phone = ${phone}`;
 
         // Closed app: the parent must have been provisioned by an admin import.
         // We never auto-create a profile here.
@@ -2523,7 +2523,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
         const existing = await sql`
           SELECT id, provisioned, name, role, school_id
-          FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
+          FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1
         `;
 
         if (existing.length === 0 || existing[0].provisioned !== true) {
@@ -2545,7 +2545,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
         // Also delete any old OTPs
         try {
-          await sql`DELETE FROM ${sql(SCHEMA)}.phone_otps WHERE expires_at < NOW()`;
+          await sql`DELETE FROM vita_hero.phone_otps WHERE expires_at < NOW()`;
         } catch { /* best effort */ }
 
         return json({
@@ -2569,7 +2569,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Invalid or expired session" }, 401);
 
         const profile = await sql`
-          SELECT * FROM ${sql(SCHEMA)}.profiles WHERE id = ${session.profileId} LIMIT 1
+          SELECT * FROM vita_hero.profiles WHERE id = ${session.profileId} LIMIT 1
         `;
         return json(sanitizeProfile(profile[0] as Record<string, unknown>));
       }
@@ -2579,7 +2579,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const token = extractToken(request);
         if (token) {
           await sql`
-            UPDATE ${sql(SCHEMA)}.profiles
+            UPDATE vita_hero.profiles
             SET session_token = NULL, is_logged_in = false
             WHERE session_token = ${token}
           `;
@@ -2671,7 +2671,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
       if (path === "/api/profiles" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
-        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.profiles WHERE id = ${session.profileId} LIMIT 1`;
+        const rows = await sql`SELECT * FROM vita_hero.profiles WHERE id = ${session.profileId} LIMIT 1`;
         // Don't leak session token
         if (rows[0]) delete rows[0].session_token;
         return json(rows[0] || null);
@@ -2681,7 +2681,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
         const row = await sql`
-          INSERT INTO ${sql(SCHEMA)}.profiles
+          INSERT INTO vita_hero.profiles
             (id, user_id, phone, name, email,
              onboarding_complete, is_logged_in,
              dark_theme, locale_code, family_code,
@@ -2733,7 +2733,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const profileId = session.profileId;
         await mergeCampResultsIntoKids(sql, profileId);
-        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.kids WHERE profile_id = ${profileId} ORDER BY name`;
+        const rows = await sql`SELECT * FROM vita_hero.kids WHERE profile_id = ${profileId} ORDER BY name`;
         return json(rows);
       }
 
@@ -2741,7 +2741,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
         const row = await sql`
-          INSERT INTO ${sql(SCHEMA)}.kids
+          INSERT INTO vita_hero.kids
             (id, profile_id, user_id, name, age, gender, school, grade,
              height_cm, weight_kg, avatar_color, overall_score, dental,
              eyesight, nutrition, last_checkup)
@@ -2762,26 +2762,26 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             avatar_color = EXCLUDED.avatar_color,
             height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg,
             dental = COALESCE(
-              (SELECT ckr.dental FROM ${sql(SCHEMA)}.camp_kid_results ckr
+              (SELECT ckr.dental FROM vita_hero.camp_kid_results ckr
                WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
               EXCLUDED.dental),
             eyesight = COALESCE(
-              (SELECT ckr.eyesight FROM ${sql(SCHEMA)}.camp_kid_results ckr
+              (SELECT ckr.eyesight FROM vita_hero.camp_kid_results ckr
                WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
               EXCLUDED.eyesight),
             nutrition = COALESCE(
-              (SELECT ckr.nutrition FROM ${sql(SCHEMA)}.camp_kid_results ckr
+              (SELECT ckr.nutrition FROM vita_hero.camp_kid_results ckr
                WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
               EXCLUDED.nutrition),
             last_checkup = COALESCE(
-              (SELECT sc.date FROM ${sql(SCHEMA)}.camp_kid_results ckr
-               JOIN ${sql(SCHEMA)}.school_camps sc ON sc.id = ckr.school_camp_id
+              (SELECT sc.date FROM vita_hero.camp_kid_results ckr
+               JOIN vita_hero.school_camps sc ON sc.id = ckr.school_camp_id
                WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
               EXCLUDED.last_checkup),
             overall_score = CASE
               WHEN EXISTS (
-                SELECT 1 FROM ${sql(SCHEMA)}.camp_kid_results ckr WHERE ckr.kid_id = EXCLUDED.id
-              ) THEN ${sql(SCHEMA)}.kids.overall_score
+                SELECT 1 FROM vita_hero.camp_kid_results ckr WHERE ckr.kid_id = EXCLUDED.id
+              ) THEN vita_hero.kids.overall_score
               ELSE EXCLUDED.overall_score END
           RETURNING *
         `;
@@ -2808,7 +2808,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
       if (path === "/api/appointments" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
-        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.appointments WHERE profile_id = ${session.profileId} ORDER BY date, time`;
+        const rows = await sql`SELECT * FROM vita_hero.appointments WHERE profile_id = ${session.profileId} ORDER BY date, time`;
         return json(rows);
       }
 
@@ -2820,7 +2820,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const time = body.time as string;
         if (doctorId) {
           const clash = await sql`
-            SELECT id FROM ${sql(SCHEMA)}.appointments
+            SELECT id FROM vita_hero.appointments
             WHERE doctor_id = ${doctorId} AND date = ${date} AND time = ${time}
             LIMIT 1
           `;
@@ -2829,7 +2829,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
         }
         const row = await sql`
-          INSERT INTO ${sql(SCHEMA)}.appointments
+          INSERT INTO vita_hero.appointments
             (id, profile_id, user_id, doctor_id, doctor_name, specialty, kid_name, date, time)
           VALUES (
             ${body.id as string}, ${session.profileId},
@@ -2850,7 +2850,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path.startsWith("/api/appointments/") && request.method === "DELETE") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const apptId = path.split("/")[3];
-        await sql`DELETE FROM ${sql(SCHEMA)}.appointments WHERE id = ${apptId} AND profile_id = ${session.profileId}`;
+        await sql`DELETE FROM vita_hero.appointments WHERE id = ${apptId} AND profile_id = ${session.profileId}`;
         return json({ deleted: true });
       }
 
@@ -3053,7 +3053,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         await mergeCampResultsIntoKids(sql, session.profileId);
         let rows = await sql`
-          SELECT * FROM ${sql(SCHEMA)}.camps
+          SELECT * FROM vita_hero.camps
           WHERE profile_id = ${session.profileId}
           ORDER BY date
         `;
@@ -3069,7 +3069,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }));
 
         const enrollments = await sql`
-          SELECT school_id FROM ${sql(SCHEMA)}.school_enrollments
+          SELECT school_id FROM vita_hero.school_enrollments
           WHERE profile_id = ${session.profileId} AND status = 'ACTIVE'
         `;
         const schoolIds = enrollments.map((e: Record<string, unknown>) => e.school_id as string);
@@ -3078,8 +3078,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           for (const sid of schoolIds) {
             const partnerRows = await sql`
               SELECT sc.*, s.name AS school_name, s.city AS school_city
-              FROM ${sql(SCHEMA)}.school_camps sc
-              JOIN ${sql(SCHEMA)}.schools s ON s.id = sc.school_id
+              FROM vita_hero.school_camps sc
+              JOIN vita_hero.schools s ON s.id = sc.school_id
               WHERE sc.school_id = ${sid} AND sc.active = true
               ORDER BY sc.date
             `;
@@ -3087,7 +3087,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
           partner.sort((a, b) => String(a.date).localeCompare(String(b.date)));
           const regs = await sql`
-            SELECT school_camp_id, kid_id FROM ${sql(SCHEMA)}.camp_registrations
+            SELECT school_camp_id, kid_id FROM vita_hero.camp_registrations
             WHERE profile_id = ${session.profileId}
           `;
           const regMap = new Map<string, string[]>();
@@ -3124,7 +3124,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
         const row = await sql`
-          INSERT INTO ${sql(SCHEMA)}.camps
+          INSERT INTO vita_hero.camps
             (id, profile_id, user_id, title, school, date, time, status, checks, result_summary)
           VALUES (
             ${body.id as string}, ${session.profileId},
@@ -3151,7 +3151,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
       if (path === "/api/meals" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
-        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.meal_items WHERE profile_id = ${session.profileId} ORDER BY kid_id, time_slot`;
+        const rows = await sql`SELECT * FROM vita_hero.meal_items WHERE profile_id = ${session.profileId} ORDER BY kid_id, time_slot`;
         return json(rows);
       }
 
@@ -3162,7 +3162,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const results = [];
         for (const m of meals) {
           const row = await sql`
-            INSERT INTO ${sql(SCHEMA)}.meal_items
+            INSERT INTO vita_hero.meal_items
               (id, profile_id, user_id, kid_id, time_slot, name, detail, kcal, eaten)
             VALUES (
               ${m.id as string}, ${session.profileId},
@@ -3194,7 +3194,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
           return json({ error: "Kid not found" }, 404);
         }
-        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.streaks WHERE kid_id = ${kidId} LIMIT 1`;
+        const rows = await sql`SELECT * FROM vita_hero.streaks WHERE kid_id = ${kidId} LIMIT 1`;
         return json(rows[0] || null);
       }
 
@@ -3206,7 +3206,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json({ error: "Kid not found" }, 404);
         }
         const row = await sql`
-          INSERT INTO ${sql(SCHEMA)}.streaks
+          INSERT INTO vita_hero.streaks
             (kid_id, user_id, current_streak, best_streak, last_log_date)
           VALUES (
             ${kidId}, ${session.userId || session.profileId},
@@ -3233,7 +3233,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
           return json({ error: "Kid not found" }, 404);
         }
-        const rows = await sql`SELECT * FROM ${sql(SCHEMA)}.growth_points WHERE kid_id = ${kidId} ORDER BY recorded_at`;
+        const rows = await sql`SELECT * FROM vita_hero.growth_points WHERE kid_id = ${kidId} ORDER BY recorded_at`;
         return json(rows);
       }
 
@@ -3245,7 +3245,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json({ error: "Kid not found" }, 404);
         }
         const row = await sql`
-          INSERT INTO ${sql(SCHEMA)}.growth_points
+          INSERT INTO vita_hero.growth_points
             (id, kid_id, user_id, label, height, weight, recorded_at)
           VALUES (
             ${body.id as string}, ${kidId},
@@ -3268,18 +3268,18 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path === "/api/co-parents" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const profileRows = await sql`
-          SELECT family_code, name FROM ${sql(SCHEMA)}.profiles
+          SELECT family_code, name FROM vita_hero.profiles
           WHERE id = ${session.profileId} LIMIT 1
         `;
         const familyCode = (profileRows[0]?.family_code as string) || "";
         const ownerId = await getFamilyOwnerId(sql, familyCode, session.profileId);
         const rows = await sql`
-          SELECT * FROM ${sql(SCHEMA)}.co_parents
+          SELECT * FROM vita_hero.co_parents
           WHERE profile_id = ${ownerId}
           ORDER BY joined_date, name
         `;
         const ownerProfile = await sql`
-          SELECT id, name FROM ${sql(SCHEMA)}.profiles WHERE id = ${ownerId} LIMIT 1
+          SELECT id, name FROM vita_hero.profiles WHERE id = ${ownerId} LIMIT 1
         `;
         const ownerName = (ownerProfile[0]?.name as string) || "Parent";
         const ownerInList = rows.some(
@@ -3304,7 +3304,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
         const row = await sql`
-          INSERT INTO ${sql(SCHEMA)}.co_parents
+          INSERT INTO vita_hero.co_parents
             (id, profile_id, user_id, name, relation, joined_date)
           VALUES (
             ${body.id as string}, ${session.profileId},
@@ -3329,7 +3329,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const code = url.searchParams.get("code");
         if (!code) return json({ error: "Missing code" }, 400);
         const rows = await sql`
-          SELECT id, name, family_code FROM ${sql(SCHEMA)}.profiles
+          SELECT id, name, family_code FROM vita_hero.profiles
           WHERE family_code = ${code} AND id != ${session.profileId} LIMIT 1
         `;
         return json(rows[0] || null);
@@ -3344,7 +3344,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json({ valid: false, error: "Code too short" }, 400);
         }
         const rows = await sql`
-          SELECT id, name, family_code FROM ${sql(SCHEMA)}.profiles
+          SELECT id, name, family_code FROM vita_hero.profiles
           WHERE family_code = ${code} LIMIT 1
         `;
         if (rows.length === 0) {
@@ -3368,7 +3368,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json({ error: "Code and name required" }, 400);
         }
         const familyRows = await sql`
-          SELECT id, user_id, family_code FROM ${sql(SCHEMA)}.profiles
+          SELECT id, user_id, family_code FROM vita_hero.profiles
           WHERE family_code = ${code} LIMIT 1
         `;
         if (familyRows.length === 0) {
@@ -3380,7 +3380,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
         const coParentId = `cp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         await sql`
-          INSERT INTO ${sql(SCHEMA)}.co_parents
+          INSERT INTO vita_hero.co_parents
             (id, profile_id, user_id, name, relation, joined_date)
           VALUES (
             ${coParentId}, ${familyProfile.id}, ${session.userId || session.profileId},
@@ -3390,7 +3390,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             name = EXCLUDED.name, relation = EXCLUDED.relation
         `;
         await sql`
-          UPDATE ${sql(SCHEMA)}.profiles
+          UPDATE vita_hero.profiles
           SET family_code = ${code}
           WHERE id = ${session.profileId}
         `;
@@ -3403,7 +3403,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const familyCode = url.searchParams.get("familyCode")?.toUpperCase().trim();
         if (!familyCode) return json({ error: "familyCode query parameter required" }, 400);
         const familyRows = await sql`
-          SELECT id, user_id FROM ${sql(SCHEMA)}.profiles
+          SELECT id, user_id FROM vita_hero.profiles
           WHERE family_code = ${familyCode} LIMIT 1
         `;
         if (familyRows.length === 0) {
@@ -3415,7 +3415,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         let isCoParent = false;
         if (!isOwner) {
           const cpRows = await sql`
-            SELECT id FROM ${sql(SCHEMA)}.co_parents
+            SELECT id FROM vita_hero.co_parents
             WHERE profile_id = ${familyProfile.id}
               AND user_id = ${session.userId || session.profileId}
             LIMIT 1
@@ -3426,7 +3426,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json({ error: "Not authorized to view this family" }, 403);
         }
         const kids = await sql`
-          SELECT * FROM ${sql(SCHEMA)}.kids
+          SELECT * FROM vita_hero.kids
           WHERE profile_id = ${familyProfile.id}
           ORDER BY name
         `;
@@ -3513,7 +3513,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json({ error: "Kid not found" }, 404);
         }
         const rows = await sql`
-          SELECT content, generated_at FROM ${sql(SCHEMA)}.ai_diet_tips
+          SELECT content, generated_at FROM vita_hero.ai_diet_tips
           WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}
           LIMIT 1
         `;
@@ -3529,7 +3529,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
         const content = body.content as Record<string, unknown>;
         const row = await sql`
-          INSERT INTO ${sql(SCHEMA)}.ai_diet_tips (kid_id, profile_id, content, generated_at)
+          INSERT INTO vita_hero.ai_diet_tips (kid_id, profile_id, content, generated_at)
           VALUES (${kidId}, ${session.profileId}, ${JSON.stringify(content)}::jsonb, NOW())
           ON CONFLICT (kid_id) DO UPDATE SET
             content = EXCLUDED.content,
@@ -3549,17 +3549,17 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
         await mergeCampResultsIntoKids(sql, session.profileId);
         const kidRows = await sql`
-          SELECT * FROM ${sql(SCHEMA)}.kids
+          SELECT * FROM vita_hero.kids
           WHERE id = ${kidId} AND profile_id = ${session.profileId}
           LIMIT 1
         `;
         const mealRows = await sql`
-          SELECT * FROM ${sql(SCHEMA)}.meal_items
+          SELECT * FROM vita_hero.meal_items
           WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}
           ORDER BY time_slot
         `;
         const streakRows = await sql`
-          SELECT * FROM ${sql(SCHEMA)}.streaks
+          SELECT * FROM vita_hero.streaks
           WHERE kid_id = ${kidId}
           LIMIT 1
         `;
@@ -3582,7 +3582,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           generatedAt: `AI-generated for ${kidRows[0].name}`,
         };
         const row = await sql`
-          INSERT INTO ${sql(SCHEMA)}.ai_diet_tips (kid_id, profile_id, content, generated_at)
+          INSERT INTO vita_hero.ai_diet_tips (kid_id, profile_id, content, generated_at)
           VALUES (${kidId}, ${session.profileId}, ${JSON.stringify(content)}::jsonb, NOW())
           ON CONFLICT (kid_id) DO UPDATE SET
             content = EXCLUDED.content,
@@ -3617,7 +3617,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const rows = await sql`
           SELECT id, name, city, district, description, active
-          FROM ${sql(SCHEMA)}.schools
+          FROM vita_hero.schools
           WHERE active = true
           ORDER BY name
         `;
@@ -3628,8 +3628,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const rows = await sql`
           SELECT s.id, s.name, s.city, s.district, s.description, e.enrolled_at, e.kid_id
-          FROM ${sql(SCHEMA)}.school_enrollments e
-          JOIN ${sql(SCHEMA)}.schools s ON s.id = e.school_id
+          FROM vita_hero.school_enrollments e
+          JOIN vita_hero.schools s ON s.id = e.school_id
           WHERE e.profile_id = ${session.profileId} AND e.status = 'ACTIVE'
           ORDER BY s.name
         `;
@@ -3644,7 +3644,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (code.length < 4) return json({ error: "Partner code required" }, 400);
 
         const schoolRows = await sql`
-          SELECT id, name FROM ${sql(SCHEMA)}.schools
+          SELECT id, name FROM vita_hero.schools
           WHERE partner_code = ${code} AND active = true LIMIT 1
         `;
         if (schoolRows.length === 0) {
@@ -3656,7 +3656,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
         const enrollId = `enr_${session.profileId}_${school.id}`;
         await sql`
-          INSERT INTO ${sql(SCHEMA)}.school_enrollments
+          INSERT INTO vita_hero.school_enrollments
             (id, profile_id, school_id, kid_id, status)
           VALUES (${enrollId}, ${session.profileId}, ${school.id}, ${kidId}, 'ACTIVE')
           ON CONFLICT (profile_id, school_id) DO UPDATE SET
@@ -3677,14 +3677,14 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json({ error: "Kid not found" }, 404);
         }
         const campRows = await sql`
-          SELECT sc.*, s.name AS school_name FROM ${sql(SCHEMA)}.school_camps sc
-          JOIN ${sql(SCHEMA)}.schools s ON s.id = sc.school_id
+          SELECT sc.*, s.name AS school_name FROM vita_hero.school_camps sc
+          JOIN vita_hero.schools s ON s.id = sc.school_id
           WHERE sc.id = ${schoolCampId} AND sc.active = true LIMIT 1
         `;
         if (campRows.length === 0) return json({ error: "Camp not found" }, 404);
         const camp = campRows[0];
         const enrolled = await sql`
-          SELECT id FROM ${sql(SCHEMA)}.school_enrollments
+          SELECT id FROM vita_hero.school_enrollments
           WHERE profile_id = ${session.profileId} AND school_id = ${camp.school_id} AND status = 'ACTIVE'
           LIMIT 1
         `;
@@ -3693,15 +3693,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
         const regId = `reg_${schoolCampId}_${kidId}`;
         await sql`
-          INSERT INTO ${sql(SCHEMA)}.camp_registrations
+          INSERT INTO vita_hero.camp_registrations
             (id, profile_id, school_camp_id, kid_id)
           VALUES (${regId}, ${session.profileId}, ${schoolCampId}, ${kidId})
           ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING
         `;
         await sql`
-          UPDATE ${sql(SCHEMA)}.school_camps
+          UPDATE vita_hero.school_camps
           SET registered_count = (
-            SELECT COUNT(*)::int FROM ${sql(SCHEMA)}.camp_registrations
+            SELECT COUNT(*)::int FROM vita_hero.camp_registrations
             WHERE school_camp_id = ${schoolCampId}
           )
           WHERE id = ${schoolCampId}
@@ -3716,13 +3716,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!doctorId) return json({ error: "doctor_id required" }, 400);
 
         const doctorRows = await sql`
-          SELECT id, name FROM ${sql(SCHEMA)}.doctors
+          SELECT id, name FROM vita_hero.doctors
           WHERE id = ${doctorId} AND active = true LIMIT 1
         `;
         if (doctorRows.length === 0) return json({ error: "Doctor not found" }, 404);
 
         const booked = await sql`
-          SELECT doctor_id, date, time FROM ${sql(SCHEMA)}.appointments
+          SELECT doctor_id, date, time FROM vita_hero.appointments
           WHERE doctor_id = ${doctorId}
         `;
         const bookedKeys = new Set(
@@ -3744,7 +3744,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const userLng = lngParam ? parseFloat(lngParam) : null;
 
         const enrolledSchools = await sql`
-          SELECT school_id FROM ${sql(SCHEMA)}.school_enrollments
+          SELECT school_id FROM vita_hero.school_enrollments
           WHERE profile_id = ${session.profileId} AND status = 'ACTIVE'
         `;
         const userSchoolIds = enrolledSchools.map((r) => r.school_id as string);
@@ -3756,8 +3756,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
                  COUNT(DISTINCT CASE
                    WHEN sc.school_id = ANY(${userSchoolIds.length ? userSchoolIds : ["__none__"]}::text[])
                    THEN sc.id END)::int AS user_linked_camps
-          FROM ${sql(SCHEMA)}.hospitals h
-          LEFT JOIN ${sql(SCHEMA)}.school_camps sc
+          FROM vita_hero.hospitals h
+          LEFT JOIN vita_hero.school_camps sc
             ON sc.hospital_id = h.id AND sc.active = true
           WHERE h.active = true AND h.city ILIKE ${city}
           GROUP BY h.id
@@ -3767,9 +3767,9 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           SELECT d.id, d.name, d.specialty, d.hospital, d.city, d.rating, d.hospital_id,
                  h.name AS hospital_name, h.is_camp_partner,
                  COUNT(DISTINCT sc.id)::int AS conducted_camps
-          FROM ${sql(SCHEMA)}.doctors d
-          LEFT JOIN ${sql(SCHEMA)}.hospitals h ON h.id = d.hospital_id
-          LEFT JOIN ${sql(SCHEMA)}.school_camps sc
+          FROM vita_hero.doctors d
+          LEFT JOIN vita_hero.hospitals h ON h.id = d.hospital_id
+          LEFT JOIN vita_hero.school_camps sc
             ON sc.hospital_id = d.hospital_id AND sc.active = true
           WHERE d.active = true AND (d.city ILIKE ${city} OR h.city ILIKE ${city})
           GROUP BY d.id, h.name, h.is_camp_partner
@@ -3881,8 +3881,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const rows = await sql`
           SELECT d.id, d.name, d.specialty, d.hospital, d.city, d.rating,
                  d.hospital_id, h.name AS hospital_name, h.is_camp_partner
-          FROM ${sql(SCHEMA)}.doctors d
-          LEFT JOIN ${sql(SCHEMA)}.hospitals h ON h.id = d.hospital_id
+          FROM vita_hero.doctors d
+          LEFT JOIN vita_hero.hospitals h ON h.id = d.hospital_id
           WHERE d.active = true
             AND (${city} = '' OR d.city ILIKE ${city} OR h.city ILIKE ${city})
             AND (${hospitalId} = '' OR d.hospital_id = ${hospitalId})
@@ -3900,13 +3900,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (ids.length === 0) return json({ success: true });
 
         const profileRows = await sql`
-          SELECT read_notification_ids FROM ${sql(SCHEMA)}.profiles
+          SELECT read_notification_ids FROM vita_hero.profiles
           WHERE id = ${session.profileId} LIMIT 1
         `;
         const existing = (profileRows[0]?.read_notification_ids as string[]) || [];
         const merged = [...new Set([...existing, ...ids])];
         await sql`
-          UPDATE ${sql(SCHEMA)}.profiles
+          UPDATE vita_hero.profiles
           SET read_notification_ids = ${JSON.stringify(merged)}::jsonb
           WHERE id = ${session.profileId}
         `;
@@ -3919,7 +3919,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const items: Array<Record<string, unknown>> = [];
 
         const profileRows = await sql`
-          SELECT read_notification_ids FROM ${sql(SCHEMA)}.profiles
+          SELECT read_notification_ids FROM vita_hero.profiles
           WHERE id = ${session.profileId} LIMIT 1
         `;
         const readIds = new Set<string>(
@@ -3927,7 +3927,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         );
 
         const camps = await sql`
-          SELECT title, school, date, time, status FROM ${sql(SCHEMA)}.camps
+          SELECT title, school, date, time, status FROM vita_hero.camps
           WHERE profile_id = ${session.profileId} AND status = 'UPCOMING'
           ORDER BY date LIMIT 5
         `;
@@ -3944,7 +3944,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
 
         const appts = await sql`
-          SELECT doctor_name, kid_name, date, time FROM ${sql(SCHEMA)}.appointments
+          SELECT doctor_name, kid_name, date, time FROM vita_hero.appointments
           WHERE profile_id = ${session.profileId}
           ORDER BY date, time LIMIT 5
         `;
@@ -3962,8 +3962,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
         const kids = await sql`
           SELECT k.name, COALESCE(s.current_streak, 0) AS streak
-          FROM ${sql(SCHEMA)}.kids k
-          LEFT JOIN ${sql(SCHEMA)}.streaks s ON s.kid_id = k.id
+          FROM vita_hero.kids k
+          LEFT JOIN vita_hero.streaks s ON s.kid_id = k.id
           WHERE k.profile_id = ${session.profileId}
         `;
         for (const k of kids) {
