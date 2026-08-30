@@ -44,6 +44,8 @@ export async function ensureCampSchema(sql: Sql): Promise<void> {
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS academic_year TEXT DEFAULT ''`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '[]'::jsonb`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS consent_deadline TEXT DEFAULT ''`;
+  // Off by default and for almost every camp; see media.ts.
+  await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS photos_enabled BOOLEAN DEFAULT false`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS released_at TIMESTAMPTZ`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS released_by TEXT DEFAULT ''`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS created_by TEXT DEFAULT ''`;
@@ -85,6 +87,10 @@ export async function ensureCampSchema(sql: Sql): Promise<void> {
       UNIQUE (camp_id, kid_id)
     )
   `;
+  // Photography is asked for separately from the check-up itself. The column
+  // lives here, with the rest of the participant row, so recordConsent can
+  // always write it; media.ts is what actually reads it.
+  await sql`ALTER TABLE vita_hero.camp_participants ADD COLUMN IF NOT EXISTS consent_photos BOOLEAN DEFAULT false`;
   await sql`CREATE INDEX IF NOT EXISTS camp_participants_camp ON vita_hero.camp_participants(camp_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS camp_participants_kid ON vita_hero.camp_participants(kid_id)`;
   await sql`CREATE INDEX IF NOT EXISTS camp_participants_profile ON vita_hero.camp_participants(profile_id, consent_status)`;
@@ -632,7 +638,19 @@ export async function recordConsent(
   campId: string,
   kidId: string,
   decision: "GRANTED" | "DECLINED" | "PAPER",
-  opts: { actorId: string; source: string; checks?: string[]; note?: string; profileId?: string }
+  opts: {
+    actorId: string;
+    source: string;
+    checks?: string[];
+    note?: string;
+    profileId?: string;
+    /**
+     * Photography is a separate question. Absent means "not asked", which is
+     * not the same as "yes" — it stays false. Declining the check-up clears it,
+     * because there is nothing left to photograph.
+     */
+    consentPhotos?: boolean;
+  }
 ) {
   const rows = await sql`
     SELECT profile_id, status FROM vita_hero.camp_participants
@@ -650,10 +668,12 @@ export async function recordConsent(
   }
 
   const checks = Array.isArray(opts.checks) ? opts.checks.filter(isCheckType) : [];
+  const photos = decision === "DECLINED" ? false : opts.consentPhotos === true;
   await sql`
     UPDATE vita_hero.camp_participants
     SET consent_status = ${decision},
         consent_checks = ${JSON.stringify(checks)}::jsonb,
+        consent_photos = ${photos},
         consent_at = NOW(),
         consent_source = ${opts.source},
         consent_recorded_by = ${opts.actorId}
@@ -664,7 +684,7 @@ export async function recordConsent(
     VALUES (${"cl_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)},
             ${campId}, ${kidId}, ${owner}, ${decision}, ${opts.source}, ${opts.actorId}, ${opts.note || ""})
   `;
-  return { kidId, consentStatus: decision };
+  return { kidId, consentStatus: decision, consentPhotos: photos };
 }
 
 // ─── C · Camp-day capture ───────────────────────────────────
@@ -1428,7 +1448,7 @@ export async function pendingConsents(sql: Sql, profileId: string) {
   const rows = await sql`
     SELECT p.camp_id, p.kid_id, p.consent_status, k.name AS kid_name,
            sc.title, sc.date, sc.time, sc.venue, sc.checks, sc.consent_deadline,
-           s.name AS school_name
+           sc.photos_enabled, s.name AS school_name
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
     JOIN vita_hero.school_camps sc ON sc.id = p.camp_id
@@ -1451,6 +1471,9 @@ export async function pendingConsents(sql: Sql, profileId: string) {
       venue: (r.venue as string) || "",
       deadline: (r.consent_deadline as string) || "",
       checks: Array.isArray(r.checks) ? (r.checks as string[]) : JSON.parse(String(r.checks || "[]")),
+      // When true the app must ask the photography question as well, as its own
+      // yes/no. When false it must not show it at all.
+      photosAsked: r.photos_enabled === true,
     })),
   };
 }

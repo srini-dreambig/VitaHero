@@ -108,6 +108,46 @@ import {
   childAccessTrail,
   guardianNudges,
 } from "./reports";
+import {
+  ensureMediaSchema,
+  uploadFindingPhoto,
+  listFindingPhotos,
+  getFindingPhoto,
+  deleteFindingPhoto,
+  photoAccessTrail,
+  setCampPhotos,
+  guardianPhotos,
+} from "./media";
+import {
+  ensureMessageSchema,
+  questionPolicy,
+  askQuestion,
+  guardianThreads,
+  threadMessages,
+  replyToThread,
+  schoolThreads,
+  setQuestionsEnabled,
+} from "./messages";
+import {
+  ensureLibrarySchema,
+  libraryForGuardian,
+  getArticle,
+  listArticles,
+  upsertArticle,
+  deleteArticle,
+} from "./library";
+import {
+  ensureBillingSchema,
+  setContract,
+  getContract,
+  generateInvoice,
+  getInvoice,
+  listInvoices,
+  setInvoiceStatus,
+  entitlements,
+  setParentPlan,
+  billingSummary,
+} from "./billing";
 import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
@@ -1469,6 +1509,10 @@ export default {
           await ensureCampSchema(sql);
           await ensureReferralSchema(sql);
           await ensureLifecycleSchema(sql);
+          await ensureMediaSchema(sql);
+          await ensureMessageSchema(sql);
+          await ensureLibrarySchema(sql);
+          await ensureBillingSchema(sql);
           schemaReady = true;
         } catch (schemaErr) {
           console.error("Schema init error:", schemaErr);
@@ -1677,6 +1721,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
                 actorId: actor.profileId,
                 source: String(b.source || "PAPER"),
                 checks: Array.isArray(b.checks) ? (b.checks as string[]) : undefined,
+                consentPhotos: b.consentPhotos === true,
                 note: String(b.note || ""),
               }));
             }
@@ -1724,10 +1769,161 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             return json({ error: "Method not allowed" }, 405);
           }
 
+          // Photographs of a finding. Gated twice: the camp has to have
+          // photography switched on, and the guardian has to have agreed to it
+          // separately from agreeing to the screening itself.
+          if (section === "photos") {
+            if (!third) return json({ error: "Which child?" }, 400);
+            if (method === "GET") return json(await listFindingPhotos(sql, actor, campId, third));
+            if (method === "POST") return json(await uploadFindingPhoto(sql, actor, campId, third, await readBody()), 201);
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          if (section === "photo-trail" && method === "GET") {
+            if (!third) return json({ error: "Which child?" }, 400);
+            return json(await photoAccessTrail(sql, actor, campId, third));
+          }
+
+          if (section === "photos-enabled" && method === "POST") {
+            const b = await readBody();
+            return json(await setCampPhotos(sql, actor, campId, b.enabled === true));
+          }
+
           return json({ error: "Not found" }, 404);
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
           console.error("Camp route error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════
+      // Photographs, the question channel, the library, billing
+      // ═══════════════════════════════════════════════════
+      if (path.startsWith("/api/admin/photo/")
+          || path === "/api/admin/questions" || path.startsWith("/api/admin/questions/")
+          || path === "/api/admin/library" || path.startsWith("/api/admin/library/")
+          || path === "/api/admin/billing" || path.startsWith("/api/admin/billing/")) {
+        const actor = await resolveActor(request, sql, env);
+        if (!actor) {
+          return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
+        }
+        const method = request.method;
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try { return (await request.json()) as Record<string, unknown>; }
+          catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
+        };
+
+        try {
+          // ── One photograph, by id ──
+          if (path.startsWith("/api/admin/photo/")) {
+            const photoId = decodeURIComponent(path.slice("/api/admin/photo/".length));
+            if (method === "GET") return json(await getFindingPhoto(sql, { actor }, photoId));
+            if (method === "DELETE") return json(await deleteFindingPhoto(sql, actor, photoId));
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // ── Questions from families ──
+          if (path === "/api/admin/questions" && method === "GET") {
+            return json(await schoolThreads(
+              sql,
+              actor,
+              url.searchParams.get("school_id") || actor.schoolId || "",
+              url.searchParams.get("status") || "OPEN"
+            ));
+          }
+          if (path.startsWith("/api/admin/questions/")) {
+            const bits = path.slice("/api/admin/questions/".length).split("/").map(decodeURIComponent);
+            if (bits[0] === "settings" && method === "POST") {
+              const b = await readBody();
+              return json(await setQuestionsEnabled(
+                sql,
+                actor,
+                String(b.schoolId || actor.schoolId || ""),
+                b.enabled === true
+              ));
+            }
+            const threadId = bits[0];
+            const action = bits[1] || "";
+            if (!action && method === "GET") {
+              return json(await threadMessages(sql, { actor }, threadId));
+            }
+            if (action === "reply" && method === "POST") {
+              return json(await replyToThread(sql, actor, threadId, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // ── Education library ──
+          if (path === "/api/admin/library") {
+            if (method === "GET") return json(await listArticles(sql, actor));
+            if (method === "POST" || method === "PUT") {
+              return json(await upsertArticle(sql, actor, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+          if (path.startsWith("/api/admin/library/") && method === "DELETE") {
+            const bits = path.slice("/api/admin/library/".length).split("/").map(decodeURIComponent);
+            return json(await deleteArticle(sql, actor, bits[0] || "", bits[1] || "en"));
+          }
+
+          // ── Contracts and invoices ──
+          if (path === "/api/admin/billing" && method === "GET") {
+            return json(await billingSummary(sql, actor));
+          }
+          if (path.startsWith("/api/admin/billing/")) {
+            const bits = path.slice("/api/admin/billing/".length).split("/").map(decodeURIComponent);
+            const head = bits[0] || "";
+
+            if (head === "contract") {
+              if (method === "GET") {
+                return json(await getContract(sql, actor, url.searchParams.get("school_id") || ""));
+              }
+              if (method === "POST" || method === "PUT") {
+                const b = await readBody();
+                return json(await setContract(sql, actor, String(b.schoolId || ""), b));
+              }
+              return json({ error: "Method not allowed" }, 405);
+            }
+
+            if (head === "invoices") {
+              if (method === "GET") {
+                return json(await listInvoices(sql, actor, url.searchParams.get("school_id") || ""));
+              }
+              if (method === "POST") {
+                const b = await readBody();
+                return json(await generateInvoice(sql, actor, String(b.schoolId || ""), b), 201);
+              }
+              return json({ error: "Method not allowed" }, 405);
+            }
+
+            if (head === "invoice") {
+              const invoiceId = bits[1] || "";
+              const action = bits[2] || "";
+              if (!action && method === "GET") return json(await getInvoice(sql, actor, invoiceId));
+              if (action === "status" && method === "POST") {
+                const b = await readBody();
+                return json(await setInvoiceStatus(sql, actor, invoiceId, String(b.status || "")));
+              }
+              return json({ error: "Method not allowed" }, 405);
+            }
+
+            if (head === "parent-plan" && method === "POST") {
+              const b = await readBody();
+              return json(await setParentPlan(
+                sql,
+                actor,
+                String(b.profileId || ""),
+                String(b.plan || "FREE"),
+                String(b.until || "")
+              ));
+            }
+          }
+
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          console.error("Admin services route error:", e);
           return json({ error: (e as Error).message || "Request failed" }, 500);
         }
       }
@@ -2436,6 +2632,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           || path === "/api/me/consent/withdraw" || path === "/api/me/rights"
           || path === "/api/me/identity" || path === "/api/me/terms" || path === "/api/me/nudges"
           || path === "/api/referral-specialties"
+          || path === "/api/me/photos" || path.startsWith("/api/me/photo/")
+          || path === "/api/me/questions" || path.startsWith("/api/me/questions/")
+          || path === "/api/me/question-policy" || path === "/api/me/entitlements"
+          || path === "/api/library" || path.startsWith("/api/library/")
           || path === "/api/me" || path === "/api/kids/history") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const pid = session.profileId;
@@ -2502,6 +2702,44 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (path === "/api/me" && request.method === "DELETE") {
             return json(await deleteAccount(sql, pid));
           }
+
+          // ── Photographs of this child's findings ──
+          if (path === "/api/me/photos" && request.method === "GET") {
+            return json(await guardianPhotos(sql, pid, url.searchParams.get("kid_id") || ""));
+          }
+          if (path.startsWith("/api/me/photo/") && request.method === "GET") {
+            const photoId = decodeURIComponent(path.slice("/api/me/photo/".length));
+            return json(await getFindingPhoto(sql, { guardianProfileId: pid }, photoId));
+          }
+
+          // ── The question channel ──
+          if (path === "/api/me/question-policy" && request.method === "GET") {
+            return json(await questionPolicy(sql, pid));
+          }
+          if (path === "/api/me/questions" && request.method === "GET") {
+            return json(await guardianThreads(sql, pid));
+          }
+          if (path === "/api/me/questions" && request.method === "POST") {
+            return json(await askQuestion(sql, pid, session.name || "", await readBody()), 201);
+          }
+          if (path.startsWith("/api/me/questions/") && request.method === "GET") {
+            const threadId = decodeURIComponent(path.slice("/api/me/questions/".length));
+            return json(await threadMessages(sql, { profileId: pid }, threadId));
+          }
+
+          // ── Reading, chosen for what this child's report actually said ──
+          if (path === "/api/library" && request.method === "GET") {
+            return json(await libraryForGuardian(sql, pid, url.searchParams.get("locale") || "en"));
+          }
+          if (path.startsWith("/api/library/") && request.method === "GET") {
+            const slug = decodeURIComponent(path.slice("/api/library/".length));
+            return json(await getArticle(sql, slug, url.searchParams.get("locale") || "en"));
+          }
+
+          // ── What this account can and cannot use ──
+          if (path === "/api/me/entitlements" && request.method === "GET") {
+            return json(await entitlements(sql, pid));
+          }
           return json({ error: "Not found" }, 404);
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
@@ -2538,6 +2776,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
               actorId: session.profileId,
               source: "APP",
               checks: Array.isArray(body.checks) ? (body.checks as string[]) : undefined,
+              consentPhotos: body.consentPhotos === true,
               profileId: session.profileId,
             }
           ));
