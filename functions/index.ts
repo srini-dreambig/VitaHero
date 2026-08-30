@@ -7,7 +7,6 @@
 import { neon } from "@neondatabase/serverless";
 import {
   Sql,
-  SCHEMA,
   DEFAULT_COUNTRY_CODE,
   normalizePhone,
   profileIdForPhone,

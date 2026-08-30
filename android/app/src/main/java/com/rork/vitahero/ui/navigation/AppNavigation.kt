@@ -16,6 +16,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.PdfReportGenerator
 import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.data.rememberVitaHeroViewModels
@@ -283,6 +284,7 @@ fun AppNavigation(
                 val streak = kidsViewModel.streakForKid(kid.id)
                 val badges = kidsViewModel.badgeProgressForKid(kid.id).badges
                 val wearableData = state.wearableData[kid.id]
+                val reportLocale = LocalAppLocale.current
                 KidDetailScreen(
                     kid = kid,
                     wearableData = wearableData,
@@ -290,7 +292,7 @@ fun AppNavigation(
                     onOpenDiet = { navController.navigate("diet/${kid.id}") },
                     onShareReport = { ctx ->
                         val reportData = ReportData(kid, meals, streak, badges)
-                        val file = PdfReportGenerator.generate(ctx, reportData)
+                        val file = PdfReportGenerator.generate(ctx, reportData, reportLocale)
                         PdfReportGenerator.shareReport(ctx, file)
                     },
                     onRefreshWearable = { kidsViewModel.refreshWearableData(kid.id) },

@@ -27,7 +27,7 @@ object PdfReportGenerator {
     private const val MARGIN = 40
     private const val CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2
 
-    fun generate(context: Context, data: ReportData): File {
+    fun generate(context: Context, data: ReportData, locale: AppLocale = AppLocale.ENGLISH): File {
         val document = PdfDocument()
         val page = document.startPage(
             PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 1).create()
@@ -150,7 +150,7 @@ object PdfReportGenerator {
         val earned = data.badges.filter { it.earned }
         if (earned.isNotEmpty()) {
             earned.forEach { badge ->
-                canvas.drawText("\u2022 ${badge.title} \u2014 ${badge.description}", MARGIN + 4f, y, bodyPaint)
+                canvas.drawText("\u2022 ${tr(badge.titleKey, locale)} \u2014 ${tr(badge.descriptionKey, locale)}", MARGIN + 4f, y, bodyPaint)
                 y += 18f
             }
         } else {
