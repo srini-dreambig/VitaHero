@@ -1568,10 +1568,35 @@ export const PORTAL_HTML = `<!doctype html>
     if (!S.roster) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var r = S.roster;
     var act = r.students.filter(function (s) { return s.guardianActivated; }).length;
+    var notOnApp = r.students.filter(function (s) {
+      return !s.guardianActivated && s.guardianPhone;
+    });
+
+    /**
+     * Text the app link to guardians who are not on it yet.
+     *
+     * Null invites everyone still missing; a profile id invites one. This is
+     * the same endpoint the App invites screen uses — the point is that you can
+     * act from the screen that shows you the problem, not that there are two
+     * ways to do it.
+     */
+    function invite(profileId) {
+      var who = profileId ? [profileId] : null;
+      run(api("/api/admin/invites/send", { method: "POST",
+        body: { schoolId: S.school.id, onlyNotJoined: true, profileIds: who } }),
+        function (d) {
+          S.notice = d.sent === 0
+            ? "No invitation could be sent. Check the mobile numbers."
+            : "Invitation sent to " + d.sent + (d.sent === 1 ? " guardian." : " guardians.")
+              + (d.failed && d.failed.length ? " " + d.failed.length + " could not be texted." : "");
+          S.roster = null; loadSchoolTab();
+        });
+    }
     return el("div", null,
       el("div", { class: "stats" },
         el("div", { class: "stat" }, el("b", null, r.total), el("span", null, "students on roll")),
-        el("div", { class: "stat ok" }, el("b", null, act), el("span", null, "guardians using the app")),
+        el("div", { class: "stat" + (act ? " ok" : "") }, el("b", null, act),
+          el("span", null, "guardians using the app")),
         el("div", { class: "stat" }, el("b", null, uniq(r.students.map(function (s) { return s.guardianPhone; })).length),
           el("span", null, "guardian numbers"))),
       el("div", { class: "row", style: "margin-bottom:14px" },
@@ -1582,7 +1607,13 @@ export const PORTAL_HTML = `<!doctype html>
             section: "", guardianName: "", guardianPhone: "" }, error: "", notice: "" });
         } }, icon("plus", 14), " Add one child"),
         el("button", { onclick: dlTemplate }, icon("download", 14), " CSV template"),
-        r.total ? el("button", { onclick: exportRoster }, "Export roster") : null),
+        r.total ? el("button", { onclick: exportRoster }, "Export roster") : null,
+        notOnApp.length
+          ? el("button", { onclick: function () { invite(null); } },
+              icon("message", 14),
+              " Send invitation to " + notOnApp.length
+                + (notOnApp.length === 1 ? " guardian" : " guardians"))
+          : null),
       S.addChild ? addChildForm(r) : null,
       r.students.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
@@ -1601,7 +1632,12 @@ export const PORTAL_HTML = `<!doctype html>
                 el("td", { class: "mono" }, s.dob || el("span", { class: "muted" }, "age " + (s.age || "?"))),
                 el("td", null, s.guardianName || el("span", { class: "muted" }, "\\u2014")),
                 el("td", { class: "mono" }, s.guardianPhone),
-                el("td", null, el("span", { class: "pill " + (s.guardianActivated ? "ok" : "mute") }, s.guardianActivated ? "Yes" : "No")));
+                el("td", null, s.guardianActivated
+                  ? el("span", { class: "pill ok" }, "Yes")
+                  : s.guardianPhone
+                    ? el("button", { class: "sm", disabled: S.busy,
+                        onclick: function () { invite(s.profileId); } }, "Invite")
+                    : el("span", { class: "muted", style: "font-size:12px" }, "no number")));
             })))),
       r.total > r.students.length ? el("p", { class: "muted", style: "margin-top:10px;font-size:12.5px" },
         "Showing " + r.students.length + " of " + r.total + ".") : null);
@@ -2512,9 +2548,34 @@ export const PORTAL_HTML = `<!doctype html>
    * assigned. Correct, and useless: there was no way from here to the thing
    * you actually needed to do.
    */
+  /**
+   * Fetch once, from render, without spinning.
+   *
+   * These two loads are triggered while drawing the screen, and both were
+   * guarded on the field the response fills. When a response came back
+   * without that field — an error body, an older worker, a partial deploy
+   * — the field stayed unset, render ran again, the guard was still true,
+   * and the console hammered the endpoint in a tight loop for as long as the
+   * tab was open.
+   *
+   * The guard is a request marker now rather than the data itself, and a bad
+   * shape resolves to an empty list. One request either way.
+   */
+  function loadOnce(key, path, take) {
+    if (S[key] !== undefined && S[key] !== null) return true;
+    var pending = key + "__pending";
+    if (S[pending]) return false;
+    S[pending] = true;
+    api(path).then(
+      function (r) { S[key] = take(r); },
+      function () { S[key] = take(null); }
+    ).then(function () { S[pending] = false; render(); });
+    return false;
+  }
+
   function assignStaffRow(c) {
-    if (!S.staff) {
-      api("/api/admin/schools/" + c.schoolId + "/staff").then(function (r) { S.staff = r.staff; render(); }).catch(function () {});
+    if (!loadOnce("staff", "/api/admin/schools/" + c.schoolId + "/staff",
+        function (r) { return (r && r.staff) || []; })) {
       return el("span", { class: "muted", style: "font-size:13px" }, "Loading team\\u2026");
     }
     var assigned = S.camp.staff.map(function (s) { return s.profileId; });
@@ -2556,9 +2617,8 @@ export const PORTAL_HTML = `<!doctype html>
     // provisions the login their phone number signs in to the app with, which
     // is the whole point: a doctor who cannot sign in cannot screen anybody.
     var docSel;
-    if (!S.doctors) {
-      api("/api/admin/doctors").then(function (r) { S.doctors = r; render(); }).catch(function () {});
-    }
+    loadOnce("doctors", "/api/admin/doctors",
+      function (r) { return r && r.doctors ? r : { doctors: [] }; });
     var docs = ((S.doctors && S.doctors.doctors) || []).filter(function (d) {
       return d.active && d.phone
         && assigned.indexOf("ph_" + String(d.phone).slice(-10)) < 0;
@@ -2677,6 +2737,30 @@ export const PORTAL_HTML = `<!doctype html>
         function () { S.participants = null; S.notice = "Recorded for " + kid.name + "."; refreshCamp("consent"); });
     }
     var pend = S.participants.filter(function (p) { return p.consentStatus === "PENDING"; });
+
+    /** Resend the consent request. Null is everyone still pending. */
+    function chase(profileIds) {
+      run(api("/api/admin/camps/" + c.id + "/consent/request", { method: "POST",
+        body: { profileIds: profileIds } }), function (r) {
+        S.notice = r.sent
+          ? "Consent request sent to " + r.sent + (r.sent === 1 ? " guardian." : " guardians.")
+          : "Nothing sent \u2014 check the mobile numbers.";
+        refreshCamp("consent");
+      });
+    }
+
+    /** They cannot answer in an app they have not got. */
+    function inviteOne(profileId, name) {
+      run(api("/api/admin/invites/send", { method: "POST",
+        body: { schoolId: c.schoolId, onlyNotJoined: true, profileIds: [profileId] } }),
+        function (d) {
+          S.notice = d.sent
+            ? "Invitation sent to " + (name || "the guardian") + "."
+            : "That invitation could not be sent. Check the mobile number.";
+          refreshCamp("consent");
+        });
+    }
+
     return el("div", null,
       el("div", { class: "msg info" },
         "Consent is per camp and per child. A child cannot be screened without it \\u2014 that rule is enforced by the server, not by this screen."),
@@ -2686,15 +2770,21 @@ export const PORTAL_HTML = `<!doctype html>
         : null,
       el("div", { class: "tw" }, el("table", null,
         el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"), el("th", null, "Guardian"),
-          el("th", null, "Mobile"), el("th", null, "Consent"),
+          el("th", null, "Mobile"), el("th", null, "App"), el("th", null, "Consent"),
           c.photosEnabled ? el("th", null, "Photographs") : null,
-          el("th", null, "Record a paper form"))),
+          el("th", null, "Chase"), el("th", null, "Record a paper form"))),
         el("tbody", null, S.participants.map(function (p) {
           return el("tr", null,
             el("td", null, el("b", null, p.name)),
             el("td", null, (p.grade || "") + (p.section ? " " + p.section : "")),
             el("td", null, p.guardianName || el("span", { class: "muted" }, "\\u2014")),
             el("td", { class: "mono" }, p.guardianPhone),
+            // Whether this guardian is on the app at all. A consent reminder to
+            // somebody who never installed it needs a different button, so the
+            // state and its remedy sit side by side.
+            el("td", null, p.guardianUsingApp
+              ? el("span", { class: "pill ok" }, "Yes")
+              : el("span", { class: "pill mute" }, "No")),
             el("td", null, statusPill(p.consentStatus)),
             c.photosEnabled
               ? el("td", null, p.consentStatus === "PENDING"
@@ -2702,6 +2792,13 @@ export const PORTAL_HTML = `<!doctype html>
                   : el("span", { class: "pill " + (p.consentPhotos ? "warn" : "") },
                       p.consentPhotos ? "Allowed" : "Not allowed"))
               : null,
+            el("td", null, p.consentStatus !== "PENDING"
+              ? el("span", { class: "muted", style: "font-size:12.5px" }, "\u2014")
+              : p.guardianUsingApp
+                ? el("button", { class: "sm", disabled: S.busy,
+                    onclick: function () { chase([p.guardianProfileId]); } }, "Remind")
+                : el("button", { class: "sm", disabled: S.busy,
+                    onclick: function () { inviteOne(p.guardianProfileId, p.guardianName); } }, "Invite")),
             el("td", null, p.consentStatus === "PENDING"
               ? el("div", { class: "row" },
                   el("button", { class: "sm", onclick: function () { paper(p, "PAPER", false); } },
@@ -2712,8 +2809,15 @@ export const PORTAL_HTML = `<!doctype html>
                   el("button", { class: "sm dang", onclick: function () { paper(p, "DECLINED"); } }, "Declined"))
               : el("span", { class: "muted", style: "font-size:12.5px" }, "Answered")));
         })))),
-      pend.length ? el("p", { class: "muted", style: "margin-top:10px;font-size:12.5px" },
-        pend.length + " still waiting. Use Setup \\u2192 Request consent to send a reminder.") : null);
+      // This used to be a sentence telling the operator to walk to another
+      // screen. It is a button now.
+      pend.length
+        ? el("div", { class: "row", style: "margin-top:12px;align-items:center" },
+            el("span", { class: "muted", style: "font-size:12.5px" },
+              pend.length + " still waiting."),
+            el("button", { disabled: S.busy, onclick: function () { chase(null); } },
+              icon("message", 14), " Remind all " + pend.length))
+        : null);
   }
 
   // ══════════════════════════════════════ camp day

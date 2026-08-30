@@ -582,6 +582,7 @@ export async function listParticipants(
   const rows = await sql`
     SELECT p.*, k.name, k.grade, k.section, k.gender, k.age, k.date_of_birth, k.student_ref,
            k.guardian_name, pr.phone AS guardian_phone,
+           pr.is_logged_in AS guardian_using_app, pr.id AS guardian_profile_id,
            (SELECT COUNT(*)::int FROM vita_hero.camp_findings f
              WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id
                AND f.flag <> 'NOT_MEASURED') AS findings_count
@@ -610,6 +611,10 @@ export async function listParticipants(
       studentRef: (r.student_ref as string) || "",
       guardianName: (r.guardian_name as string) || "",
       guardianPhone: (r.guardian_phone as string) || "",
+      guardianProfileId: (r.guardian_profile_id as string) || "",
+      // Whether this guardian can actually open a consent request. A reminder
+      // to somebody who has never installed the app is a wasted text.
+      guardianUsingApp: r.guardian_using_app === true,
       consentStatus: (r.consent_status as string) || "PENDING",
       consentPhotos: r.consent_photos === true,
       attendance: (r.attendance as string) || "UNKNOWN",
@@ -627,17 +632,23 @@ export async function requestConsent(
   actor: Actor,
   campId: string,
   sendSms: (phone: string, body: string) => Promise<boolean>,
-  appOrigin: string
+  appOrigin: string,
+  opts: { profileIds?: string[] } = {}
 ) {
   const access = await assertCampAccess(sql, actor, campId);
   assertCan(access.canSchedule, "request consent for this camp");
   const camp = access.camp;
+
+  // Optionally narrowed to named guardians. Chasing one family who has not
+  // replied should not re-text the forty who already have.
+  const picked = Array.isArray(opts.profileIds) ? opts.profileIds.filter(Boolean) : [];
 
   const rows = await sql`
     SELECT DISTINCT p.profile_id, pr.phone, pr.name
     FROM vita_hero.camp_participants p
     JOIN vita_hero.profiles pr ON pr.id = p.profile_id
     WHERE p.camp_id = ${campId} AND p.consent_status = 'PENDING' AND COALESCE(pr.phone,'') <> ''
+      AND (${picked.length === 0} OR p.profile_id = ANY(${picked}))
   `;
 
   const checks: string[] = Array.isArray(camp.checks)

@@ -649,7 +649,8 @@ export async function listRoster(
   const filterYear = (academicYear || "").trim();
   const rows = await sql`
     SELECT k.id, k.name, k.grade, k.section, k.gender, k.age, k.date_of_birth,
-           k.student_ref, k.guardian_name, k.academic_year, p.phone, p.is_logged_in
+           k.student_ref, k.guardian_name, k.academic_year, p.phone, p.is_logged_in,
+           k.profile_id
     FROM vita_hero.kids k
     LEFT JOIN vita_hero.profiles p ON p.id = k.profile_id
     WHERE k.school_id = ${schoolId}
@@ -680,6 +681,9 @@ export async function listRoster(
       guardianName: (r.guardian_name as string) || "",
       guardianPhone: (r.phone as string) || "",
       guardianActivated: r.is_logged_in === true,
+      // Needed to invite this one guardian from the roster rather than
+      // texting everybody who has not joined.
+      profileId: (r.profile_id as string) || "",
       academicYear: (r.academic_year as string) || "",
     })),
   };
