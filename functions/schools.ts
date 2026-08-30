@@ -409,7 +409,40 @@ export async function listClasses(
       if (as_ !== bs) return as_ < bs ? -1 : 1;
       return a.section < b.section ? -1 : a.section > b.section ? 1 : 0;
     });
-  return { academicYear: year, classes };
+  // A school that imported a roster but never filled in the class grid still
+  // has classes — every child carries a grade and a section. Deriving them
+  // here is what stops the camp form from offering nothing to choose while the
+  // server rejects the camp for choosing nothing.
+  if (classes.length === 0) {
+    const fromRoster = await sql`
+      SELECT grade, COALESCE(section, '') AS section, COUNT(*)::int AS student_count
+      FROM vita_hero.kids
+      WHERE school_id = ${schoolId} AND grade <> ''
+        AND (academic_year = ${year} OR academic_year IS NULL OR academic_year = '')
+        AND status <> 'GRADUATED'
+      GROUP BY grade, COALESCE(section, '')
+    `;
+    const derived = fromRoster
+      .map((r) => ({
+        id: "",
+        grade: r.grade as string,
+        section: (r.section as string) || "",
+        academicYear: year,
+        studentCount: (r.student_count as number) || 0,
+      }))
+      .sort((a, b) => {
+        const [an, as_] = gradeSortKey(a.grade);
+        const [bn, bs] = gradeSortKey(b.grade);
+        if (an !== bn) return an - bn;
+        if (as_ !== bs) return as_ < bs ? -1 : 1;
+        return a.section < b.section ? -1 : a.section > b.section ? 1 : 0;
+      });
+    // `derived` says these came from the roster rather than the class grid, so
+    // the console can offer to save them rather than pretending they are set.
+    return { academicYear: year, classes: derived, derived: derived.length > 0 };
+  }
+
+  return { academicYear: year, classes, derived: false };
 }
 
 /**

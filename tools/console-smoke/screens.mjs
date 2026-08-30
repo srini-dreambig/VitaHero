@@ -50,6 +50,19 @@ await p.addInitScript(() => {
     "/api/admin/billing/invoices?school_id=sch_1": { invoices: [{ id: "inv_1",
       number: "VH-2027-0001", academicYear: "2027-28", status: "DRAFT", amountRupees: 150,
       issuedAt: "", paidAt: "" }] },
+    "/api/admin/hospitals": { canEdit: true, hospitals: [
+      { id: "hos_1", name: "Rainbow Children's Hospital", city: "Hyderabad", district: "Banjara Hills",
+        address: "Road No 2", phone: "+914023456789", lat: 17.41, lng: 78.44, rating: 4.9,
+        isCampPartner: true, active: true, doctorCount: 3 },
+      { id: "hos_2", name: "LV Prasad Eye Institute", city: "Hyderabad", district: "",
+        address: "", phone: "", lat: null, lng: null, rating: 4.8,
+        isCampPartner: false, active: true, doctorCount: 1 }] },
+    "/api/admin/doctors": { canEdit: true, doctors: [
+      { id: "doc_1", name: "Dr Ananya Rao", specialty: "Paediatrics", hospitalId: "hos_1",
+        hospitalName: "Rainbow Children's Hospital", city: "Hyderabad", rating: 4.9, active: true }] },
+    "/api/admin/invites": { total: 6, joined: 2, notJoined: 4, neverInvited: 3, guardians: [
+      { profileId: "ph_1", name: "Parent 1", phone: "+919700000001", children: 1, usingApp: true, invitedAt: "2027-09-01T00:00:00Z" },
+      { profileId: "ph_2", name: "Parent 2", phone: "+919700000002", children: 2, usingApp: false, invitedAt: "" }] },
     "/api/admin/library": { checkTypes: ["Vision", "Dental", "Skin"], locales: ["en", "hi", "te"],
       articles: [{ slug: "vision-at-school", locale: "en",
         title: "When your child squints at the board", summary: "What a vision WATCH means.",
@@ -127,6 +140,30 @@ const art = await text();
 check("a new article can be tagged by check", /Shown to families whose child/.test(art));
 check("a new article can be tagged by flag", /WATCH/.test(art));
 check("untagged articles are explained as general", /general shelf/.test(art));
+
+// ── hospitals and doctors ──
+await click("Hospitals");
+const hos = await text();
+check("the hospital directory lists hospitals", /Rainbow Children/.test(hos));
+check("a camp partner is marked as one", /Camp partner/i.test(hos));
+check("a second hospital is listed", /LV Prasad/.test(hos));
+check("the directory says what it is for", /refers their child onward/i.test(hos));
+await click("Add hospital");
+const hosForm = await text();
+check("a hospital can be added", /Add a hospital/.test(hosForm));
+check("coordinates are optional and explained", /sort hospitals by how far/i.test(hosForm));
+await click("Cancel");
+
+// ── invites ──
+await click("Schools");
+await p.getByText("Silver Oaks").first().click();
+await p.waitForTimeout(400);
+await click("App invites");
+const inv = await text();
+check("invites explain why they matter", /reaches a family only if they have the app/i.test(inv));
+check("only families not on the app are targeted by default", /Invite the 4 not on the app/.test(inv));
+check("the guardian list can be exported", /Export CSV/.test(inv));
+check("a guardian already on the app is marked", /Installed/i.test(inv));
 
 check("no page errors anywhere", errs.length === 0);
 if (errs.length) console.log(errs.join("\n"));
