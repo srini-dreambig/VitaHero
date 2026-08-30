@@ -37,7 +37,18 @@ let sent: string[] = [];
 function countingShim(c: pg.Client): Sql {
   const q = (s: string) => '"' + s.replace(/"/g, '""') + '"';
   const fn: any = (strings: TemplateStringsArray | string, ...values: unknown[]) => {
-    if (typeof strings === "string") return { __ident: strings };
+    // The real @neondatabase/serverless v1 driver REJECTS this call. A test
+    // double that accepted it is why 248 green tests coexisted with a worker
+    // that died on its very first statement: every `${sql(SCHEMA)}` threw
+    // "can now be called only as a tagged-template function", the catch around
+    // schema init turned it into a generic message, and no test could see it
+    // because no test ran the real driver. Fail here the way production does.
+    if (typeof strings === "string") {
+      throw new Error(
+        "sql(identifier) is not supported by the Neon driver \u2014 " +
+        "use a literal schema name in the template instead"
+      );
+    }
     let text = "";
     const params: unknown[] = [];
     for (let i = 0; i < strings.length; i++) {
@@ -185,5 +196,32 @@ suite("schema migration", () => {
     // Far fewer requests than statements — the whole point.
     const total = batches.reduce((a, b) => a + b, 0);
     expect(batches.length).toBeLessThan(total / 5);
+  });
+});
+
+// A static guard, not a behavioural one.
+//
+// `sql(SCHEMA)` typechecks, reads fine, and works against every test double we
+// had — and throws on the first call against the real driver. The only cheap
+// way to keep it out is to look for it.
+describe("driver compatibility", () => {
+  test("no source file calls sql() as a plain function", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const offenders: string[] = [];
+    for (const f of readdirSync(".")) {
+      if (!f.endsWith(".ts") || f.endsWith(".test.ts")) continue;
+      // Comments and string literals mention the pattern on purpose; only
+      // real code counts.
+      const src = readFileSync(f, "utf8")
+        .replace(/"(?:[^"\\\n]|\\.)*"/g, '""')
+        .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/\/\/[^\n]*/g, "");
+      // sql("x") or sql(IDENT) — anything but a tagged template or .query()
+      for (const h of src.match(/\bsql\((?!\s*\))[^)]*\)/g) || []) {
+        offenders.push(`${f}: ${h}`);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });

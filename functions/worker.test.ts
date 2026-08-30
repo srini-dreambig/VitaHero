@@ -20,7 +20,18 @@ function run(text: string, params: unknown[]) {
 
 function makeSql() {
   const sql: any = (strings: TemplateStringsArray | string, ...values: unknown[]) => {
-    if (typeof strings === "string") return { identifier: strings }; // sql(SCHEMA)
+    // The real @neondatabase/serverless v1 driver REJECTS this call. A test
+    // double that accepted it is why 248 green tests coexisted with a worker
+    // that died on its very first statement: every `${sql(SCHEMA)}` threw
+    // "can now be called only as a tagged-template function", the catch around
+    // schema init turned it into a generic message, and no test could see it
+    // because no test ran the real driver. Fail here the way production does.
+    if (typeof strings === "string") {
+      throw new Error(
+        "sql(identifier) is not supported by the Neon driver \u2014 " +
+        "use a literal schema name in the template instead"
+      );
+    }
     return run(strings.join(" ? "), values);
   };
   sql.query = (text: string, params: unknown[]) => run(text, params);
