@@ -40,6 +40,10 @@ import {
   saveScreeningBulk,
   updateCamp,
 } from "./camps";
+import { adminAnalytics } from "./analytics";
+import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
+import { ensureMediaSchema } from "./media";
+import { markReferralBooked } from "./referrals";
 import { ensureReferralSchema, guardianReferrals, markReferralAttended, declineReferral,
   recordReferralOutcome, referralDashboard, nudgeReferrals, kidReferrals } from "./referrals";
 import { ensureLifecycleSchema, exportGuardianData, requestCorrection, listCorrections,
@@ -174,6 +178,19 @@ beforeAll(async () => {
   await ensureCampSchema(sql);
   await ensureReferralSchema(sql);
   await ensureLifecycleSchema(sql);
+  await ensureOversightSchema(sql);
+  await ensureMediaSchema(sql);
+  // Hospitals and doctors are seeded by the worker's own schema step; the
+  // partner report joins against them.
+  await sql`CREATE TABLE IF NOT EXISTS vita_hero.hospitals (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, city TEXT DEFAULT 'Hyderabad',
+    district TEXT DEFAULT '', address TEXT DEFAULT '', lat DOUBLE PRECISION,
+    lng DOUBLE PRECISION, phone TEXT DEFAULT '', rating DOUBLE PRECISION DEFAULT 4.5,
+    is_camp_partner BOOLEAN DEFAULT false, active BOOLEAN DEFAULT true)`;
+  await sql`CREATE TABLE IF NOT EXISTS vita_hero.doctors (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, specialty TEXT NOT NULL,
+    hospital TEXT DEFAULT '', hospital_id TEXT, city TEXT DEFAULT 'Hyderabad',
+    rating DOUBLE PRECISION DEFAULT 4.5, active BOOLEAN DEFAULT true)`;
 });
 afterAll(async () => { if (client) await client.end(); });
 
@@ -984,5 +1001,224 @@ suite("end to end", () => {
       "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE source='ADMIN'");
     expect(o.students).toBe(actual.rows[0].n);
     expect(o.campStatus.RELEASED).toBeGreaterThanOrEqual(1);
+  });
+
+  // ── the ops dashboard, over the pathway this suite just ran ──
+
+  test("the funnel reads down the pathway and never grows on the way", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    const at = (k: string) => a.funnel.find((f) => f.key === k)!;
+    expect(at("rostered").count).toBeGreaterThan(0);
+    // Consent cannot exceed the roster, attendance cannot exceed consent, and
+    // so on down. A funnel that widens is a counting bug, and it would be
+    // reported to a school as coverage.
+    const order = ["rostered", "consented", "present", "screened", "reviewed", "released"];
+    for (let i = 1; i < order.length; i++) {
+      expect(at(order[i]).count).toBeLessThanOrEqual(at(order[i - 1]).count);
+    }
+    expect(at("released").count).toBeGreaterThan(0);
+    // Every step names the pathway stage it belongs to, so the dashboard can
+    // say where a cohort stalled rather than only that it did.
+    expect(at("released").stage).toBe("D6");
+  });
+
+  test("the funnel counts against the roster it was measured on", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    const rostered = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.camp_participants");
+    expect(a.funnel[0].count).toBe(rostered.rows[0].n);
+    expect(a.funnel[0].pct).toBe(100);
+  });
+
+  test("closure rate is the headline, and excludes families who declined", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    const rows = await client.query(
+      "SELECT COUNT(*)::int total, COUNT(*) FILTER (WHERE status='CLOSED')::int closed, " +
+      "COUNT(*) FILTER (WHERE status='DECLINED')::int declined FROM vita_hero.referrals");
+    const { total, closed, declined } = rows.rows[0];
+    expect(a.referrals.total).toBe(total);
+    expect(a.referrals.closed).toBe(closed);
+    const actionable = total - declined;
+    expect(a.referrals.closureRate).toBe(
+      actionable > 0 ? Math.round((closed / actionable) * 100) : null
+    );
+  });
+
+  test("an average with nothing behind it is null, not zero", async () => {
+    // A programme that has closed no referrals must not report closing them
+    // instantly. This is the same rule as "not measured" on a child's card.
+    const rows = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.referrals WHERE closed_at IS NOT NULL");
+    const a = await adminAnalytics(sql, OPS);
+    if (rows.rows[0].n === 0) expect(a.referrals.avgDaysToClose).toBeNull();
+    else expect(typeof a.referrals.avgDaysToClose).toBe("number");
+  });
+
+  test("prevalence counts what was not measured as its own thing", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    expect(a.prevalence.length).toBeGreaterThan(0);
+    for (const p of a.prevalence) {
+      expect(p.good + p.watch + p.alert + p.notMeasured).toBe(p.total);
+    }
+  });
+
+  test("the trend covers twelve months with the quiet ones shown", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    expect(a.trend.length).toBe(12);
+    // Consecutive, ascending, no gaps — a month with no camp has to appear as
+    // a zero or the chart quietly rewrites history.
+    const months = a.trend.map((t) => t.month);
+    expect([...months].sort()).toEqual(months);
+    expect(a.trend.some((t) => t.screened > 0)).toBe(true);
+  });
+
+  test("a school admin sees their own school whatever they ask for", async () => {
+    const other = await createSchool(sql, OPS, {
+      name: "Another School", city: "Warangal", district: "Hanamkonda",
+    });
+    const scoped = await adminAnalytics(sql, admin, { schoolId: other.school.id });
+    expect(scoped.scope).toBe(schoolId);
+    expect(scoped.bySchool.length).toBe(1);
+    expect(scoped.bySchool[0].id).toBe(schoolId);
+    // K2 is an ops view; a school does not get the district rollup.
+    expect(scoped.byDistrict).toEqual([]);
+  });
+
+  test("the district rollup carries no school and no child", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    expect(a.byDistrict.length).toBeGreaterThan(0);
+    const keys = Object.keys(a.byDistrict[0]).sort();
+    expect(keys).toEqual(["district", "flagged", "flaggedPct", "schools", "screened"]);
+  });
+
+  // ── K6, the access log ──
+
+  test("opening a child's record is recorded, with who and when", async () => {
+    const log = await recordAccessLog(sql, OPS);
+    // This suite opened screening forms and review detail earlier; both are
+    // reads of a child's medical record.
+    expect(log.entries.length).toBeGreaterThan(0);
+    const surfaces = new Set(log.entries.map((e) => e.surface));
+    expect(surfaces.has("SCREENING")).toBe(true);
+    expect(surfaces.has("CLINICAL_REVIEW")).toBe(true);
+    const first = log.entries[0];
+    expect(first.actorId).toBeTruthy();
+    expect(first.kidId).toBeTruthy();
+    expect(first.at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  test("the log names the child and the person, not just their ids", async () => {
+    const log = await recordAccessLog(sql, OPS);
+    const named = log.entries.find((e) => e.kidName);
+    expect(named).toBeTruthy();
+    expect(named!.kidName).toBeTruthy();
+    expect(named!.actorRole).toBeTruthy();
+  });
+
+  test("the log can answer 'who has looked at this child'", async () => {
+    const any = (await recordAccessLog(sql, OPS)).entries[0];
+    const forKid = await recordAccessLog(sql, OPS, { kidId: any.kidId });
+    expect(forKid.entries.length).toBeGreaterThan(0);
+    expect(forKid.entries.every((e) => e.kidId === any.kidId)).toBe(true);
+  });
+
+  test("the log is summarised by who did the reading", async () => {
+    const log = await recordAccessLog(sql, OPS);
+    expect(log.byActor.length).toBeGreaterThan(0);
+    for (const a of log.byActor) {
+      expect(a.reads).toBeGreaterThanOrEqual(a.children);
+    }
+  });
+
+  test("the access log is not something a school can browse", async () => {
+    await expect(recordAccessLog(sql, admin)).rejects.toThrow(/operations view/);
+  });
+
+  test("a failed log write never blocks the clinician", async () => {
+    // The gate is the role check that already ran; the log is a record of what
+    // happened. If the ledger is unavailable, the physician still sees the
+    // child in front of them.
+    await client.query("ALTER TABLE vita_hero.record_access RENAME TO record_access_tmp");
+    try {
+      const q = await reviewQueue(sql, physician, campId);
+      if (q.queue.length) {
+        const d = await reviewDetail(sql, physician, campId, q.queue[0].kidId);
+        expect(d.kid.name).toBeTruthy();
+      }
+    } finally {
+      await client.query("ALTER TABLE vita_hero.record_access_tmp RENAME TO record_access");
+    }
+  });
+
+  // ── K4, partner performance ──
+
+  test("a referral booked at a partner is attributed to that partner", async () => {
+    await client.query(
+      `INSERT INTO vita_hero.hospitals (id, name, city, district, is_camp_partner)
+       VALUES ('hosp_t1','Rainbow Children''s Hospital','Hyderabad','Gachibowli',true),
+              ('hosp_t2','Unused Clinic','Hyderabad','Kukatpally',false)
+       ON CONFLICT (id) DO NOTHING`);
+    await client.query(
+      `INSERT INTO vita_hero.doctors (id, name, specialty, hospital_id)
+       VALUES ('doc_t1','Dr Partner','Ophthalmology','hosp_t1')
+       ON CONFLICT (id) DO NOTHING`);
+
+    const open = await client.query(
+      "SELECT id, profile_id FROM vita_hero.referrals WHERE status='OPEN' LIMIT 1");
+    expect(open.rows.length).toBe(1);
+    await client.query(
+      `INSERT INTO vita_hero.appointments (id, profile_id, doctor_name, doctor_id, specialty, date, time)
+       VALUES ('appt_t1', $1, 'Dr Partner', 'doc_t1', 'Ophthalmology', '2026-10-02', '10:00')
+       ON CONFLICT (id) DO NOTHING`, [open.rows[0].profile_id]);
+    await markReferralBooked(sql, open.rows[0].profile_id, open.rows[0].id, "appt_t1");
+
+    const r = await hospitalPerformance(sql, OPS);
+    const partner = r.hospitals.find((h) => h.id === "hosp_t1")!;
+    expect(partner.sent).toBe(1);
+    expect(partner.outstanding).toBe(1);
+    // Booked is not seen. A hospital gets credit when the child turns up.
+    expect(partner.seen).toBe(0);
+    expect(partner.seenRate).toBe(0);
+    const unused = r.hospitals.find((h) => h.id === "hosp_t2")!;
+    expect(unused.sent).toBe(0);
+  });
+
+  test("a partner nobody has used has no rate, rather than a rate of zero", async () => {
+    const r = await hospitalPerformance(sql, OPS);
+    expect(r.hospitals.length).toBeGreaterThan(0);
+    for (const h of r.hospitals) {
+      if (h.sent === 0) {
+        expect(h.seenRate).toBeNull();
+        expect(h.closureRate).toBeNull();
+      } else {
+        expect(h.seenRate).toBe(Math.round((h.seen / h.sent) * 100));
+      }
+    }
+  });
+
+  test("referrals with no appointment are reported apart from the partners", async () => {
+    const r = await hospitalPerformance(sql, OPS);
+    const unbooked = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.referrals WHERE appointment_id IS NULL");
+    // A family using their own doctor must not flatter a partner's numbers.
+    expect(r.notBooked.total).toBe(unbooked.rows[0].n);
+    const attributed = r.hospitals.reduce((a, h) => a + h.sent, 0);
+    const total = await client.query("SELECT COUNT(*)::int n FROM vita_hero.referrals");
+    expect(attributed + r.notBooked.total).toBeLessThanOrEqual(total.rows[0].n);
+  });
+
+  test("partner performance is ops-only", async () => {
+    await expect(hospitalPerformance(sql, admin)).rejects.toThrow(/operations view/);
+  });
+
+  test("per-school coverage is against the roll, not against itself", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    const row = a.bySchool.find((s) => s.id === schoolId)!;
+    const students = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND source='ADMIN'", [schoolId]);
+    expect(row.students).toBe(students.rows[0].n);
+    expect(row.coverage).toBe(
+      row.students > 0 ? Math.round((row.screened / row.students) * 100) : null
+    );
   });
 });

@@ -67,6 +67,8 @@ import {
   campPack,
   saveScreeningBulk,
 } from "./camps";
+import { adminAnalytics } from "./analytics";
+import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import {
   ensureReferralSchema,
   guardianReferrals,
@@ -1526,6 +1528,7 @@ const SCHEMA_STEPS = [
   ensureLibrarySchema,
   ensureBillingSchema,
   ensureSymptomSchema,
+  ensureOversightSchema,
 ];
 
 /** Steps that have to read before they write. Only ever touch an empty table. */
@@ -1727,7 +1730,9 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       }
 
       // ── Admin: overview, my camps, camp operations ──
-      if (path === "/api/admin/overview" || path === "/api/admin/my-camps"
+      if (path === "/api/admin/overview" || path === "/api/admin/analytics"
+          || path === "/api/admin/partners" || path === "/api/admin/access-log"
+          || path === "/api/admin/my-camps"
           || path === "/api/admin/camps" || path.startsWith("/api/admin/camps/")) {
         const actor = await resolveActor(request, sql, env);
         if (!actor) {
@@ -1743,6 +1748,23 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         try {
           if (path === "/api/admin/overview" && method === "GET") {
             return json(await adminOverview(sql, actor));
+          }
+          if (path === "/api/admin/partners" && method === "GET") {
+            return json(await hospitalPerformance(sql, actor, {
+              schoolId: url.searchParams.get("school_id") || "",
+            }));
+          }
+          if (path === "/api/admin/access-log" && method === "GET") {
+            return json(await recordAccessLog(sql, actor, {
+              kidId: url.searchParams.get("kid_id") || "",
+              actorId: url.searchParams.get("actor_id") || "",
+              days: parseInt(url.searchParams.get("days") || "30", 10),
+            }));
+          }
+          if (path === "/api/admin/analytics" && method === "GET") {
+            return json(await adminAnalytics(sql, actor, {
+              schoolId: url.searchParams.get("school_id") || "",
+            }));
           }
           if (path === "/api/admin/my-camps" && method === "GET") {
             return json(await listMyCamps(sql, actor));

@@ -20,6 +20,7 @@ import {
 } from "./common";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { openReferralsForChild } from "./referrals";
+import { logRecordAccess } from "./oversight";
 import {
   CHECK_TYPES,
   Flag,
@@ -722,6 +723,11 @@ export async function setAttendance(
 export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, kidId: string) {
   const access = await assertCampAccess(sql, actor, campId);
   assertCan(access.canScreen, "screen children at this camp");
+  // K6. Opening a screening form is a read of a child's medical record, and is
+  // logged as one. Best-effort by design — see logRecordAccess.
+  await logRecordAccess(sql, actor, {
+    kidId, campId, schoolId: (access.camp.school_id as string) || "", surface: "SCREENING",
+  });
 
   const rows = await sql`
     SELECT p.*, k.name, k.grade, k.section, k.gender, k.age, k.date_of_birth, k.student_ref,
@@ -1100,6 +1106,9 @@ export async function reviewQueue(sql: Sql, actor: Actor, campId: string) {
 export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId: string) {
   const access = await assertCampAccess(sql, actor, campId);
   assertCan(access.canReview, "review results for this camp");
+  await logRecordAccess(sql, actor, {
+    kidId, campId, schoolId: (access.camp.school_id as string) || "", surface: "CLINICAL_REVIEW",
+  });
 
   const pRows = await sql`
     SELECT p.*, k.name, k.grade, k.section, k.age, k.gender, k.date_of_birth, k.guardian_name

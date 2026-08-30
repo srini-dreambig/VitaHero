@@ -28,7 +28,10 @@ import { Sql } from "./common";
  * shape, so the check in migrate.test.ts asserts this file changes whenever
  * the DDL does.
  */
-export const SCHEMA_VERSION = 1;
+// 2 — adds vita_hero.record_access (K6, the record access log). An existing
+//     database stays on version 1 until this is bumped, which is exactly the
+//     failure mode the gate exists to prevent.
+export const SCHEMA_VERSION = 2;
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

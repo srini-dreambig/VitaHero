@@ -75,10 +75,24 @@ export const PORTAL_HTML = `<!doctype html>
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
 
   /* ── shell ── */
-  .shell{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+  /* minmax(0,...) rather than a bare 1fr: a grid track's automatic minimum is
+     min-content, so a bare 1fr lets one wide child — a roster table, the
+     collapsed nav strip — push the whole shell past the viewport instead of
+     scrolling inside itself. */
+  .shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
   .nav{background:var(--nav);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
   .brand{display:flex;align-items:center;gap:10px;padding:18px 18px 16px;font-weight:700;font-size:15px;letter-spacing:-.02em}
-  .brand .dot{width:24px;height:24px;border-radius:7px;background:linear-gradient(135deg,var(--brand),#F5B764);flex:none}
+  /* The wordmark as the brand actually sets it: "vita" orange, "hero" blue,
+     lowercase, tight. Previously a gradient square stood in for the logo. */
+  .wm{font-weight:700;letter-spacing:-.02em;font-size:17px;line-height:1}
+  .wm i{font-style:normal;color:var(--brand)}
+  .wm b{font-weight:700;color:var(--blue)}
+  .nav .wm i{color:#F9A45C}
+  .nav .wm b{color:#6FC7EE}
+  .wm.big{font-size:30px}
+  .signbrand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:18px}
+  .signbrand .tag{font-size:11px;font-weight:600;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--blue)}
   .navsec{padding:6px 10px}
   .navsec h4{color:#5D707E;padding:10px 8px 6px;font-size:10.5px}
   .navi{
@@ -157,6 +171,11 @@ export const PORTAL_HTML = `<!doctype html>
   .card-f{padding:12px 20px;border-top:1px solid var(--line-2);background:var(--sunk);border-radius:0 0 var(--r) var(--r)}
 
   .tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
+  /* Same scrolling, none of the chrome — for a table already sitting inside a
+     card. Applied by hand where it reads well and by the safety net in
+     render() everywhere else, because a table that escapes its container
+     scrolls the whole page sideways and takes the sticky nav with it. */
+  .tws{overflow-x:auto;max-width:100%}
   table{border-collapse:collapse;width:100%;font-size:13.5px}
   th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
   th{background:var(--sunk);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2);font-weight:650;white-space:nowrap}
@@ -244,10 +263,65 @@ export const PORTAL_HTML = `<!doctype html>
   .issues li.e{color:var(--err)} .issues li.w{color:var(--warn)}
   tbody tr.rowerr{background:var(--err-bg)} tbody tr.rowwarn{background:var(--warn-bg)}
 
+  /* ── dashboard ──
+     Bars are divs and the trend is inline SVG. No chart library: the console
+     is one file that has to open on a tethered phone in a school hall, and
+     four bar charts are not worth a network dependency. */
+  /* Two panels of comparable weight — .split is a 280px sidebar and squeezes
+     the funnel until its labels wrap. */
+  .duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:18px;align-items:start}
+  @media(max-width:1080px){.duo{grid-template-columns:minmax(0,1fr)}}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--sh);padding:14px 16px;min-width:0}
+  .kpi .lbl{font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+  .kpi .big{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1;margin-top:6px;
+    font-variant-numeric:tabular-nums;color:var(--ink)}
+  .kpi .big.none{font-size:18px;font-weight:600;color:var(--ink-3);letter-spacing:0}
+  .kpi .sub{font-size:12px;color:var(--ink-3);margin-top:3px}
+  .kpi.lead{background:linear-gradient(135deg,var(--brand),var(--brand-dk));border-color:transparent}
+  .kpi.lead .lbl,.kpi.lead .sub{color:rgba(255,255,255,.82)}
+  .kpi.lead .big{color:#fff}
+  .kpi.lead .big.none{color:rgba(255,255,255,.82)}
+
+  /* The pathway, read top to bottom. Each row is one stage of A-D. */
+  .fun{display:flex;flex-direction:column;gap:2px}
+  .fun .frow{display:grid;grid-template-columns:1fr 62px;align-items:center;gap:10px;padding:3px 0}
+  .fun .ftrack{position:relative;background:var(--sunk);border-radius:5px;height:32px;overflow:hidden}
+  .fun .ffill{position:absolute;inset:0 auto 0 0;background:var(--brand-sf);border-right:2px solid var(--brand)}
+  .fun .ftx{position:relative;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;
+    font-size:13px;font-weight:550;color:var(--ink);white-space:nowrap;overflow:hidden}
+  .fun .stg{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--brand-dk);
+    background:#fff;border:1px solid var(--brand-sf);border-radius:4px;padding:1px 5px;flex:none}
+  .fun .fn{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--ink-2);font-weight:600}
+  .fun .fpc{text-align:right;font-size:13px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  .fun .flost{font-size:11.5px;color:var(--err);padding:1px 0 2px 10px}
+
+  /* Prevalence: one stacked bar per check, in the flag colours the app uses. */
+  .sbar{display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--sunk)}
+  .sbar i{display:block;height:100%}
+  .sbar i.good{background:var(--ok)} .sbar i.watch{background:var(--warn)}
+  .sbar i.alert{background:var(--err)} .sbar i.nm{background:#CBD5E1}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--ink-2);margin-top:10px}
+  .legend span{display:flex;align-items:center;gap:5px}
+  .legend b{width:9px;height:9px;border-radius:2px;display:block}
+
+  .chart{width:100%;height:190px;display:block;overflow:visible}
+  .chart .gl{stroke:var(--line-2);stroke-width:1}
+  .chart .ax{fill:var(--ink-3);font-size:10px}
+  .bad{color:var(--err);font-weight:600}
+
   @media(max-width:820px){
-    .shell{grid-template-columns:1fr}
+    .shell{grid-template-columns:minmax(0,1fr)}
     .nav{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding-bottom:8px}
-    .navsec{display:flex;gap:4px;padding:0 10px 8px;overflow-x:auto;flex:1}
+    /* min-width:0 is the whole fix: a flex child defaults to min-width:auto,
+       so this strip refused to shrink below its buttons and held the entire
+       shell open at 424px inside a 390px phone. */
+    .navsec{display:flex;gap:4px;padding:0 10px 8px;overflow-x:auto;flex:1;min-width:0}
+    .nav{max-width:100%;min-width:0}
+    /* The signed-in name and role can be long; let the footer wrap rather than
+       hold the strip open. */
+    .navfoot{flex-wrap:wrap;min-width:0}
     .navsec h4{display:none}
     .navi{width:auto;margin:0}
     .navfoot{margin:0;border:none;padding:8px 14px;display:flex;align-items:center;gap:12px}
@@ -262,6 +336,21 @@ export const PORTAL_HTML = `<!doctype html>
   "use strict";
 
   // ── dom ──
+  /**
+   * The VitaHero shield, from the app's own launcher asset.
+   *
+   * Embedded rather than fetched: the console is one self-contained file
+   * that has to open on a tethered phone in a school hall, and a logo is a
+   * poor reason to add a network dependency. Previously a CSS gradient dot
+   * stood in for it, which is why the console did not look like the app.
+   */
+  var BRAND_MARK = "data:image/png;base64,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";
+
+  function brandMark(size) {
+    return el("img", { src: BRAND_MARK, alt: "", width: String(size), height: String(size),
+      style: "display:block;flex:none" });
+  }
+
   // ── icons ──
   //
   // Lucide, inlined as path data. Not a CDN script: the console has to open in
@@ -587,8 +676,9 @@ export const PORTAL_HTML = `<!doctype html>
       });
     }
     return el("div", { class: "sin" },
-      el("div", { class: "brand", style: "justify-content:center;color:var(--ink);margin-bottom:16px;padding:0" },
-        el("span", { class: "dot" }), "VitaHero Console"),
+      el("div", { class: "signbrand" }, brandMark(64),
+        el("div", { class: "wm big" }, el("i", null, "vita"), el("b", null, "hero")),
+        el("div", { class: "tag" }, "Kids health & wellness")),
       el("div", { class: "card" }, el("div", { class: "card-b" },
         el("h2", { style: "margin-bottom:4px" }, "Sign in"),
         el("p", { class: "muted", style: "font-size:13px" }, "For school staff, screening teams and VitaHero operations."),
@@ -626,6 +716,13 @@ export const PORTAL_HTML = `<!doctype html>
     if (isClinical()) { S.view = "mycamps"; loadMyCamps(); return; }
     run(api("/api/admin/overview"), function (d) {
       S.overview = d; S.view = "overview";
+      // The dashboard and the school list fill in behind the counters rather
+      // than holding the first paint. Each failure is handled on its own, so a
+      // slow analytics query cannot blank the page.
+      api("/api/admin/analytics").then(
+        function (r) { S.analytics = r; },
+        function () { S.analyticsError = true; }
+      ).then(render);
       api("/api/admin/schools").then(function (r) {
         S.schools = r.schools;
         if (isSchoolAdmin() && r.schools.length === 1) S.school = r.schools[0];
@@ -715,6 +812,9 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { style: "flex:1" }),
         el("button", { onclick: loadProgrammeReport }, S.programme ? "Hide programme report" : "Programme report")) : null,
       S.programme ? programmePanel() : null,
+      // "Students on roll" and the camp counts moved into the dashboard KPIs
+      // above; what is left here is the reach of the app itself, which the
+      // pathway funnel does not cover.
       el("div", { class: "stats" },
         isOps() ? el("div", { class: "stat" }, el("b", null, o.schools), el("span", null, "schools")) : null,
         el("div", { class: "stat" }, el("b", null, o.students), el("span", null, "students on roll")),
@@ -722,6 +822,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat ok" }, el("b", null, o.guardiansActivated), el("span", null, "using the app")),
         el("div", { class: "stat info" }, el("b", null, (cs.SCHEDULED || 0) + (cs.IN_PROGRESS || 0)), el("span", null, "camps running")),
         el("div", { class: "stat" }, el("b", null, cs.RELEASED || 0), el("span", null, "camps released"))),
+      dashboard(),
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Camps needing attention")),
         o.upcoming.length === 0
@@ -743,6 +844,236 @@ export const PORTAL_HTML = `<!doctype html>
                   el("td", null, statusPill(c.status)),
                   el("td", null, el("button", { class: "sm" }, "Open")));
               })))));
+  }
+
+  // ══════════════════════════════════════ dashboard (K1, K2)
+  //
+  // What this has to answer, in this order: is the programme closing the
+  // referrals it raises (G9 — the only number that says a child was actually
+  // helped), where in the pathway are cohorts falling out, and which school
+  // needs a phone call this week. Counters alone answered none of those.
+
+  var NS = "http://www.w3.org/2000/svg";
+  function sv(tag, attrs) {
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, k) && attrs[k] !== null) {
+        n.setAttribute(k, String(attrs[k]));
+      }
+    }
+    for (var i = 2; i < arguments.length; i++) {
+      if (arguments[i]) n.appendChild(arguments[i]);
+    }
+    return n;
+  }
+  function svText(t) { return document.createTextNode(String(t)); }
+
+  /** A percentage that has no denominator prints as a dash, never as 0%. */
+  function pctText(v) { return v === null || v === undefined ? "—" : v + "%"; }
+
+  function kpi(label, value, sub, cls) {
+    var missing = value === null || value === undefined;
+    return el("div", { class: "kpi" + (cls ? " " + cls : "") },
+      el("div", { class: "lbl" }, label),
+      el("div", { class: "big" + (missing ? " none" : "") }, missing ? "No data yet" : value),
+      sub ? el("div", { class: "sub" }, sub) : null);
+  }
+
+  /**
+   * The pathway as a funnel.
+   *
+   * The drop between two steps is the story — 40 children consented and 12
+   * screened is a camp-day problem, 40 screened and 12 released is a review
+   * backlog. Naming the stage (B3, C8, D6) ties the row back to the pathway
+   * the programme is run against.
+   */
+  function funnel(steps) {
+    var top = steps.length ? steps[0].count : 0;
+    return el("div", { class: "fun" }, steps.map(function (st, i) {
+      var w = top > 0 ? Math.round((st.count / top) * 100) : 0;
+      var prev = i > 0 ? steps[i - 1] : null;
+      var lost = prev ? prev.count - st.count : 0;
+      return el("div", null,
+        el("div", { class: "frow" },
+          el("div", { class: "ftrack" },
+            el("div", { class: "ffill", style: "width:" + w + "%" }),
+            el("div", { class: "ftx" },
+              el("span", { class: "stg" }, st.stage), st.label,
+              el("span", { class: "fn" }, st.count))),
+          el("div", { class: "fpc" }, pctText(st.pct))),
+        lost > 0 ? el("div", { class: "flost" },
+          lost + " did not reach this step") : null);
+    }));
+  }
+
+  /**
+   * Twelve months of children screened, with referrals closed drawn over it.
+   *
+   * Screening that never closes a referral has not helped anyone, so the two
+   * series belong on one axis where the gap between them is visible.
+   */
+  function trendChart(trend) {
+    var W = 720, H = 190, padL = 34, padB = 22, padT = 8;
+    var max = 0;
+    trend.forEach(function (t) { max = Math.max(max, t.screened, t.referralsRaised); });
+    if (max === 0) max = 1;
+    var iw = W - padL - 8, ih = H - padB - padT;
+    var step = iw / trend.length;
+    var bw = Math.max(6, Math.min(26, step * 0.42));
+
+    var g = sv("svg", { class: "chart", viewBox: "0 0 " + W + " " + H,
+      preserveAspectRatio: "none", role: "img" });
+    g.appendChild(sv("title", null, svText("Children screened and referrals closed, by month")));
+
+    // Gridlines and the value axis.
+    [0, 0.5, 1].forEach(function (f) {
+      var y = padT + ih - ih * f;
+      g.appendChild(sv("line", { class: "gl", x1: padL, y1: y, x2: W - 8, y2: y }));
+      var lab = sv("text", { class: "ax", x: 4, y: y + 3 });
+      lab.appendChild(svText(String(Math.round(max * f))));
+      g.appendChild(lab);
+    });
+
+    trend.forEach(function (t, i) {
+      var x = padL + step * i + (step - bw * 2 - 2) / 2;
+      var hs = Math.round((t.screened / max) * ih);
+      var hc = Math.round((t.referralsClosed / max) * ih);
+      g.appendChild(sv("rect", { x: x, y: padT + ih - hs, width: bw, height: hs,
+        rx: 2, fill: "var(--brand)" }));
+      g.appendChild(sv("rect", { x: x + bw + 2, y: padT + ih - hc, width: bw, height: hc,
+        rx: 2, fill: "var(--ok)" }));
+      // Every third month, so the axis stays readable on a phone.
+      if (i % 3 === 0 || i === trend.length - 1) {
+        var lab = sv("text", { class: "ax", x: x, y: H - 6 });
+        lab.appendChild(svText(t.month.slice(2).replace("-", "/")));
+        g.appendChild(lab);
+      }
+    });
+    return g;
+  }
+
+  function legend(items) {
+    return el("div", { class: "legend" }, items.map(function (it) {
+      return el("span", null, el("b", { style: "background:" + it[1] }), it[0]);
+    }));
+  }
+
+  /** Prevalence per check, in the same flag colours the parent app uses. */
+  function prevalenceBars(rows) {
+    return el("div", null,
+      rows.map(function (r) {
+        var t = r.total || 1;
+        var pc = function (v) { return (v / t) * 100 + "%"; };
+        var flagged = r.watch + r.alert;
+        return el("div", { style: "margin-bottom:12px" },
+          el("div", { class: "row", style: "justify-content:space-between;margin-bottom:5px" },
+            el("b", { style: "font-size:13px" }, r.checkType),
+            el("span", { class: "muted", style: "font-size:12px" },
+              flagged + " of " + r.total + " flagged"
+              + (r.notMeasured ? " · " + r.notMeasured + " not measured" : ""))),
+          el("div", { class: "sbar" },
+            el("i", { class: "good", style: "width:" + pc(r.good) }),
+            el("i", { class: "watch", style: "width:" + pc(r.watch) }),
+            el("i", { class: "alert", style: "width:" + pc(r.alert) }),
+            el("i", { class: "nm", style: "width:" + pc(r.notMeasured) })));
+      }),
+      legend([["Normal", "var(--ok)"], ["Watch", "var(--warn)"],
+              ["Alert", "var(--err)"], ["Not measured", "#CBD5E1"]]));
+  }
+
+  function dashboard() {
+    if (S.analyticsError) {
+      return el("div", { class: "card" }, el("div", { class: "card-b" },
+        el("p", { class: "muted" }, "The dashboard could not be loaded. The counters above are live.")));
+    }
+    var a = S.analytics;
+    if (!a) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading the dashboard…"));
+    // A 200 carrying the wrong shape is not a dashboard. Say so and leave the
+    // rest of the screen working, rather than throwing halfway through it.
+    if (!a.funnel || !a.referrals) {
+      return el("div", { class: "card" }, el("div", { class: "card-b" },
+        el("p", { class: "muted" },
+          "The dashboard data came back in an unexpected shape. The counters above are live.")));
+    }
+    var r = a.referrals;
+    var screened = (a.funnel.find(function (f) { return f.key === "screened"; }) || {}).count || 0;
+
+    return el("div", null,
+      el("div", { class: "kpis" },
+        // The headline is closure, not screening. A programme that screens
+        // thousands and closes nothing has not helped a single child.
+        kpi("Referral closure", r.closureRate === null ? null : r.closureRate + "%",
+          r.total ? r.closed + " of " + r.total + " referrals closed" : "No referrals raised yet",
+          "lead"),
+        kpi("Children screened", screened,
+          a.funnel[0].count ? a.funnel[0].count + " on camp rosters" : null),
+        kpi("Open referrals", r.open + r.booked,
+          (r.urgentOpen ? r.urgentOpen + " urgent" : "none urgent")
+          + (r.overdue ? " · " + r.overdue + " overdue" : "")),
+        kpi("Days to close", r.avgDaysToClose === null ? null : r.avgDaysToClose,
+          "average, referral raised to closed")),
+
+      el("div", { class: "duo" },
+        el("div", { class: "card" },
+          el("div", { class: "card-h" }, el("h2", null, "Where the pathway stands"),
+            el("span", { class: "muted", style: "font-size:12px" }, "Stages B–D")),
+          el("div", { class: "card-b" }, funnel(a.funnel))),
+        el("div", { class: "card" },
+          el("div", { class: "card-h" }, el("h2", null, "Last twelve months")),
+          el("div", { class: "card-b" },
+            trendChart(a.trend),
+            legend([["Children screened", "var(--brand)"], ["Referrals closed", "var(--ok)"]])))),
+
+      a.prevalence.length
+        ? el("div", { class: "card" },
+            el("div", { class: "card-h" }, el("h2", null, "What screening is finding")),
+            el("div", { class: "card-b" }, prevalenceBars(a.prevalence)))
+        : null,
+
+      a.bySchool.length
+        ? el("div", { class: "card" },
+            el("div", { class: "card-h" }, el("h2", null, "Schools")),
+            el("div", { class: "tws" }, el("table", null,
+              el("thead", null, el("tr", null,
+                el("th", null, "School"), el("th", null, "District"),
+                el("th", { class: "num" }, "On roll"), el("th", { class: "num" }, "Screened"),
+                el("th", { class: "num" }, "Coverage"), el("th", { class: "num" }, "Referrals"),
+                el("th", { class: "num" }, "Closed"), el("th", null, "Last camp"))),
+              el("tbody", null, a.bySchool.map(function (sc) {
+                return el("tr", { class: "click", onclick: function () { openSchool(sc.id); } },
+                  el("td", null, el("b", null, sc.name),
+                    sc.city ? el("div", { class: "muted", style: "font-size:11.5px" }, sc.city) : null),
+                  el("td", { class: "muted" }, sc.district || "—"),
+                  el("td", { class: "num" }, sc.students),
+                  el("td", { class: "num" }, sc.screened),
+                  el("td", { class: "num" }, pctText(sc.coverage)),
+                  el("td", { class: "num" }, sc.referrals),
+                  el("td", { class: "num" + (sc.closureRate !== null && sc.closureRate < 50 ? " bad" : "") },
+                    pctText(sc.closureRate)),
+                  el("td", null, sc.lastCamp ? fmtDate(sc.lastCamp) : el("span", { class: "muted" }, "none yet")));
+              })))))
+        : null,
+
+      // K2. Nothing here identifies a school or a child; this is the shape the
+      // view takes when it goes to a district office or a funder.
+      a.byDistrict.length
+        ? el("div", { class: "card" },
+            el("div", { class: "card-h" }, el("h2", null, "By district"),
+              el("span", { class: "muted", style: "font-size:12px" }, "Aggregate only — no school, no child")),
+            el("div", { class: "tws" }, el("table", null,
+              el("thead", null, el("tr", null,
+                el("th", null, "District"), el("th", { class: "num" }, "Schools"),
+                el("th", { class: "num" }, "Children screened"), el("th", { class: "num" }, "Flagged"),
+                el("th", { class: "num" }, "Rate"))),
+              el("tbody", null, a.byDistrict.map(function (d) {
+                return el("tr", null,
+                  el("td", null, el("b", null, d.district)),
+                  el("td", { class: "num" }, d.schools),
+                  el("td", { class: "num" }, d.screened),
+                  el("td", { class: "num" }, d.flagged),
+                  el("td", { class: "num" }, pctText(d.flaggedPct)));
+              })))))
+        : null);
   }
 
   function loadProgrammeReport() {
@@ -2833,11 +3164,299 @@ export const PORTAL_HTML = `<!doctype html>
   // The directory the parent app reads when a child is referred. It was seeded
   // once and had no editor, which meant the first pilot could not add the
   // hospital actually next to the school.
+  // ══════════════════════════════════════ oversight (K4, K6, J9)
+  //
+  // Three things that were built and had nowhere to be opened from, plus the
+  // two that were never built at all. They belong together: each one answers
+  // "is this programme being run properly", and none of them belongs inside a
+  // single school.
+
+  function loadOversight(tab) {
+    S.view = "oversight";
+    // navItem hands its handler the click event, so anything but a string here
+    // is the event and must not become the selected tab — that is how the
+    // Partners tab sat on "Loading…" for ever while looking correct.
+    S.oversightTab = (typeof tab === "string" && tab)
+      || S.oversightTab || "partners";
+    S.error = ""; S.notice = "";
+    render();
+    loadOversightTab();
+  }
+
+  function loadOversightTab() {
+    var t = S.oversightTab;
+    if (t === "partners" && !S.partners) {
+      run(api("/api/admin/partners"), function (d) { S.partners = d; });
+    } else if (t === "access" && !S.access) {
+      run(api("/api/admin/access-log?days=" + (S.accessDays || 30)), function (d) { S.access = d; });
+    } else if (t === "retention" && !S.retention) {
+      run(api("/api/admin/retention"), function (d) { S.retention = d; });
+    }
+  }
+
+  function viewOversight() {
+    var tabs = [["partners", "Hospital partners"], ["access", "Record access"],
+      ["retention", "Retention"], ["child", "Look up a child"]];
+    return el("div", null,
+      el("div", { class: "tabs" }, tabs.map(function (t) {
+        return el("button", { class: "tab" + (S.oversightTab === t[0] ? " on" : ""),
+          onclick: function () { S.oversightTab = t[0]; S.error = ""; render(); loadOversightTab(); } }, t[1]);
+      })),
+      S.error ? el("div", { class: "msg err" }, S.error) : null,
+      S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
+      S.oversightTab === "access" ? tabAccessLog()
+        : S.oversightTab === "retention" ? tabRetention()
+        : S.oversightTab === "child" ? tabChildTrail()
+        : tabPartners());
+  }
+
+  /** K4. A partnership only earns its place if children sent there are seen. */
+  function tabPartners() {
+    var d = S.partners;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    var used = d.hospitals.filter(function (h) { return h.sent > 0; });
+    var unused = d.hospitals.filter(function (h) { return h.sent === 0; });
+
+    function partnerRow(h) {
+      return el("tr", null,
+        el("td", null, el("b", null, h.name),
+          h.isCampPartner
+            ? el("span", { class: "pill ok", style: "margin-left:6px" }, "Camp partner")
+            : null),
+        el("td", { class: "muted" }, h.district || h.city || "—"),
+        el("td", { class: "num" }, h.sent),
+        el("td", { class: "num" }, h.seen),
+        el("td", { class: "num" }, h.closed),
+        el("td", { class: "num" }, h.outstanding),
+        el("td", { class: "num" + (h.seenRate !== null && h.seenRate < 50 ? " bad" : "") },
+          pctText(h.seenRate)),
+        el("td", { class: "num" }, h.avgDaysToClose === null ? "—" : h.avgDaysToClose));
+    }
+
+    var usedTable = el("div", { class: "card" },
+      el("div", { class: "card-h" }, el("h2", null, "Partners in use")),
+      el("div", { class: "tws" },
+        el("table", null,
+          el("thead", null,
+            el("tr", null,
+              el("th", null, "Hospital"),
+              el("th", null, "Area"),
+              el("th", { class: "num" }, "Sent"),
+              el("th", { class: "num" }, "Seen"),
+              el("th", { class: "num" }, "Closed"),
+              el("th", { class: "num" }, "Outstanding"),
+              el("th", { class: "num" }, "Seen rate"),
+              el("th", { class: "num" }, "Days to close"))),
+          el("tbody", null, used.map(partnerRow)))));
+
+    var noneYet = el("div", { class: "card" },
+      el("div", { class: "empty" },
+        el("h3", null, "No referrals have reached a partner yet"),
+        el("p", { style: "font-size:13.5px" },
+          "A referral is attributed here once a family books through the app.")));
+
+    // The referrals that never reached a partner at all. Reported next to the
+    // partners rather than left out, because attributing them to anyone would
+    // flatter every partner's numbers.
+    var ownDoctor = el("div", { class: "kpis" },
+      kpi("Own doctor", d.notBooked.total, "referrals with no partner appointment"),
+      kpi("Of those, closed", d.notBooked.closed, d.notBooked.outstanding + " still open"));
+
+    var neverUsed = el("div", { class: "card" },
+      el("div", { class: "card-h" },
+        el("h2", null, "On the list, never used"),
+        el("span", { class: "muted", style: "font-size:12px" },
+          "No rate is shown — nothing has been sent")),
+      el("div", { class: "card-b" },
+        el("div", { class: "chips" }, unused.map(function (h) {
+          return el("span", { class: "chip" }, h.name);
+        }))));
+
+    return el("div", null,
+      el("p", { class: "muted", style: "margin:0 0 14px;font-size:13px" }, d.note),
+      d.notBooked.total ? ownDoctor : null,
+      used.length === 0 ? noneYet : usedTable,
+      unused.length ? neverUsed : null);
+  }
+
+  /** K6. Who opened a child's record. */
+  function tabAccessLog() {
+    var d = S.access;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    var days = S.accessDays || 30;
+
+    function setDays(n) {
+      S.accessDays = n; S.access = null; render(); loadOversightTab();
+    }
+
+    var window_ = el("div", { class: "row", style: "margin-bottom:14px" },
+      [7, 30, 90].map(function (n) {
+        return el("button", { class: days === n ? "pri" : "",
+          onclick: function () { setDays(n); } }, "Last " + n + " days");
+      }));
+
+    var byPerson = el("div", { class: "card" },
+      el("div", { class: "card-h" }, el("h2", null, "By person")),
+      el("div", { class: "tws" },
+        el("table", null,
+          el("thead", null,
+            el("tr", null,
+              el("th", null, "Person"),
+              el("th", null, "Role"),
+              el("th", { class: "num" }, "Records opened"),
+              el("th", { class: "num" }, "Children"),
+              el("th", null, "Last"))),
+          el("tbody", null, d.byActor.map(function (a) {
+            return el("tr", null,
+              el("td", null, el("b", null, a.actorName || a.actorId)),
+              el("td", null, el("span", { class: "pill mute" }, a.actorRole)),
+              el("td", { class: "num" }, a.reads),
+              el("td", { class: "num" }, a.children),
+              el("td", { class: "muted" }, fmtWhen(a.lastAt)));
+          })))));
+
+    function entryRow(e) {
+      return el("tr", { class: e.kidId ? "click" : null,
+        onclick: e.kidId ? function () { openChildTrail(e.kidId); } : null },
+        el("td", { class: "muted" }, fmtWhen(e.at)),
+        el("td", null, el("b", null, e.kidName || e.kidId)),
+        el("td", { class: "muted" }, e.schoolName || "—"),
+        el("td", null, e.actorName || e.actorId,
+          el("div", { class: "muted", style: "font-size:11.5px" }, e.actorRole)),
+        el("td", { class: "muted" }, surfaceLabel(e.surface)));
+    }
+
+    var entries = el("div", { class: "tws" },
+      el("table", null,
+        el("thead", null,
+          el("tr", null,
+            el("th", null, "When"),
+            el("th", null, "Child"),
+            el("th", null, "School"),
+            el("th", null, "Opened by"),
+            el("th", null, "What"))),
+        el("tbody", null, d.entries.map(entryRow))));
+
+    var nothing = el("div", { class: "empty" },
+      el("h3", null, "Nothing in this window"),
+      el("p", { style: "font-size:13.5px" },
+        "No one has opened a child's record in this period."));
+
+    return el("div", null,
+      el("p", { class: "muted", style: "margin:0 0 12px;font-size:13px" }, d.note),
+      window_,
+      d.byActor.length ? byPerson : null,
+      el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, "Every read")),
+        d.entries.length === 0 ? nothing : entries));
+  }
+
+
+  function surfaceLabel(s) {
+    return s === "SCREENING" ? "Screening form"
+      : s === "CLINICAL_REVIEW" ? "Clinical review"
+      : s === "REFERRAL" ? "Referral"
+      : s === "PHOTOGRAPH" ? "Photograph"
+      : s;
+  }
+
+  function fmtWhen(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" })
+      + " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+
+  /** J9. What the retention schedule would touch — reported, never executed. */
+  function tabRetention() {
+    var d = S.retention;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    return el("div", null,
+      el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, "Retention")),
+        el("div", { class: "card-b" },
+          el("p", { class: "muted", style: "font-size:13.5px;margin-top:0" }, d.note),
+          el("div", { class: "kpis", style: "margin-top:14px" },
+            Object.keys(d).filter(function (k) {
+              return typeof d[k] === "number";
+            }).map(function (k) {
+              return kpi(k.replace(/([A-Z])/g, " $1").replace(/^./, function (c) {
+                return c.toUpperCase();
+              }), d[k], null);
+            })))));
+  }
+
+  /** J5, J6 and K6 for one child, from a roster reference or a name. */
+  function openChildTrail(kidId) {
+    S.oversightTab = "child"; S.childTrail = null; S.view = "oversight"; render();
+    run(api("/api/admin/child/" + encodeURIComponent(kidId)), function (d) { S.childTrail = d; });
+  }
+
+  function tabChildTrail() {
+    var d = S.childTrail;
+    return el("div", null,
+      el("div", { class: "card" },
+        el("div", { class: "card-b" },
+          el("div", { class: "fld" },
+            el("label", null, "Child id"),
+            el("div", { class: "row" },
+              el("input", { placeholder: "k_… or a roster id", value: S.childQuery || "",
+                oninput: function (e) { S.childQuery = e.target.value; } }),
+              el("button", { class: "pri", onclick: function () {
+                if (S.childQuery) openChildTrail(S.childQuery.trim());
+              } }, "Open"))),
+          el("div", { class: "hint" },
+            "Everything recorded about one child: what was done, and who has looked. "
+            + "Open a child from the roster or the access log to get here without typing an id."))),
+      d
+        ? el("div", null,
+            el("div", { class: "card" },
+              el("div", { class: "card-h" }, el("h2", null, d.child.name)),
+              d.events.length === 0
+                ? el("div", { class: "empty" }, "Nothing recorded yet.")
+                : el("div", { class: "tws" }, el("table", null,
+                    el("thead", null, el("tr", null,
+                      el("th", null, "When"), el("th", null, "What happened"),
+                      el("th", null, "By"), el("th", null, "Detail"))),
+                    el("tbody", null, d.events.map(function (e) {
+                      return el("tr", null,
+                        el("td", { class: "muted" }, fmtWhen(e.at)),
+                        el("td", null, el("b", null, e.action)),
+                        el("td", null, e.by || "—"),
+                        el("td", { class: "muted" }, e.detail || ""));
+                    }))))),
+            el("div", { class: "card" },
+              el("div", { class: "card-h" }, el("h2", null, "Who has opened this record"),
+                el("span", { class: "muted", style: "font-size:12px" }, "Reads, not changes")),
+              !d.reads || d.reads.length === 0
+                ? el("div", { class: "empty" }, "No one has opened this record.")
+                : el("div", { class: "tws" }, el("table", null,
+                    el("thead", null, el("tr", null,
+                      el("th", null, "When"), el("th", null, "Who"),
+                      el("th", null, "Role"), el("th", null, "What"))),
+                    el("tbody", null, d.reads.map(function (r) {
+                      return el("tr", null,
+                        el("td", { class: "muted" }, fmtWhen(r.at)),
+                        el("td", null, r.by || "—"),
+                        el("td", null, el("span", { class: "pill mute" }, r.role)),
+                        el("td", null, surfaceLabel(r.surface)));
+                    })))))) 
+        : null);
+  }
+
   function loadHospitals() {
     run(api("/api/admin/hospitals" + (S.hosQuery ? "?q=" + encodeURIComponent(S.hosQuery) : "")),
       function (d) {
         S.hospitals = d; S.view = "hospitals"; S.hosForm = null; S.docForm = null;
-        api("/api/admin/doctors").then(function (r) { S.doctors = r; render(); }).catch(function () {});
+        // The catch is for the request, not for render(). It used to wrap both,
+        // so a render error was swallowed whole and the console went blank with
+        // nothing in the log — which is how a missing field in one response
+        // could look like the app had simply died.
+        api("/api/admin/doctors").then(
+          function (r) { S.doctors = r; },
+          function () { S.doctors = { doctors: [] }; }
+        ).then(render);
       });
   }
 
@@ -2910,7 +3529,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "fld" }, el("label", null, "Hospital"),
             el("select", { onchange: db("hospitalId") },
               [el("option", { value: "" }, "\u2014 not attached \u2014")].concat(
-                S.hospitals.hospitals.map(function (h) {
+                (S.hospitals.hospitals || []).map(function (h) {
                   return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
                 })))),
           el("div", { class: "hint" },
@@ -2920,7 +3539,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("button", { onclick: function () { set({ docForm: null }); } }, "Cancel"))));
     }
 
-    var hs = S.hospitals.hospitals;
+    var hs = S.hospitals.hospitals || [];
     var searchBox;
     return el("div", null,
       el("div", { class: "msg info" },
@@ -2975,13 +3594,13 @@ export const PORTAL_HTML = `<!doctype html>
       el("h3", { style: "margin:22px 0 10px" }, "Doctors"),
       !S.doctors
         ? el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"))
-        : S.doctors.doctors.length === 0
+        : (S.doctors.doctors || []).length === 0
           ? el("div", { class: "card" }, el("div", { class: "empty" },
               el("p", { style: "font-size:13.5px;margin:0" }, "None yet.")))
           : el("div", { class: "tw" }, el("table", null,
               el("thead", null, el("tr", null, el("th", null, "Doctor"), el("th", null, "Specialty"),
                 el("th", null, "Hospital"), el("th", null, ""))),
-              el("tbody", null, S.doctors.doctors.map(function (d) {
+              el("tbody", null, (S.doctors.doctors || []).map(function (d) {
                 return el("tr", { class: d.active ? "" : "muted" },
                   el("td", null, el("b", null, d.name)),
                   el("td", null, d.specialty),
@@ -3006,7 +3625,8 @@ export const PORTAL_HTML = `<!doctype html>
 
   function sidebar() {
     return el("nav", { class: "nav" },
-      el("div", { class: "brand" }, el("span", { class: "dot" }), "VitaHero"),
+      el("div", { class: "brand" }, brandMark(26),
+        el("span", { class: "wm" }, el("i", null, "vita"), el("b", null, "hero"))),
       el("div", { class: "navsec" },
         el("h4", null, "Menu"),
         canManage() ? navItem("home", "Overview", "overview", function () { set({ view: "overview" }); if (!S.overview) boot(); }) : null,
@@ -3016,6 +3636,7 @@ export const PORTAL_HTML = `<!doctype html>
         isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
         isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
         isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
+        isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null,
         S.camp ? navItem("flag", "Current camp", "camp", function () { set({ view: "camp" }); }) : null),
       el("div", { class: "navfoot" },
         el("b", null, S.auth.name),
@@ -3049,6 +3670,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.view === "mycamps") return "My camps";
     if (S.view === "library") return "Reading for families";
     if (S.view === "hospitals") return "Hospitals & doctors";
+    if (S.view === "oversight") return "Oversight";
     return "VitaHero";
   }
 
@@ -3057,15 +3679,36 @@ export const PORTAL_HTML = `<!doctype html>
     clear(root);
     if (!S.auth) { add(root, viewSignIn()); return; }
 
+    // A screen that throws must not take the console with it.
+    //
+    // render() clears the root before it rebuilds, so any error thrown while
+    // building a screen used to leave a white page with no navigation and
+    // nothing in the log — and one missing field in one API response is enough
+    // to cause it. Keeping the shell means the failure is legible and you can
+    // still click somewhere else.
     var body;
-    if (S.view === "newSchool") body = viewNewSchool();
-    else if (S.view === "school" && S.school) body = viewSchool();
-    else if (S.view === "camp" && S.camp) body = viewCamp();
-    else if (S.view === "mycamps") body = viewMyCamps();
-    else if (S.view === "library") body = viewLibrary();
-    else if (S.view === "hospitals") body = viewHospitals();
-    else if (S.view === "schools") body = viewSchools();
-    else body = viewOverview();
+    try {
+      if (S.view === "newSchool") body = viewNewSchool();
+      else if (S.view === "school" && S.school) body = viewSchool();
+      else if (S.view === "camp" && S.camp) body = viewCamp();
+      else if (S.view === "mycamps") body = viewMyCamps();
+      else if (S.view === "library") body = viewLibrary();
+      else if (S.view === "hospitals") body = viewHospitals();
+      else if (S.view === "oversight") body = viewOversight();
+      else if (S.view === "schools") body = viewSchools();
+      else body = viewOverview();
+    } catch (renderErr) {
+      body = el("div", { class: "card" }, el("div", { class: "card-b" },
+        el("h2", { style: "margin-bottom:4px" }, "This screen could not be drawn"),
+        el("p", { class: "muted", style: "font-size:13.5px" },
+          "The data it was given is not the shape it expected. Nothing has been " +
+          "lost \u2014 reloading usually clears it. If it keeps happening, send " +
+          "this line to VitaHero support."),
+        el("p", { class: "mono", style: "font-size:12px;color:var(--err);margin-top:8px" },
+          String((renderErr && renderErr.message) || renderErr)),
+        el("div", { class: "row", style: "margin-top:12px" },
+          el("button", { class: "pri", onclick: function () { location.reload(); } }, "Reload"))));
+    }
 
     add(root, el("div", { class: "shell" }, sidebar(),
       el("div", { class: "main" },
@@ -3077,6 +3720,22 @@ export const PORTAL_HTML = `<!doctype html>
           S.view !== "school" && S.view !== "camp" && S.error ? el("div", { class: "msg err" }, S.error) : null,
           S.view !== "school" && S.view !== "camp" && S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
           body))));
+
+    // Any table that was not given a scroller gets one. A phone is 390px wide
+    // and a roster table is 620px; without this the document itself scrolls
+    // sideways, which drags the sticky header off screen and makes the console
+    // unusable in the one place it is most needed — standing in a school hall.
+    // Done here rather than at each call site so a table added later is
+    // covered too.
+    var tables = root.querySelectorAll("table");
+    for (var ti = 0; ti < tables.length; ti++) {
+      var tb = tables[ti];
+      if (tb.parentNode && /\b(tw|tws)\b/.test(tb.parentNode.className || "")) continue;
+      var box = document.createElement("div");
+      box.className = "tws";
+      tb.parentNode.insertBefore(box, tb);
+      box.appendChild(tb);
+    }
   }
 
   // ── boot ──
