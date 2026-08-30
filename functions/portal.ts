@@ -988,6 +988,13 @@ export const PORTAL_HTML = `<!doctype html>
     }
     var a = S.analytics;
     if (!a) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading the dashboard…"));
+    // A 200 carrying the wrong shape is not a dashboard. Say so and leave the
+    // rest of the screen working, rather than throwing halfway through it.
+    if (!a.funnel || !a.referrals) {
+      return el("div", { class: "card" }, el("div", { class: "card-b" },
+        el("p", { class: "muted" },
+          "The dashboard data came back in an unexpected shape. The counters above are live.")));
+    }
     var r = a.referrals;
     var screened = (a.funnel.find(function (f) { return f.key === "screened"; }) || {}).count || 0;
 
