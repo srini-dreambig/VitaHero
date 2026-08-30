@@ -51,7 +51,6 @@ import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.bottomBarClearance
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
-import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroYellow
 

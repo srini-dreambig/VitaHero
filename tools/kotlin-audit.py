@@ -273,6 +273,33 @@ if not missing:
     print(f"  ok  every com.rork.vitahero import resolves ({len(declared)} declarations)")
 
 
+# ── 9b. imports nothing uses ────────────────────────────────
+#
+# Only a warning to the compiler, but after a batch of removals a stale import
+# is the trace left by a feature that was deleted halfway.
+stale = []
+for f, src in SRC.items():
+    body = re.sub(r"^import [^\n]*\n", "", src, flags=re.M)
+    for m in re.finditer(r"^import (?:[\w.]+\.)?(\w+)$", src, re.M):
+        name = m.group(1)
+        # `by` delegation and operator conventions reference these without ever
+        # naming them, so their absence from the body proves nothing.
+        implicit = {"getValue", "setValue", "provideDelegate", "invoke",
+                    "compareTo", "rangeTo", "iterator", "contains", "plus", "minus"}
+        if name == "*" or len(name) < 3 or name in implicit:
+            continue
+        if not re.search(r"\b" + re.escape(name) + r"\b", body):
+            stale.append(f"{rel(f)} imports {name}, which it no longer uses")
+for x in sorted(set(stale)):
+    notes.append(x)
+if stale:
+    print(f"  note {len(set(stale))} unused import(s) — a warning, not an error:")
+    for x in sorted(set(stale))[:12]:
+        print("       " + x)
+else:
+    print("  ok  no unused imports")
+
+
 # ── 10. brackets balance ────────────────────────────────────
 #
 # Cheap, and it catches the one mistake a large generated edit actually makes.

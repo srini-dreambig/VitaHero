@@ -270,6 +270,8 @@ private fun ThreadRow(th: QuestionThreadDto, onOpen: () -> Unit) {
                     listOf(th.schoolName, th.kidName).filter { it.isNotBlank() }.joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             // The one fact a waiting parent wants: has the school replied yet.
@@ -314,6 +316,8 @@ private fun ThreadScreen(
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (fromSchool) HeroBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(m.body, style = MaterialTheme.typography.bodyMedium)

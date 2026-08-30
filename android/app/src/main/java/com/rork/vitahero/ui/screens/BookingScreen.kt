@@ -73,11 +73,6 @@ import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
-import com.rork.vitahero.ui.theme.HeroYellow
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 
 private data class BookingSlot(val label: String, val date: String, val time: String)
 

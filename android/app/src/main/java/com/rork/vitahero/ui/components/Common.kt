@@ -44,7 +44,6 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.unit.dp
-import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.tr

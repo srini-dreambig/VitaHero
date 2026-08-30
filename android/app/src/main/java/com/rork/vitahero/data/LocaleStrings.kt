@@ -1,6 +1,5 @@
 package com.rork.vitahero.data
 
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 
 enum class AppLocale(val code: String, val label: String) {

@@ -16,7 +16,6 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.rork.vitahero.data.AppViewModel
 import com.rork.vitahero.data.PdfReportGenerator
 import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.data.rememberVitaHeroViewModels
@@ -30,7 +29,6 @@ import com.rork.vitahero.ui.screens.PrivacyScreen
 import com.rork.vitahero.ui.screens.QuestionsScreen
 import com.rork.vitahero.ui.screens.ReferralsScreen
 import com.rork.vitahero.ui.screens.CampDetailScreen
-import com.rork.vitahero.ui.screens.CampsScreen
 import com.rork.vitahero.ui.screens.ConsentScreen
 import com.rork.vitahero.ui.screens.DietScreen
 import com.rork.vitahero.ui.screens.FamilySharingScreen

@@ -44,7 +44,6 @@ import com.rork.vitahero.ui.components.bottomBarClearance
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.AppTheme
-import com.rork.vitahero.ui.theme.HeroOrange
 
 @Composable
 fun KidsScreen(
