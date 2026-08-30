@@ -57,6 +57,7 @@ import {
 } from "./messages";
 import {
   ensureLibrarySchema,
+  seedLibraryIfEmpty,
   libraryForGuardian,
   getArticle,
   listArticles,
@@ -181,6 +182,7 @@ beforeAll(async () => {
   await ensureMediaSchema(sql);
   await ensureMessageSchema(sql);
   await ensureLibrarySchema(sql);
+  await seedLibraryIfEmpty(sql);
   await ensureBillingSchema(sql);
   await ensureSymptomSchema(sql);
 });

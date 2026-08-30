@@ -130,6 +130,7 @@ import {
 } from "./messages";
 import {
   ensureLibrarySchema,
+  seedLibraryIfEmpty,
   libraryForGuardian,
   getArticle,
   listArticles,
@@ -156,6 +157,18 @@ import {
   deleteSymptom,
   symptomHistoryForClinician,
 } from "./symptoms";
+import {
+  listHospitals,
+  upsertHospital,
+  deleteHospital,
+  listDoctors,
+  upsertDoctor,
+  deleteDoctor,
+  inviteStatus,
+  inviteGuardians,
+  campPeople,
+} from "./directory";
+import { migrate, SCHEMA_VERSION } from "./migrate";
 import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
@@ -411,23 +424,6 @@ async function ensureSchema(sql: Sql): Promise<void> {
     )
   `;
 
-  const docCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.doctors`;
-  if ((docCount[0]?.c as number) === 0) {
-    const doctors = [
-      ["d1", "Dr. Ananya Rao", "Paediatrics", "Rainbow Children's Hospital", 4.9],
-      ["d2", "Dr. Vikram Reddy", "Dental", "Apollo Cradle", 4.7],
-      ["d3", "Dr. Meera Iyer", "Ophthalmology", "LV Prasad Eye Institute", 4.8],
-      ["d4", "Dr. Karthik Nair", "Nutrition", "KIMS Hospital", 4.6],
-      ["d5", "Dr. Priya Sharma", "General Paediatrics", "Continental Hospitals", 4.5],
-    ] as const;
-    for (const [id, name, specialty, hospital, rating] of doctors) {
-      await sql`
-        INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, rating)
-        VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})
-        ON CONFLICT (id) DO NOTHING
-      `;
-    }
-  }
 
   await sql`
     CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.ai_diet_tips (
@@ -538,6 +534,34 @@ async function ensureSchema(sql: Sql): Promise<void> {
   await seedPartnerSchools(sql);
   await linkCampHospitals(sql);
 }
+
+/**
+ * Seed the starter doctor directory, once, on a database that has none.
+ *
+ * Separated from ensureSchema for the same reason as the library: that
+ * function is now pure DDL, recorded and sent as a batch, and anything that
+ * reads a result has to run on its own.
+ */
+async function seedDoctorsIfEmpty(sql: Sql): Promise<void> {
+  const docCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.doctors`;
+  if ((docCount[0]?.c as number) === 0) {
+    const doctors = [
+      ["d1", "Dr. Ananya Rao", "Paediatrics", "Rainbow Children's Hospital", 4.9],
+      ["d2", "Dr. Vikram Reddy", "Dental", "Apollo Cradle", 4.7],
+      ["d3", "Dr. Meera Iyer", "Ophthalmology", "LV Prasad Eye Institute", 4.8],
+      ["d4", "Dr. Karthik Nair", "Nutrition", "KIMS Hospital", 4.6],
+      ["d5", "Dr. Priya Sharma", "General Paediatrics", "Continental Hospitals", 4.5],
+    ] as const;
+    for (const [id, name, specialty, hospital, rating] of doctors) {
+      await sql`
+        INSERT INTO ${sql(SCHEMA)}.doctors (id, name, specialty, hospital, rating)
+        VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})
+        ON CONFLICT (id) DO NOTHING
+      `;
+    }
+  }
+}
+
 
 function generateDoctorSlots(
   doctorId: string,
@@ -1488,6 +1512,26 @@ async function upsertProfileFromNeonAuth(
 
 // ─── Entrypoint ─────────────────────────────────────────────
 
+/**
+ * Pure DDL, in dependency order. Recorded and shipped as a batch by migrate().
+ * Nothing in here may read a query result — see migrate.ts for why.
+ */
+const SCHEMA_STEPS = [
+  ensureSchema,
+  ensureStageASchema,
+  ensureCampSchema,
+  ensureReferralSchema,
+  ensureLifecycleSchema,
+  ensureMediaSchema,
+  ensureMessageSchema,
+  ensureLibrarySchema,
+  ensureBillingSchema,
+  ensureSymptomSchema,
+];
+
+/** Steps that have to read before they write. Only ever touch an empty table. */
+const SEED_STEPS = [seedDoctorsIfEmpty, seedLibraryIfEmpty];
+
 /** Per-isolate latch so schema init does not run on every request. */
 let schemaReady = false;
 
@@ -1510,22 +1554,48 @@ export default {
       // with the Neon HTTP driver each one is its own round trip. Running it per
       // request put that cost in front of every single call. Once per isolate is
       // enough; a deploy-time migration would be better still.
+      // The console's own HTML is served below, so a failure here used to take
+      // out the page a founder would use to diagnose it. It is now cheap on a
+      // migrated database (one query) and it reports what actually broke.
       if (!schemaReady) {
         try {
-          await ensureSchema(sql);
-          await ensureStageASchema(sql);
-          await ensureCampSchema(sql);
-          await ensureReferralSchema(sql);
-          await ensureLifecycleSchema(sql);
-          await ensureMediaSchema(sql);
-          await ensureMessageSchema(sql);
-          await ensureLibrarySchema(sql);
-          await ensureBillingSchema(sql);
-          await ensureSymptomSchema(sql);
+          await migrate(sql, SCHEMA_STEPS, SEED_STEPS);
           schemaReady = true;
         } catch (schemaErr) {
+          const detail = (schemaErr as Error)?.message || String(schemaErr);
           console.error("Schema init error:", schemaErr);
-          return json({ error: "Database schema initialization failed" }, 500);
+          return json({
+            error: "Database schema initialization failed",
+            detail,
+            hint: "Run GET /api/admin/schema with the ops key for the full state.",
+          }, 500);
+        }
+      }
+
+      // ── Schema state, for when something like this happens again ──
+      //
+      // Behind the ops key, and it answers the question the generic error
+      // could not: which version is this database at, and what broke.
+      if (path === "/api/admin/schema") {
+        const key = request.headers.get("X-Admin-Key") || "";
+        if (!env.ADMIN_API_KEY || key !== env.ADMIN_API_KEY) {
+          return json({ error: "Ops key required" }, 403);
+        }
+        try {
+          const rows = await sql`SELECT version, migrated_at FROM vita_hero.schema_meta WHERE id = 1`;
+          const tables = await sql`
+            SELECT table_name FROM information_schema.tables
+            WHERE table_schema = 'vita_hero' ORDER BY table_name
+          `;
+          return json({
+            expected: SCHEMA_VERSION,
+            actual: Number(rows[0]?.version) || 0,
+            migratedAt: rows[0]?.migrated_at ? String(rows[0].migrated_at) : null,
+            upToDate: (Number(rows[0]?.version) || 0) >= SCHEMA_VERSION,
+            tables: tables.map((t: Record<string, unknown>) => t.table_name as string),
+          });
+        } catch (e) {
+          return json({ expected: SCHEMA_VERSION, actual: 0, error: (e as Error).message }, 500);
         }
       }
 
@@ -1944,6 +2014,96 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
       }
 
+      // ═══════════════════════════════════════════════════
+      // Hospitals, doctors, invitations, and who is at a camp
+      // ═══════════════════════════════════════════════════
+      if (path === "/api/admin/hospitals" || path.startsWith("/api/admin/hospitals/")
+          || path === "/api/admin/doctors" || path.startsWith("/api/admin/doctors/")
+          || path === "/api/admin/invites" || path === "/api/admin/invites/send"
+          || path === "/api/admin/camp-people") {
+        const actor = await resolveActor(request, sql, env);
+        if (!actor) {
+          return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
+        }
+        const method = request.method;
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try { return (await request.json()) as Record<string, unknown>; }
+          catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
+        };
+
+        try {
+          if (path === "/api/admin/hospitals") {
+            if (method === "GET") {
+              return json(await listHospitals(sql, actor, url.searchParams.get("q") || ""));
+            }
+            if (method === "POST" || method === "PUT") {
+              return json(await upsertHospital(sql, actor, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+          if (path.startsWith("/api/admin/hospitals/") && method === "DELETE") {
+            return json(await deleteHospital(sql, actor,
+              decodeURIComponent(path.slice("/api/admin/hospitals/".length))));
+          }
+
+          if (path === "/api/admin/doctors") {
+            if (method === "GET") {
+              return json(await listDoctors(sql, actor, url.searchParams.get("hospital_id") || ""));
+            }
+            if (method === "POST" || method === "PUT") {
+              return json(await upsertDoctor(sql, actor, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+          if (path.startsWith("/api/admin/doctors/") && method === "DELETE") {
+            return json(await deleteDoctor(sql, actor,
+              decodeURIComponent(path.slice("/api/admin/doctors/".length))));
+          }
+
+          if (path === "/api/admin/invites" && method === "GET") {
+            return json(await inviteStatus(sql, actor, url.searchParams.get("school_id") || ""));
+          }
+          if (path === "/api/admin/invites/send" && method === "POST") {
+            const b = await readBody();
+            const link = async (last10: string) => {
+              const token = await signInviteToken(last10, env);
+              return token ? `${url.origin}/i/${token}` : (env.APP_PLAY_URL || url.origin);
+            };
+            // Links are signed one at a time, so resolve them all first rather
+            // than making the sender async-in-a-loop twice over.
+            const status = await inviteStatus(sql, actor, String(b.schoolId || ""));
+            const links = new Map<string, string>();
+            for (const g of status.guardians) {
+              const norm = normalizePhone(g.phone);
+              if (norm) links.set(norm.last10, await link(norm.last10));
+            }
+            return json(await inviteGuardians(
+              sql, actor, String(b.schoolId || ""),
+              (to, body) => sendTwilioSms(env, to, body),
+              (last10) => links.get(last10) || (env.APP_PLAY_URL || url.origin),
+              {
+                onlyNotJoined: b.onlyNotJoined !== false,
+                profileIds: Array.isArray(b.profileIds) ? (b.profileIds as string[]) : [],
+              }
+            ));
+          }
+
+          if (path === "/api/admin/camp-people" && method === "GET") {
+            return json(await campPeople(
+              sql, actor,
+              url.searchParams.get("camp_id") || "",
+              url.searchParams.get("school_id") || ""
+            ));
+          }
+
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          console.error("Directory route error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
+
       if (path === "/api/admin/schools" || path.startsWith("/api/admin/schools/")) {
         const actor = await resolveActor(request, sql, env);
         if (!actor) {
@@ -2048,7 +2208,54 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           // Screeners and physicians attached to this school
           if (section === "staff") {
             if (method === "GET") return json(await listStaff(sql, actor, schoolId));
-            if (method === "POST") return json(await addStaffMember(sql, actor, schoolId, await readBody()), 201);
+            if (method === "POST" && !parts[2]) {
+              return json(await addStaffMember(sql, actor, schoolId, await readBody()), 201);
+            }
+            // A sign-in code an administrator can read out.
+            //
+            // Twilio is not reliably reachable on a pilot number, and when the
+            // SMS does not arrive a screener simply cannot get in — there is no
+            // password to fall back on. An administrator who already manages
+            // this school may mint a code for staff of that school and pass it
+            // on. It is the same one-time code the SMS would have carried, it
+            // expires the same way, and it is written to the audit log.
+            if (parts[2] && parts[3] === "signin-code" && method === "POST") {
+              const staff = await sql`
+                SELECT id, name, phone, role FROM vita_hero.profiles
+                WHERE id = ${parts[2]} AND school_id = ${schoolId}
+                  AND role IN ('SCREENER','PHYSICIAN','SCHOOL_ADMIN')
+                LIMIT 1
+              `;
+              if (staff.length === 0) {
+                return json({ error: "No such staff member at this school", code: "NOT_FOUND" }, 404);
+              }
+              const phone = String(staff[0].phone || "");
+              const code = generateOtp();
+              const expires = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60_000);
+              await sql`
+                INSERT INTO vita_hero.phone_otps (phone, otp, expires_at, attempts, last_sent_at)
+                VALUES (${phone}, ${code}, ${expires.toISOString()}, 0, NOW())
+                ON CONFLICT (phone) DO UPDATE SET
+                  otp = EXCLUDED.otp, expires_at = EXCLUDED.expires_at,
+                  attempts = 0, last_sent_at = NOW()
+              `;
+              const delivered = await sendTwilioSms(
+                env, phone, `Your VitaHero sign-in code is: ${code}`
+              );
+              await sql`
+                INSERT INTO vita_hero.data_rights_log (id, profile_id, action, detail, actor_id)
+                VALUES (${"drl_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)},
+                        ${parts[2]}, 'SIGNIN_CODE_ISSUED',
+                        ${"Issued by " + actor.name + " (" + actor.role + ")"}, ${actor.profileId})
+              `;
+              return json({
+                name: staff[0].name as string,
+                phone,
+                code,
+                smsDelivered: delivered,
+                expiresInMinutes: OTP_EXPIRY_MINUTES,
+              });
+            }
             return json({ error: "Method not allowed" }, 405);
           }
 
@@ -2258,7 +2465,16 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           `Your VitaHero verification code is: ${otp}`
         );
 
-        return json({ success: sent, note: sent ? undefined : "OTP generated but SMS delivery may be delayed" });
+        // Saying "sent" when nothing was sent is why staff sign-in looked
+        // broken: the console showed "Code sent", the phone stayed silent, and
+        // nothing anywhere said the message had failed.
+        return json({
+          success: sent,
+          smsDelivered: sent,
+          note: sent
+            ? undefined
+            : "We could not deliver the SMS. Ask a VitaHero administrator to read you a sign-in code from the school's Staff tab.",
+        }, sent ? 200 : 502);
       }
 
       // ── Phone OTP: Verify ────────────────────────────

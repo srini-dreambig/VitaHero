@@ -21,28 +21,48 @@ export const PORTAL_HTML = `<!doctype html>
 <title>VitaHero Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap">
 <style>
+  /* Taken from the app's Compose theme, not invented separately. A school
+     admin and a parent are looking at one product; when the console picked its
+     own orange and its own typeface it stopped looking like one. Values here
+     mirror ui/theme/Color.kt and ui/theme/Type.kt. */
   :root {
-    --brand:#E86A15; --brand-dk:#C4560C; --brand-sf:#FDF1E7;
-    --nav:#101B26; --nav-2:#18262F; --nav-tx:#93A5B3; --nav-ac:#F2A15C;
-    --ink:#0F1B24; --ink-2:#4A5C68; --ink-3:#7B8C98;
-    --bg:#F2F5F7; --card:#FFFFFF; --sunk:#F5F8FA;
-    --line:#DFE6EB; --line-2:#EDF1F4;
-    --ok:#0E7A57; --ok-bg:#E2F1EB;
-    --warn:#9A6608; --warn-bg:#FBF0D9;
-    --err:#B3312A; --err-bg:#FBE6E3;
-    --info:#0F6C93; --info-bg:#E2F1F8;
-    --mute:#6B7A85; --mute-bg:#EDF1F4;
-    --sh:0 1px 2px rgba(15,27,36,.05),0 1px 3px rgba(15,27,36,.04);
-    --sh-lg:0 4px 6px -2px rgba(15,27,36,.05),0 12px 24px -8px rgba(15,27,36,.14);
-    --r:8px;
+    --brand:#F47B20;        /* HeroOrange */
+    --brand-dk:#D9641A;     /* HeroOrangeDark */
+    --brand-sf:#FCE5D1;     /* HeroOrangeSoft */
+    --blue:#1FA2DD;         /* HeroBlue */
+    --blue-dk:#1380B8;
+    --blue-sf:#D6EFFA;
+    --nav:#0F172A;          /* Ink */
+    --nav-2:#1A2341;        /* DarkSurface */
+    --nav-tx:#94A3B8;       /* InkFaint */
+    --nav-ac:#F47B20;
+    --ink:#0F172A;          /* Ink */
+    --ink-2:#475569;        /* InkSoft */
+    --ink-3:#94A3B8;        /* InkFaint */
+    --bg:#FAFCFE;           /* Canvas */
+    --card:#FFFFFF;         /* SurfaceWhite */
+    --sunk:#EEF4F8;         /* SurfaceMuted */
+    --line:#E2E9EF;         /* HairLine */
+    --line-2:#EEF4F8;
+    --ok:#10B981;    --ok-bg:#E7F8F2;      /* FlagGood */
+    --warn:#F59E0B;  --warn-bg:#FEF3DC;    /* FlagWatch */
+    --err:#EF4444;   --err-bg:#FDE8E8;     /* FlagAlert */
+    --info:#1FA2DD;  --info-bg:#D6EFFA;    /* HeroBlue */
+    --mute:#94A3B8;  --mute-bg:#EEF4F8;    /* FlagNeutral */
+    --purple:#8B5CF6;
+    --sh:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.04);
+    --sh-lg:0 4px 6px -2px rgba(15,23,42,.05),0 12px 24px -8px rgba(15,23,42,.14);
+    /* The app rounds cards at 18-22dp and controls at 12-14dp. */
+    --r:12px;
+    --r-lg:18px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
     margin:0;background:var(--bg);color:var(--ink);
-    font:14px/1.55 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font:14px/1.55 "Host Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
   h1,h2,h3,h4{margin:0;line-height:1.25;letter-spacing:-.011em}
@@ -242,6 +262,68 @@ export const PORTAL_HTML = `<!doctype html>
   "use strict";
 
   // ── dom ──
+  // ── icons ──
+  //
+  // Lucide, inlined as path data. Not a CDN script: the console has to open in
+  // a school hall on a phone tether, and it already caches its own shell for
+  // exactly that reason. Twenty-four paths cost less than one blocked request.
+  var ICONS = {
+    home: "M3 9.5 12 3l9 6.5M5 10v10a1 1 0 0 0 1 1h3v-6h6v6h3a1 1 0 0 0 1-1V10",
+    school: "M14 22v-4a2 2 0 1 0-4 0v4M18 10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2M4 10l8-6 8 6",
+    stethoscope: "M11 2v2M6 2v2M6 4v5a5 5 0 0 0 10 0V4M11 14v2a5 5 0 0 0 10 0v-1M20 12a2 2 0 1 1 0 4 2 2 0 0 1 0-4Z",
+    flag: "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V4s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7",
+    book: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z",
+    users: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
+    userPlus: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM19 8v6M22 11h-6",
+    building: "M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18ZM6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2M10 6h4M10 10h4M10 14h4M10 18h4",
+    calendar: "M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z",
+    send: "m22 2-7 20-4-9-9-4Zm0 0L11 13",
+    upload: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12",
+    download: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3",
+    receipt: "M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1ZM8 7h8M8 11h8M8 15h5",
+    camera: "M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3ZM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z",
+    message: "M21 11.5a8.4 8.4 0 0 1-9 8.4 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.2A8.4 8.4 0 0 1 12 3a8.4 8.4 0 0 1 9 8.5Z",
+    clipboard: "M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1Z",
+    chart: "M3 3v16a2 2 0 0 0 2 2h16M7 15l4-4 3 3 5-6",
+    settings: "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z",
+    check: "M20 6 9 17l-5-5",
+    alert: "M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z",
+    clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 6v6l4 2",
+    logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+    plus: "M12 5v14M5 12h14",
+    trash: "M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6",
+    search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3",
+    phone: "M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z",
+  };
+
+  /**
+   * One Lucide glyph as an inline SVG element.
+   *
+   * Built with createElementNS because these live inside a DOM the rest of the
+   * console builds by hand; innerHTML here would be the only string-to-markup
+   * path in the file.
+   */
+  function icon(name, size) {
+    var d = ICONS[name] || ICONS.check;
+    var NS = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", String(size || 16));
+    svg.setAttribute("height", String(size || 16));
+    svg.setAttribute("fill", "none");
+    svg.setAttribute("stroke", "currentColor");
+    svg.setAttribute("stroke-width", "2");
+    svg.setAttribute("stroke-linecap", "round");
+    svg.setAttribute("stroke-linejoin", "round");
+    svg.setAttribute("aria-hidden", "true");
+    d.split(" M").forEach(function (part, i) {
+      var path = document.createElementNS(NS, "path");
+      path.setAttribute("d", (i === 0 ? part : "M" + part).trim());
+      svg.appendChild(path);
+    });
+    return svg;
+  }
+
   function el(tag, props) {
     var n = document.createElement(tag), p = props || {}, k, v;
     for (k in p) {
@@ -277,6 +359,8 @@ export const PORTAL_HTML = `<!doctype html>
     programme: null, rollover: null, refForm: null, refFilter: "",
     pack: null, forceOffline: false, syncRejects: null, packInfo: null,
     photos: null, photosKid: null, photoOpen: null,
+    hospitals: null, doctors: null, hosForm: null, docForm: null, hosQuery: "",
+    invites: null, campPeople: null, peopleQuery: "",
     threads: null, thread: null, billing: null, library: null, libForm: null,
   };
   function set(p) { for (var k in p) S[k] = p[k]; render(); }
@@ -558,7 +642,7 @@ export const PORTAL_HTML = `<!doctype html>
       S.classes = null; S.admins = null; S.staff = null; S.roster = null; S.batches = null;
       S.camps = null; S.upload = null; S.form = null;
       S.referrals = null; S.report = null; S.corrections = null; S.refKid = null;
-      S.threads = null; S.thread = null; S.billing = null;
+      S.threads = null; S.thread = null; S.billing = null; S.invites = null;
       loadSchoolTab();
     });
   }
@@ -578,6 +662,7 @@ export const PORTAL_HTML = `<!doctype html>
     else if (t === "report" && !S.report) run(api("/api/admin/schools/" + id + "/report"), function (d) { S.report = d; });
     else if (t === "requests" && !S.corrections) run(api("/api/admin/schools/" + id + "/corrections"), function (d) { S.corrections = d.corrections; });
     else if (t === "questions" && !S.threads) run(api("/api/admin/questions?school_id=" + encodeURIComponent(id)), function (d) { S.threads = d; });
+    else if (t === "invites" && !S.invites) run(api("/api/admin/invites?school_id=" + encodeURIComponent(id)), function (d) { S.invites = d; });
     else if (t === "billing" && !S.billing) {
       run(api("/api/admin/billing/contract?school_id=" + encodeURIComponent(id)), function (d) {
         S.billing = { contract: d.contract, invoices: null };
@@ -591,6 +676,7 @@ export const PORTAL_HTML = `<!doctype html>
     run(api("/api/admin/camps/" + encodeURIComponent(id)), function (d) {
       S.camp = d; S.view = "camp"; S.campTab = tab || defaultCampTab(d);
       S.participants = null; S.queue = null; S.screenKid = null; S.reviewKid = null;
+      S.campPeople = null;
       loadCampTab();
     });
   }
@@ -601,7 +687,10 @@ export const PORTAL_HTML = `<!doctype html>
   }
   function loadCampTab() {
     var id = S.camp.camp.id, t = S.campTab;
-    if ((t === "consent" || t === "campday") && !S.participants) {
+    if (t === "people" && !S.campPeople) {
+      run(api("/api/admin/camp-people?camp_id=" + encodeURIComponent(id)
+        + "&school_id=" + encodeURIComponent(S.camp.camp.schoolId)), function (d) { S.campPeople = d; });
+    } else if ((t === "consent" || t === "campday") && !S.participants) {
       run(api("/api/admin/camps/" + id + "/participants"), function (d) { S.participants = d.participants; });
     } else if (t === "review" && !S.queue) {
       run(api("/api/admin/camps/" + id + "/review"), function (d) { S.queue = d.queue; });
@@ -610,7 +699,7 @@ export const PORTAL_HTML = `<!doctype html>
   function refreshCamp(tab) {
     var id = S.camp.camp.id;
     run(api("/api/admin/camps/" + id), function (d) {
-      S.camp = d; S.participants = null; S.queue = null;
+      S.camp = d; S.participants = null; S.queue = null; S.campPeople = null;
       if (tab) S.campTab = tab;
       loadCampTab();
     });
@@ -779,8 +868,9 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ school detail
   function viewSchool() {
     var s = S.school;
-    var tabs = [["roster","Roster"],["camps","Camps"],["referrals","Follow-ups"],["questions","Questions"],
-      ["report","Report"],["classes","Classes"],["people","People"],["requests","Requests"],
+    var tabs = [["roster","Roster"],["camps","Camps"],["invites","App invites"],
+      ["referrals","Follow-ups"],["questions","Questions"],["report","Report"],
+      ["classes","Classes"],["people","Staff"],["requests","Requests"],
       ["billing","Billing"],["programme","Programme"],["history","Uploads"]];
     return el("div", null,
       el("div", { class: "tabs" }, tabs.map(function (t) {
@@ -793,6 +883,7 @@ export const PORTAL_HTML = `<!doctype html>
         : S.schoolTab === "camps" ? tabCamps()
         : S.schoolTab === "referrals" ? tabReferrals()
         : S.schoolTab === "questions" ? tabQuestions()
+        : S.schoolTab === "invites" ? tabInvites()
         : S.schoolTab === "billing" ? tabBilling()
         : S.schoolTab === "report" ? tabReport()
         : S.schoolTab === "classes" ? tabClasses()
@@ -957,6 +1048,17 @@ export const PORTAL_HTML = `<!doctype html>
         });
       }
     }
+    function signinCode(person) {
+      run(api("/api/admin/schools/" + S.school.id + "/staff/"
+        + encodeURIComponent(person.profileId) + "/signin-code", { method: "POST" }), function (r) {
+        S.notice = r.smsDelivered
+          ? ("Code texted to " + r.name + ".")
+          : ("Read this to " + r.name + ": " + r.code
+             + " \\u2014 they enter it on the sign-in screen with " + r.phone
+             + ". It expires in " + r.expiresInMinutes + " minutes.");
+      });
+    }
+
     function removeAdmin(a) {
       if (!confirm("Remove " + a.name + "? They lose access immediately.")) return;
       run(api("/api/admin/schools/" + S.school.id + "/admins/" + encodeURIComponent(a.profileId), { method: "DELETE" }), function () {
@@ -998,8 +1100,16 @@ export const PORTAL_HTML = `<!doctype html>
                 el("td", null, el("span", { class: "pill " + (x.role === "PHYSICIAN" ? "info" : x.role === "SCREENER" ? "warn" : "mute") }, roleName[x.role] || x.role)),
                 el("td", { class: "mono" }, x.p.phone),
                 el("td", null, el("span", { class: "pill " + (x.p.hasSignedIn ? "ok" : "mute") }, x.p.hasSignedIn ? "Active" : "Not signed in")),
-                el("td", null, x.role === "SCHOOL_ADMIN"
-                  ? el("button", { class: "sm dang", onclick: function () { removeAdmin(x.p); } }, "Remove") : null));
+                el("td", null, el("div", { class: "row" },
+                  // Staff sign in by mobile number and nothing else, so when
+                  // the SMS does not arrive they are simply locked out. This
+                  // is the way back in: the same one-time code, read out by
+                  // someone who already administers this school.
+                  el("button", { class: "sm", onclick: function () { signinCode(x.p); } },
+                    icon("phone", 13), " Sign-in code"),
+                  x.role === "SCHOOL_ADMIN"
+                    ? el("button", { class: "sm dang", onclick: function () { removeAdmin(x.p); } }, "Remove")
+                    : null)));
             }))))
         : el("div", { class: "card" }, el("div", { class: "empty" }, "Nobody added yet.")));
   }
@@ -1554,6 +1664,69 @@ export const PORTAL_HTML = `<!doctype html>
               el("button", { disabled: S.busy, onclick: function () { send(true); } }, "Reply and close")))));
   }
 
+  // ══════════════════════════════════════ getting families onto the app
+  //
+  // A camp can screen every child in the school and still reach nobody: a
+  // result only lands if the guardian has the app. Nothing used to report that
+  // number, so the first anyone would know was after a release went nowhere.
+  function tabInvites() {
+    if (!S.invites) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    var v = S.invites, id = S.school.id;
+
+    function send(onlyNotJoined) {
+      var n = onlyNotJoined ? v.notJoined : v.total;
+      if (!n) { set({ error: "Nobody to message." }); return; }
+      if (!confirm("Text the download link to " + n + " guardian" + (n === 1 ? "" : "s") + "?")) return;
+      run(api("/api/admin/invites/send", { method: "POST",
+        body: { schoolId: id, onlyNotJoined: onlyNotJoined !== false } }), function (r) {
+        S.notice = "Sent to " + r.sent + " of " + r.targeted + "."
+          + (r.failed.length ? " Could not reach: " + r.failed.slice(0, 5).join(", ") + "." : "");
+        S.invites = null; loadSchoolTab();
+      });
+    }
+    function exportList() {
+      download("app-invites-" + id + ".csv", toCsv(v.guardians.map(function (g) {
+        return { Guardian: g.name, Mobile: g.phone, Children: g.children,
+          UsingApp: g.usingApp ? "yes" : "no", Invited: g.invitedAt || "" };
+      })));
+    }
+
+    var pct = v.total ? Math.round((v.joined / v.total) * 100) : 0;
+    return el("div", null,
+      el("div", { class: "msg info" },
+        "A released result reaches a family only if they have the app. This is how many can receive one."),
+      el("div", { class: "stats" },
+        el("div", { class: "stat" }, el("b", null, v.total), el("span", null, "guardians")),
+        el("div", { class: "stat ok" }, el("b", null, v.joined), el("span", null, "using the app")),
+        el("div", { class: "stat warn" }, el("b", null, v.notJoined), el("span", null, "not yet")),
+        el("div", { class: "stat" }, el("b", null, pct + "%"), el("span", null, "reachable")),
+        el("div", { class: "stat info" }, el("b", null, v.neverInvited), el("span", null, "never texted"))),
+      el("div", { class: "row", style: "margin:14px 0" },
+        el("button", { class: "pri", disabled: S.busy || !v.notJoined,
+          onclick: function () { send(true); } },
+          icon("send", 14), " Invite the " + v.notJoined + " not on the app"),
+        el("button", { disabled: S.busy, onclick: function () { send(false); } },
+          "Message everyone again"),
+        el("div", { style: "flex:1" }),
+        el("button", { onclick: exportList }, icon("download", 14), " Export CSV")),
+      el("div", { class: "hint", style: "margin-bottom:14px" },
+        "Each message carries a link that opens the app on the guardian\u2019s own number. Re-messaging everyone includes families already using it, so keep it for a reason."),
+      el("div", { class: "tw" }, el("table", null,
+        el("thead", null, el("tr", null, el("th", null, "Guardian"), el("th", null, "Mobile"),
+          el("th", { class: "num" }, "Children"), el("th", null, "App"), el("th", null, "Last texted"))),
+        el("tbody", null, v.guardians.map(function (g) {
+          return el("tr", null,
+            el("td", null, el("b", null, g.name || "\u2014")),
+            el("td", { class: "mono" }, g.phone || "\u2014"),
+            el("td", { class: "num" }, g.children),
+            el("td", null, g.usingApp
+              ? el("span", { class: "pill ok" }, "Installed")
+              : el("span", { class: "pill warn" }, "Not yet")),
+            el("td", { class: "muted", style: "font-size:12.5px" },
+              g.invitedAt ? fmtDate(g.invitedAt.slice(0, 10)) : "Never"));
+        })))));
+  }
+
   // ══════════════════════════════════════ contracts and invoices
   //
   // Prices are not baked in anywhere. A contract is a shape and a rate, and an
@@ -1735,11 +1908,34 @@ export const PORTAL_HTML = `<!doctype html>
             el("div", { class: "hint" }, "Only what the school has agreed to appears here.")),
           el("div", { class: "fld" }, el("label", null, "Classes covered"),
             grades.length
-              ? el("div", { class: "chips" }, grades.map(function (g) {
-                  var on = f.grades.indexOf(g) >= 0;
-                  return el("label", { class: "chip" + (on ? " on" : "") },
-                    el("input", { type: "checkbox", checked: on, onchange: function () { togList(f.grades, g); } }), g); }))
-              : el("div", { class: "hint" }, "No classes configured yet \\u2014 set them up first.")),
+              ? el("div", null,
+                  el("div", { class: "row", style: "margin-bottom:8px" },
+                    el("button", { class: "sm", onclick: function () {
+                      f.grades = grades.slice(); render();
+                    } }, "Select all"),
+                    el("button", { class: "sm", onclick: function () {
+                      f.grades = []; render();
+                    } }, "Clear"),
+                    S.classes && S.classes.derived
+                      ? el("span", { class: "muted", style: "font-size:12.5px" },
+                          "From the roster \\u2014 these are the classes your imported children are in.")
+                      : null),
+                  el("div", { class: "chips" }, grades.map(function (g) {
+                    var on = f.grades.indexOf(g) >= 0;
+                    return el("label", { class: "chip" + (on ? " on" : "") },
+                      el("input", { type: "checkbox", checked: on, onchange: function () { togList(f.grades, g); } }), g); })))
+              // The dead end this replaces: it said "set them up first" and
+              // offered no way to, while the server refused the camp for
+              // having no classes. Now it takes you there.
+              : el("div", { class: "msg warn", style: "margin:0" },
+                  el("div", null, "No classes yet. A camp covers classes, so there is nothing to schedule against."),
+                  el("div", { class: "row", style: "margin-top:8px" },
+                    el("button", { class: "sm pri", onclick: function () {
+                      S.form = null; S.schoolTab = "classes"; S.error = ""; render(); loadSchoolTab();
+                    } }, "Set up classes"),
+                    el("button", { class: "sm", onclick: function () {
+                      S.form = null; S.schoolTab = "roster"; S.error = ""; render(); loadSchoolTab();
+                    } }, "Import a roster instead")))),
           sections.length
             ? el("div", { class: "fld" }, el("label", null, "Sections (leave empty for all)"),
                 el("div", { class: "chips" }, sections.map(function (s) {
@@ -1755,6 +1951,7 @@ export const PORTAL_HTML = `<!doctype html>
     var d = S.camp, c = d.camp, can = d.can;
     var tabs = [];
     if (can.schedule) tabs.push(["setup", "Setup", null]);
+    if (can.schedule) tabs.push(["people", "Parents & children", null]);
     if (can.schedule) tabs.push(["consent", "Consent", c.pendingConsent]);
     if (can.screen) tabs.push(["campday", "Camp day", c.awaitingReview]);
     if (can.review) tabs.push(["review", "Review", c.awaitingReview]);
@@ -1775,6 +1972,7 @@ export const PORTAL_HTML = `<!doctype html>
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       S.campTab === "setup" ? campSetup()
+        : S.campTab === "people" ? campPeopleTab()
         : S.campTab === "consent" ? campConsent()
         : S.campTab === "campday" ? campDay()
         : campReview());
@@ -1861,6 +2059,15 @@ export const PORTAL_HTML = `<!doctype html>
               : "Guardians are not shown the photography question while this is off.")))); 
   }
 
+  /**
+   * Assign someone to this camp — and, when there is nobody to assign, create
+   * them here.
+   *
+   * Adding staff lived only under the school's People tab, so from the camp
+   * screen the dropdown was empty and the message said everyone was already
+   * assigned. Correct, and useless: there was no way from here to the thing
+   * you actually needed to do.
+   */
   function assignStaffRow(c) {
     if (!S.staff) {
       api("/api/admin/schools/" + c.schoolId + "/staff").then(function (r) { S.staff = r.staff; render(); }).catch(function () {});
@@ -1868,15 +2075,120 @@ export const PORTAL_HTML = `<!doctype html>
     }
     var assigned = S.camp.staff.map(function (s) { return s.profileId; });
     var avail = S.staff.filter(function (s) { return assigned.indexOf(s.profileId) < 0; });
-    if (avail.length === 0) return el("span", { class: "muted", style: "font-size:13px" }, "Everyone at this school is already assigned.");
+
+    if (S.form && S.form.newStaff) {
+      var f = S.form;
+      var b = function (k) { return function (e) { f[k] = e.target.value; }; };
+      return el("div", null,
+        el("div", { class: "g3" },
+          el("div", { class: "fld" }, el("label", null, "Name"),
+            el("input", { value: f.name, oninput: b("name"), placeholder: "Nurse Devi" })),
+          el("div", { class: "fld" }, el("label", null, "Mobile number"),
+            el("input", { value: f.phone, oninput: b("phone"), placeholder: "9876543210" })),
+          el("div", { class: "fld" }, el("label", null, "Role"),
+            el("select", { onchange: b("role") },
+              el("option", { value: "SCREENER", selected: f.role === "SCREENER" }, "Screener"),
+              el("option", { value: "PHYSICIAN", selected: f.role === "PHYSICIAN" }, "Physician")))),
+        el("div", { class: "hint", style: "margin-bottom:10px" },
+          "They sign in to this console with that mobile number \\u2014 no password. A physician can approve results; a screener can only record them."),
+        el("div", { class: "row" },
+          el("button", { class: "pri", disabled: S.busy, onclick: function () {
+            run(api("/api/admin/schools/" + c.schoolId + "/staff", { method: "POST",
+              body: { name: f.name, phone: f.phone, role: f.role } }), function (d) {
+              // Straight onto this camp: adding them was only ever a step
+              // towards assigning them.
+              run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST",
+                body: { profileId: d.staff.profileId } }), function () {
+                S.notice = d.staff.name + " added and assigned to this camp.";
+                S.form = null; S.staff = null; refreshCamp();
+              });
+            });
+          } }, "Add and assign"),
+          el("button", { onclick: function () { set({ form: null }); } }, "Cancel")));
+    }
+
     var sel;
     return el("div", { class: "row" },
-      sel = el("select", { style: "max-width:280px" }, avail.map(function (s) {
-        return el("option", { value: s.profileId }, s.name + " \\u2014 " + (s.role === "PHYSICIAN" ? "Physician" : "Screener")); })),
-      el("button", { disabled: S.busy, onclick: function () {
-        run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST", body: { profileId: sel.value } }),
-          function () { S.notice = "Assigned."; refreshCamp(); });
-      } }, "Assign to camp"));
+      avail.length
+        ? sel = el("select", { style: "max-width:280px" }, avail.map(function (s) {
+            return el("option", { value: s.profileId }, s.name + " \\u2014 " + (s.role === "PHYSICIAN" ? "Physician" : "Screener")); }))
+        : el("span", { class: "muted", style: "font-size:13px" },
+            S.staff.length ? "Everyone at this school is already on this camp." : "No screeners or physicians yet."),
+      avail.length
+        ? el("button", { disabled: S.busy, onclick: function () {
+            run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST", body: { profileId: sel.value } }),
+              function () { S.notice = "Assigned."; refreshCamp(); });
+          } }, "Assign to camp")
+        : null,
+      el("button", { class: avail.length ? "" : "pri", onclick: function () {
+        set({ form: { newStaff: true, name: "", phone: "", role: "SCREENER" } });
+      } }, icon("userPlus", 14), " Add someone new"));
+  }
+
+  // ══════════════════════════════════════ everyone at this camp
+  //
+  // The office view. One row per child with the guardian, their number, where
+  // consent stands, and whether they can even receive the result — which is
+  // the list somebody prints and works down the day before a camp.
+  function campPeopleTab() {
+    if (!S.campPeople) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    var all = S.campPeople.people;
+    var q = (S.peopleQuery || "").toLowerCase();
+    var rows = q
+      ? all.filter(function (p) {
+          return (p.kidName + " " + p.guardianName + " " + p.guardianPhone + " " + p.grade)
+            .toLowerCase().indexOf(q) >= 0;
+        })
+      : all;
+
+    function exportPeople() {
+      download("camp-" + S.camp.camp.id + "-people.csv", toCsv(all.map(function (p) {
+        return {
+          Child: p.kidName, Class: (p.grade || "") + (p.section ? " " + p.section : ""),
+          Age: p.age === null ? "" : p.age, Gender: p.gender, AdmissionNo: p.studentRef,
+          Guardian: p.guardianName, Mobile: p.guardianPhone,
+          UsingApp: p.usingApp ? "yes" : "no", Consent: p.consent,
+          Photographs: p.photoConsent ? "yes" : "no",
+          Attendance: p.attendance, Result: p.status, FollowUps: p.referrals,
+        };
+      })));
+    }
+
+    var noApp = all.filter(function (p) { return !p.usingApp; }).length;
+    return el("div", null,
+      el("div", { class: "row", style: "margin-bottom:12px" },
+        el("input", { value: S.peopleQuery, placeholder: "Search child, guardian or number",
+          style: "max-width:300px",
+          oninput: function (e) { S.peopleQuery = e.target.value; render(); } }),
+        el("div", { style: "flex:1" }),
+        el("button", { onclick: exportPeople }, icon("download", 14), " Export CSV")),
+      noApp
+        ? el("div", { class: "msg warn" },
+            noApp + " of these families are not on the app yet, so a released result will not reach them. "
+            + "Invite them from the school\u2019s App invites tab.")
+        : null,
+      el("div", { class: "tw" }, el("table", null,
+        el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"),
+          el("th", null, "Guardian"), el("th", null, "Mobile"), el("th", null, "App"),
+          el("th", null, "Consent"), el("th", null, "Attendance"), el("th", null, "Result"))),
+        el("tbody", null, rows.map(function (p) {
+          return el("tr", null,
+            el("td", null, el("b", null, p.kidName),
+              p.studentRef ? el("div", { class: "muted mono", style: "font-size:12px" },
+                p.studentRef.replace(/^sid_/, "")) : null),
+            el("td", null, (p.grade || "") + (p.section ? " " + p.section : "")),
+            el("td", null, p.guardianName || el("span", { class: "muted" }, "\u2014")),
+            el("td", { class: "mono" }, p.guardianPhone || "\u2014"),
+            el("td", null, p.usingApp
+              ? el("span", { class: "pill ok" }, "Yes")
+              : el("span", { class: "pill warn" }, "No")),
+            el("td", null, statusPill(p.consent)),
+            el("td", null, p.attendance === "UNKNOWN"
+              ? el("span", { class: "muted" }, "\u2014") : statusPill(p.attendance)),
+            el("td", null, statusPill(p.status)));
+        })))),
+      el("p", { class: "muted", style: "margin-top:10px;font-size:12.5px" },
+        rows.length + " of " + all.length + " shown."));
   }
 
   function campConsent() {
@@ -2516,9 +2828,180 @@ export const PORTAL_HTML = `<!doctype html>
         })))));
   }
 
-  function navItem(icon, label, view, onclick) {
+  // ══════════════════════════════════════ hospitals and doctors
+  //
+  // The directory the parent app reads when a child is referred. It was seeded
+  // once and had no editor, which meant the first pilot could not add the
+  // hospital actually next to the school.
+  function loadHospitals() {
+    run(api("/api/admin/hospitals" + (S.hosQuery ? "?q=" + encodeURIComponent(S.hosQuery) : "")),
+      function (d) {
+        S.hospitals = d; S.view = "hospitals"; S.hosForm = null; S.docForm = null;
+        api("/api/admin/doctors").then(function (r) { S.doctors = r; render(); }).catch(function () {});
+      });
+  }
+
+  function viewHospitals() {
+    if (!S.hospitals) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    var canEdit = S.hospitals.canEdit;
+
+    function saveHospital() {
+      run(api("/api/admin/hospitals", { method: "POST", body: S.hosForm }), function () {
+        S.notice = "Saved."; S.hosForm = null; loadHospitals();
+      });
+    }
+    function saveDoctor() {
+      run(api("/api/admin/doctors", { method: "POST", body: S.docForm }), function () {
+        S.notice = "Saved."; S.docForm = null; loadHospitals();
+      });
+    }
+    function retire(kind, id, name) {
+      if (!confirm("Retire " + name + "?\\n\\nIt stops appearing to families, but referrals already written to it keep their record.")) return;
+      run(api("/api/admin/" + kind + "/" + encodeURIComponent(id), { method: "DELETE" }), function () {
+        S.notice = "Retired."; loadHospitals();
+      });
+    }
+
+    if (S.hosForm) {
+      var f = S.hosForm;
+      var hb = function (k) { return function (e) { f[k] = e.target.value; }; };
+      return el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, f.id ? "Edit hospital" : "Add a hospital")),
+        el("div", { class: "card-b" },
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Name"),
+              el("input", { value: f.name, oninput: hb("name") })),
+            el("div", { class: "fld" }, el("label", null, "Phone"),
+              el("input", { value: f.phone, oninput: hb("phone") }))),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "City"),
+              el("input", { value: f.city, oninput: hb("city") })),
+            el("div", { class: "fld" }, el("label", null, "District"),
+              el("input", { value: f.district, oninput: hb("district") }))),
+          el("div", { class: "fld" }, el("label", null, "Address"),
+            el("input", { value: f.address, oninput: hb("address") })),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Latitude"),
+              el("input", { value: f.lat, oninput: hb("lat"), placeholder: "17.44" })),
+            el("div", { class: "fld" }, el("label", null, "Longitude"),
+              el("input", { value: f.lng, oninput: hb("lng"), placeholder: "78.39" }))),
+          el("div", { class: "hint" },
+            "Coordinates are optional. With them the app can sort hospitals by how far they are from the family."),
+          el("label", { class: "chip" + (f.isCampPartner ? " on" : ""), style: "margin-top:10px" },
+            el("input", { type: "checkbox", checked: !!f.isCampPartner,
+              onchange: function (e) { f.isCampPartner = e.target.checked; render(); } }),
+            "Camp partner \u2014 shown first to these families")),
+        el("div", { class: "card-f" }, el("div", { class: "row" },
+          el("button", { class: "pri", disabled: S.busy, onclick: saveHospital }, "Save hospital"),
+          el("button", { onclick: function () { set({ hosForm: null }); } }, "Cancel"))));
+    }
+
+    if (S.docForm) {
+      var g = S.docForm;
+      var db = function (k) { return function (e) { g[k] = e.target.value; }; };
+      return el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, g.id ? "Edit doctor" : "Add a doctor")),
+        el("div", { class: "card-b" },
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Name"),
+              el("input", { value: g.name, oninput: db("name") })),
+            el("div", { class: "fld" }, el("label", null, "Specialty"),
+              el("input", { value: g.specialty, oninput: db("specialty"), placeholder: "Ophthalmology" }))),
+          el("div", { class: "fld" }, el("label", null, "Hospital"),
+            el("select", { onchange: db("hospitalId") },
+              [el("option", { value: "" }, "\u2014 not attached \u2014")].concat(
+                S.hospitals.hospitals.map(function (h) {
+                  return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
+                })))),
+          el("div", { class: "hint" },
+            "A referral names a specialty. Attaching the doctor to a hospital is what lets the app tell a family where to go.")),
+        el("div", { class: "card-f" }, el("div", { class: "row" },
+          el("button", { class: "pri", disabled: S.busy, onclick: saveDoctor }, "Save doctor"),
+          el("button", { onclick: function () { set({ docForm: null }); } }, "Cancel"))));
+    }
+
+    var hs = S.hospitals.hospitals;
+    var searchBox;
+    return el("div", null,
+      el("div", { class: "msg info" },
+        "This is what a family sees when a doctor refers their child onward. A hospital marked as a camp partner is shown first."),
+      el("div", { class: "row", style: "margin-bottom:14px" },
+        searchBox = el("input", { value: S.hosQuery, placeholder: "Search by name or city",
+          style: "max-width:280px",
+          oninput: function (e) { S.hosQuery = e.target.value; } }),
+        el("button", { onclick: loadHospitals }, icon("search", 14), " Search"),
+        el("div", { style: "flex:1" }),
+        canEdit ? el("button", { class: "pri", onclick: function () {
+          set({ hosForm: { name: "", city: "Hyderabad", district: "", address: "", phone: "",
+            lat: "", lng: "", isCampPartner: false } });
+        } }, icon("plus", 14), " Add hospital") : null,
+        canEdit ? el("button", { onclick: function () {
+          set({ docForm: { name: "", specialty: "", hospitalId: "", city: "Hyderabad" } });
+        } }, icon("plus", 14), " Add doctor") : null),
+
+      hs.length === 0
+        ? el("div", { class: "card" }, el("div", { class: "empty" },
+            el("h3", null, "No hospitals"),
+            el("p", { style: "font-size:13.5px" }, "Add the hospitals your families can actually reach.")))
+        : el("div", { class: "tw" }, el("table", null,
+            el("thead", null, el("tr", null, el("th", null, "Hospital"), el("th", null, "City"),
+              el("th", null, "Phone"), el("th", { class: "num" }, "Doctors"),
+              el("th", null, "Role"), el("th", null, ""))),
+            el("tbody", null, hs.map(function (h) {
+              return el("tr", { class: h.active ? "" : "muted" },
+                el("td", null, el("b", null, h.name),
+                  h.address ? el("div", { class: "muted", style: "font-size:12.5px" }, h.address) : null),
+                el("td", null, [h.city, h.district].filter(Boolean).join(" \u00b7 ")),
+                el("td", { class: "mono" }, h.phone || "\u2014"),
+                el("td", { class: "num" }, h.doctorCount),
+                el("td", null, h.isCampPartner
+                  ? el("span", { class: "pill warn" }, "Camp partner")
+                  : el("span", { class: "muted" }, "\u2014")),
+                el("td", { style: "text-align:right" }, canEdit
+                  ? el("div", { class: "row" },
+                      el("button", { class: "sm", onclick: function () {
+                        set({ hosForm: {
+                          id: h.id, name: h.name, city: h.city, district: h.district,
+                          address: h.address, phone: h.phone,
+                          lat: h.lat === null ? "" : h.lat, lng: h.lng === null ? "" : h.lng,
+                          isCampPartner: h.isCampPartner } });
+                      } }, "Edit"),
+                      h.active ? el("button", { class: "sm dang", onclick: function () {
+                        retire("hospitals", h.id, h.name);
+                      } }, "Retire") : el("span", { class: "muted", style: "font-size:12.5px" }, "Retired"))
+                  : null));
+            })))),
+
+      el("h3", { style: "margin:22px 0 10px" }, "Doctors"),
+      !S.doctors
+        ? el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"))
+        : S.doctors.doctors.length === 0
+          ? el("div", { class: "card" }, el("div", { class: "empty" },
+              el("p", { style: "font-size:13.5px;margin:0" }, "None yet.")))
+          : el("div", { class: "tw" }, el("table", null,
+              el("thead", null, el("tr", null, el("th", null, "Doctor"), el("th", null, "Specialty"),
+                el("th", null, "Hospital"), el("th", null, ""))),
+              el("tbody", null, S.doctors.doctors.map(function (d) {
+                return el("tr", { class: d.active ? "" : "muted" },
+                  el("td", null, el("b", null, d.name)),
+                  el("td", null, d.specialty),
+                  el("td", { class: "muted" }, d.hospitalName || "\u2014"),
+                  el("td", { style: "text-align:right" }, canEdit
+                    ? el("div", { class: "row" },
+                        el("button", { class: "sm", onclick: function () {
+                          set({ docForm: { id: d.id, name: d.name, specialty: d.specialty,
+                            hospitalId: d.hospitalId, city: d.city } });
+                        } }, "Edit"),
+                        d.active ? el("button", { class: "sm dang", onclick: function () {
+                          retire("doctors", d.id, d.name);
+                        } }, "Retire") : el("span", { class: "muted", style: "font-size:12.5px" }, "Retired"))
+                    : null));
+              })))));
+  }
+
+  function navItem(name, label, view, onclick) {
     return el("button", { class: "navi" + (S.view === view ? " on" : ""), onclick: onclick },
-      el("span", { class: "ic" }, icon), label);
+      el("span", { class: "ic" }, icon(name, 17)), label);
   }
 
   function sidebar() {
@@ -2526,17 +3009,18 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "brand" }, el("span", { class: "dot" }), "VitaHero"),
       el("div", { class: "navsec" },
         el("h4", null, "Menu"),
-        canManage() ? navItem("\\u25A6", "Overview", "overview", function () { set({ view: "overview" }); if (!S.overview) boot(); }) : null,
-        canManage() ? navItem("\\u25EC", isSchoolAdmin() ? "My school" : "Schools", "schools", function () {
+        canManage() ? navItem("home", "Overview", "overview", function () { set({ view: "overview" }); if (!S.overview) boot(); }) : null,
+        canManage() ? navItem("school", isSchoolAdmin() ? "My school" : "Schools", "schools", function () {
           if (isSchoolAdmin() && S.school) openSchool(S.school.id); else loadSchools();
         }) : null,
-        isClinical() ? navItem("\\u2695", "My camps", "mycamps", loadMyCamps) : null,
-        isOps() ? navItem("\\u2637", "Library", "library", loadLibrary) : null,
-        S.camp ? navItem("\\u2691", "Current camp", "camp", function () { set({ view: "camp" }); }) : null),
+        isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
+        isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
+        isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
+        S.camp ? navItem("flag", "Current camp", "camp", function () { set({ view: "camp" }); }) : null),
       el("div", { class: "navfoot" },
         el("b", null, S.auth.name),
         el("div", { class: "role" }, roleLabel()),
-        el("button", { onclick: signOut }, "Sign out")));
+        el("button", { onclick: signOut }, icon("logout", 14), " Sign out")));
   }
 
   function crumbs() {
@@ -2564,6 +3048,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.view === "camp" && S.camp) return S.camp.camp.title;
     if (S.view === "mycamps") return "My camps";
     if (S.view === "library") return "Reading for families";
+    if (S.view === "hospitals") return "Hospitals & doctors";
     return "VitaHero";
   }
 
@@ -2578,6 +3063,7 @@ export const PORTAL_HTML = `<!doctype html>
     else if (S.view === "camp" && S.camp) body = viewCamp();
     else if (S.view === "mycamps") body = viewMyCamps();
     else if (S.view === "library") body = viewLibrary();
+    else if (S.view === "hospitals") body = viewHospitals();
     else if (S.view === "schools") body = viewSchools();
     else body = viewOverview();
 
