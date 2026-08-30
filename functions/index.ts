@@ -176,6 +176,7 @@ import {
   campPeople,
 } from "./directory";
 import { migrate, SCHEMA_VERSION } from "./migrate";
+import { servePrivacyPage, serveDataDeletionPage } from "./pages";
 import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
@@ -1525,6 +1526,14 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // ── Static pages required by Google Play ────────────
+    //
+    // The store listing and Data safety form link to these. They must answer
+    // even if the database is unreachable, so they sit in front of it.
+    if (path === "/privacy") return servePrivacyPage();
+    if (path === "/data-deletion") return serveDataDeletionPage();
+
     const dbUrl = env.DATABASE_URL;
 
     if (!dbUrl) {
