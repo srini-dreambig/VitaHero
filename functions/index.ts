@@ -1820,7 +1820,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           if (section === "consent") {
             if (third === "request" && method === "POST") {
-              return json(await requestConsent(sql, actor, campId, smsSender, url.origin));
+              const b = await readBody().catch(() => ({}) as Record<string, unknown>);
+              return json(await requestConsent(sql, actor, campId, smsSender, url.origin, {
+                profileIds: Array.isArray(b.profileIds) ? (b.profileIds as string[]) : [],
+              }));
             }
             if (third === "record" && method === "POST") {
               const b = await readBody();

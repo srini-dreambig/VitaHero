@@ -746,13 +746,12 @@ describe("the console offers only what can actually be recorded", () => {
 // and reminders kept firing for camps that had already happened. The venue and
 // the consent deadline were asked for on every camp and sent to nobody. And a
 // camp the school was still drafting was shown to parents.
-describe("the app and the server agree about camps", () => {
+describe("the server side of the camp contract", () => {
   test("a camp still being drafted is not sent to a parent", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync("index.ts", "utf8");
     const at = src.indexOf('path === "/api/camps"');
-    const block = src.slice(at, at + 3000);
-    expect(block).toContain("NOT IN ('DRAFT', 'CANCELLED')");
+    expect(src.slice(at, at + 3000)).toContain("NOT IN ('DRAFT', 'CANCELLED')");
   });
 
   test("the venue and the consent deadline are sent", async () => {
@@ -763,17 +762,18 @@ describe("the app and the server agree about camps", () => {
   });
 });
 
-// NOT HERE YET, ON PURPOSE.
+// HELD BACK ON PURPOSE — see the sibling repo.
 //
-// Three further tests in the upstream repo read android/ and assert the app
-// can parse what the server sends: that CampStatus covers SCHEDULED,
-// IN_PROGRESS, SCREENED and RELEASED, that a released camp classifies as past,
-// and that CampDto carries the venue. They fail here, correctly — this repo
-// carries the admin-panel half of that change and not the Android half, so the
-// app still falls back to UPCOMING for every camp, still shows an empty "past
-// camps" list, and still reminds families about camps that have happened.
+// Three further tests upstream read android/ and assert the app can parse what
+// the server sends: that CampStatus covers SCHEDULED, IN_PROGRESS, SCREENED and
+// RELEASED, that a released camp classifies as past, and that CampDto carries
+// the venue. They would fail here, correctly: this repo carries the
+// admin-panel half of that change and not the Android half, so the app still
+// falls back to UPCOMING for every camp, still shows an empty "past camps"
+// list, and still reminds families about camps that have already happened.
 //
 // They arrive with the Kotlin fix rather than being silenced ahead of it.
+// Re-apply this split after any sync that pulls functions/ from upstream.
 
 // A clinician has to be able to see what the family reported.
 describe("the family's illness history reaches the person examining the child", () => {
