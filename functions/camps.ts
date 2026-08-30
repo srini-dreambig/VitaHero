@@ -18,6 +18,7 @@ import {
   slugify,
   tidyName,
 } from "./common";
+import { SmsSender } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { openReferralsForChild } from "./referrals";
 import { logRecordAccess } from "./oversight";
@@ -631,7 +632,7 @@ export async function requestConsent(
   sql: Sql,
   actor: Actor,
   campId: string,
-  sendSms: (phone: string, body: string) => Promise<boolean>,
+  sendSms: SmsSender,
   appOrigin: string,
   opts: { profileIds?: string[] } = {}
 ) {
@@ -1245,7 +1246,7 @@ export async function reviewParticipant(
   campId: string,
   kidId: string,
   body: Record<string, unknown>,
-  sendSms?: (phone: string, body: string) => Promise<boolean>
+  sendSms?: SmsSender
 ) {
   const access = await assertCampAccess(sql, actor, campId);
   assertCan(access.canReview, "review results for this camp");
@@ -1326,12 +1327,12 @@ export async function reviewParticipant(
     `;
     const phone = (who[0]?.phone as string) || "";
     if (phone) {
-      escalated = await sendSms(
+      escalated = (await sendSms(
         phone,
         "VitaHero: the doctor reviewing " + String(who[0]?.name || "your child") +
           "'s school health check-up has flagged something that needs attention within a few days. " +
           "Please open the VitaHero app, or call the school."
-      );
+      )).ok;
     }
     await sql`
       INSERT INTO vita_hero.consent_log (id, camp_id, kid_id, profile_id, action, source, actor_id, note)
@@ -1361,7 +1362,7 @@ export async function releaseCamp(
   sql: Sql,
   actor: Actor,
   campId: string,
-  sendSms: (phone: string, body: string) => Promise<boolean>
+  sendSms: SmsSender
 ) {
   const access = await assertCampAccess(sql, actor, campId);
   assertCan(access.canReview, "release results for this camp");

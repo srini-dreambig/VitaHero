@@ -15,6 +15,7 @@
 // programme could not previously produce for a single child.
 
 import { Sql, isOpsRole, slugify } from "./common";
+import { SmsSender } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { assertCampAccess } from "./camps";
 import { Flag, Urgency } from "./clinical";
@@ -470,7 +471,7 @@ export async function nudgeReferrals(
   sql: Sql,
   actor: Actor,
   schoolId: string,
-  sendSms: (phone: string, body: string) => Promise<boolean>
+  sendSms: SmsSender
 ) {
   assertSchoolAccess(actor, schoolId);
   const today = new Date().toISOString().slice(0, 10);

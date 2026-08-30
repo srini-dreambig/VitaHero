@@ -1585,10 +1585,18 @@ export const PORTAL_HTML = `<!doctype html>
       run(api("/api/admin/invites/send", { method: "POST",
         body: { schoolId: S.school.id, onlyNotJoined: true, profileIds: who } }),
         function (d) {
-          S.notice = d.sent === 0
-            ? "No invitation could be sent. Check the mobile numbers."
-            : "Invitation sent to " + d.sent + (d.sent === 1 ? " guardian." : " guardians.")
-              + (d.failed && d.failed.length ? " " + d.failed.length + " could not be texted." : "");
+          if (d.sent === 0) {
+            S.error = "No invitation was sent. "
+              + (d.commonReason || "Check the mobile numbers.");
+            S.notice = "";
+          } else {
+            S.error = "";
+            S.notice = "Invitation sent to " + d.sent
+              + (d.sent === 1 ? " guardian." : " guardians.")
+              + (d.failed && d.failed.length
+                  ? " " + d.failed.length + " could not be texted. " + (d.commonReason || "")
+                  : "");
+          }
           S.roster = null; loadSchoolTab();
         });
     }
@@ -2154,8 +2162,20 @@ export const PORTAL_HTML = `<!doctype html>
       if (!confirm("Text the download link to " + n + " guardian" + (n === 1 ? "" : "s") + "?")) return;
       run(api("/api/admin/invites/send", { method: "POST",
         body: { schoolId: id, onlyNotJoined: onlyNotJoined !== false } }), function (r) {
-        S.notice = "Sent to " + r.sent + " of " + r.targeted + "."
-          + (r.failed.length ? " Could not reach: " + r.failed.slice(0, 5).join(", ") + "." : "");
+        // Say why. A bare "could not reach" sent an operator hunting through
+        // mobile numbers for what turned out to be an unset gateway secret.
+        var names = (r.failed || []).map(function (f) {
+          return typeof f === "string" ? f : f.name;
+        });
+        if (r.sent === 0 && r.commonReason) {
+          S.error = "Nothing was sent. " + r.commonReason;
+          S.notice = "";
+        } else {
+          S.error = "";
+          S.notice = "Sent to " + r.sent + " of " + r.targeted + "."
+            + (names.length ? " Could not reach: " + names.slice(0, 5).join(", ") + "." : "")
+            + (r.commonReason ? " " + r.commonReason : "");
+        }
         S.invites = null; loadSchoolTab();
       });
     }
@@ -2170,6 +2190,16 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       el("div", { class: "msg info" },
         "A released result reaches a family only if they have the app. This is how many can receive one."),
+      // Checked before anything is sent, so "Sent to 0 of 2" is never the
+      // first time anyone learns this worker cannot text at all.
+      !loadOnce("smsStatus", "/api/admin/sms-status",
+        function (r) { return r && r.provider ? r : { provider: "none", configured: false,
+          detail: "Could not check whether SMS is configured." }; })
+        ? null
+        : S.smsStatus.configured
+          ? null
+          : el("div", { class: "msg err" },
+              el("b", null, "No text message can be sent. "), S.smsStatus.detail),
       el("div", { class: "stats" },
         el("div", { class: "stat" }, el("b", null, v.total), el("span", null, "guardians")),
         el("div", { class: "stat ok" }, el("b", null, v.joined), el("span", null, "using the app")),

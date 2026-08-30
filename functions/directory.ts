@@ -7,6 +7,7 @@
 // nowhere to do it. This is that surface.
 
 import { Sql, isOpsRole, normalizePhone } from "./common";
+import { SmsSender } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 
 function opsOnly(actor: Actor, what: string) {
@@ -204,7 +205,7 @@ export async function inviteGuardians(
   sql: Sql,
   actor: Actor,
   schoolId: string,
-  sendSms: (phone: string, body: string) => Promise<boolean>,
+  sendSms: SmsSender,
   buildLink: (last10: string) => string,
   opts: { onlyNotJoined?: boolean; profileIds?: string[] } = {}
 ) {
@@ -225,26 +226,35 @@ export async function inviteGuardians(
   const schoolName = (school[0]?.name as string) || "your school";
 
   let sent = 0;
-  const failed: string[] = [];
+  const failed: Array<{ name: string; reason: string }> = [];
   for (const r of rows) {
+    const who = (r.name as string) || (r.phone as string) || "unknown";
     const norm = normalizePhone(String(r.phone || ""));
     if (!norm) {
-      failed.push((r.name as string) || (r.phone as string) || "unknown");
+      failed.push({ name: who, reason: "That is not a usable mobile number." });
       continue;
     }
-    const ok = await sendSms(
+    const res = await sendSms(
       norm.e164,
       `${schoolName} uses VitaHero for your child's school health check-up. ` +
         `Open your child's results here: ${buildLink(norm.last10)}`
     );
-    if (ok) {
+    if (res.ok) {
       sent++;
       await sql`UPDATE vita_hero.profiles SET invited_at = NOW() WHERE id = ${r.id as string}`;
     } else {
-      failed.push((r.name as string) || norm.e164);
+      // The reason travels to the screen. "Could not reach" on its own sent an
+      // operator hunting through mobile numbers for what was a missing secret.
+      failed.push({ name: (r.name as string) || norm.e164, reason: res.reason });
     }
   }
-  return { targeted: rows.length, sent, failed };
+  // One line the console can show above the list, because when nothing is
+  // configured every row fails for the same reason and repeating it per row
+  // buries it.
+  const commonReason = failed.length && failed.every((f) => f.reason === failed[0].reason)
+    ? failed[0].reason
+    : "";
+  return { targeted: rows.length, sent, failed, commonReason };
 }
 
 // ─── Everyone at one camp, for the office ───────────────────

@@ -2,8 +2,30 @@
 # Copy to functions/.dev.vars for local worker testing — never commit real values.
 
 DATABASE_URL=postgresql://user:pass@host/neondb?sslmode=require
+
+# ─── Sending text messages ────────────────────────────────────
+# Consent requests, app invitations, staff sign-in codes and urgent-result
+# alerts all go by SMS. With none of this set the worker sends nothing, and
+# the console now says so on the App invites screen instead of reporting the
+# guardians as unreachable.
+#
+# Pick one. SMS_PROVIDER is optional — whichever set of credentials is
+# present is used.
+SMS_PROVIDER=
+
+# TextBee (an Android handset as the gateway; no DLT registration needed).
+TEXTBEE_API_KEY=
+TEXTBEE_DEVICE_ID=
+# Only for a self-hosted gateway; defaults to https://api.textbee.dev/api/v1
+TEXTBEE_BASE_URL=
+
+# Twilio. TWILIO_FROM must be a number the account owns, or a Messaging
+# Service SID beginning MG. It is not optional: Twilio rejects a From it does
+# not recognise, which is why sends failed even with valid credentials.
+# Delivery to Indian numbers also requires DLT registration.
 TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
+TWILIO_FROM=
 
 # Rork Toolkit — used server-side for AI diet tips (NOT in the Android app)
 TOOLKIT_URL=https://toolkit.rork.app
