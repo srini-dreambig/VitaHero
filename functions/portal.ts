@@ -3164,6 +3164,287 @@ export const PORTAL_HTML = `<!doctype html>
   // The directory the parent app reads when a child is referred. It was seeded
   // once and had no editor, which meant the first pilot could not add the
   // hospital actually next to the school.
+  // ══════════════════════════════════════ oversight (K4, K6, J9)
+  //
+  // Three things that were built and had nowhere to be opened from, plus the
+  // two that were never built at all. They belong together: each one answers
+  // "is this programme being run properly", and none of them belongs inside a
+  // single school.
+
+  function loadOversight(tab) {
+    S.view = "oversight";
+    // navItem hands its handler the click event, so anything but a string here
+    // is the event and must not become the selected tab — that is how the
+    // Partners tab sat on "Loading…" for ever while looking correct.
+    S.oversightTab = (typeof tab === "string" && tab)
+      || S.oversightTab || "partners";
+    S.error = ""; S.notice = "";
+    render();
+    loadOversightTab();
+  }
+
+  function loadOversightTab() {
+    var t = S.oversightTab;
+    if (t === "partners" && !S.partners) {
+      run(api("/api/admin/partners"), function (d) { S.partners = d; });
+    } else if (t === "access" && !S.access) {
+      run(api("/api/admin/access-log?days=" + (S.accessDays || 30)), function (d) { S.access = d; });
+    } else if (t === "retention" && !S.retention) {
+      run(api("/api/admin/retention"), function (d) { S.retention = d; });
+    }
+  }
+
+  function viewOversight() {
+    var tabs = [["partners", "Hospital partners"], ["access", "Record access"],
+      ["retention", "Retention"], ["child", "Look up a child"]];
+    return el("div", null,
+      el("div", { class: "tabs" }, tabs.map(function (t) {
+        return el("button", { class: "tab" + (S.oversightTab === t[0] ? " on" : ""),
+          onclick: function () { S.oversightTab = t[0]; S.error = ""; render(); loadOversightTab(); } }, t[1]);
+      })),
+      S.error ? el("div", { class: "msg err" }, S.error) : null,
+      S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
+      S.oversightTab === "access" ? tabAccessLog()
+        : S.oversightTab === "retention" ? tabRetention()
+        : S.oversightTab === "child" ? tabChildTrail()
+        : tabPartners());
+  }
+
+  /** K4. A partnership only earns its place if children sent there are seen. */
+  function tabPartners() {
+    var d = S.partners;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    var used = d.hospitals.filter(function (h) { return h.sent > 0; });
+    var unused = d.hospitals.filter(function (h) { return h.sent === 0; });
+
+    function partnerRow(h) {
+      return el("tr", null,
+        el("td", null, el("b", null, h.name),
+          h.isCampPartner
+            ? el("span", { class: "pill ok", style: "margin-left:6px" }, "Camp partner")
+            : null),
+        el("td", { class: "muted" }, h.district || h.city || "—"),
+        el("td", { class: "num" }, h.sent),
+        el("td", { class: "num" }, h.seen),
+        el("td", { class: "num" }, h.closed),
+        el("td", { class: "num" }, h.outstanding),
+        el("td", { class: "num" + (h.seenRate !== null && h.seenRate < 50 ? " bad" : "") },
+          pctText(h.seenRate)),
+        el("td", { class: "num" }, h.avgDaysToClose === null ? "—" : h.avgDaysToClose));
+    }
+
+    var usedTable = el("div", { class: "card" },
+      el("div", { class: "card-h" }, el("h2", null, "Partners in use")),
+      el("div", { class: "tws" },
+        el("table", null,
+          el("thead", null,
+            el("tr", null,
+              el("th", null, "Hospital"),
+              el("th", null, "Area"),
+              el("th", { class: "num" }, "Sent"),
+              el("th", { class: "num" }, "Seen"),
+              el("th", { class: "num" }, "Closed"),
+              el("th", { class: "num" }, "Outstanding"),
+              el("th", { class: "num" }, "Seen rate"),
+              el("th", { class: "num" }, "Days to close"))),
+          el("tbody", null, used.map(partnerRow)))));
+
+    var noneYet = el("div", { class: "card" },
+      el("div", { class: "empty" },
+        el("h3", null, "No referrals have reached a partner yet"),
+        el("p", { style: "font-size:13.5px" },
+          "A referral is attributed here once a family books through the app.")));
+
+    // The referrals that never reached a partner at all. Reported next to the
+    // partners rather than left out, because attributing them to anyone would
+    // flatter every partner's numbers.
+    var ownDoctor = el("div", { class: "kpis" },
+      kpi("Own doctor", d.notBooked.total, "referrals with no partner appointment"),
+      kpi("Of those, closed", d.notBooked.closed, d.notBooked.outstanding + " still open"));
+
+    var neverUsed = el("div", { class: "card" },
+      el("div", { class: "card-h" },
+        el("h2", null, "On the list, never used"),
+        el("span", { class: "muted", style: "font-size:12px" },
+          "No rate is shown — nothing has been sent")),
+      el("div", { class: "card-b" },
+        el("div", { class: "chips" }, unused.map(function (h) {
+          return el("span", { class: "chip" }, h.name);
+        }))));
+
+    return el("div", null,
+      el("p", { class: "muted", style: "margin:0 0 14px;font-size:13px" }, d.note),
+      d.notBooked.total ? ownDoctor : null,
+      used.length === 0 ? noneYet : usedTable,
+      unused.length ? neverUsed : null);
+  }
+
+  /** K6. Who opened a child's record. */
+  function tabAccessLog() {
+    var d = S.access;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    var days = S.accessDays || 30;
+
+    function setDays(n) {
+      S.accessDays = n; S.access = null; render(); loadOversightTab();
+    }
+
+    var window_ = el("div", { class: "row", style: "margin-bottom:14px" },
+      [7, 30, 90].map(function (n) {
+        return el("button", { class: days === n ? "pri" : "",
+          onclick: function () { setDays(n); } }, "Last " + n + " days");
+      }));
+
+    var byPerson = el("div", { class: "card" },
+      el("div", { class: "card-h" }, el("h2", null, "By person")),
+      el("div", { class: "tws" },
+        el("table", null,
+          el("thead", null,
+            el("tr", null,
+              el("th", null, "Person"),
+              el("th", null, "Role"),
+              el("th", { class: "num" }, "Records opened"),
+              el("th", { class: "num" }, "Children"),
+              el("th", null, "Last"))),
+          el("tbody", null, d.byActor.map(function (a) {
+            return el("tr", null,
+              el("td", null, el("b", null, a.actorName || a.actorId)),
+              el("td", null, el("span", { class: "pill mute" }, a.actorRole)),
+              el("td", { class: "num" }, a.reads),
+              el("td", { class: "num" }, a.children),
+              el("td", { class: "muted" }, fmtWhen(a.lastAt)));
+          })))));
+
+    function entryRow(e) {
+      return el("tr", { class: e.kidId ? "click" : null,
+        onclick: e.kidId ? function () { openChildTrail(e.kidId); } : null },
+        el("td", { class: "muted" }, fmtWhen(e.at)),
+        el("td", null, el("b", null, e.kidName || e.kidId)),
+        el("td", { class: "muted" }, e.schoolName || "—"),
+        el("td", null, e.actorName || e.actorId,
+          el("div", { class: "muted", style: "font-size:11.5px" }, e.actorRole)),
+        el("td", { class: "muted" }, surfaceLabel(e.surface)));
+    }
+
+    var entries = el("div", { class: "tws" },
+      el("table", null,
+        el("thead", null,
+          el("tr", null,
+            el("th", null, "When"),
+            el("th", null, "Child"),
+            el("th", null, "School"),
+            el("th", null, "Opened by"),
+            el("th", null, "What"))),
+        el("tbody", null, d.entries.map(entryRow))));
+
+    var nothing = el("div", { class: "empty" },
+      el("h3", null, "Nothing in this window"),
+      el("p", { style: "font-size:13.5px" },
+        "No one has opened a child's record in this period."));
+
+    return el("div", null,
+      el("p", { class: "muted", style: "margin:0 0 12px;font-size:13px" }, d.note),
+      window_,
+      d.byActor.length ? byPerson : null,
+      el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, "Every read")),
+        d.entries.length === 0 ? nothing : entries));
+  }
+
+
+  function surfaceLabel(s) {
+    return s === "SCREENING" ? "Screening form"
+      : s === "CLINICAL_REVIEW" ? "Clinical review"
+      : s === "REFERRAL" ? "Referral"
+      : s === "PHOTOGRAPH" ? "Photograph"
+      : s;
+  }
+
+  function fmtWhen(iso) {
+    if (!iso) return "—";
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString(undefined, { day: "numeric", month: "short" })
+      + " " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  }
+
+  /** J9. What the retention schedule would touch — reported, never executed. */
+  function tabRetention() {
+    var d = S.retention;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    return el("div", null,
+      el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, "Retention")),
+        el("div", { class: "card-b" },
+          el("p", { class: "muted", style: "font-size:13.5px;margin-top:0" }, d.note),
+          el("div", { class: "kpis", style: "margin-top:14px" },
+            Object.keys(d).filter(function (k) {
+              return typeof d[k] === "number";
+            }).map(function (k) {
+              return kpi(k.replace(/([A-Z])/g, " $1").replace(/^./, function (c) {
+                return c.toUpperCase();
+              }), d[k], null);
+            })))));
+  }
+
+  /** J5, J6 and K6 for one child, from a roster reference or a name. */
+  function openChildTrail(kidId) {
+    S.oversightTab = "child"; S.childTrail = null; S.view = "oversight"; render();
+    run(api("/api/admin/child/" + encodeURIComponent(kidId)), function (d) { S.childTrail = d; });
+  }
+
+  function tabChildTrail() {
+    var d = S.childTrail;
+    return el("div", null,
+      el("div", { class: "card" },
+        el("div", { class: "card-b" },
+          el("div", { class: "fld" },
+            el("label", null, "Child id"),
+            el("div", { class: "row" },
+              el("input", { placeholder: "k_… or a roster id", value: S.childQuery || "",
+                oninput: function (e) { S.childQuery = e.target.value; } }),
+              el("button", { class: "pri", onclick: function () {
+                if (S.childQuery) openChildTrail(S.childQuery.trim());
+              } }, "Open"))),
+          el("div", { class: "hint" },
+            "Everything recorded about one child: what was done, and who has looked. "
+            + "Open a child from the roster or the access log to get here without typing an id."))),
+      d
+        ? el("div", null,
+            el("div", { class: "card" },
+              el("div", { class: "card-h" }, el("h2", null, d.child.name)),
+              d.events.length === 0
+                ? el("div", { class: "empty" }, "Nothing recorded yet.")
+                : el("div", { class: "tws" }, el("table", null,
+                    el("thead", null, el("tr", null,
+                      el("th", null, "When"), el("th", null, "What happened"),
+                      el("th", null, "By"), el("th", null, "Detail"))),
+                    el("tbody", null, d.events.map(function (e) {
+                      return el("tr", null,
+                        el("td", { class: "muted" }, fmtWhen(e.at)),
+                        el("td", null, el("b", null, e.action)),
+                        el("td", null, e.by || "—"),
+                        el("td", { class: "muted" }, e.detail || ""));
+                    }))))),
+            el("div", { class: "card" },
+              el("div", { class: "card-h" }, el("h2", null, "Who has opened this record"),
+                el("span", { class: "muted", style: "font-size:12px" }, "Reads, not changes")),
+              !d.reads || d.reads.length === 0
+                ? el("div", { class: "empty" }, "No one has opened this record.")
+                : el("div", { class: "tws" }, el("table", null,
+                    el("thead", null, el("tr", null,
+                      el("th", null, "When"), el("th", null, "Who"),
+                      el("th", null, "Role"), el("th", null, "What"))),
+                    el("tbody", null, d.reads.map(function (r) {
+                      return el("tr", null,
+                        el("td", { class: "muted" }, fmtWhen(r.at)),
+                        el("td", null, r.by || "—"),
+                        el("td", null, el("span", { class: "pill mute" }, r.role)),
+                        el("td", null, surfaceLabel(r.surface)));
+                    })))))) 
+        : null);
+  }
+
   function loadHospitals() {
     run(api("/api/admin/hospitals" + (S.hosQuery ? "?q=" + encodeURIComponent(S.hosQuery) : "")),
       function (d) {
@@ -3355,6 +3636,7 @@ export const PORTAL_HTML = `<!doctype html>
         isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
         isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
         isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
+        isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null,
         S.camp ? navItem("flag", "Current camp", "camp", function () { set({ view: "camp" }); }) : null),
       el("div", { class: "navfoot" },
         el("b", null, S.auth.name),
@@ -3388,6 +3670,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.view === "mycamps") return "My camps";
     if (S.view === "library") return "Reading for families";
     if (S.view === "hospitals") return "Hospitals & doctors";
+    if (S.view === "oversight") return "Oversight";
     return "VitaHero";
   }
 
@@ -3411,6 +3694,7 @@ export const PORTAL_HTML = `<!doctype html>
       else if (S.view === "mycamps") body = viewMyCamps();
       else if (S.view === "library") body = viewLibrary();
       else if (S.view === "hospitals") body = viewHospitals();
+      else if (S.view === "oversight") body = viewOversight();
       else if (S.view === "schools") body = viewSchools();
       else body = viewOverview();
     } catch (renderErr) {

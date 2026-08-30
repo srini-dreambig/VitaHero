@@ -659,3 +659,22 @@ describe("photographs, questions, library and billing", () => {
     expect((await call("/api/admin/library", { method: "PATCH", headers: opsHeaders })).status).toBe(405);
   });
 });
+
+// The console is a 200KB JavaScript program that lives inside a TypeScript
+// template literal, so `tsc` never parses a line of it. An unbalanced paren
+// typechecks, builds, deploys, and then throws "missing ) after argument list"
+// at the browser — at which point every console screen is blank and the server
+// looks fine. Parse it here instead.
+describe("the console is valid JavaScript", () => {
+  test("the inlined script parses", async () => {
+    const { PORTAL_HTML, SERVICE_WORKER_JS } = await import("./portal");
+    const open = PORTAL_HTML.indexOf("<script>");
+    const close = PORTAL_HTML.lastIndexOf("</script>");
+    expect(open).toBeGreaterThan(0);
+    const src = PORTAL_HTML.slice(open + "<script>".length, close);
+    expect(src.length).toBeGreaterThan(10000);
+    // `new Function` parses without executing — exactly what is wanted here.
+    expect(() => new Function(src)).not.toThrow();
+    expect(() => new Function(SERVICE_WORKER_JS)).not.toThrow();
+  });
+});

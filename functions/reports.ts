@@ -497,6 +497,26 @@ export async function childAccessTrail(sql: Sql, actor: Actor, kidId: string) {
       by: (r.closer as string) || "", detail: `${r.check_type as string}: ${(r.outcome as string) || ""}` });
   }
 
+  // K6 at the level of one child. The events above are what was *done* to the
+  // record; these are the times somebody merely *looked* at it, which is the
+  // question a guardian exercising a data right actually asks.
+  const reads = await sql`
+    SELECT viewed_at, actor_name, actor_role, surface
+    FROM vita_hero.record_access
+    WHERE kid_id = ${kidId}
+    ORDER BY viewed_at DESC
+    LIMIT 200
+  `;
+
   events.sort((a, b) => (a.at < b.at ? 1 : -1));
-  return { child: { kidId, name: kid[0].name as string }, events };
+  return {
+    child: { kidId, name: kid[0].name as string },
+    events,
+    reads: reads.map((r) => ({
+      at: r.viewed_at ? new Date(r.viewed_at as string).toISOString() : "",
+      by: (r.actor_name as string) || "",
+      role: (r.actor_role as string) || "",
+      surface: r.surface as string,
+    })),
+  };
 }

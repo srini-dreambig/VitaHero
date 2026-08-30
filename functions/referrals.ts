@@ -18,6 +18,7 @@ import { Sql, isOpsRole, slugify } from "./common";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { assertCampAccess } from "./camps";
 import { Flag, Urgency } from "./clinical";
+import { logRecordAccess } from "./oversight";
 
 export const REFERRAL_STATUSES = ["OPEN", "BOOKED", "ATTENDED", "CLOSED", "DECLINED", "EXPIRED"] as const;
 export const OUTCOMES = ["RESOLVED", "ONGOING", "REFERRED_ON", "NO_ISSUE"] as const;
@@ -419,6 +420,14 @@ export async function referralDetail(sql: Sql, actor: Actor, referralId: string)
   if (rows.length === 0) throw new ApiError(404, "Referral not found", "NOT_FOUND");
   const r = rows[0];
   if (!isOpsRole(actor.role)) assertSchoolAccessOrCamp(actor, r);
+  // K6 — opening a referral shows the finding behind it, so it is a read of
+  // the child's record and is logged as one.
+  await logRecordAccess(sql, actor, {
+    kidId: r.kid_id as string,
+    schoolId: (r.school_id as string) || "",
+    campId: (r.camp_id as string) || "",
+    surface: "REFERRAL",
+  });
 
   const finding = await sql`
     SELECT detail, rationale, value_text FROM vita_hero.camp_findings
