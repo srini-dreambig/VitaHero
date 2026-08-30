@@ -504,6 +504,7 @@ object S {
     const val correctionFailed = "correction_failed"
     const val todayLabel = "today_label"
     const val tomorrowLabel = "tomorrow_label"
+    const val recordUnavailable = "record_unavailable"
 }
 
 private val en = mapOf(
@@ -515,6 +516,7 @@ private val en = mapOf(
     S.disclaimerShort to "For information only. Consult a doctor for a diagnosis.",
     S.risingHero to "%s is a rising hero!",
     S.notMeasuredMsg to "This check has not been done yet. It will appear here after your child\u2019s next school health camp.",
+    S.recordUnavailable to "This child\u2019s record is not available right now. Go back and pick a child from the list.",
     S.onboardingTitle1 to "Track Your Kid's Growth Heroically!",
     S.onboardingSub1 to "School camps, diet plans, doctor support & rewards — all in one place.",
     S.onboardingTitle2 to "Free School Health Camps",
@@ -952,6 +954,7 @@ private val en = mapOf(
 )
 
 private val hi = mapOf(
+    S.recordUnavailable to "इस बच्चे का रिकॉर्ड अभी उपलब्ध नहीं है। वापस जाकर सूची से बच्चा चुनें।",
     S.dentalGoodMsg to "\u092A\u093F\u091B\u0932\u0940 \u091C\u093E\u0901\u091A \u092E\u0947\u0902 \u0915\u094B\u0908 \u0915\u0948\u0935\u093F\u091F\u0940 \u0928\u0939\u0940\u0902 \u092E\u093F\u0932\u0940\u0964 \u0926\u093F\u0928 \u092E\u0947\u0902 \u0926\u094B \u092C\u093E\u0930 \u092C\u094D\u0930\u0936 \u0915\u0930\u0924\u0947 \u0930\u0939\u0947\u0902\u0964",
     S.dentalWatchMsg to "\u0925\u094B\u0921\u093C\u0940 \u092A\u094D\u0932\u0947\u0915 \u0926\u093F\u0916\u0940\u0964 2 \u0938\u092A\u094D\u0924\u093E\u0939 \u092E\u0947\u0902 \u0926\u093E\u0902\u0924\u094B\u0902 \u0915\u0940 \u091C\u093E\u0901\u091A \u0915\u0930\u093E\u090F\u0901\u0964",
     S.eyeGoodMsg to "\u0926\u0943\u0937\u094D\u091F\u093F \u0938\u093E\u092E\u093E\u0928\u094D\u092F \u0939\u0948 (6/6)\u0964 \u091A\u0936\u094D\u092E\u0947 \u0915\u0940 \u091C\u093C\u0930\u0942\u0930\u0924 \u0928\u0939\u0940\u0902\u0964",
@@ -1285,6 +1288,7 @@ private val hi = mapOf(
 )
 
 private val te = mapOf(
+    S.recordUnavailable to "ఈ పిల్లవాడి రికార్డ్ ఇప్పుడు అందుబాటులో లేదు. వెనక్కి వెళ్లి జాబితా నుండి పిల్లవాడిని ఎంచుకోండి.",
     S.risingHero to "%s \u0C12\u0C15 \u0C0E\u0C26\u0C41\u0C17\u0C41\u0C24\u0C41\u0C28\u0C4D\u0C28 \u0C39\u0C40\u0C30\u0C4B!",
     S.notMeasuredMsg to "\u0C08 \u0C2A\u0C30\u0C40\u0C15\u0C4D\u0C37 \u0C07\u0C02\u0C15\u0C3E \u0C1C\u0C30\u0C17\u0C32\u0C47\u0C26\u0C41. \u0C24\u0C26\u0C41\u0C2A\u0C30\u0C3F \u0C38\u0C4D\u0C15\u0C42\u0C32\u0C4D \u0C39\u0C46\u0C32\u0C4D\u0C24\u0C4D \u0C15\u0C4D\u0C2F\u0C3E\u0C02\u0C2A\u0C4D \u0C24\u0C30\u0C4D\u0C35\u0C3E\u0C24 \u0C07\u0C15\u0C4D\u0C15\u0C21 \u0C15\u0C28\u0C2C\u0C21\u0C41\u0C24\u0C41\u0C02\u0C26\u0C3F.",
     S.onboardingTitle1 to "\u0C2E\u0C40 \u0C2A\u0C3F\u0C32\u0C4D\u0C32 \u0C0E\u0C26\u0C41\u0C17\u0C41\u0C26\u0C32\u0C28\u0C41 \u0C39\u0C40\u0C30\u0C4B\u0C17\u0C3E \u0C1F\u0C4D\u0C30\u0C3E\u0C15\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F!",

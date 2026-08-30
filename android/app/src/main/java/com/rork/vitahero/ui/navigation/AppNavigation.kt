@@ -36,6 +36,7 @@ import com.rork.vitahero.ui.screens.FamilySharingScreen
 import com.rork.vitahero.ui.screens.FoodRecognitionScreen
 import com.rork.vitahero.ui.screens.GrowthChartsScreen
 import com.rork.vitahero.ui.screens.HospitalsScreen
+import com.rork.vitahero.ui.screens.KidDetailMissingScreen
 import com.rork.vitahero.ui.screens.KidDetailScreen
 import com.rork.vitahero.ui.screens.MainScaffold
 import com.rork.vitahero.ui.screens.NotificationsScreen
@@ -300,6 +301,10 @@ fun AppNavigation(
                     onOpenGrowthCharts = { navController.navigate("growth/${kid.id}") },
                     growthAssessment = kidsViewModel.growthAssessmentForKid(kid.id),
                 )
+            } else {
+                // A route id with no matching child must never render a blank
+                // screen (which reads as a freeze) — it gets an explanation.
+                KidDetailMissingScreen(onBack = { navController.popBackStack() })
             }
         }
 

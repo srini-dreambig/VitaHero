@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.GrowthAssessment
@@ -390,8 +391,27 @@ private fun GrowthTab(kid: Kid, assessment: GrowthAssessment?, onOpenClinicalCha
 
 @Composable
 private fun GrowthChart(points: List<GrowthPoint>, color: Color, weight: Boolean = false) {
-    val anim by animateFloatAsState(targetValue = 1f, animationSpec = tween(900), label = "chart")
     val values = points.map { if (weight) it.weight else it.height }
+    if (values.isEmpty()) {
+        // A child nobody has measured has no trend to draw — the old code
+        // indexed values[0] of this empty list and took the whole screen down.
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(140.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                t(S.notMeasuredMsg),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+        }
+        return
+    }
+    val anim by animateFloatAsState(targetValue = 1f, animationSpec = tween(900), label = "chart")
     val minV = (values.minOrNull() ?: 0f)
     val maxV = (values.maxOrNull() ?: 1f)
     val range = (maxV - minV).coerceAtLeast(1f)
@@ -515,5 +535,46 @@ private fun InfoNote(text: String) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
+    }
+}
+
+/**
+ * Shown when the id in the navigation route matches no child the app knows —
+ * for example after the record was removed server-side. A blank screen here
+ * would look exactly like a freeze; this explains itself and offers the way out.
+ */
+@Composable
+fun KidDetailMissingScreen(onBack: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        StatusBarSpacer()
+        Spacer(Modifier.height(96.dp))
+        Text(
+            t(S.recordUnavailable),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(24.dp))
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(HeroBlue.copy(alpha = 0.1f))
+                .clickable(onClick = onBack)
+                .padding(horizontal = 28.dp, vertical = 14.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                t(S.back),
+                color = HeroBlue,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
