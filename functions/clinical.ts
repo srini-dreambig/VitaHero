@@ -12,18 +12,40 @@
 export type Flag = "GOOD" | "WATCH" | "ALERT" | "NOT_MEASURED";
 export type Urgency = "NONE" | "ROUTINE" | "SOON" | "URGENT";
 
-/** Check types a camp can offer. The portal and the API agree on these strings. */
-export const CHECK_TYPES = [
+/**
+ * Check types a camp can offer. The portal and the API agree on these strings.
+ *
+ * Split deliberately. A check is only offerable if somebody has designed the
+ * screen a clinician records it on — otherwise the school agrees to a check,
+ * the camp lists it, and the person holding the tablet is given a bare
+ * Normal/Abnormal dropdown for a spine examination. That is not screening, it
+ * is a checkbox with a clinical-sounding label.
+ *
+ * DESIGNED_CHECKS is what a school can be offered today. PLANNED_CHECKS are
+ * recognised so existing camps and historical findings keep working, but are
+ * not offered anywhere until their capture screen exists.
+ */
+export const DESIGNED_CHECKS = [
   "Height & weight",
   "Vision",
   "Dental",
   "Haemoglobin",
+] as const;
+
+export const PLANNED_CHECKS = [
   "ENT",
   "Skin",
   "Spine",
   "Immunisation review",
 ] as const;
+
+export const CHECK_TYPES = [...DESIGNED_CHECKS, ...PLANNED_CHECKS] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
+
+/** Can a clinician actually record this check on a screen built for it? */
+export function isDesignedCheck(v: string): boolean {
+  return (DESIGNED_CHECKS as readonly string[]).includes(v);
+}
 
 export function isCheckType(v: string): v is CheckType {
   return (CHECK_TYPES as readonly string[]).includes(v);

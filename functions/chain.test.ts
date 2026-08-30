@@ -45,6 +45,7 @@ import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./o
 import { ensureMediaSchema } from "./media";
 import { markReferralBooked } from "./referrals";
 import { listDoctors, upsertDoctor } from "./directory";
+import { addStudent } from "./roster";
 import { assignDoctorToCamp, canClinicianSignIn, doctorCamps, setCampStaffActive } from "./camps";
 import { ensureReferralSchema, guardianReferrals, markReferralAttended, declineReferral,
   recordReferralOutcome, referralDashboard, nudgeReferrals, kidReferrals } from "./referrals";
@@ -1207,6 +1208,66 @@ suite("end to end", () => {
     const attributed = r.hospitals.reduce((a, h) => a + h.sent, 0);
     const total = await client.query("SELECT COUNT(*)::int n FROM vita_hero.referrals");
     expect(attributed + r.notBooked.total).toBeLessThanOrEqual(total.rows[0].n);
+  });
+
+  // ── adding one child by hand ──
+
+  test("a late admission can be added without re-uploading the roster", async () => {
+    const before = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1", [schoolId]);
+    const r = await addStudent(sql, admin, schoolId, {
+      name: "Late Arrival", studentRef: "2026/9001", dob: "04/07/2016", gender: "Female",
+      grade: "Class 4", section: "A", guardianName: "Priya Arrival",
+      guardianPhone: "9877000001", academicYear: "2026-27",
+    });
+    expect(r.errors).toBe(0);
+    expect(r.create).toBe(1);
+    const after = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1", [schoolId]);
+    expect(after.rows[0].n).toBe(before.rows[0].n + 1);
+  });
+
+  test("a child added by hand gets a guardian who can be sent a consent request", async () => {
+    // The admission number is slugified into the stable reference, so match on
+    // the child rather than guessing at the stored form.
+    const rows = await client.query(
+      `SELECT k.student_ref, p.phone, p.provisioned FROM vita_hero.kids k
+       JOIN vita_hero.profiles p ON p.id = k.profile_id
+       WHERE k.school_id = $1 AND k.name LIKE 'Late Arrival%'`, [schoolId]);
+    expect(rows.rows.length).toBe(1);
+    expect(rows.rows[0].student_ref).toContain("9001");
+    expect(rows.rows[0].phone).toContain("9877000001");
+    // Provisioned is what lets the guardian receive the consent request.
+    expect(rows.rows[0].provisioned).toBe(true);
+  });
+
+  test("adding by hand is the same path as the CSV, so it validates the same", async () => {
+    // A missing name is an error on the spreadsheet; it has to be one here too,
+    // or the two ways in disagree about what a valid child is.
+    // ...and the message has to name what is wrong with this child, not report
+    // how many rows of a spreadsheet failed.
+    await expect(addStudent(sql, admin, schoolId, {
+      name: "", studentRef: "2026/9002", grade: "Class 4", guardianPhone: "9877000002",
+      academicYear: "2026-27",
+    })).rejects.toThrow(/name/i);
+    const rows = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE student_ref LIKE '%9002%'");
+    expect(rows.rows[0].n).toBe(0);
+  });
+
+  test("adding the same admission number twice updates rather than duplicates", async () => {
+    const r = await addStudent(sql, admin, schoolId, {
+      name: "Late Arrival Renamed", studentRef: "2026/9001", dob: "04/07/2016",
+      gender: "Female", grade: "Class 4", section: "B", guardianName: "Priya Arrival",
+      guardianPhone: "9877000001", academicYear: "2026-27",
+    });
+    // Matched on the admission number, so it is an update, not a second child.
+    expect(r.create).toBe(0);
+    expect(r.update + r.unchanged).toBe(1);
+    const rows = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND name LIKE 'Late Arrival%'",
+      [schoolId]);
+    expect(rows.rows[0].n).toBe(1);
   });
 
   // ── a doctor at a camp: assign, screen, revoke ──

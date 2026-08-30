@@ -33,6 +33,7 @@ import {
 } from "./schools";
 import {
   validateRoster,
+  addStudent,
   commitRoster,
   listRoster,
   listRosterBatches,
@@ -364,7 +365,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
       school TEXT DEFAULT '',
       date TEXT NOT NULL,
       time TEXT DEFAULT '',
-      status TEXT DEFAULT 'UPCOMING',
+      status TEXT DEFAULT 'DRAFT',
       checks JSONB DEFAULT '[]'::jsonb,
       result_summary TEXT
     )
@@ -472,7 +473,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
       description TEXT DEFAULT '',
       date TEXT NOT NULL,
       time TEXT DEFAULT '',
-      status TEXT DEFAULT 'UPCOMING',
+      status TEXT DEFAULT 'DRAFT',
       checks JSONB DEFAULT '[]'::jsonb,
       grades JSONB DEFAULT '[]'::jsonb,
       capacity INT DEFAULT 200,
@@ -635,11 +636,11 @@ async function seedPartnerSchools(sql: Sql): Promise<void> {
   };
 
   const camps = [
-    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "UPCOMING", ["Height & Weight", "BMI Percentile", "Dental", "Eye Test", "Hemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null],
-    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "UPCOMING", ["Nutrition", "Hemoglobin", "BMI"], ["Class 6", "Class 7", "Class 8"], 180, null],
-    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "UPCOMING", ["Dental", "Eye Test"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null],
-    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "UPCOMING", ["Height & Weight", "Growth Percentile", "Nutrition"], ["Class 4", "Class 5", "Class 6"], 200, null],
-    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "UPCOMING", ["Height & Weight", "Dental", "Eye Test", "Nutrition", "General"], ["All grades"], 400, null],
+    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision", "Haemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null],
+    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "SCHEDULED", ["Height & weight", "Haemoglobin"], ["Class 6", "Class 7", "Class 8"], 180, null],
+    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "SCHEDULED", ["Dental", "Vision"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null],
+    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "SCHEDULED", ["Height & weight"], ["Class 4", "Class 5", "Class 6"], 200, null],
+    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision"], ["All grades"], 400, null],
     ["sc_oak_past", "sch_oak", "Mid-Term Dental Check", "Completed screening — 3 follow-ups recommended", fmt(d60), "10:00 AM – 12:00 PM", "COMPLETED", ["Dental"], ["Class 3", "Class 4"], 120, "142 children screened · 3 follow-ups recommended"],
   ] as const;
 
@@ -2335,6 +2336,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             }
             if (sub === "validate" && method === "POST") {
               return json(await validateRoster(sql, actor, schoolId, await readBody()));
+            }
+            // One child, for a late admission. Goes through commitRoster so it
+            // cannot drift from the CSV path.
+            if (sub === "student" && method === "POST") {
+              return json(await addStudent(sql, actor, schoolId, await readBody()));
             }
             if (sub === "commit" && method === "POST") {
               return json(await commitRoster(sql, actor, schoolId, await readBody()));

@@ -449,12 +449,18 @@ export const PORTAL_HTML = `<!doctype html>
     pack: null, forceOffline: false, syncRejects: null, packInfo: null,
     photos: null, photosKid: null, photoOpen: null,
     hospitals: null, doctors: null, hosForm: null, docForm: null, hosQuery: "",
+    addChild: null,
     invites: null, campPeople: null, peopleQuery: "",
     threads: null, thread: null, billing: null, library: null, libForm: null,
   };
   function set(p) { for (var k in p) S[k] = p[k]; render(); }
 
-  var CHECKS = ["Height & weight","Vision","Dental","Haemoglobin","ENT","Skin","Spine","Immunisation review"];
+  // Only checks a clinician has a screen to record on. Offering "Spine" when
+  // the capture form is a bare Normal/Abnormal dropdown means the school
+  // agrees to a spine examination and nobody ever performs one. Mirrors
+  // DESIGNED_CHECKS in clinical.ts; the rest stay recognised for historical
+  // camps but are not offered anywhere.
+  var CHECKS = ["Height & weight","Vision","Dental","Haemoglobin"];
   var ACUITY = ["6/6","6/9","6/12","6/18","6/24","6/36","6/60","<6/60"];
   var CADENCE = [["ANNUAL","Once a year"],["BIANNUAL","Twice a year"],["QUARTERLY","Every quarter"],["ADHOC","As arranged"]];
 
@@ -737,7 +743,7 @@ export const PORTAL_HTML = `<!doctype html>
     run(api("/api/admin/schools/" + encodeURIComponent(id)), function (d) {
       S.school = d.school; S.view = "school"; S.schoolTab = tab || "roster";
       S.classes = null; S.admins = null; S.staff = null; S.roster = null; S.batches = null;
-      S.camps = null; S.upload = null; S.form = null;
+      S.camps = null; S.upload = null; S.form = null; S.addChild = null;
       S.referrals = null; S.report = null; S.corrections = null; S.refKid = null;
       S.threads = null; S.thread = null; S.billing = null; S.invites = null;
       loadSchoolTab();
@@ -1206,7 +1212,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       el("div", { class: "tabs" }, tabs.map(function (t) {
         return el("button", { class: "tab" + (S.schoolTab === t[0] ? " on" : ""),
-          onclick: function () { S.schoolTab = t[0]; S.error = ""; S.upload = null; render(); loadSchoolTab(); } }, t[1]);
+          onclick: function () { S.schoolTab = t[0]; S.error = ""; S.upload = null; S.addChild = null; render(); loadSchoolTab(); } }, t[1]);
       })),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
@@ -1464,6 +1470,83 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   // ══════════════════════════════════════ roster
+  /**
+   * One child, for a late admission.
+   *
+   * Goes to the same endpoint the CSV import commits through, so a child added
+   * here is validated, matched on admission number and given a guardian
+   * account exactly as one from a spreadsheet would be.
+   */
+  function addChildForm(r) {
+    var f = S.addChild;
+    var b = function (k) { return function (e) { f[k] = e.target.value; }; };
+    var classes = (S.classes || []).map(function (c) {
+      return c.grade + (c.section ? " \u00b7 " + c.section : "");
+    });
+    function save() {
+      run(api("/api/admin/schools/" + S.school.id + "/roster/student", { method: "POST",
+        body: {
+          name: f.name, studentRef: f.studentRef, dob: f.dob, gender: f.gender,
+          grade: f.grade, section: f.section, guardianName: f.guardianName,
+          guardianPhone: f.guardianPhone, academicYear: r.academicYear,
+        } }), function (rep) {
+        if (rep.errors > 0) {
+          // Say what is actually wrong with the row rather than "failed".
+          var issues = [];
+          (rep.rows || []).forEach(function (row) {
+            (row.issues || []).forEach(function (i) {
+              if (i.level === "error") issues.push(i.message);
+            });
+          });
+          S.error = issues.length ? issues.join(" \u00b7 ") : "That child could not be added.";
+          render();
+          return;
+        }
+        S.addChild = null;
+        S.notice = f.name + " is on the roster.";
+        S.roster = null; loadSchoolTab();
+      });
+    }
+    return el("div", { class: "card", style: "margin-bottom:14px" },
+      el("div", { class: "card-h" }, el("h2", null, "Add one child")),
+      el("div", { class: "card-b" },
+        el("div", { class: "g3" },
+          el("div", { class: "fld" }, el("label", null, "Full name"),
+            el("input", { value: f.name, oninput: b("name"), placeholder: "Rahul Sharma" })),
+          el("div", { class: "fld" }, el("label", null, "Admission number"),
+            el("input", { value: f.studentRef, oninput: b("studentRef"), placeholder: "2026/0412" })),
+          el("div", { class: "fld" }, el("label", null, "Date of birth"),
+            el("input", { value: f.dob, oninput: b("dob"), placeholder: "14/03/2016" }))),
+        el("div", { class: "g3" },
+          el("div", { class: "fld" }, el("label", null, "Class"),
+            el("input", { value: f.grade, oninput: b("grade"), placeholder: "Class 4",
+              list: "vh-classes" }),
+            classes.length
+              ? el("datalist", { id: "vh-classes" }, (S.classes || []).map(function (c) {
+                  return el("option", { value: c.grade });
+                }))
+              : null),
+          el("div", { class: "fld" }, el("label", null, "Section"),
+            el("input", { value: f.section, oninput: b("section"), placeholder: "B" })),
+          el("div", { class: "fld" }, el("label", null, "Sex"),
+            el("select", { onchange: b("gender") },
+              el("option", { value: "" }, "\u2014"),
+              ["Male", "Female"].map(function (g) {
+                return el("option", { value: g, selected: f.gender === g }, g); })))),
+        el("div", { class: "g2" },
+          el("div", { class: "fld" }, el("label", null, "Guardian name"),
+            el("input", { value: f.guardianName, oninput: b("guardianName") })),
+          el("div", { class: "fld" }, el("label", null, "Guardian mobile"),
+            el("input", { value: f.guardianPhone, oninput: b("guardianPhone"), placeholder: "9876543210" }))),
+        el("div", { class: "hint" },
+          "The admission number is what matches this child on the next roster upload, "
+          + "so next term updates them rather than creating a second record. The guardian's "
+          + "mobile is how they receive the consent request and the result.")),
+      el("div", { class: "card-f" }, el("div", { class: "row" },
+        el("button", { class: "pri", disabled: S.busy, onclick: save }, "Add to roster"),
+        el("button", { onclick: function () { set({ addChild: null, error: "" }); } }, "Cancel"))));
+  }
+
   function tabRoster() {
     if (S.upload) return uploadWizard();
     if (!S.roster) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
@@ -1476,12 +1559,21 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat" }, el("b", null, uniq(r.students.map(function (s) { return s.guardianPhone; })).length),
           el("span", null, "guardian numbers"))),
       el("div", { class: "row", style: "margin-bottom:14px" },
-        el("button", { class: "pri", onclick: function () { set({ upload: { step: 1 }, error: "", notice: "" }); } }, "Upload roster"),
-        el("button", { onclick: dlTemplate }, "Download template"),
+        el("button", { class: "pri", onclick: function () { set({ upload: { step: 1 }, error: "", notice: "" }); } },
+          icon("upload", 14), " Import from CSV"),
+        el("button", { onclick: function () {
+          set({ addChild: { name: "", studentRef: "", dob: "", gender: "", grade: "",
+            section: "", guardianName: "", guardianPhone: "" }, error: "", notice: "" });
+        } }, icon("plus", 14), " Add one child"),
+        el("button", { onclick: dlTemplate }, icon("download", 14), " CSV template"),
         r.total ? el("button", { onclick: exportRoster }, "Export roster") : null),
+      S.addChild ? addChildForm(r) : null,
       r.students.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
-            el("h3", null, "No students yet"), el("p", { style: "font-size:13.5px" }, "Set up your classes, then upload the roster CSV.")))
+            el("h3", null, "No students yet"),
+            el("p", { style: "font-size:13.5px" },
+              "Import the school's roster as a CSV, or add children one at a time. "
+              + "Everything else \u2014 camps, consent, screening \u2014 works from this list.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Student"), el("th", null, "Class"), el("th", null, "DOB"),
               el("th", null, "Guardian"), el("th", null, "Mobile"), el("th", null, "App"))),

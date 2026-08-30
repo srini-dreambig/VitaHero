@@ -73,6 +73,14 @@ export async function ensureCampSchema(sql: Sql): Promise<void> {
   // The directory entry and the login are the same person.
   await sql`ALTER TABLE vita_hero.camp_staff ADD COLUMN IF NOT EXISTS doctor_id TEXT`;
 
+  // 'UPCOMING' predates the camp lifecycle and is not one of CAMP_STATUSES, so
+  // a camp carrying it could be listed but never advanced: no consent round,
+  // no camp day, no release. It means the same thing as SCHEDULED, so it
+  // becomes that. The column default moves to DRAFT, which is where a camp the
+  // lifecycle created actually starts.
+  await sql`UPDATE vita_hero.school_camps SET status = 'SCHEDULED' WHERE status = 'UPCOMING'`;
+  await sql`ALTER TABLE vita_hero.school_camps ALTER COLUMN status SET DEFAULT 'DRAFT'`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS vita_hero.camp_participants (
       id TEXT PRIMARY KEY,

@@ -678,3 +678,60 @@ describe("the console is valid JavaScript", () => {
     expect(() => new Function(SERVICE_WORKER_JS)).not.toThrow();
   });
 });
+
+// The console and the clinical model have to agree on what a camp can offer.
+//
+// They drifted once already: the school setup screen offered eight checks
+// while only four had a capture screen, so a school could agree to a spine
+// examination that resolved, on the day, to a Normal/Abnormal dropdown. And
+// the demo seed created camps with checks ("Eye Test", "Hemoglobin") and a
+// status ("UPCOMING") that neither list knew, which is how a camp ended up in
+// the console that the lifecycle could not advance.
+describe("the console offers only what can actually be recorded", () => {
+  test("the portal's check list is exactly the designed checks", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    const { DESIGNED_CHECKS } = await import("./clinical");
+    const m = PORTAL_HTML.match(/var CHECKS = \[([^\]]*)\]/);
+    expect(m).not.toBeNull();
+    const offered = m![1].split(",").map((x) => x.trim().replace(/^"|"$/g, ""));
+    expect(offered).toEqual([...DESIGNED_CHECKS]);
+  });
+
+  test("every designed check has a capture form, not the fallback dropdown", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    const { DESIGNED_CHECKS } = await import("./clinical");
+    for (const c of DESIGNED_CHECKS) {
+      expect(PORTAL_HTML).toContain(`ct === "${c}"`);
+    }
+  });
+
+  test("a planned check is recognised but never offered", async () => {
+    const { PORTAL_HTML } = await import("./portal");
+    const { PLANNED_CHECKS, CHECK_TYPES, isDesignedCheck } = await import("./clinical");
+    for (const c of PLANNED_CHECKS) {
+      // Still a valid stored value, so old camps and findings keep working...
+      expect(CHECK_TYPES).toContain(c);
+      // ...but not something a school can be signed up to today.
+      expect(isDesignedCheck(c)).toBe(false);
+    }
+    const m = PORTAL_HTML.match(/var CHECKS = \[([^\]]*)\]/);
+    for (const c of PLANNED_CHECKS) expect(m![1]).not.toContain(c);
+  });
+
+  test("no seeded camp carries a status or a check the code does not know", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { CHECK_TYPES } = await import("./clinical");
+    const { CAMP_STATUSES } = await import("./camps");
+    const src = readFileSync("index.ts", "utf8");
+    const seed = src.slice(src.indexOf("async function seedPartnerSchools"));
+    const body = seed.slice(0, seed.indexOf("\nasync function", 10));
+    // The seed rows are ["id", "school", "title", "desc", date, time, STATUS, [checks], ...]
+    for (const row of body.matchAll(/"(SCHEDULED|UPCOMING|DRAFT|IN_PROGRESS|SCREENED|RELEASED|CANCELLED)", \[([^\]]*)\]/g)) {
+      expect(CAMP_STATUSES).toContain(row[1]);
+      for (const raw of row[2].split(",")) {
+        const check = raw.trim().replace(/^"|"$/g, "");
+        if (check) expect(CHECK_TYPES).toContain(check);
+      }
+    }
+  });
+});

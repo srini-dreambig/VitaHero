@@ -729,6 +729,61 @@ function extractRows(body: Record<string, unknown>): Record<string, unknown>[] {
   return rows;
 }
 
+/**
+ * Add one child, mid-term.
+ *
+ * A school takes a late admission in September and should not have to
+ * re-upload a spreadsheet of four hundred to record it. This is deliberately
+ * not a second way into the roster: it builds a single row and hands it to
+ * commitRoster, so the one child gets exactly the validation, the guardian
+ * provisioning and the stable admission-number matching that the CSV path
+ * gets. A separate insert here is how the two would drift.
+ */
+export async function addStudent(
+  sql: Sql,
+  actor: Actor,
+  schoolId: string,
+  body: Record<string, unknown>
+): Promise<RosterReport> {
+  assertSchoolAccess(actor, schoolId);
+  const str = (k: string) => String(body[k] || "").trim();
+
+  const row: Record<string, string> = {
+    "Admission No": str("studentRef"),
+    "Student Name": str("name"),
+    "Date of Birth": str("dob"),
+    Gender: str("gender"),
+    Class: str("grade"),
+    Section: str("section"),
+    "Guardian Name": str("guardianName"),
+    "Guardian Phone": str("guardianPhone"),
+  };
+
+  // Validate first, so one child gets a message about that child rather than
+  // the bulk-import wording about how many rows of a spreadsheet failed.
+  const check = await validateRoster(sql, actor, schoolId, {
+    rows: [row],
+    academicYear: str("academicYear"),
+    filename: "added by hand",
+  });
+  if (check.errors > 0) {
+    const issues = (check.rows[0]?.issues || [])
+      .filter((i) => i.severity === "error")
+      .map((i) => i.message);
+    throw new ApiError(
+      422,
+      issues.length ? issues.join(". ") : "That child could not be added.",
+      "BAD_STUDENT"
+    );
+  }
+
+  return commitRoster(sql, actor, schoolId, {
+    rows: [row],
+    academicYear: str("academicYear"),
+    filename: "added by hand",
+  });
+}
+
 /** The template the portal offers for download, so a school starts from the right shape. */
 export const ROSTER_TEMPLATE_HEADERS = [
   "Admission No",
