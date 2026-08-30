@@ -273,6 +273,8 @@ export const PORTAL_HTML = `<!doctype html>
     camps: null, camp: null, campTab: "setup", participants: null, queue: null,
     screenKid: null, screenForm: null, reviewKid: null, reviewData: null,
     myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
+    referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
+    programme: null, rollover: null, refForm: null, refFilter: "",
   };
   function set(p) { for (var k in p) S[k] = p[k]; render(); }
 
@@ -477,6 +479,7 @@ export const PORTAL_HTML = `<!doctype html>
       S.school = d.school; S.view = "school"; S.schoolTab = tab || "roster";
       S.classes = null; S.admins = null; S.staff = null; S.roster = null; S.batches = null;
       S.camps = null; S.upload = null; S.form = null;
+      S.referrals = null; S.report = null; S.corrections = null; S.refKid = null;
       loadSchoolTab();
     });
   }
@@ -492,6 +495,9 @@ export const PORTAL_HTML = `<!doctype html>
       });
     }
     else if (t === "history" && !S.batches) run(api("/api/admin/schools/" + id + "/roster/batches"), function (d) { S.batches = d.batches; });
+    else if (t === "referrals" && !S.referrals) run(api("/api/admin/schools/" + id + "/referrals"), function (d) { S.referrals = d; });
+    else if (t === "report" && !S.report) run(api("/api/admin/schools/" + id + "/report"), function (d) { S.report = d; });
+    else if (t === "requests" && !S.corrections) run(api("/api/admin/schools/" + id + "/corrections"), function (d) { S.corrections = d.corrections; });
   }
 
   function openCamp(id, tab) {
@@ -529,6 +535,10 @@ export const PORTAL_HTML = `<!doctype html>
     if (!o) return el("div", { class: "empty" }, "Loading\\u2026");
     var cs = o.campStatus || {};
     return el("div", null,
+      isOps() ? el("div", { class: "row", style: "margin-bottom:14px" },
+        el("div", { style: "flex:1" }),
+        el("button", { onclick: loadProgrammeReport }, S.programme ? "Hide programme report" : "Programme report")) : null,
+      S.programme ? programmePanel() : null,
       el("div", { class: "stats" },
         isOps() ? el("div", { class: "stat" }, el("b", null, o.schools), el("span", null, "schools")) : null,
         el("div", { class: "stat" }, el("b", null, o.students), el("span", null, "students on roll")),
@@ -557,6 +567,51 @@ export const PORTAL_HTML = `<!doctype html>
                   el("td", null, statusPill(c.status)),
                   el("td", null, el("button", { class: "sm" }, "Open")));
               })))));
+  }
+
+  function loadProgrammeReport() {
+    if (S.programme) { set({ programme: null }); return; }
+    run(api("/api/admin/programme-report"), function (d) { S.programme = d; });
+  }
+
+  function programmePanel() {
+    var d = S.programme, t = d.totals;
+    return el("div", { class: "card" },
+      el("div", { class: "card-h" }, el("h2", null, "Across every school")),
+      el("div", { class: "card-b" },
+        el("div", { class: "stats", style: "margin-bottom:16px" },
+          el("div", { class: "stat" }, el("b", null, t.schools), el("span", null, "schools")),
+          el("div", { class: "stat" }, el("b", null, t.students), el("span", null, "students")),
+          el("div", { class: "stat ok" }, el("b", null, t.screened), el("span", null, "children screened")),
+          el("div", { class: "stat" }, el("b", null, t.referrals), el("span", null, "referrals")),
+          el("div", { class: "stat ok" }, el("b", null, t.closureRate === null ? "—" : t.closureRate + "%"),
+            el("span", null, "closure rate"))),
+        d.prevalence.length
+          ? el("div", null, el("h4", { style: "margin-bottom:8px" }, "Anonymised prevalence"),
+              el("table", { style: "margin-bottom:16px" }, el("tbody", null, d.prevalence.map(function (p2) {
+                return el("tr", null, el("td", null, p2.checkType),
+                  el("td", { class: "num muted" }, p2.measured + " measured"),
+                  el("td", { class: "num" }, el("span", { class: "pill " + (p2.flaggedRate > 25 ? "warn" : "mute") },
+                    (p2.flaggedRate === null ? "—" : p2.flaggedRate + "%") + " flagged")));
+              }))))
+          : null,
+        el("h4", { style: "margin-bottom:8px" }, "By school"),
+        el("div", { class: "tw" }, el("table", null,
+          el("thead", null, el("tr", null, el("th", null, "School"), el("th", { class: "num" }, "Students"),
+            el("th", { class: "num" }, "Camps"), el("th", { class: "num" }, "Released"),
+            el("th", { class: "num" }, "Referrals"), el("th", { class: "num" }, "Closure"),
+            el("th", { class: "num" }, "Guardians"))),
+          el("tbody", null, d.schools.map(function (s) {
+            return el("tr", { class: "click", onclick: function () { openSchool(s.id); } },
+              el("td", null, el("b", null, s.name), el("div", { class: "muted", style: "font-size:12px" }, s.city)),
+              el("td", { class: "num" }, s.students),
+              el("td", { class: "num" }, s.camps),
+              el("td", { class: "num" }, s.campsReleased),
+              el("td", { class: "num" }, s.referrals),
+              el("td", { class: "num" }, s.closureRate === null ? "—"
+                : el("span", { class: "pill " + (s.closureRate > 60 ? "ok" : "warn") }, s.closureRate + "%")),
+              el("td", { class: "num" }, s.guardiansActive));
+          }))))));
   }
 
   // ══════════════════════════════════════ schools
@@ -637,7 +692,8 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ school detail
   function viewSchool() {
     var s = S.school;
-    var tabs = [["roster","Roster"],["camps","Camps"],["classes","Classes"],["people","People"],["programme","Programme"],["history","Uploads"]];
+    var tabs = [["roster","Roster"],["camps","Camps"],["referrals","Follow-ups"],["report","Report"],
+      ["classes","Classes"],["people","People"],["requests","Requests"],["programme","Programme"],["history","Uploads"]];
     return el("div", null,
       el("div", { class: "tabs" }, tabs.map(function (t) {
         return el("button", { class: "tab" + (S.schoolTab === t[0] ? " on" : ""),
@@ -647,8 +703,11 @@ export const PORTAL_HTML = `<!doctype html>
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       S.schoolTab === "roster" ? tabRoster()
         : S.schoolTab === "camps" ? tabCamps()
+        : S.schoolTab === "referrals" ? tabReferrals()
+        : S.schoolTab === "report" ? tabReport()
         : S.schoolTab === "classes" ? tabClasses()
         : S.schoolTab === "people" ? tabPeople()
+        : S.schoolTab === "requests" ? tabRequests()
         : S.schoolTab === "programme" ? tabProgramme()
         : tabHistory());
   }
@@ -739,7 +798,56 @@ export const PORTAL_HTML = `<!doctype html>
               return el("tr", null, el("td", null, x.grade),
                 el("td", null, x.section || el("span", { class: "muted" }, "\\u2014")),
                 el("td", { class: "num" }, x.studentCount)); }))))
-        : el("div", { class: "card" }, el("div", { class: "empty" }, "No classes defined for " + c.academicYear + " yet.")));
+        : el("div", { class: "card" }, el("div", { class: "empty" }, "No classes defined for " + c.academicYear + " yet.")),
+      c.classes.length ? rolloverPanel(c) : null);
+  }
+
+  function rolloverPanel(c) {
+    var f = S.rollover || (S.rollover = { fromYear: c.academicYear, toYear: nextYear(c.academicYear), plan: null });
+    function preview() {
+      run(api("/api/admin/schools/" + S.school.id + "/rollover", { method: "POST",
+        body: { fromYear: f.fromYear, toYear: f.toYear, dryRun: true } }), function (d) { f.plan = d.plan; });
+    }
+    function commit() {
+      if (!confirm("Move every student up a class for " + f.toYear + "? Students in the final class will be marked as having left.")) return;
+      run(api("/api/admin/schools/" + S.school.id + "/rollover", { method: "POST",
+        body: { fromYear: f.fromYear, toYear: f.toYear } }), function (d) {
+        S.rollover = null; S.classes = null; S.roster = null;
+        S.notice = d.promoted + " students moved up" + (d.graduated ? ", " + d.graduated + " left the school" : "") + ".";
+        loadSchoolTab();
+      });
+    }
+    return el("div", { class: "card", style: "margin-top:16px" },
+      el("div", { class: "card-h" }, el("h2", null, "Start a new academic year")),
+      el("div", { class: "card-b" },
+        el("p", { class: "muted", style: "font-size:13px" },
+          "Moves every student up one class, using this school's own class list. Students in the final class are marked as having left — their guardians keep access to the history."),
+        el("div", { class: "g2" },
+          el("div", { class: "fld" }, el("label", null, "From"),
+            el("input", { type: "text", value: f.fromYear, oninput: function (e) { f.fromYear = e.target.value; } })),
+          el("div", { class: "fld" }, el("label", null, "To"),
+            el("input", { type: "text", value: f.toYear, oninput: function (e) { f.toYear = e.target.value; } }))),
+        f.plan
+          ? el("div", null,
+              el("table", { style: "margin-bottom:12px" }, el("tbody", null, f.plan.map(function (x) {
+                return el("tr", null, el("td", null, x.grade),
+                  el("td", { class: "num muted" }, x.students + " students"),
+                  el("td", null, x.becomes === "LEAVING"
+                    ? el("span", { class: "pill mute" }, "Leaving")
+                    : el("span", null, "→ " + x.becomes)));
+              }))),
+              el("div", { class: "row" },
+                el("button", { class: "pri", disabled: S.busy, onclick: commit }, S.busy ? "Moving…" : "Confirm rollover"),
+                el("button", { onclick: function () { f.plan = null; render(); } }, "Cancel")))
+          : el("button", { disabled: S.busy, onclick: preview }, S.busy ? "Checking…" : "Preview the rollover")));
+  }
+
+  function nextYear(y) {
+    var m = /^(\d{4})-(\d{2})$/.exec(y || "");
+    if (!m) return "";
+    var a = parseInt(m[1], 10) + 1;
+    var b = (a + 1) % 100;
+    return a + "-" + (b < 10 ? "0" + b : String(b));
   }
 
   function tabPeople() {
@@ -995,6 +1103,263 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "row" },
         el("button", { class: "pri", onclick: function () { set({ upload: null, notice: "" }); loadSchoolTab(); } }, "Back to roster"),
         el("button", { onclick: function () { set({ upload: null, schoolTab: "camps" }); loadSchoolTab(); } }, "Schedule a camp")));
+  }
+
+  // ══════════════════════════════════════ follow-ups (Stage G)
+  function tabReferrals() {
+    if (S.refKid) return referralDetailPanel();
+    if (!S.referrals) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    var d = S.referrals, t = d.totals;
+    var filter = S.refFilter || "";
+    function nudge() {
+      if (!confirm("Send a reminder to every family who has not acted yet?")) return;
+      run(api("/api/admin/schools/" + S.school.id + "/referrals/nudge", { method: "POST" }), function (r) {
+        S.notice = r.nudged + " reminders sent"
+          + (r.expired ? ", " + r.expired + " marked expired" : "")
+          + (r.needsSchoolFollowUp ? ". " + r.needsSchoolFollowUp + " need the school to call them." : ".");
+        S.referrals = null; loadSchoolTab();
+      });
+    }
+    var shown = filter ? d.referrals.filter(function (r) { return r.status === filter; }) : d.referrals;
+    return el("div", null,
+      el("div", { class: "stats" },
+        el("div", { class: "stat" }, el("b", null, t.total), el("span", null, "referrals raised")),
+        el("div", { class: "stat warn" }, el("b", null, t.open), el("span", null, "not acted on")),
+        el("div", { class: "stat info" }, el("b", null, t.booked + t.attended), el("span", null, "in progress")),
+        el("div", { class: "stat ok" }, el("b", null, t.closed), el("span", null, "closed")),
+        el("div", { class: "stat" }, el("b", null, t.declined), el("span", null, "declined")),
+        el("div", { class: "stat err" }, el("b", null, t.overdue), el("span", null, "overdue")),
+        el("div", { class: "stat ok" }, el("b", null, t.closureRate === null ? "—" : t.closureRate + "%"),
+          el("span", null, "closure rate"))),
+      el("div", { class: "msg info" },
+        "Closure rate is the number that shows the screening changed something. It counts referrals a clinician has closed, over those a family has not declined."),
+      el("div", { class: "row", style: "margin-bottom:12px" },
+        el("select", { style: "max-width:200px", onchange: function (e) { set({ refFilter: e.target.value }); } },
+          [["", "All statuses"], ["OPEN", "Not acted on"], ["BOOKED", "Booked"], ["ATTENDED", "Seen"],
+           ["CLOSED", "Closed"], ["DECLINED", "Declined"], ["EXPIRED", "Expired"]].map(function (o) {
+            return el("option", { value: o[0], selected: filter === o[0] }, o[1]); })),
+        t.open ? el("button", { class: "pri", disabled: S.busy, onclick: nudge }, "Remind families who have not acted") : null,
+        el("button", { onclick: exportReferrals }, "Export")),
+      d.bySpecialty.length
+        ? el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "By specialty")),
+            el("table", null, el("tbody", null, d.bySpecialty.map(function (s) {
+              return el("tr", null, el("td", null, s.specialty),
+                el("td", { class: "num" }, s.closed + " of " + s.total + " closed"),
+                el("td", { class: "num" }, el("span", { class: "pill " + (s.total && s.closed / s.total > 0.6 ? "ok" : "warn") },
+                  s.total ? Math.round((s.closed / s.total) * 100) + "%" : "—")));
+            }))))
+        : null,
+      shown.length === 0
+        ? el("div", { class: "card" }, el("div", { class: "empty" },
+            el("h3", null, "Nothing here"),
+            el("p", { style: "font-size:13.5px" }, "Referrals appear once a camp is released with flagged results.")))
+        : el("div", { class: "tw" }, el("table", null,
+            el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"), el("th", null, "For"),
+              el("th", null, "Urgency"), el("th", null, "Due"), el("th", null, "Guardian"),
+              el("th", null, "Status"), el("th", null, ""))),
+            el("tbody", null, shown.map(function (r) {
+              var overdue = r.dueBy && r.dueBy < new Date().toISOString().slice(0, 10)
+                && (r.status === "OPEN" || r.status === "BOOKED");
+              return el("tr", { class: "click", onclick: function () { openReferral(r.id); } },
+                el("td", null, el("b", null, r.kidName)),
+                el("td", { class: "muted" }, r.grade),
+                el("td", null, r.specialty, el("div", { class: "muted", style: "font-size:12px" }, r.checkType)),
+                el("td", null, urgencyPill(r.urgency) || el("span", { class: "muted" }, "—")),
+                el("td", null, overdue ? el("span", { class: "pill err" }, "Overdue") : fmtDate(r.dueBy)),
+                el("td", null, r.guardianName || el("span", { class: "muted" }, "—"),
+                  el("div", { class: "muted mono", style: "font-size:11.5px" }, r.guardianPhone)),
+                el("td", null, statusPill(r.status)),
+                el("td", null, el("button", { class: "sm" }, r.status === "CLOSED" ? "View" : "Record outcome")));
+            })))));
+  }
+
+  function exportReferrals() {
+    var rows = [["Child","Class","Check","Specialty","Urgency","Due by","Guardian","Mobile","Status","Outcome","Diagnosis"]];
+    S.referrals.referrals.forEach(function (r) {
+      rows.push([r.kidName, r.grade, r.checkType, r.specialty, r.urgency, r.dueBy,
+        r.guardianName, r.guardianPhone, r.status, r.outcome, r.diagnosis]);
+    });
+    download("follow-ups-" + S.school.partnerCode + ".csv", toCsv(rows));
+  }
+
+  function openReferral(id) {
+    S.refKid = id; S.refDetail = null; S.error = ""; render();
+    run(api("/api/admin/referrals/" + encodeURIComponent(id)), function (d) {
+      S.refDetail = d;
+      S.refForm = { outcome: "RESOLVED", diagnosis: "", treatment: "", note: "", clinicianName: "" };
+    });
+  }
+
+  function referralDetailPanel() {
+    var d = S.refDetail;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    var r = d.referral, f = S.refForm;
+    var closed = r.status === "CLOSED" || r.status === "DECLINED";
+    function save() {
+      run(api("/api/admin/referrals/" + encodeURIComponent(r.id) + "/outcome", { method: "POST", body: f }),
+        function () { S.notice = "Outcome recorded for " + r.kidName + "."; S.refKid = null; S.referrals = null; loadSchoolTab(); });
+    }
+    return el("div", null,
+      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ refKid: null, refDetail: null, error: "" }); } },
+        "← Back to follow-ups"),
+      S.error ? el("div", { class: "msg err" }, S.error) : null,
+      el("div", { class: "card" },
+        el("div", { class: "card-h" },
+          el("div", { style: "flex:1" }, el("h2", null, r.kidName),
+            el("div", { class: "muted", style: "font-size:12.5px" },
+              [r.grade, r.age ? r.age + " years" : "", r.gender].filter(Boolean).join(" · "))),
+          urgencyPill(r.urgency), statusPill(r.status)),
+        el("div", { class: "card-b" },
+          el("dl", { class: "kv" },
+            el("dt", null, "Referred for"), el("dd", null, r.specialty + " — " + r.checkType),
+            el("dt", null, "Why"), el("dd", null, r.reason || "—"),
+            el("dt", null, "From"), el("dd", null, (r.campTitle || "") + (r.campDate ? " on " + fmtDate(r.campDate) : "")),
+            el("dt", null, "Due by"), el("dd", null, fmtDate(r.dueBy)),
+            el("dt", null, "Guardian"), el("dd", null, (r.guardianName || "—") + " · " + r.guardianPhone)),
+          d.finding ? el("div", { class: "msg info", style: "margin-top:14px" },
+            el("b", null, "At the camp: "), d.finding.rationale || d.finding.summary) : null)),
+      closed
+        ? el("div", { class: "card" }, el("div", { class: "card-b" },
+            el("h3", { style: "margin-bottom:8px" }, "Outcome"),
+            el("dl", { class: "kv" },
+              el("dt", null, "Result"), el("dd", null, r.outcome || r.status),
+              el("dt", null, "Diagnosis"), el("dd", null, r.diagnosis || "—"),
+              el("dt", null, "Treatment"), el("dd", null, r.treatment || "—"),
+              el("dt", null, "Recorded by"), el("dd", null, r.clinicianName || "—"),
+              r.declinedReason ? el("dt", null, "Declined because") : null,
+              r.declinedReason ? el("dd", null, r.declinedReason) : null)))
+        : el("div", { class: "card" },
+            el("div", { class: "card-h" }, el("h2", null, "Record what happened")),
+            el("div", { class: "card-b" },
+              el("div", { class: "fld" }, el("label", null, "Result"),
+                el("div", { class: "row" }, [["RESOLVED","Resolved"],["ONGOING","Under treatment"],
+                  ["REFERRED_ON","Referred on"],["NO_ISSUE","Nothing found"]].map(function (o) {
+                    return el("button", { class: (f.outcome === o[0] ? "pri" : ""),
+                      onclick: function () { f.outcome = o[0]; render(); } }, o[1]); }))),
+              el("div", { class: "g2" },
+                el("div", { class: "fld" }, el("label", null, "What was found"),
+                  el("input", { type: "text", value: f.diagnosis, oninput: function (e) { f.diagnosis = e.target.value; } })),
+                el("div", { class: "fld" }, el("label", null, "Treatment given"),
+                  el("input", { type: "text", value: f.treatment, oninput: function (e) { f.treatment = e.target.value; } }))),
+              el("div", { class: "g2" },
+                el("div", { class: "fld" }, el("label", null, "Clinician"),
+                  el("input", { type: "text", value: f.clinicianName, oninput: function (e) { f.clinicianName = e.target.value; },
+                    placeholder: "Who saw the child" })),
+                el("div", { class: "fld" }, el("label", null, "Note"),
+                  el("input", { type: "text", value: f.note, oninput: function (e) { f.note = e.target.value; } }))),
+              el("button", { class: "pri big", disabled: S.busy, onclick: save },
+                S.busy ? "Saving…" : "Close this follow-up"),
+              el("div", { class: "hint", style: "margin-top:8px" },
+                "This is what turns a flagged child into a closed loop. It feeds the school's closure rate."))));
+  }
+
+  // ══════════════════════════════════════ cohort report (Stage I5)
+  function tabReport() {
+    if (!S.report) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    var d = S.report;
+    if (!d.camps.length) {
+      return el("div", { class: "card" }, el("div", { class: "empty" },
+        el("h3", null, "No camps yet for " + (d.academicYear || "this year")),
+        el("p", { style: "font-size:13.5px" }, d.note || "")));
+    }
+    var c = d.coverage, ref = d.referrals, imp = d.improvement;
+    return el("div", null,
+      el("div", { class: "row", style: "margin-bottom:14px" },
+        el("h3", { style: "flex:1" }, d.school.name + " · " + d.academicYear),
+        el("button", { onclick: exportReport }, "Export report")),
+      el("h4", { style: "margin-bottom:8px" }, "Coverage"),
+      el("div", { class: "stats" },
+        el("div", { class: "stat" }, el("b", null, c.rostered), el("span", null, "children on camps")),
+        el("div", { class: "stat" }, el("b", null, c.consented), el("span", null, "consented")),
+        el("div", { class: "stat ok" }, el("b", null, c.screened), el("span", null, "screened")),
+        el("div", { class: "stat" }, el("b", null, c.absent), el("span", null, "absent")),
+        el("div", { class: "stat info" }, el("b", null, c.screenedRate === null ? "—" : c.screenedRate + "%"),
+          el("span", null, "of the roll screened"))),
+      el("h4", { style: "margin:18px 0 8px" }, "What was found"),
+      el("div", { class: "tw" }, el("table", null,
+        el("thead", null, el("tr", null, el("th", null, "Check"), el("th", { class: "num" }, "Measured"),
+          el("th", { class: "num" }, "On track"), el("th", { class: "num" }, "Watch"),
+          el("th", { class: "num" }, "Refer"), el("th", { class: "num" }, "Flagged"))),
+        el("tbody", null, d.prevalence.map(function (p) {
+          return el("tr", null, el("td", null, el("b", null, p.checkType)),
+            el("td", { class: "num" }, p.measured),
+            el("td", { class: "num" }, p.good),
+            el("td", { class: "num" }, p.watch ? el("span", { class: "pill warn" }, p.watch) : "0"),
+            el("td", { class: "num" }, p.alert ? el("span", { class: "pill err" }, p.alert) : "0"),
+            el("td", { class: "num" }, p.flaggedRate === null ? "—" : p.flaggedRate + "%"));
+        })))),
+      el("h4", { style: "margin:18px 0 8px" }, "Did families act?"),
+      el("div", { class: "stats" },
+        el("div", { class: "stat" }, el("b", null, ref.total), el("span", null, "referrals raised")),
+        el("div", { class: "stat ok" }, el("b", null, ref.closed), el("span", null, "closed by a clinician")),
+        el("div", { class: "stat warn" }, el("b", null, ref.outstanding), el("span", null, "still open")),
+        el("div", { class: "stat" }, el("b", null, ref.declined), el("span", null, "declined")),
+        el("div", { class: "stat ok" }, el("b", null, ref.closureRate === null ? "—" : ref.closureRate + "%"),
+          el("span", null, "closure rate"))),
+      imp && imp.compared
+        ? el("div", null, el("h4", { style: "margin:18px 0 8px" }, "Change since the previous camp"),
+            el("div", { class: "stats" },
+              el("div", { class: "stat" }, el("b", null, imp.compared), el("span", null, "children compared")),
+              el("div", { class: "stat ok" }, el("b", null, imp.improved), el("span", null, "improved")),
+              el("div", { class: "stat" }, el("b", null, imp.unchanged), el("span", null, "unchanged")),
+              el("div", { class: "stat err" }, el("b", null, imp.worse), el("span", null, "worse"))))
+        : el("div", { class: "msg info", style: "margin-top:18px" },
+            "Change over time appears once children have been screened at two camps."));
+  }
+
+  function exportReport() {
+    var d = S.report, rows = [["VitaHero report", d.school.name, d.academicYear], []];
+    rows.push(["Coverage"]);
+    rows.push(["On camps", d.coverage.rostered], ["Consented", d.coverage.consented],
+      ["Screened", d.coverage.screened], ["Absent", d.coverage.absent],
+      ["Screened rate %", d.coverage.screenedRate]);
+    rows.push([], ["Findings"], ["Check","Measured","On track","Watch","Refer","Flagged %"]);
+    d.prevalence.forEach(function (p) { rows.push([p.checkType, p.measured, p.good, p.watch, p.alert, p.flaggedRate]); });
+    rows.push([], ["Follow-up"], ["Raised", d.referrals.total], ["Closed", d.referrals.closed],
+      ["Outstanding", d.referrals.outstanding], ["Declined", d.referrals.declined],
+      ["Closure rate %", d.referrals.closureRate]);
+    download("report-" + S.school.partnerCode + "-" + d.academicYear + ".csv", toCsv(rows));
+  }
+
+  // ══════════════════════════════════════ correction requests (Stage J6)
+  function tabRequests() {
+    if (!S.corrections) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
+    function resolve(c, accept) {
+      var note = accept ? "Applied" : (prompt("Why is this being rejected?") || "Rejected");
+      run(api("/api/admin/schools/" + S.school.id + "/corrections/" + encodeURIComponent(c.id),
+        { method: "POST", body: { accept: accept, note: note } }), function () {
+        S.corrections = null; S.roster = null;
+        S.notice = accept ? "Corrected." : "Request rejected.";
+        loadSchoolTab();
+      });
+    }
+    var open = S.corrections.filter(function (c) { return c.status === "OPEN"; });
+    return el("div", null,
+      el("div", { class: "msg info" },
+        "Guardians can ask for a detail about their child to be corrected. A guardian cannot change a record themselves — you accept or reject, and either way it is recorded."),
+      S.corrections.length === 0
+        ? el("div", { class: "card" }, el("div", { class: "empty" },
+            el("h3", null, "No requests"), el("p", { style: "font-size:13.5px" }, "Nothing to review.")))
+        : el("div", { class: "tw" }, el("table", null,
+            el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Field"),
+              el("th", null, "Currently"), el("th", null, "Should be"), el("th", null, "Guardian"),
+              el("th", null, "Status"), el("th", null, ""))),
+            el("tbody", null, S.corrections.map(function (c) {
+              return el("tr", null,
+                el("td", null, el("b", null, c.kidName), el("div", { class: "muted", style: "font-size:12px" }, c.grade)),
+                el("td", { class: "mono" }, c.field),
+                el("td", null, c.currentValue || el("span", { class: "muted" }, "—")),
+                el("td", null, el("b", null, c.requestedValue)),
+                el("td", null, c.guardianName, c.note ? el("div", { class: "muted", style: "font-size:12px" }, c.note) : null),
+                el("td", null, statusPill(c.status)),
+                el("td", null, c.status === "OPEN"
+                  ? el("div", { class: "row" },
+                      el("button", { class: "sm pri", onclick: function () { resolve(c, true); } }, "Apply"),
+                      el("button", { class: "sm dang", onclick: function () { resolve(c, false); } }, "Reject"))
+                  : el("span", { class: "muted", style: "font-size:12.5px" }, c.resolutionNote || "—")));
+            })))),
+      open.length ? el("p", { class: "muted", style: "margin-top:10px;font-size:12.5px" },
+        open.length + " waiting.") : null);
   }
 
   // ══════════════════════════════════════ camps list

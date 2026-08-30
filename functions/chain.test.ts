@@ -37,6 +37,12 @@ import {
   getCamp,
   adminOverview,
 } from "./camps";
+import { ensureReferralSchema, guardianReferrals, markReferralAttended, declineReferral,
+  recordReferralOutcome, referralDashboard, nudgeReferrals, kidReferrals } from "./referrals";
+import { ensureLifecycleSchema, exportGuardianData, requestCorrection, listCorrections,
+  resolveCorrection, withdrawConsent, deleteChild, rolloverClasses, changeGuardianPhone,
+  markStudentLeft, retentionReport } from "./lifecycle";
+import { kidHealthHistory, schoolReport, programmeReport, childAccessTrail } from "./reports";
 
 const URL = process.env.TEST_DATABASE_URL;
 
@@ -82,7 +88,10 @@ async function legacySchema(s: Sql) {
     id TEXT PRIMARY KEY, user_id TEXT, phone TEXT, name TEXT NOT NULL DEFAULT '', email TEXT,
     session_token TEXT, auth_provider TEXT, onboarding_complete BOOLEAN DEFAULT false,
     is_logged_in BOOLEAN DEFAULT false, role TEXT DEFAULT 'PARENT',
-    provisioned BOOLEAN DEFAULT false, school_id TEXT)`;
+    provisioned BOOLEAN DEFAULT false, school_id TEXT,
+    locale_code TEXT DEFAULT 'en', family_code TEXT DEFAULT '', dark_theme BOOLEAN DEFAULT false,
+    notifications_enabled BOOLEAN DEFAULT true, camp_reminders_enabled BOOLEAN DEFAULT true,
+    consent_accepted BOOLEAN DEFAULT false, consent_declined BOOLEAN DEFAULT false)`;
   await s`CREATE TABLE IF NOT EXISTS vita_hero.kids (
     id TEXT PRIMARY KEY, profile_id TEXT NOT NULL, user_id TEXT, name TEXT NOT NULL,
     age INT DEFAULT 0, gender TEXT DEFAULT '', school TEXT DEFAULT '', grade TEXT DEFAULT '',
@@ -112,6 +121,22 @@ async function legacySchema(s: Sql) {
     dental TEXT DEFAULT 'GOOD', eyesight TEXT DEFAULT 'GOOD', nutrition TEXT DEFAULT 'GOOD',
     height_cm DOUBLE PRECISION, weight_kg DOUBLE PRECISION, recorded_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE (school_camp_id, kid_id))`;
+  await s`CREATE TABLE IF NOT EXISTS vita_hero.appointments (
+    id TEXT PRIMARY KEY, profile_id TEXT NOT NULL, user_id TEXT, doctor_name TEXT NOT NULL,
+    doctor_id TEXT, specialty TEXT DEFAULT '', kid_name TEXT DEFAULT '', date TEXT NOT NULL, time TEXT NOT NULL)`;
+  await s`CREATE TABLE IF NOT EXISTS vita_hero.meal_items (
+    id TEXT PRIMARY KEY, profile_id TEXT NOT NULL, user_id TEXT, kid_id TEXT NOT NULL,
+    time_slot TEXT DEFAULT '', name TEXT NOT NULL, detail TEXT DEFAULT '', kcal INT DEFAULT 0,
+    eaten BOOLEAN DEFAULT false)`;
+  await s`CREATE TABLE IF NOT EXISTS vita_hero.streaks (
+    kid_id TEXT PRIMARY KEY, user_id TEXT, current_streak INT DEFAULT 0, best_streak INT DEFAULT 0,
+    last_log_date TEXT DEFAULT '')`;
+  await s`CREATE TABLE IF NOT EXISTS vita_hero.ai_diet_tips (
+    kid_id TEXT PRIMARY KEY, profile_id TEXT NOT NULL, content JSONB NOT NULL,
+    generated_at TIMESTAMPTZ DEFAULT NOW())`;
+  await s`CREATE TABLE IF NOT EXISTS vita_hero.co_parents (
+    id TEXT PRIMARY KEY, profile_id TEXT NOT NULL, user_id TEXT, name TEXT NOT NULL,
+    relation TEXT DEFAULT '', joined_date TEXT DEFAULT '')`;
   await s`CREATE TABLE IF NOT EXISTS vita_hero.growth_points (
     id TEXT PRIMARY KEY, kid_id TEXT NOT NULL, user_id TEXT, label TEXT DEFAULT '',
     height DOUBLE PRECISION DEFAULT 0, weight DOUBLE PRECISION DEFAULT 0,
@@ -133,6 +158,8 @@ beforeAll(async () => {
   await legacySchema(sql);
   await ensureStageASchema(sql);
   await ensureCampSchema(sql);
+  await ensureReferralSchema(sql);
+  await ensureLifecycleSchema(sql);
 });
 afterAll(async () => { if (client) await client.end(); });
 
@@ -494,9 +521,293 @@ suite("end to end", () => {
     await client.query("UPDATE vita_hero.school_camps SET grades='[\"Class 4\"]'::jsonb WHERE id=$1", [campId]);
   });
 
+  // ── Stage G: the referral loop ──
+
+  test("release opened a referral for every flagged finding", async () => {
+    const d = await referralDashboard(sql, admin, schoolId, {});
+    // One child had ALERT vision + ALERT dental + a WATCH growth flag; another
+    // was overridden to WATCH on vision.
+    expect(d.totals.total).toBeGreaterThanOrEqual(3);
+    expect(d.totals.open).toBe(d.totals.total);
+    expect(d.totals.closureRate).toBe(0);
+    const vision = d.referrals.find((r) => r.checkType === "Vision" && r.flag === "ALERT");
+    expect(vision).toBeDefined();
+    expect(vision!.specialty).toBe("Ophthalmology");
+    expect(vision!.dueBy).toBeTruthy();
+  });
+
+  test("a guardian sees their own referrals and nobody else's", async () => {
+    const d = await referralDashboard(sql, admin, schoolId, {});
+    const target = d.referrals[0];
+    const own = await guardianReferrals(sql, (await client.query(
+      "SELECT profile_id FROM vita_hero.referrals WHERE id=$1", [target.id])).rows[0].profile_id);
+    expect(own.referrals.length).toBeGreaterThan(0);
+    expect(own.referrals.every((r) => r.kidId === target.kidId)).toBe(true);
+
+    const stranger = await guardianReferrals(sql, "ph_9811100009");
+    expect(stranger.referrals.length).toBe(0);
+  });
+
+  test("a guardian cannot act on someone else's referral", async () => {
+    const d = await referralDashboard(sql, admin, schoolId, {});
+    await expect(markReferralAttended(sql, "ph_9811100009", d.referrals[0].id, ""))
+      .rejects.toThrow(/not yours/);
+  });
+
+  test("a guardian confirms the visit, then a clinician closes it", async () => {
+    const d = await referralDashboard(sql, admin, schoolId, {});
+    const r = d.referrals.find((x) => x.status === "OPEN")!;
+    const owner = (await client.query("SELECT profile_id FROM vita_hero.referrals WHERE id=$1", [r.id])).rows[0].profile_id;
+
+    await markReferralAttended(sql, owner, r.id, "Saw the eye doctor on Tuesday");
+    let after = await referralDashboard(sql, admin, schoolId, {});
+    expect(after.referrals.find((x) => x.id === r.id)!.status).toBe("ATTENDED");
+
+    await recordReferralOutcome(sql, physician, r.id, {
+      outcome: "ONGOING", diagnosis: "Refractive error", treatment: "Spectacles prescribed",
+      clinicianName: "Dr Anand",
+    });
+    after = await referralDashboard(sql, admin, schoolId, {});
+    const closed = after.referrals.find((x) => x.id === r.id)!;
+    expect(closed.status).toBe("CLOSED");
+    expect(closed.outcome).toBe("ONGOING");
+    expect(after.totals.closed).toBe(1);
+    expect(after.totals.closureRate).toBeGreaterThan(0);
+  });
+
+  test("closing a referral requires recording what was found", async () => {
+    const d = await referralDashboard(sql, admin, schoolId, { status: "OPEN" });
+    await expect(recordReferralOutcome(sql, physician, d.referrals[0].id, { outcome: "ONGOING" }))
+      .rejects.toThrow(/Record what was found/);
+    await expect(recordReferralOutcome(sql, physician, d.referrals[0].id, { outcome: "MAYBE" }))
+      .rejects.toThrow(/Outcome must be/);
+  });
+
+  test("referring onward keeps the loop open under a new record", async () => {
+    const before = await referralDashboard(sql, admin, schoolId, {});
+    const open = before.referrals.find((x) => x.status === "OPEN")!;
+    await recordReferralOutcome(sql, admin, open.id, {
+      outcome: "REFERRED_ON", diagnosis: "Needs a specialist", referredTo: "Paediatric Surgery",
+    });
+    const after = await referralDashboard(sql, admin, schoolId, {});
+    expect(after.totals.total).toBe(before.totals.total + 1);
+    expect(after.referrals.some((r) => r.reason.indexOf("Referred on") === 0)).toBe(true);
+  });
+
+  test("a guardian may decline, and it stops being chased", async () => {
+    const d = await referralDashboard(sql, admin, schoolId, { status: "OPEN" });
+    const r = d.referrals[0];
+    const owner = (await client.query("SELECT profile_id FROM vita_hero.referrals WHERE id=$1", [r.id])).rows[0].profile_id;
+    await declineReferral(sql, owner, r.id, "Already under our own doctor");
+    const after = await referralDashboard(sql, admin, schoolId, {});
+    expect(after.referrals.find((x) => x.id === r.id)!.status).toBe("DECLINED");
+    // Declined is excluded from the closure denominator.
+    expect(after.totals.declined).toBeGreaterThan(0);
+  });
+
+  test("nudging chases open referrals and reports who is stuck", async () => {
+    const sent: string[] = [];
+    const r = await nudgeReferrals(sql, admin, schoolId, async (to) => { sent.push(to); return true; });
+    expect(r.nudged).toBe(sent.length);
+    const rows = await client.query(
+      "SELECT nudge_count FROM vita_hero.referrals WHERE school_id=$1 AND status='OPEN'", [schoolId]);
+    if (rows.rowCount) expect(rows.rows.every((x) => x.nudge_count >= 1)).toBe(true);
+  });
+
+  test("per-child referral history is guarded by ownership", async () => {
+    const parts = (await listParticipants(sql, admin, campId, { status: "RELEASED" })).participants;
+    const owner = (await client.query(
+      "SELECT profile_id FROM vita_hero.camp_participants WHERE kid_id=$1", [parts[0].kidId])).rows[0].profile_id;
+    const mine = await kidReferrals(sql, owner, parts[0].kidId);
+    expect(Array.isArray(mine.referrals)).toBe(true);
+    await expect(kidReferrals(sql, "ph_9811100009", parts[0].kidId)).rejects.toThrow(/not your child/);
+  });
+
+  // ── Stage I / K: reporting ──
+
+  test("the school report answers coverage, findings and follow-through", async () => {
+    const r = await schoolReport(sql, admin, schoolId, "2026-27");
+    expect(r.camps.length).toBe(1);
+    // An earlier test widened this camp to Class 7 and rebuilt, so the roster
+    // legitimately grew. What matters is that only the screened five count.
+    expect(r.coverage!.rostered).toBeGreaterThanOrEqual(6);
+    expect(r.coverage!.screened).toBe(5);
+    expect(r.coverage!.screenedRate).toBeGreaterThan(0);
+    const vision = r.prevalence.find((p) => p.checkType === "Vision")!;
+    expect(vision.measured).toBe(5);
+    expect(vision.alert).toBeGreaterThanOrEqual(1);
+    expect(r.referrals!.total).toBeGreaterThan(0);
+    expect(r.referrals!.closureRate).not.toBeNull();
+  });
+
+  test("the programme report is ops-only and anonymised", async () => {
+    await expect(programmeReport(sql, admin)).rejects.toThrow(/operations view/);
+    const p = await programmeReport(sql, OPS);
+    expect(p.totals.schools).toBeGreaterThanOrEqual(1);
+    expect(p.schools[0].name).toBe("Oakridge International");
+    // Prevalence carries no child identifiers.
+    expect(JSON.stringify(p.prevalence)).not.toContain("Child ");
+  });
+
+  test("a child's history shows each camp and what changed", async () => {
+    const parts = (await listParticipants(sql, admin, campId, { status: "RELEASED" })).participants;
+    const owner = (await client.query(
+      "SELECT profile_id FROM vita_hero.camp_participants WHERE kid_id=$1", [parts[0].kidId])).rows[0].profile_id;
+    const h = await kidHealthHistory(sql, owner, parts[0].kidId);
+    expect(h.camps.length).toBe(1);
+    expect(h.camps[0].findings.length).toBe(3);
+    expect(h.growth.length).toBeGreaterThan(0);
+    await expect(kidHealthHistory(sql, "ph_9811100009", parts[0].kidId)).rejects.toThrow(/not your child/);
+  });
+
+  test("the access trail says who touched a child's record", async () => {
+    const parts = (await listParticipants(sql, admin, campId, { status: "RELEASED" })).participants;
+    const t = await childAccessTrail(sql, admin, parts[0].kidId);
+    const actions = t.events.map((e) => e.action);
+    expect(actions).toContain("Screened");
+    expect(actions).toContain("Reviewed by physician");
+    expect(actions).toContain("Released to guardian");
+  });
+
+  // ── Stage J: data rights and lifecycle ──
+
+  test("a guardian can export everything held about their family", async () => {
+    const parts = (await listParticipants(sql, admin, campId, { status: "RELEASED" })).participants;
+    const owner = (await client.query(
+      "SELECT profile_id FROM vita_hero.camp_participants WHERE kid_id=$1", [parts[0].kidId])).rows[0].profile_id;
+    const x = await exportGuardianData(sql, owner);
+    expect(x.children.length).toBeGreaterThan(0);
+    expect(x.campFindings.length).toBe(3);
+    expect(x.consentHistory.length).toBeGreaterThan(0);
+    expect((x.profile as Record<string, unknown>).session_token).toBeUndefined();
+  });
+
+  test("a correction is a request an administrator answers, not a silent edit", async () => {
+    const parts = (await listParticipants(sql, admin, campId, {})).participants;
+    const kid = parts[0];
+    const owner = (await client.query(
+      "SELECT profile_id FROM vita_hero.camp_participants WHERE kid_id=$1", [kid.kidId])).rows[0].profile_id;
+
+    await expect(requestCorrection(sql, owner, { kidId: kid.kidId, field: "dental", value: "GOOD" }))
+      .rejects.toThrow(/You can request a correction to/);
+
+    const req = await requestCorrection(sql, owner, {
+      kidId: kid.kidId, field: "name", value: "Corrected Name", note: "Spelling",
+    });
+    const before = await client.query("SELECT name FROM vita_hero.kids WHERE id=$1", [kid.kidId]);
+    expect(before.rows[0].name).not.toBe("Corrected Name");
+
+    const list = await listCorrections(sql, admin, schoolId);
+    expect(list.corrections.length).toBe(1);
+    expect(list.corrections[0].status).toBe("OPEN");
+
+    await resolveCorrection(sql, admin, req.id, true, "Applied");
+    const after = await client.query("SELECT name FROM vita_hero.kids WHERE id=$1", [kid.kidId]);
+    expect(after.rows[0].name).toBe("Corrected Name");
+    await expect(resolveCorrection(sql, admin, req.id, true, "again")).rejects.toThrow(/already been answered/);
+  });
+
+  test("withdrawing consent stops future processing without erasing the past", async () => {
+    const parts = (await listParticipants(sql, admin, campId, {})).participants;
+    const owner = (await client.query(
+      "SELECT profile_id FROM vita_hero.camp_participants WHERE kid_id=$1", [parts[1].kidId])).rows[0].profile_id;
+    const before = await client.query("SELECT COUNT(*)::int n FROM vita_hero.camp_findings WHERE kid_id=$1", [parts[1].kidId]);
+    const r = await withdrawConsent(sql, owner, "No longer wish to take part");
+    expect(r.withdrawn).toBe(true);
+    const after = await client.query("SELECT COUNT(*)::int n FROM vita_hero.camp_findings WHERE kid_id=$1", [parts[1].kidId]);
+    expect(after.rows[0].n).toBe(before.rows[0].n);
+    const open = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.referrals WHERE profile_id=$1 AND status IN ('OPEN','BOOKED')", [owner]);
+    expect(open.rows[0].n).toBe(0);
+  });
+
+  test("deleting a child leaves nothing behind", async () => {
+    const parts = (await listParticipants(sql, admin, campId, { status: "RELEASED" })).participants;
+    const kidId = parts[parts.length - 1].kidId;
+    const owner = (await client.query(
+      "SELECT profile_id FROM vita_hero.camp_participants WHERE kid_id=$1", [kidId])).rows[0].profile_id;
+
+    await expect(deleteChild(sql, "ph_9811100009", kidId, "ph_9811100009")).rejects.toThrow(/not your child/);
+    await deleteChild(sql, owner, kidId, owner);
+
+    for (const t of ["camp_findings", "camp_kid_results", "camp_participants", "camp_registrations",
+                     "referrals", "growth_points", "consent_log", "correction_requests"]) {
+      const n = await client.query("SELECT COUNT(*)::int n FROM vita_hero." + t + " WHERE kid_id=$1", [kidId]);
+      expect({ table: t, rows: n.rows[0].n }).toEqual({ table: t, rows: 0 });
+    }
+    const k = await client.query("SELECT COUNT(*)::int n FROM vita_hero.kids WHERE id=$1", [kidId]);
+    expect(k.rows[0].n).toBe(0);
+  });
+
+  test("a guardian's phone number can be moved without losing their children", async () => {
+    const before = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE profile_id='ph_9811100003'");
+    expect(before.rows[0].n).toBeGreaterThan(0);
+    const r = await changeGuardianPhone(sql, admin, schoolId, {
+      currentPhone: "9811100003", newPhone: "9777700003",
+    });
+    expect(r.profileId).toBe("ph_9777700003");
+    const after = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE profile_id='ph_9777700003'");
+    expect(after.rows[0].n).toBe(before.rows[0].n);
+    const gone = await client.query("SELECT COUNT(*)::int n FROM vita_hero.profiles WHERE id='ph_9811100003'");
+    expect(gone.rows[0].n).toBe(0);
+  });
+
+  test("moving a phone onto an existing account is refused", async () => {
+    await expect(changeGuardianPhone(sql, admin, schoolId, {
+      currentPhone: "9811100004", newPhone: "9777700003",
+    })).rejects.toThrow(/already an account/);
+  });
+
+  test("a student can be marked as having left, and comes back off the roll", async () => {
+    const rows = await client.query(
+      "SELECT id FROM vita_hero.kids WHERE school_id=$1 AND grade='Class 7' LIMIT 1", [schoolId]);
+    const r = await markStudentLeft(sql, admin, schoolId, rows.rows[0].id, true);
+    expect(r.status).toBe("LEFT");
+    await markStudentLeft(sql, admin, schoolId, rows.rows[0].id, false);
+  });
+
+  test("rollover previews before it moves anyone", async () => {
+    const preview = await rolloverClasses(sql, admin, schoolId, {
+      fromYear: "2026-27", toYear: "2027-28", dryRun: true,
+    });
+    expect(preview.dryRun).toBe(true);
+    expect(preview.plan!.find((p) => p.grade === "Class 4")!.becomes).toBe("Class 7");
+    const unchanged = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND academic_year='2027-28'", [schoolId]);
+    expect(unchanged.rows[0].n).toBe(0);
+  });
+
+  test("rollover moves students up and graduates the final class", async () => {
+    const r = await rolloverClasses(sql, admin, schoolId, { fromYear: "2026-27", toYear: "2027-28" });
+    expect(r.promoted).toBeGreaterThan(0);
+    expect(r.graduated).toBeGreaterThan(0);
+    const moved = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND academic_year='2027-28' AND grade='Class 7'", [schoolId]);
+    expect(moved.rows[0].n).toBe(r.promoted);
+    const left = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND status='LEFT'", [schoolId]);
+    expect(left.rows[0].n).toBe(r.graduated);
+  });
+
+  test("rollover refuses a malformed year", async () => {
+    await expect(rolloverClasses(sql, admin, schoolId, { fromYear: "2027", toYear: "2028-29" }))
+      .rejects.toThrow(/must look like/);
+  });
+
+  test("retention reports rather than deleting on a timer", async () => {
+    await expect(retentionReport(sql, admin)).rejects.toThrow(/operations view/);
+    const r = await retentionReport(sql, OPS, 7);
+    expect(r.note).toContain("Nothing is deleted automatically");
+    expect(typeof r.findingsOlderThanWindow).toBe("number");
+  });
+
   test("the overview reflects the finished camp", async () => {
     const o = await adminOverview(sql, OPS);
-    expect(o.students).toBe(10);
+    const actual = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE source='ADMIN'");
+    expect(o.students).toBe(actual.rows[0].n);
     expect(o.campStatus.RELEASED).toBe(1);
   });
 });

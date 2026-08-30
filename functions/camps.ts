@@ -19,6 +19,7 @@ import {
   tidyName,
 } from "./common";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
+import { openReferralsForChild } from "./referrals";
 import {
   CHECK_TYPES,
   Flag,
@@ -1100,13 +1101,14 @@ export async function releaseCamp(
 
   const campDate = (camp.date as string) || "";
   let released = 0;
+  let referralsOpened = 0;
 
   for (const row of approved) {
     const kidId = row.kid_id as string;
     const profileId = row.profile_id as string;
 
     const fRows = await sql`
-      SELECT check_type, flag, urgency, detail FROM vita_hero.camp_findings
+      SELECT check_type, flag, urgency, detail, rationale FROM vita_hero.camp_findings
       WHERE camp_id = ${campId} AND kid_id = ${kidId}
     `;
     const findings = fRows.map((f) => ({
@@ -1114,6 +1116,7 @@ export async function releaseCamp(
       flag: f.flag as Flag,
       urgency: (f.urgency as Urgency) || "NONE",
       detail: (f.detail as Record<string, unknown>) || {},
+      rationale: (f.rationale as string) || "",
     }));
     const s = summariseForApp(findings);
 
@@ -1170,6 +1173,18 @@ export async function releaseCamp(
       ON CONFLICT (profile_id, school_id) DO NOTHING
     `;
 
+    // G1 — every flag a physician confirmed becomes a tracked referral, so a
+    // guardian is never told "see a doctor" without something following it up.
+    referralsOpened += await openReferralsForChild(sql, {
+      campId,
+      kidId,
+      profileId,
+      schoolId: camp.school_id as string,
+      createdBy: actor.profileId,
+      urgency: (row.urgency as Urgency) || "NONE",
+      findings: findings.map((f) => ({ checkType: f.checkType, flag: f.flag, rationale: f.rationale })),
+    });
+
     await sql`
       UPDATE vita_hero.camp_participants
       SET status = 'RELEASED', released_at = NOW()
@@ -1201,7 +1216,7 @@ export async function releaseCamp(
     if (ok) urgentNotified++;
   }
 
-  return { released, urgentNotified };
+  return { released, referralsOpened, urgentNotified };
 }
 
 // ─── Guardian-facing (parent app) ───────────────────────────

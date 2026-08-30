@@ -46,3 +46,15 @@ APP_PLAY_URL=
 #   9. Camp day: the screening team records findings per child.
 #  10. The physician reviews every child and approves.
 #  11. Release. Only then do guardians see anything in the app.
+#  12. Follow-ups: every flagged child gets a tracked referral. Families
+#      confirm they went; a clinician records the outcome, which closes it.
+#      "Closure rate" on the Follow-ups tab is the programme's real KPI.
+#  13. Report: coverage, what was found, and whether families acted — per
+#      school and academic year. Ops sees the same across every school.
+#
+# Each year: Classes -> "Start a new academic year" moves students up one
+# class and marks the final year as having left.
+#
+# Guardians can, from the app: export everything held about them, ask for a
+# correction (an administrator accepts or rejects it), withdraw consent, and
+# delete a child or the whole account. Deletion erases camp findings too.

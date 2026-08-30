@@ -66,6 +66,39 @@ import {
   removeCampStaff,
   assertCampAccess,
 } from "./camps";
+import {
+  ensureReferralSchema,
+  guardianReferrals,
+  markReferralBooked,
+  markReferralAttended,
+  declineReferral,
+  recordReferralOutcome,
+  referralDashboard,
+  referralDetail,
+  nudgeReferrals,
+  kidReferrals,
+} from "./referrals";
+import {
+  ensureLifecycleSchema,
+  exportGuardianData,
+  requestCorrection,
+  listCorrections,
+  resolveCorrection,
+  withdrawConsent,
+  deleteChild,
+  deleteAccount,
+  rolloverClasses,
+  markStudentLeft,
+  changeGuardianPhone,
+  retentionReport,
+  dataRightsHistory,
+} from "./lifecycle";
+import {
+  kidHealthHistory,
+  schoolReport,
+  programmeReport,
+  childAccessTrail,
+} from "./reports";
 import { PORTAL_HTML } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
@@ -1425,6 +1458,8 @@ export default {
           await ensureSchema(sql);
           await ensureStageASchema(sql);
           await ensureCampSchema(sql);
+          await ensureReferralSchema(sql);
+          await ensureLifecycleSchema(sql);
           schemaReady = true;
         } catch (schemaErr) {
           console.error("Schema init error:", schemaErr);
@@ -1501,6 +1536,44 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             "Cache-Control": "no-cache",
           },
         }));
+      }
+
+      // ── Admin: referrals, corrections, lifecycle, reports ──
+      if (path.startsWith("/api/admin/referrals") || path === "/api/admin/programme-report"
+          || path === "/api/admin/retention" || path.startsWith("/api/admin/child/")) {
+        const actor = await resolveActor(request, sql, env);
+        if (!actor) return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try { return (await request.json()) as Record<string, unknown>; }
+          catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
+        };
+        try {
+          if (path === "/api/admin/programme-report" && request.method === "GET") {
+            return json(await programmeReport(sql, actor));
+          }
+          if (path === "/api/admin/retention" && request.method === "GET") {
+            return json(await retentionReport(sql, actor,
+              parseInt(url.searchParams.get("years") || "7", 10)));
+          }
+          if (path.startsWith("/api/admin/child/")) {
+            const kidId = decodeURIComponent(path.slice("/api/admin/child/".length).split("/")[0]);
+            if (request.method === "GET") return json(await childAccessTrail(sql, actor, kidId));
+            return json({ error: "Method not allowed" }, 405);
+          }
+          const refRest = path.slice("/api/admin/referrals".length).replace(/^\//, "");
+          const refParts = refRest ? refRest.split("/").map(decodeURIComponent) : [];
+          if (refParts.length === 1 && request.method === "GET") {
+            return json(await referralDetail(sql, actor, refParts[0]));
+          }
+          if (refParts.length === 2 && refParts[1] === "outcome" && request.method === "POST") {
+            return json(await recordReferralOutcome(sql, actor, refParts[0], await readBody()));
+          }
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          console.error("Referral route error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
       }
 
       // ── Admin: overview, my camps, camp operations ──
@@ -1669,6 +1742,50 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
               return json(await setClasses(sql, actor, schoolId, await readBody()));
             }
             return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Referral tracking and closure (G9)
+          if (section === "referrals") {
+            if (!parts[2] && method === "GET") {
+              return json(await referralDashboard(sql, actor, schoolId, {
+                status: url.searchParams.get("status") || undefined,
+                campId: url.searchParams.get("camp") || undefined,
+              }));
+            }
+            if (parts[2] === "nudge" && method === "POST") {
+              return json(await nudgeReferrals(sql, actor, schoolId,
+                (to, b) => sendTwilioSms(env, to, b)));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Correction requests from guardians (J6)
+          if (section === "corrections") {
+            if (!parts[2] && method === "GET") return json(await listCorrections(sql, actor, schoolId));
+            if (parts[2] && method === "POST") {
+              const b = await readBody();
+              return json(await resolveCorrection(sql, actor, parts[2], b.accept === true, String(b.note || "")));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Academic-year rollover and students leaving (J1, J2)
+          if (section === "rollover" && method === "POST") {
+            return json(await rolloverClasses(sql, actor, schoolId, await readBody()));
+          }
+          if (section === "student" && parts[2] && method === "POST") {
+            const b = await readBody();
+            return json(await markStudentLeft(sql, actor, schoolId, parts[2], b.leaving === true));
+          }
+
+          // Guardian account recovery (J4)
+          if (section === "guardian-phone" && method === "POST") {
+            return json(await changeGuardianPhone(sql, actor, schoolId, await readBody()));
+          }
+
+          // Cohort report (I5)
+          if (section === "report" && method === "GET") {
+            return json(await schoolReport(sql, actor, schoolId, url.searchParams.get("year") || ""));
           }
 
           // Camps for this school (B1)
@@ -2208,15 +2325,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path.startsWith("/api/kids/") && request.method === "DELETE") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const kidId = path.split("/")[3];
-        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
-          return json({ error: "Kid not found" }, 404);
+        // Full erasure, including camp findings and referrals. The earlier
+        // version left camp_kid_results and camp_registrations behind, so a
+        // deleted child's clinical record survived attached to nothing.
+        try {
+          return json(await deleteChild(sql, session.profileId, kidId, session.profileId));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message }, 500);
         }
-        await sql`DELETE FROM ${sql(SCHEMA)}.meal_items WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}`;
-        await sql`DELETE FROM ${sql(SCHEMA)}.streaks WHERE kid_id = ${kidId}`;
-        await sql`DELETE FROM ${sql(SCHEMA)}.growth_points WHERE kid_id = ${kidId}`;
-        await sql`DELETE FROM ${sql(SCHEMA)}.ai_diet_tips WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}`;
-        await sql`DELETE FROM ${sql(SCHEMA)}.kids WHERE id = ${kidId} AND profile_id = ${session.profileId}`;
-        return json({ deleted: true });
       }
 
       // ═══════════════════════════════════════════════════
@@ -2274,6 +2391,67 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // ═══════════════════════════════════════════════════
       // Camps
       // ═══════════════════════════════════════════════════
+
+      // ── Guardian: referrals, history, and data rights ──
+      if (path === "/api/referrals" || path.startsWith("/api/referrals/")
+          || path === "/api/me/export" || path === "/api/me/correction"
+          || path === "/api/me/consent/withdraw" || path === "/api/me/rights"
+          || path === "/api/me" || path === "/api/kids/history") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const pid = session.profileId;
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try { return (await request.json()) as Record<string, unknown>; }
+          catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
+        };
+        try {
+          if (path === "/api/referrals" && request.method === "GET") {
+            return json(await guardianReferrals(sql, pid, url.searchParams.get("all") === "1"));
+          }
+          if (path.startsWith("/api/referrals/")) {
+            const bits = path.slice("/api/referrals/".length).split("/").map(decodeURIComponent);
+            const refId = bits[0];
+            const action = bits[1] || "";
+            const b = request.method === "POST" ? await readBody() : {};
+            if (action === "booked" && request.method === "POST") {
+              return json(await markReferralBooked(sql, pid, refId, (b.appointmentId as string) || null));
+            }
+            if (action === "attended" && request.method === "POST") {
+              return json(await markReferralAttended(sql, pid, refId, String(b.note || "")));
+            }
+            if (action === "decline" && request.method === "POST") {
+              return json(await declineReferral(sql, pid, refId, String(b.reason || "")));
+            }
+            if (!action && request.method === "GET") {
+              return json(await kidReferrals(sql, pid, url.searchParams.get("kid_id") || ""));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+          if (path === "/api/kids/history" && request.method === "GET") {
+            return json(await kidHealthHistory(sql, pid, url.searchParams.get("kid_id") || ""));
+          }
+          if (path === "/api/me/export" && request.method === "GET") {
+            return json(await exportGuardianData(sql, pid));
+          }
+          if (path === "/api/me/rights" && request.method === "GET") {
+            return json(await dataRightsHistory(sql, pid));
+          }
+          if (path === "/api/me/correction" && request.method === "POST") {
+            return json(await requestCorrection(sql, pid, await readBody()));
+          }
+          if (path === "/api/me/consent/withdraw" && request.method === "POST") {
+            const b = await readBody();
+            return json(await withdrawConsent(sql, pid, String(b.reason || "")));
+          }
+          if (path === "/api/me" && request.method === "DELETE") {
+            return json(await deleteAccount(sql, pid));
+          }
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          console.error("Guardian route error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
 
       // ── Guardian: camp consent and released results ──
       if (path === "/api/camps/consents" && request.method === "GET") {
