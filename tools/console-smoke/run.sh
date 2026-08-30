@@ -42,7 +42,7 @@ for _ in $(seq 1 40); do
 done
 
 status=0
-for f in "$here"/screens.mjs "$here"/photo-gating.mjs; do
+for f in "$here"/screens.mjs "$here"/photo-gating.mjs "$here"/phone.mjs; do
   echo "── $(basename "$f")"
   PW_DIR="$pwdir" PORTAL_URL="http://127.0.0.1:$port/portal.html" node "$f" || status=1
 done

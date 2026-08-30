@@ -75,7 +75,11 @@ export const PORTAL_HTML = `<!doctype html>
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
 
   /* ── shell ── */
-  .shell{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+  /* minmax(0,...) rather than a bare 1fr: a grid track's automatic minimum is
+     min-content, so a bare 1fr lets one wide child — a roster table, the
+     collapsed nav strip — push the whole shell past the viewport instead of
+     scrolling inside itself. */
+  .shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
   .nav{background:var(--nav);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
   .brand{display:flex;align-items:center;gap:10px;padding:18px 18px 16px;font-weight:700;font-size:15px;letter-spacing:-.02em}
   /* The wordmark as the brand actually sets it: "vita" orange, "hero" blue,
@@ -167,6 +171,11 @@ export const PORTAL_HTML = `<!doctype html>
   .card-f{padding:12px 20px;border-top:1px solid var(--line-2);background:var(--sunk);border-radius:0 0 var(--r) var(--r)}
 
   .tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
+  /* Same scrolling, none of the chrome — for a table already sitting inside a
+     card. Applied by hand where it reads well and by the safety net in
+     render() everywhere else, because a table that escapes its container
+     scrolls the whole page sideways and takes the sticky nav with it. */
+  .tws{overflow-x:auto;max-width:100%}
   table{border-collapse:collapse;width:100%;font-size:13.5px}
   th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
   th{background:var(--sunk);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2);font-weight:650;white-space:nowrap}
@@ -255,9 +264,16 @@ export const PORTAL_HTML = `<!doctype html>
   tbody tr.rowerr{background:var(--err-bg)} tbody tr.rowwarn{background:var(--warn-bg)}
 
   @media(max-width:820px){
-    .shell{grid-template-columns:1fr}
+    .shell{grid-template-columns:minmax(0,1fr)}
     .nav{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding-bottom:8px}
-    .navsec{display:flex;gap:4px;padding:0 10px 8px;overflow-x:auto;flex:1}
+    /* min-width:0 is the whole fix: a flex child defaults to min-width:auto,
+       so this strip refused to shrink below its buttons and held the entire
+       shell open at 424px inside a 390px phone. */
+    .navsec{display:flex;gap:4px;padding:0 10px 8px;overflow-x:auto;flex:1;min-width:0}
+    .nav{max-width:100%;min-width:0}
+    /* The signed-in name and role can be long; let the footer wrap rather than
+       hold the strip open. */
+    .navfoot{flex-wrap:wrap;min-width:0}
     .navsec h4{display:none}
     .navi{width:auto;margin:0}
     .navfoot{margin:0;border:none;padding:8px 14px;display:flex;align-items:center;gap:12px}
@@ -2863,7 +2879,14 @@ export const PORTAL_HTML = `<!doctype html>
     run(api("/api/admin/hospitals" + (S.hosQuery ? "?q=" + encodeURIComponent(S.hosQuery) : "")),
       function (d) {
         S.hospitals = d; S.view = "hospitals"; S.hosForm = null; S.docForm = null;
-        api("/api/admin/doctors").then(function (r) { S.doctors = r; render(); }).catch(function () {});
+        // The catch is for the request, not for render(). It used to wrap both,
+        // so a render error was swallowed whole and the console went blank with
+        // nothing in the log — which is how a missing field in one response
+        // could look like the app had simply died.
+        api("/api/admin/doctors").then(
+          function (r) { S.doctors = r; },
+          function () { S.doctors = { doctors: [] }; }
+        ).then(render);
       });
   }
 
@@ -2936,7 +2959,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "fld" }, el("label", null, "Hospital"),
             el("select", { onchange: db("hospitalId") },
               [el("option", { value: "" }, "\u2014 not attached \u2014")].concat(
-                S.hospitals.hospitals.map(function (h) {
+                (S.hospitals.hospitals || []).map(function (h) {
                   return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
                 })))),
           el("div", { class: "hint" },
@@ -2946,7 +2969,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("button", { onclick: function () { set({ docForm: null }); } }, "Cancel"))));
     }
 
-    var hs = S.hospitals.hospitals;
+    var hs = S.hospitals.hospitals || [];
     var searchBox;
     return el("div", null,
       el("div", { class: "msg info" },
@@ -3001,13 +3024,13 @@ export const PORTAL_HTML = `<!doctype html>
       el("h3", { style: "margin:22px 0 10px" }, "Doctors"),
       !S.doctors
         ? el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"))
-        : S.doctors.doctors.length === 0
+        : (S.doctors.doctors || []).length === 0
           ? el("div", { class: "card" }, el("div", { class: "empty" },
               el("p", { style: "font-size:13.5px;margin:0" }, "None yet.")))
           : el("div", { class: "tw" }, el("table", null,
               el("thead", null, el("tr", null, el("th", null, "Doctor"), el("th", null, "Specialty"),
                 el("th", null, "Hospital"), el("th", null, ""))),
-              el("tbody", null, S.doctors.doctors.map(function (d) {
+              el("tbody", null, (S.doctors.doctors || []).map(function (d) {
                 return el("tr", { class: d.active ? "" : "muted" },
                   el("td", null, el("b", null, d.name)),
                   el("td", null, d.specialty),
@@ -3104,6 +3127,22 @@ export const PORTAL_HTML = `<!doctype html>
           S.view !== "school" && S.view !== "camp" && S.error ? el("div", { class: "msg err" }, S.error) : null,
           S.view !== "school" && S.view !== "camp" && S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
           body))));
+
+    // Any table that was not given a scroller gets one. A phone is 390px wide
+    // and a roster table is 620px; without this the document itself scrolls
+    // sideways, which drags the sticky header off screen and makes the console
+    // unusable in the one place it is most needed — standing in a school hall.
+    // Done here rather than at each call site so a table added later is
+    // covered too.
+    var tables = root.querySelectorAll("table");
+    for (var ti = 0; ti < tables.length; ti++) {
+      var tb = tables[ti];
+      if (tb.parentNode && /\b(tw|tws)\b/.test(tb.parentNode.className || "")) continue;
+      var box = document.createElement("div");
+      box.className = "tws";
+      tb.parentNode.insertBefore(box, tb);
+      box.appendChild(tb);
+    }
   }
 
   // ── boot ──
