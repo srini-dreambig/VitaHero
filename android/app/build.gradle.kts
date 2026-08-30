@@ -25,10 +25,10 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.rork.vitahero"
+        applicationId = "kallam.healthcare"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
