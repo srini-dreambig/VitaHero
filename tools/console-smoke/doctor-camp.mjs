@@ -89,7 +89,7 @@ await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
 await p.waitForTimeout(350);
 await p.getByText("Silver Oaks").first().click();
 await p.waitForTimeout(700);
-await p.locator(".tab", { hasText: /^Camps$/ }).first().click();
+await p.locator(".navi", { hasText: /^All camps$/ }).first().click();
 await p.waitForTimeout(450);
 await p.getByText("Annual Camp").first().click();
 await p.waitForTimeout(600);

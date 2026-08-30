@@ -93,7 +93,23 @@ export const PORTAL_HTML = `<!doctype html>
   .signbrand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:18px}
   .signbrand .tag{font-size:11px;font-weight:600;letter-spacing:.13em;
     text-transform:uppercase;color:var(--blue)}
+  /* The nav is now long enough to need its own scroll, so the brand stays put
+     at the top and sign-out stays put at the bottom. */
+  .navscroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:8px}
+  .navscroll::-webkit-scrollbar{width:6px}
+  .navscroll::-webkit-scrollbar-thumb{background:#2C3E4E;border-radius:3px}
   .navsec{padding:6px 10px}
+  .navsec + .navsec{border-top:1px solid #1B2836;margin-top:2px}
+  /* A sub-item is indented and quieter than the section it sits under; the
+     marker is what carries the selected state at a glance. */
+  .navi.sub{padding-left:12px;font-size:13px;font-weight:500;gap:8px}
+  .navi.sub .dotix{width:5px;height:5px;border-radius:50%;background:#3C4F60;flex:none;
+    transition:background .12s,transform .12s}
+  .navi.sub:hover .dotix{background:#5D707E}
+  .navi.sub.on .dotix{background:var(--nav-ac);transform:scale(1.4)}
+  .navi .n{margin-left:auto;background:#2C3E4E;color:#CBD5E1;border-radius:9px;
+    padding:0 6px;font-size:11px;font-weight:650;line-height:17px}
+  .navi.sub.on .n{background:var(--nav-ac);color:#0F172A}
   .navsec h4{color:#5D707E;padding:10px 8px 6px;font-size:10.5px}
   .navi{
     display:flex;align-items:center;gap:9px;width:100%;text-align:left;
@@ -317,7 +333,13 @@ export const PORTAL_HTML = `<!doctype html>
     /* min-width:0 is the whole fix: a flex child defaults to min-width:auto,
        so this strip refused to shrink below its buttons and held the entire
        shell open at 424px inside a 390px phone. */
-    .navsec{display:flex;gap:4px;padding:0 10px 8px;overflow-x:auto;flex:1;min-width:0}
+    /* On a phone the whole nav becomes one horizontal strip: the sections run
+       on after each other rather than stacking, so the header takes one line
+       instead of half the screen. */
+    .navscroll{display:flex;overflow-x:auto;overflow-y:visible;flex:1;min-width:0;padding:0}
+    .navsec{display:flex;gap:4px;padding:0 6px 8px;flex:none;min-width:0;align-items:center}
+    .navsec + .navsec{border-top:none;border-left:1px solid #1B2836;margin-top:0}
+    .navi.sub{padding-left:10px}
     .nav{max-width:100%;min-width:0}
     /* The signed-in name and role can be long; let the footer wrap rather than
        hold the strip open. */
@@ -1205,15 +1227,9 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ school detail
   function viewSchool() {
     var s = S.school;
-    var tabs = [["roster","Roster"],["camps","Camps"],["invites","App invites"],
-      ["referrals","Follow-ups"],["questions","Questions"],["report","Report"],
-      ["classes","Classes"],["people","Staff"],["requests","Requests"],
-      ["billing","Billing"],["programme","Programme"],["history","Uploads"]];
+    // The tab strip moved into the sidebar: twelve tabs across the top asked a
+    // school office to hold the whole product in their head to find one screen.
     return el("div", null,
-      el("div", { class: "tabs" }, tabs.map(function (t) {
-        return el("button", { class: "tab" + (S.schoolTab === t[0] ? " on" : ""),
-          onclick: function () { S.schoolTab = t[0]; S.error = ""; S.upload = null; S.addChild = null; render(); loadSchoolTab(); } }, t[1]);
-      })),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       S.schoolTab === "roster" ? tabRoster()
@@ -1221,7 +1237,7 @@ export const PORTAL_HTML = `<!doctype html>
         : S.schoolTab === "referrals" ? tabReferrals()
         : S.schoolTab === "questions" ? tabQuestions()
         : S.schoolTab === "invites" ? tabInvites()
-        : S.schoolTab === "billing" ? tabBilling()
+        : S.schoolTab === "billing" ? (isOps() ? tabBilling() : tabRoster())
         : S.schoolTab === "report" ? tabReport()
         : S.schoolTab === "classes" ? tabClasses()
         : S.schoolTab === "people" ? tabPeople()
@@ -2372,12 +2388,7 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ camp detail
   function viewCamp() {
     var d = S.camp, c = d.camp, can = d.can;
-    var tabs = [];
-    if (can.schedule) tabs.push(["setup", "Setup", null]);
-    if (can.schedule) tabs.push(["people", "Parents & children", null]);
-    if (can.schedule) tabs.push(["consent", "Consent", c.pendingConsent]);
-    if (can.screen) tabs.push(["campday", "Camp day", c.awaitingReview]);
-    if (can.review) tabs.push(["review", "Review", c.awaitingReview]);
+    // The stages are in the sidebar, in the order the day runs.
     return el("div", null,
       el("div", { class: "stats" },
         el("div", { class: "stat" }, el("b", null, c.participants || 0), el("span", null, "children")),
@@ -2387,11 +2398,6 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat" }, el("b", null, c.screened || 0), el("span", null, "screened")),
         el("div", { class: "stat warn" }, el("b", null, c.awaitingReview || 0), el("span", null, "awaiting review")),
         el("div", { class: "stat ok" }, el("b", null, c.released || 0), el("span", null, "released"))),
-      el("div", { class: "tabs" }, tabs.map(function (t) {
-        return el("button", { class: "tab" + (S.campTab === t[0] ? " on" : ""),
-          onclick: function () { S.campTab = t[0]; S.error = ""; S.screenKid = null; S.reviewKid = null; render(); loadCampTab(); } },
-          t[1], t[2] ? el("span", { class: "n" }, t[2]) : null);
-      })),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       S.campTab === "setup" ? campSetup()
@@ -3334,13 +3340,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function viewOversight() {
-    var tabs = [["partners", "Hospital partners"], ["access", "Record access"],
-      ["retention", "Retention"], ["child", "Look up a child"]];
     return el("div", null,
-      el("div", { class: "tabs" }, tabs.map(function (t) {
-        return el("button", { class: "tab" + (S.oversightTab === t[0] ? " on" : ""),
-          onclick: function () { S.oversightTab = t[0]; S.error = ""; render(); loadOversightTab(); } }, t[1]);
-      })),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       S.oversightTab === "access" ? tabAccessLog()
@@ -3774,21 +3774,124 @@ export const PORTAL_HTML = `<!doctype html>
       el("span", { class: "ic" }, icon(name, 17)), label);
   }
 
+  /**
+   * The left navigation.
+   *
+   * Twelve tabs across the top of a school and five across a camp asked
+   * somebody who runs a school office to hold the whole product in their head
+   * and read a strip of words to find out where they were. This is the same
+   * screens, arranged as the work actually goes: the school you have open,
+   * then the camp you have open inside it, with the stages in the order they
+   * happen.
+   *
+   * Contextual on purpose. Nothing about a camp appears until a camp is open,
+   * so the list stays short.
+   */
+  function navSub(label, key, current, go, badge) {
+    return el("button", { class: "navi sub" + (current === key ? " on" : ""), onclick: go },
+      el("span", { class: "dotix" }), label,
+      badge ? el("span", { class: "n" }, badge) : null);
+  }
+
+  function schoolNav() {
+    if (!S.school || S.view !== "school") return null;
+    var t = S.schoolTab;
+    function go(tab) {
+      return function () {
+        S.schoolTab = tab; S.error = ""; S.upload = null; S.addChild = null;
+        render(); loadSchoolTab();
+      };
+    }
+    return [
+      el("div", { class: "navsec" },
+        el("h4", null, truncate(S.school.name, 22)),
+        navSub("Roster", "roster", t, go("roster")),
+        navSub("Classes", "classes", t, go("classes")),
+        navSub("Import history", "history", t, go("history"))),
+      el("div", { class: "navsec" },
+        el("h4", null, "Camps"),
+        navSub("All camps", "camps", t, go("camps")),
+        navSub("App invites", "invites", t, go("invites"))),
+      el("div", { class: "navsec" },
+        el("h4", null, "Following up"),
+        navSub("Referrals", "referrals", t, go("referrals")),
+        navSub("Questions", "questions", t, go("questions"))),
+      el("div", { class: "navsec" },
+        el("h4", null, "School"),
+        navSub("Staff", "people", t, go("people")),
+        navSub("Camp report", "report", t, go("report")),
+        navSub("Programme", "programme", t, go("programme")),
+        navSub("Data requests", "requests", t, go("requests")),
+        // Billing is an operations matter; a school office does not need to
+        // see what its own contract is worth.
+        isOps() ? navSub("Billing", "billing", t, go("billing")) : null),
+    ];
+  }
+
+  function campNav() {
+    if (!S.camp || S.view !== "camp") return null;
+    var c = S.camp.camp, can = S.camp.can, t = S.campTab;
+    function go(tab) {
+      return function () {
+        S.campTab = tab; S.error = ""; S.screenKid = null; S.reviewKid = null;
+        render(); loadCampTab();
+      };
+    }
+    // The order the day actually runs in.
+    var stages = [];
+    if (can.schedule) stages.push(["setup", "Setup", null]);
+    if (can.schedule) stages.push(["people", "Parents & children", null]);
+    if (can.schedule) stages.push(["consent", "Consent", c.pendingConsent]);
+    if (can.screen) stages.push(["campday", "Camp day", c.awaitingReview]);
+    if (can.review) stages.push(["review", "Review", c.awaitingReview]);
+    return el("div", { class: "navsec" },
+      el("h4", null, truncate(c.title, 22)),
+      stages.map(function (x) { return navSub(x[1], x[0], t, go(x[0]), x[2]); }));
+  }
+
+  function oversightNav() {
+    if (S.view !== "oversight") return null;
+    var t = S.oversightTab;
+    function go(tab) {
+      return function () { S.oversightTab = tab; S.error = ""; render(); loadOversightTab(); };
+    }
+    return el("div", { class: "navsec" },
+      el("h4", null, "Oversight"),
+      navSub("Hospital partners", "partners", t, go("partners")),
+      navSub("Record access", "access", t, go("access")),
+      navSub("Retention", "retention", t, go("retention")),
+      navSub("Look up a child", "child", t, go("child")));
+  }
+
+  function truncate(v, n) {
+    v = String(v || "");
+    return v.length > n ? v.slice(0, n - 1) + "…" : v;
+  }
+
   function sidebar() {
     return el("nav", { class: "nav" },
       el("div", { class: "brand" }, brandMark(26),
         el("span", { class: "wm" }, el("i", null, "vita"), el("b", null, "hero"))),
-      el("div", { class: "navsec" },
-        el("h4", null, "Menu"),
-        canManage() ? navItem("home", "Overview", "overview", function () { set({ view: "overview" }); if (!S.overview) boot(); }) : null,
-        canManage() ? navItem("school", isSchoolAdmin() ? "My school" : "Schools", "schools", function () {
-          if (isSchoolAdmin() && S.school) openSchool(S.school.id); else loadSchools();
-        }) : null,
-        isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
-        isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
-        isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
-        isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null,
-        S.camp ? navItem("flag", "Current camp", "camp", function () { set({ view: "camp" }); }) : null),
+      el("div", { class: "navscroll" },
+        el("div", { class: "navsec" },
+          el("h4", null, "Menu"),
+          canManage() ? navItem("home", "Overview", "overview", function () { set({ view: "overview" }); if (!S.overview) boot(); }) : null,
+          canManage() ? navItem("school", isSchoolAdmin() ? "My school" : "Schools", "schools", function () {
+            if (isSchoolAdmin() && S.school) openSchool(S.school.id); else loadSchools();
+          }) : null,
+          isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
+          isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
+          isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
+          isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null),
+        schoolNav(),
+        campNav(),
+        oversightNav(),
+        // Getting back out of a camp without the browser's back button.
+        S.camp && S.view === "camp" && S.school
+          ? el("div", { class: "navsec" },
+              el("button", { class: "navi", onclick: function () { openSchool(S.school.id, "camps"); } },
+                el("span", { class: "ic" }, icon("home", 17)), "Back to " + truncate(S.school.name, 18)))
+          : null),
       el("div", { class: "navfoot" },
         el("b", null, S.auth.name),
         el("div", { class: "role" }, roleLabel()),
@@ -3805,7 +3908,11 @@ export const PORTAL_HTML = `<!doctype html>
       } else if (isClinical()) {
         parts.push(el("button", { onclick: loadMyCamps }, "My camps"), " / ");
       }
-      parts.push(S.camp.camp.schoolName ? S.camp.camp.schoolName + " \\u00b7 " : "", S.camp.camp.title);
+      // Only name the school here when it is not already the crumb before
+      // this one, or it reads "Oakridge / Oakridge · Annual Camp".
+      var named = canManage() && S.school;
+      parts.push(!named && S.camp.camp.schoolName ? S.camp.camp.schoolName + " \\u00b7 " : "",
+        S.camp.camp.title);
     } else if (S.view === "newSchool") {
       parts.push(el("button", { onclick: loadSchools }, "Schools"), " / New school");
     }
