@@ -55,6 +55,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.GrowthAssessment
@@ -62,9 +63,12 @@ import com.rork.vitahero.data.GrowthPoint
 import com.rork.vitahero.data.HealthConnectService
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.heightText
+import com.rork.vitahero.data.weightText
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.FlagChip
 import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.PrimaryGradientButton
@@ -86,38 +90,14 @@ fun KidDetailScreen(
     onBack: () -> Unit,
     onOpenDiet: () -> Unit,
     onShareReport: (Context) -> Unit,
-    onAddGrowth: (heightCm: Float, weightKg: Float, label: String) -> Unit,
     onRefreshWearable: () -> Unit = {},
-    onDeleteKid: () -> Unit = {},
+    onLogSymptom: () -> Unit = {},
     onOpenGrowthCharts: () -> Unit = {},
     growthAssessment: GrowthAssessment? = null,
 ) {
     var tab by remember { mutableStateOf(DetailTab.GROWTH) }
-    var showGrowthEntry by remember { mutableStateOf(false) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
     var isGeneratingReport by remember { mutableStateOf(false) }
     val context = LocalContext.current
-
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text(t(S.deleteKidConfirm)) },
-            text = { Text(t(S.deleteKidBody)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDeleteConfirm = false
-                    onDeleteKid()
-                }) {
-                    Text(t(S.deleteKid), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text(t(S.cancel))
-                }
-            }
-        )
-    }
 
     LazyColumn(
         modifier = Modifier
@@ -133,7 +113,8 @@ fun KidDetailScreen(
                     .background(Brush.verticalGradient(listOf(Color(kid.avatarColor).copy(alpha = 0.16f), MaterialTheme.colorScheme.background)))
             ) {
                 Column {
-                    Spacer(Modifier.height(44.dp))
+                    StatusBarSpacer()
+                    Spacer(Modifier.height(8.dp))
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -170,7 +151,7 @@ fun KidDetailScreen(
                                 } else {
                                     Icon(Icons.Outlined.Share, contentDescription = "Share report", tint = HeroOrange, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Share Report", style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.SemiBold)
+                                    Text(t(S.shareReport), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                         }
@@ -183,69 +164,73 @@ fun KidDetailScreen(
                     ) {
                         KidAvatar(kid.name, kid.avatarColor, size = 84.dp)
                         Spacer(Modifier.height(12.dp))
-                        Text(kid.name, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                        Text(kid.name, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                         Text(
                             "${kid.age} yrs · ${kid.gender} · ${kid.school}",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Spacer(Modifier.height(16.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            HeaderStat("Height", "${kid.heightCm.toInt()} cm")
-                            HeaderStat("Weight", "${kid.weightKg.toInt()} kg")
+                            HeaderStat(t(S.heightLabel), kid.heightText())
+                            HeaderStat(t(S.weightLabel), kid.weightText())
                         }
                     }
                 }
             }
         }
 
-        // Add growth data entry — hidden for admin-provisioned kids (medical data is read-only).
-        if (kid.source == "ADMIN") {
-            item {
-                Spacer(Modifier.height(12.dp))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .padding(14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "Health camp data — managed by your school. Contact the camp organizer for changes.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        } else item {
+        // Height and weight come from the school's screening, not from a
+        // parent's tape measure. A guardian who thinks a number is wrong asks
+        // for a correction, which the school checks — that is the whole point
+        // of a record a clinician can rely on. What a parent *can* add is the
+        // everyday illness the school never sees.
+        item {
             Spacer(Modifier.height(12.dp))
-            if (showGrowthEntry) {
-                GrowthEntryCard(
-                    kid = kid,
-                    onSave = { h, w, label ->
-                        onAddGrowth(h, w, label)
-                        showGrowthEntry = false
-                    },
-                    onDismiss = { showGrowthEntry = false }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(14.dp),
+            ) {
+                Text(
+                    t(S.measurementsFromSchool),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            } else {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(HeroOrange.copy(alpha = 0.07f))
-                        .clickable { showGrowthEntry = true }
-                        .padding(14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Add, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(t(S.logMeasurements), color = HeroOrange, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    }
+            }
+            Spacer(Modifier.height(10.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(HeroOrange.copy(alpha = 0.07f))
+                    .clickable(onClick = onLogSymptom)
+                    .padding(14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.Add,
+                        contentDescription = null,
+                        tint = HeroOrange,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        t(S.logSymptom),
+                        color = HeroOrange,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                    )
                 }
             }
         }
@@ -336,112 +321,7 @@ fun KidDetailScreen(
             }
         }
 
-        item {
-            Spacer(Modifier.height(24.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f))
-                    .clickable { showDeleteConfirm = true }
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    t(S.deleteKid),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-            Spacer(Modifier.height(32.dp))
-        }
-    }
-}
-
-@Composable
-private fun GrowthEntryCard(
-    kid: Kid,
-    onSave: (heightCm: Float, weightKg: Float, label: String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var height by remember { mutableStateOf(kid.heightCm.toString()) }
-    var weight by remember { mutableStateOf(kid.weightKg.toString()) }
-    val canSave = height.toFloatOrNull() != null && weight.toFloatOrNull() != null
-
-    HeroCard(Modifier.padding(horizontal = 20.dp), background = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.AutoMirrored.Outlined.TrendingUp, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(22.dp))
-                Spacer(Modifier.width(8.dp))
-                Text(t(S.newMeasurement), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                Box(
-                    Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                        .clickable(onClick = onDismiss),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Outlined.Close, contentDescription = "Dismiss", modifier = Modifier.size(18.dp))
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text(t(S.kidHeight), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = height,
-                        onValueChange = { height = it.filter { c -> c.isDigit() || c == '.' } },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = HeroOrange,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(t(S.kidWeight), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(4.dp))
-                    OutlinedTextField(
-                        value = weight,
-                        onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } },
-                        singleLine = true,
-                        shape = RoundedCornerShape(12.dp),
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = HeroOrange,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                        ),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-            PrimaryGradientButton(
-                text = t(S.saveMeasurements),
-                enabled = canSave,
-                onClick = {
-                    val h = height.toFloatOrNull() ?: return@PrimaryGradientButton
-                    val w = weight.toFloatOrNull() ?: return@PrimaryGradientButton
-                    val label = java.time.LocalDate.now().let { d ->
-                        val fmt = java.time.format.DateTimeFormatter.ofPattern("dd MMM")
-                        d.format(fmt)
-                    }
-                    onSave(h, w, label)
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+        item { Spacer(Modifier.height(32.dp)) }
     }
 }
 

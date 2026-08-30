@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.ArticleDto
 import com.rork.vitahero.data.GuardianViewModel
@@ -134,13 +135,18 @@ private fun ArticleRow(a: ArticleDto, personal: Boolean, onOpen: () -> Unit) {
                 .clickable(onClick = onOpen)
                 .padding(16.dp),
         ) {
-            Text(a.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(a.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (a.summary.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
                     a.summary,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             // Saying why this article is here matters more than the article: a

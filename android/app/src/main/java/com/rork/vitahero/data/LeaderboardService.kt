@@ -30,11 +30,11 @@ object LeaderboardService {
         localEatenMeals: Int,
         localStreak: Int,
     ): List<LeaderEntry> = withContext(Dispatchers.IO) {
-        if (!ApiService.isConfigured) {
-            return@withContext listOf(
-                LeaderEntry(1, currentKidName, (localEatenMeals * 10) + (localStreak * 50) + 1500, true)
-            )
-        }
+        // A leaderboard with one invented entry is not a leaderboard. When
+        // there is no server to rank against, show nothing and let the screen
+        // say so, rather than handing a parent a score of 1500 that no other
+        // child was measured against.
+        if (!ApiService.isConfigured) return@withContext emptyList()
         try {
             val http = ApiService.http
             val base = ApiService.baseUrl
@@ -50,11 +50,7 @@ object LeaderboardService {
             val json = Json { ignoreUnknownKeys = true; isLenient = true }
             val raw = resp.body<List<LeaderboardRow>>()
 
-            if (raw.isEmpty()) {
-                return@withContext listOf(
-                    LeaderEntry(1, currentKidName, (localEatenMeals * 10) + (localStreak * 50) + 1500, true)
-                )
-            }
+            if (raw.isEmpty()) return@withContext emptyList()
 
             raw.map { row ->
                 LeaderEntry(
@@ -65,9 +61,7 @@ object LeaderboardService {
                 )
             }
         } catch (_: Exception) {
-            listOf(
-                LeaderEntry(1, currentKidName, (localEatenMeals * 10) + (localStreak * 50) + 1500, true)
-            )
+            emptyList()
         }
     }
 

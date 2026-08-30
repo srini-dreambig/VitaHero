@@ -253,7 +253,9 @@ for f, src in SRC.items():
         continue
     for m in re.finditer(r"^(?:@\w+\s*)?(?:public |internal |private )?"
                          r"(?:fun|class|object|interface|enum class|data class|val|const val) "
-                         r"(\w+)", src, re.M):
+                         r"(?:\w+\.)?(\w+)", src, re.M):
+        # An optional `Receiver.` prefix means an extension function; the name
+        # to record is what follows it, not the type it hangs off.
         declared.add(pkg.group(1) + "." + m.group(1))
 
 missing = set()

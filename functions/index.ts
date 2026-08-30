@@ -148,6 +148,14 @@ import {
   setParentPlan,
   billingSummary,
 } from "./billing";
+import {
+  ensureSymptomSchema,
+  symptomOptions,
+  recordSymptom,
+  kidSymptoms,
+  deleteSymptom,
+  symptomHistoryForClinician,
+} from "./symptoms";
 import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
@@ -1513,6 +1521,7 @@ export default {
           await ensureMessageSchema(sql);
           await ensureLibrarySchema(sql);
           await ensureBillingSchema(sql);
+          await ensureSymptomSchema(sql);
           schemaReady = true;
         } catch (schemaErr) {
           console.error("Schema init error:", schemaErr);
@@ -1777,6 +1786,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (method === "GET") return json(await listFindingPhotos(sql, actor, campId, third));
             if (method === "POST") return json(await uploadFindingPhoto(sql, actor, campId, third, await readBody()), 201);
             return json({ error: "Method not allowed" }, 405);
+          }
+
+          // The family's own account of everyday illness since the last camp.
+          // History for the clinician, never a finding.
+          if (section === "symptoms" && method === "GET") {
+            if (!third) return json({ error: "Which child?" }, 400);
+            return json(await symptomHistoryForClinician(sql, actor, campId, third));
           }
 
           if (section === "photo-trail" && method === "GET") {
@@ -2635,6 +2651,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           || path === "/api/me/photos" || path.startsWith("/api/me/photo/")
           || path === "/api/me/questions" || path.startsWith("/api/me/questions/")
           || path === "/api/me/question-policy" || path === "/api/me/entitlements"
+          || path === "/api/me/symptoms" || path.startsWith("/api/me/symptoms/")
           || path === "/api/library" || path.startsWith("/api/library/")
           || path === "/api/me" || path === "/api/kids/history") {
         if (!session) return json({ error: "Unauthorized" }, 401);
@@ -2739,6 +2756,21 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           // ── What this account can and cannot use ──
           if (path === "/api/me/entitlements" && request.method === "GET") {
             return json(await entitlements(sql, pid));
+          }
+
+          // ── Everyday illness, the one clinical thing a parent may write ──
+          if (path === "/api/me/symptoms" && request.method === "GET") {
+            const kidId = url.searchParams.get("kid_id") || "";
+            if (!kidId) return json(symptomOptions());
+            return json({ ...symptomOptions(), ...(await kidSymptoms(sql, pid, kidId)) });
+          }
+          if (path === "/api/me/symptoms" && request.method === "POST") {
+            const b = await readBody();
+            return json(await recordSymptom(sql, pid, String(b.kidId || ""), b), 201);
+          }
+          if (path.startsWith("/api/me/symptoms/") && request.method === "DELETE") {
+            const id = decodeURIComponent(path.slice("/api/me/symptoms/".length));
+            return json(await deleteSymptom(sql, pid, id));
           }
           return json({ error: "Not found" }, 404);
         } catch (e) {

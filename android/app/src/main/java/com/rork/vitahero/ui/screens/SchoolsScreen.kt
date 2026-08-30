@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.PartnerSchool
@@ -134,6 +135,8 @@ fun SchoolsScreen(
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                     color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }
@@ -167,7 +170,10 @@ private fun LinkedSchoolCard(school: PartnerSchool) {
             IconBubble(Icons.Outlined.CheckCircle, HeroOrange)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(school.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(school.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text("${school.city} · ${school.district}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text(t(S.linked), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.Bold)
@@ -182,7 +188,10 @@ private fun PartnerSchoolCard(school: PartnerSchool, isLinked: Boolean) {
             Icon(Icons.Outlined.School, contentDescription = null, tint = HeroBlue, modifier = Modifier.size(28.dp))
             Spacer(Modifier.width(14.dp))
             Column {
-                Text(school.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(school.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text("${school.city}, ${school.district}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (school.description.isNotBlank()) {
                     Spacer(Modifier.height(6.dp))

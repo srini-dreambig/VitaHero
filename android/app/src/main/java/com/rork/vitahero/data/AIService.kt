@@ -33,10 +33,14 @@ object AIService {
     private fun fallbackTip(kid: Kid, streak: StreakInfo): AIDietContent {
         val age = kid.age
         val name = kid.name
-        val greeting = when {
-            kid.nutrition == HealthFlag.GOOD -> "Great job, $name's eating well!"
-            kid.nutrition == HealthFlag.WATCH -> "Let's boost $name's nutrition!"
-            else -> "$name needs some extra care with meals"
+        // NOT_MEASURED used to fall through to "needs extra care" here and to
+        // "keep up the great balance" below — the same absence of data read as
+        // a problem in one line and as a clean result in the next.
+        val greeting = when (kid.nutrition) {
+            HealthFlag.GOOD -> "Great job, $name's eating well!"
+            HealthFlag.WATCH -> "Let's boost $name's nutrition!"
+            HealthFlag.ALERT -> "$name needs some extra care with meals"
+            HealthFlag.NOT_MEASURED -> "Everyday ideas for $name"
         }
         val insight = when {
             age <= 6 -> "Kids $age and under need calcium-rich foods for strong bones. Milk, curd, and ragi are excellent choices."
@@ -46,7 +50,10 @@ object AIService {
         val suggestion = when (kid.nutrition) {
             HealthFlag.WATCH -> "Try adding a boiled egg or a bowl of sprout chaat to $name's evening snack."
             HealthFlag.ALERT -> "Swap packaged snacks with cucumber/carrot sticks and roasted chana."
-            else -> "Keep up the great balance! Rotate between dal-rice, khichdi, idli-sambar, and roti-sabzi."
+            HealthFlag.GOOD -> "Keep up the great balance! Rotate between dal-rice, khichdi, idli-sambar, and roti-sabzi."
+            HealthFlag.NOT_MEASURED ->
+                "Rotate between dal-rice, khichdi, idli-sambar, and roti-sabzi. " +
+                "A school camp has not assessed $name's nutrition yet, so this is general advice."
         }
         val funFact = listOf(
             "Soaking almonds overnight removes tannins and makes nutrients easier to absorb!",

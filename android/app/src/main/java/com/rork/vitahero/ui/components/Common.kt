@@ -42,11 +42,25 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.tr
+
+/**
+ * How much room the bottom navigation bar takes, plus the system navigation
+ * inset beneath it.
+ *
+ * Every tab screen scrolls its own content behind that bar, so each one has to
+ * end with this much padding or its last row sits underneath the tabs. They
+ * used to end with a flat 24.dp, which is roughly a third of what is needed —
+ * on every phone, on all five tabs, the last child, camp and badge were clipped.
+ */
+@Composable
+fun bottomBarClearance(): Dp =
+    72.dp + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
 @Composable
 fun StatusBarSpacer() {

@@ -1,6 +1,7 @@
 package com.rork.vitahero.data
 
 import io.ktor.client.call.body
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -185,6 +186,33 @@ class GuardianRepository {
     suspend fun declineReferral(referralId: String, reason: String): Result<SimpleOkDto> =
         postFor("/api/referrals/$referralId/decline", ReasonBody(reason))
 
+    // ─── Everyday illness ───────────────────────────────────
+
+    /**
+     * The complaint list, the wording, and this child's history.
+     *
+     * The list comes from the server rather than the app so that a build
+     * running an old version cannot offer a complaint the server rejects.
+     */
+    suspend fun symptomLog(kidId: String): SymptomLogDto =
+        getOr("/api/me/symptoms", SymptomLogDto(), mapOf("kid_id" to kidId))
+
+    suspend fun recordSymptom(body: SymptomBody): Result<SymptomSavedDto> =
+        postFor("/api/me/symptoms", body)
+
+    suspend fun deleteSymptom(eventId: String): Result<SimpleOkDto> = io {
+        if (!configured) return@io Result.failure(Exception("Backend not configured"))
+        try {
+            val resp = http.delete("$base/api/me/symptoms/$eventId") {
+                headers().forEach { (k, v) -> header(k, v) }
+            }
+            if (resp.status.isSuccess()) Result.success(SimpleOkDto())
+            else Result.failure(Exception("Could not delete that"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     // ─── Plan ───────────────────────────────────────────────
 
     /**
@@ -214,4 +242,29 @@ class GuardianRepository {
 
     suspend fun withdrawConsent(reason: String): Result<SimpleOkDto> =
         postFor("/api/me/consent/withdraw", ReasonBody(reason))
+
+    /**
+     * Erase one child's record completely.
+     *
+     * This is the DPDP erasure right, not a tidy-up: findings, referrals and
+     * camp participation go with it, and the deletion itself is logged. It is
+     * reachable only from the record screen, never from a button sitting next
+     * to the child's health data, because the two are not the same act.
+     */
+    suspend fun eraseChild(kidId: String): Result<SimpleOkDto> = io {
+        if (!configured) return@io Result.failure(Exception("Backend not configured"))
+        try {
+            val resp = http.delete("$base/api/kids/$kidId") {
+                headers().forEach { (k, v) -> header(k, v) }
+            }
+            if (resp.status.isSuccess()) {
+                Result.success(SimpleOkDto())
+            } else {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                Result.failure(Exception(err?.error ?: "Request failed"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }

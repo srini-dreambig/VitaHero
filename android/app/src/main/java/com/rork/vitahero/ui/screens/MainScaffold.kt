@@ -51,17 +51,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppViewModel
+import com.rork.vitahero.data.S
+import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.data.KidsViewModel
 import com.rork.vitahero.data.ProfileViewModel
 
-private enum class Tab(val label: String, val filled: ImageVector, val outlined: ImageVector) {
-    HOME("Home", Icons.Filled.Home, Icons.Outlined.Home),
-    KIDS("Kids", Icons.Filled.Groups, Icons.Outlined.Groups),
-    CAMPS("Camps", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth),
-    REWARDS("Rewards", Icons.Filled.WorkspacePremium, Icons.Outlined.WorkspacePremium),
-    PROFILE("Profile", Icons.Filled.Person, Icons.Outlined.Person),
+/** `labelKey` rather than a literal: this bar was the last English-only chrome. */
+private enum class Tab(val labelKey: String, val filled: ImageVector, val outlined: ImageVector) {
+    HOME(S.navHome, Icons.Filled.Home, Icons.Outlined.Home),
+    KIDS(S.navKids, Icons.Filled.Groups, Icons.Outlined.Groups),
+    CAMPS(S.navCamps, Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth),
+    REWARDS(S.navRewards, Icons.Filled.WorkspacePremium, Icons.Outlined.WorkspacePremium),
+    PROFILE(S.navProfile, Icons.Filled.Person, Icons.Outlined.Person),
 }
 
 @Composable
@@ -196,6 +200,7 @@ private fun BottomBar(
             Tab.entries.forEach { tab ->
                 val isSelected = tab == selected
                 val scale by animateFloatAsState(if (isSelected) 1.1f else 1f, label = "tabScale")
+                val label = t(tab.labelKey)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier
@@ -208,14 +213,16 @@ private fun BottomBar(
                 ) {
                     Icon(
                         imageVector = if (isSelected) tab.filled else tab.outlined,
-                        contentDescription = tab.label,
+                        contentDescription = label,
                         tint = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
                         modifier = Modifier.size((22 * scale).dp),
                     )
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        tab.label,
+                        label,
                         style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                         color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
                     )

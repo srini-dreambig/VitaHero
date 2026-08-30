@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.GrowthAssessment
 import com.rork.vitahero.data.GrowthStandards
@@ -92,6 +93,33 @@ fun GrowthChartsScreen(
                 }
             }
             Spacer(Modifier.height(12.dp))
+        }
+
+        // No measurement, no chart. Plotting zero would put this child at the
+        // bottom of the curve and read as a severe growth problem.
+        if (kid.heightCm <= 0f || kid.weightKg <= 0f) {
+            item {
+                HeroCard(Modifier.fillMaxWidth()) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            t(S.noGrowthData),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            t(S.noGrowthDataSub),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            }
+            return@LazyColumn
         }
 
         assessment?.let { a ->

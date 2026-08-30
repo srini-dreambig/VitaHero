@@ -166,12 +166,6 @@ class ApiRepository {
         postResult("/api/kids", dto)
     }
 
-    suspend fun deleteKid(kidId: String) = onIo {
-        val h = authHeaders()
-        http.delete("$base/api/kids/$kidId") {
-            h.forEach { (k, v) -> header(k, v) }
-        }
-    }
 
     // ─── Camps ─────────────────────────────────────────────────
 

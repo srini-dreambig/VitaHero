@@ -57,15 +57,13 @@ import com.rork.vitahero.ui.theme.HeroOrange
 @Composable
 fun AddKidScreen(
     onBack: () -> Unit,
-    onSave: (name: String, age: Int, gender: String, school: String, grade: String, height: Float, weight: Float) -> Unit
+    onSave: (name: String, age: Int, gender: String, school: String, grade: String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf("Boy") }
     var school by remember { mutableStateOf("") }
     var grade by remember { mutableStateOf("") }
-    var height by remember { mutableStateOf("") }
-    var weight by remember { mutableStateOf("") }
 
     val canSave = name.isNotBlank() && age.isNotBlank()
 
@@ -141,30 +139,25 @@ fun AddKidScreen(
             HeroTextField(value = grade, onValueChange = { grade = it }, placeholder = "e.g. Class 4-B")
             Spacer(Modifier.height(16.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Column(Modifier.weight(1f)) {
-                    FieldLabel(t(S.kidHeight))
-                    HeroTextField(value = height, onValueChange = { height = it.filter { c -> c.isDigit() || c == '.' } }, placeholder = "e.g. 132", keyboardType = KeyboardType.Number)
-                }
-                Column(Modifier.weight(1f)) {
-                    FieldLabel(t(S.kidWeight))
-                    HeroTextField(value = weight, onValueChange = { weight = it.filter { c -> c.isDigit() || c == '.' } }, placeholder = "e.g. 29", keyboardType = KeyboardType.Number)
-                }
-            }
+            // Height and weight are not asked for. They are measured at a
+            // school camp by someone trained to measure them, and a number a
+            // parent types at home would be indistinguishable in the record
+            // from one a nurse took — which is exactly the confusion a health
+            // record must not have.
+            Spacer(Modifier.height(20.dp))
+            InfoBanner(t(S.addChildNoMeasurements))
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(24.dp))
             PrimaryGradientButton(
                 text = t(S.saveKid),
                 enabled = canSave,
                 onClick = {
                     onSave(
                         name.trim(),
-                        age.toIntOrNull() ?: 8,
+                        age.toIntOrNull() ?: 0,
                         gender,
-                        school.ifBlank { "—" },
-                        grade.ifBlank { "—" },
-                        height.toFloatOrNull() ?: 120f,
-                        weight.toFloatOrNull() ?: 24f
+                        school.trim(),
+                        grade.trim(),
                     )
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -205,5 +198,22 @@ private fun AddKidScreenPreview() {
         AppTheme {
             AddKidScreen(onBack = {}, onSave = { _, _, _, _, _, _, _ -> })
         }
+    }
+}
+
+@Composable
+private fun InfoBanner(text: String) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+            .padding(14.dp),
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

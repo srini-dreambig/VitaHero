@@ -63,6 +63,15 @@ import {
   upsertArticle,
 } from "./library";
 import {
+  ensureSymptomSchema,
+  symptomOptions,
+  recordSymptom,
+  kidSymptoms,
+  deleteSymptom,
+  symptomHistoryForClinician,
+  SYMPTOMS,
+} from "./symptoms";
+import {
   ensureBillingSchema,
   setContract,
   getContract,
@@ -173,8 +182,13 @@ beforeAll(async () => {
   await ensureMessageSchema(sql);
   await ensureLibrarySchema(sql);
   await ensureBillingSchema(sql);
+  await ensureSymptomSchema(sql);
 });
 afterAll(async () => { if (client) await client.end(); });
+
+/** N days before today, as YYYY-MM-DD. The symptom log only accepts real dates. */
+const daysAgo = (n: number) =>
+  new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
 
 /** A tiny but structurally valid PNG, as base64. */
 const PNG_1PX =
@@ -631,6 +645,125 @@ suite("photographs, questions, library and billing", () => {
     expect(e.plan).toBe("FREE");
     expect(e.features.AI_DIET_COACH).toBe(false);
     expect(e.care.campResults).toBe(true);
+  });
+
+  // ── Everyday illness, recorded by the parent ─────────────
+  //
+  // The boundary this feature exists to hold: a parent may record that their
+  // child had a fever, and may not record a measurement or a diagnosis.
+
+  test("the form says plainly that it is not a way to get help now", () => {
+    const o = symptomOptions();
+    expect(o.notice).toMatch(/not a way to get help now/i);
+    expect(o.notice).toMatch(/take them to one/i);
+    expect(o.symptoms.length).toBeGreaterThan(8);
+  });
+
+  test("a parent records an everyday illness against their own child", async () => {
+    const r = await recordSymptom(sql, guardianIds[1], kidIds[1], {
+      symptom: "Fever", severity: "MILD", startedOn: daysAgo(10),
+      endedOn: daysAgo(8), note: "Settled with paracetamol", missedSchool: true,
+    });
+    expect(r.symptom).toBe("Fever");
+    const list = await kidSymptoms(sql, guardianIds[1], kidIds[1]);
+    expect(list.events.length).toBe(1);
+    expect(list.events[0].missedSchool).toBe(true);
+  });
+
+  test("a complaint that can turn serious comes back with advice to see a doctor", async () => {
+    const r = await recordSymptom(sql, guardianIds[1], kidIds[1], {
+      symptom: "Loose motions", severity: "MODERATE", startedOn: daysAgo(7),
+    });
+    expect(r.advice).toMatch(/ORS/);
+    expect(r.advice).toMatch(/see a doctor today/i);
+  });
+
+  test("only the listed complaints are accepted, so nobody enters a diagnosis", async () => {
+    for (const bad of ["Diabetes", "Anaemia", "Asthma", "Height 132cm", ""]) {
+      await expect(recordSymptom(sql, guardianIds[1], kidIds[1], {
+        symptom: bad, startedOn: daysAgo(10),
+      })).rejects.toThrow(/listed complaints/i);
+    }
+  });
+
+  test("nothing in the list is a measurement or a diagnosis", () => {
+    for (const s of SYMPTOMS) {
+      expect(s).not.toMatch(/height|weight|bmi|vision|acuity|haemoglobin|hb\b/i);
+    }
+  });
+
+  test("a free-text note is kept, but never in place of the complaint", async () => {
+    const r = await recordSymptom(sql, guardianIds[1], kidIds[1], {
+      symptom: "Cough", startedOn: daysAgo(6),
+      note: "x".repeat(900),
+    });
+    const rows = await client.query(
+      "SELECT symptom, note FROM vita_hero.symptom_events WHERE id=$1", [r.id]);
+    expect(rows.rows[0].symptom).toBe("Cough");
+    expect(rows.rows[0].note.length).toBe(500);
+  });
+
+  test("a date in the future, or older than a year, is refused", async () => {
+    await expect(recordSymptom(sql, guardianIds[1], kidIds[1], {
+      symptom: "Fever", startedOn: "2099-01-01",
+    })).rejects.toThrow(/future/i);
+    await expect(recordSymptom(sql, guardianIds[1], kidIds[1], {
+      symptom: "Fever", startedOn: "2000-01-01",
+    })).rejects.toThrow(/more than a year/i);
+    await expect(recordSymptom(sql, guardianIds[1], kidIds[1], {
+      symptom: "Fever", startedOn: "last tuesday",
+    })).rejects.toThrow(/YYYY-MM-DD/);
+  });
+
+  test("an illness cannot have ended before it started", async () => {
+    await expect(recordSymptom(sql, guardianIds[1], kidIds[1], {
+      symptom: "Fever", startedOn: daysAgo(10), endedOn: daysAgo(12),
+    })).rejects.toThrow(/before it started/i);
+  });
+
+  test("a parent cannot record against another family's child", async () => {
+    await expect(recordSymptom(sql, guardianIds[3], kidIds[1], {
+      symptom: "Fever", startedOn: daysAgo(10),
+    })).rejects.toThrow(/not your child/i);
+    await expect(kidSymptoms(sql, guardianIds[3], kidIds[1]))
+      .rejects.toThrow(/not your child/i);
+  });
+
+  test("recording an illness does not touch a single clinical flag", async () => {
+    const before = await client.query(
+      "SELECT dental, eyesight, nutrition, overall_score FROM vita_hero.kids WHERE id=$1", [kidIds[1]]);
+    await recordSymptom(sql, guardianIds[1], kidIds[1], {
+      symptom: "Toothache", severity: "MODERATE", startedOn: daysAgo(5),
+    });
+    const after = await client.query(
+      "SELECT dental, eyesight, nutrition, overall_score FROM vita_hero.kids WHERE id=$1", [kidIds[1]]);
+    expect(after.rows[0]).toEqual(before.rows[0]);
+    const findings = await client.query(
+      "SELECT COUNT(*)::int AS n FROM vita_hero.camp_findings WHERE kid_id=$1 AND check_type='Dental'",
+      [kidIds[1]]);
+    // A toothache reported by a parent must not appear as a dental finding.
+    expect(findings.rows[0].n).toBe(0);
+  });
+
+  test("the clinical team sees it as the family's account, clearly labelled", async () => {
+    const h = await symptomHistoryForClinician(sql, physician, campId, kidIds[1]);
+    expect(h.source).toBe("REPORTED_BY_GUARDIAN");
+    expect(h.caution).toMatch(/not examined or confirmed/i);
+    expect(h.events.length).toBeGreaterThan(0);
+  });
+
+  test("the school office cannot read a child's illness history", async () => {
+    await expect(symptomHistoryForClinician(sql, schoolAdmin, campId, kidIds[1]))
+      .rejects.toThrow(/clinical team and the child's guardian only/i);
+  });
+
+  test("a parent can delete what they wrote, and only what they wrote", async () => {
+    const list = await kidSymptoms(sql, guardianIds[1], kidIds[1]);
+    const id = list.events[0].id;
+    await expect(deleteSymptom(sql, guardianIds[3], id)).rejects.toThrow(/not found/i);
+    await deleteSymptom(sql, guardianIds[1], id);
+    const after = await kidSymptoms(sql, guardianIds[1], kidIds[1]);
+    expect(after.events.find((e) => e.id === id)).toBeUndefined();
   });
 
   test("a guardian's results stay readable on the free plan", async () => {

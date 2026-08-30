@@ -52,6 +52,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Appointment
 import com.rork.vitahero.data.BookingDirectory
@@ -63,6 +64,7 @@ import com.rork.vitahero.data.S
 import com.rork.vitahero.data.BookingTimeSlot
 import com.rork.vitahero.ui.components.DoctorDirectoryCard
 import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.HospitalDirectoryCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
@@ -165,7 +167,8 @@ fun BookingScreen(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Spacer(Modifier.height(40.dp))
+                StatusBarSpacer()
+                Spacer(Modifier.height(8.dp))
                 Box(
                     Modifier
                         .size(96.dp)
@@ -308,7 +311,10 @@ fun BookingScreen(
                         ) {
                             KidAvatar(kid.name, kid.avatarColor, size = 32.dp)
                             Spacer(Modifier.width(8.dp))
-                            Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurface)
+                            Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
                     }
                 }
@@ -343,7 +349,7 @@ fun BookingScreen(
                                 .padding(horizontal = 10.dp, vertical = 4.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Clear", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
+                                Text(t(S.clearLabel), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
                                 Spacer(Modifier.width(4.dp))
                                 Icon(Icons.Outlined.Close, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
                             }
@@ -524,7 +530,10 @@ private fun HospitalSectionHeader(hospital: Hospital) {
         Icon(Icons.Outlined.LocalHospital, contentDescription = null, tint = HeroBlue, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Column {
-            Text(hospital.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(hospital.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (hospital.userCampLinked || hospital.isCampPartner) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(12.dp))
@@ -546,11 +555,16 @@ private fun ExistingAppointmentCard(appt: Appointment, onCancel: () -> Unit) {
             IconBubble(Icons.Outlined.CalendarMonth, HeroBlue)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text(appt.doctorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(appt.doctorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(
                     "${appt.specialty} · for ${appt.kidName}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text("${appt.date} · ${appt.time}", style = MaterialTheme.typography.labelSmall, color = HeroBlue, fontWeight = FontWeight.SemiBold)
             }

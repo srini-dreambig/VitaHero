@@ -308,3 +308,52 @@ data class DataRightsDto(val history: List<DataRightDto> = emptyList())
 
 @Serializable
 data class SimpleOkDto(val ok: Boolean = true, val message: String = "")
+
+// ─── Everyday illness ───────────────────────────────────────
+
+@Serializable
+data class SymptomEventDto(
+    val id: String = "",
+    val kidId: String = "",
+    val symptom: String = "",
+    val severity: String = "MILD",
+    val startedOn: String = "",
+    val endedOn: String = "",
+    val note: String = "",
+    val sawDoctor: Boolean = false,
+    val missedSchool: Boolean = false,
+)
+
+@Serializable
+data class SymptomLogDto(
+    val symptoms: List<String> = emptyList(),
+    val severities: List<String> = emptyList(),
+    /** Written by the server so this wording cannot drift from the API's. */
+    val notice: String = "",
+    val events: List<SymptomEventDto> = emptyList(),
+)
+
+@Serializable
+data class SymptomBody(
+    val kidId: String,
+    val symptom: String,
+    val severity: String,
+    val startedOn: String,
+    val endedOn: String? = null,
+    val note: String = "",
+    val sawDoctor: Boolean = false,
+    val missedSchool: Boolean = false,
+)
+
+@Serializable
+data class SymptomSavedDto(
+    val id: String = "",
+    val symptom: String = "",
+    val startedOn: String = "",
+    /**
+     * Present when this complaint has a version that needs care today. Shown
+     * after saving — the record is kept either way, because a worried parent
+     * should not lose what they typed.
+     */
+    val advice: String = "",
+)

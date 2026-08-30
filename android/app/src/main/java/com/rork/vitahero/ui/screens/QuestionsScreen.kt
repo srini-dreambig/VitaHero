@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.GuardianViewModel
 import com.rork.vitahero.data.Kid
@@ -262,6 +263,8 @@ private fun ThreadRow(th: QuestionThreadDto, onOpen: () -> Unit) {
                     th.subject.ifBlank { th.schoolName },
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
                     listOf(th.schoolName, th.kidName).filter { it.isNotBlank() }.joinToString(" · "),

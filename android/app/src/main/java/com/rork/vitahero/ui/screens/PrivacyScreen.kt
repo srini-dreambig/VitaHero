@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,8 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.GuardianViewModel
+import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
@@ -53,8 +56,10 @@ import com.rork.vitahero.ui.theme.HeroOrange
  */
 @Composable
 fun PrivacyScreen(
+    kids: List<Kid>,
     guardianViewModel: GuardianViewModel,
     onBack: () -> Unit,
+    onErased: (kidId: String) -> Unit = {},
 ) {
     val rights by guardianViewModel.dataRights.collectAsState()
     val entitlements by guardianViewModel.entitlements.collectAsState()
@@ -64,6 +69,7 @@ fun PrivacyScreen(
 
     var withdrawing by remember { mutableStateOf(false) }
     var reason by remember { mutableStateOf("") }
+    var erasing by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(
         modifier = Modifier
@@ -168,6 +174,81 @@ fun PrivacyScreen(
                 }
             }
             Spacer(Modifier.height(14.dp))
+        }
+
+        // Erasure. It lives here rather than beside a child's health data,
+        // because deleting a medical record is a right a parent exercises
+        // deliberately, not a tidy-up button next to their test results.
+        if (kids.isNotEmpty()) {
+            item {
+                HeroCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconBubble(Icons.Outlined.DeleteOutline, MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                t(S.eraseTitle),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            t(S.eraseBody),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        kids.forEach { kid ->
+                            val confirming = erasing == kid.id
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    kid.name,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.weight(1f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                if (!confirming) {
+                                    OutlinedButton(
+                                        onClick = { erasing = kid.id },
+                                        shape = RoundedCornerShape(12.dp),
+                                    ) {
+                                        Text(t(S.eraseAction))
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = {
+                                            guardianViewModel.eraseChild(kid.id) {
+                                                onErased(kid.id)
+                                                erasing = null
+                                            }
+                                        },
+                                        enabled = !busy,
+                                        shape = RoundedCornerShape(12.dp),
+                                    ) {
+                                        Text(
+                                            t(S.eraseConfirm),
+                                            color = MaterialTheme.colorScheme.error,
+                                        )
+                                    }
+                                    Spacer(Modifier.width(6.dp))
+                                    OutlinedButton(
+                                        onClick = { erasing = null },
+                                        shape = RoundedCornerShape(12.dp),
+                                    ) {
+                                        Text(t(S.cancelLabel))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
         }
 
         if (rights.isNotEmpty()) {

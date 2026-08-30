@@ -105,8 +105,8 @@ object PdfReportGenerator {
         canvas.drawText("VITAL STATISTICS", MARGIN + 16f, y, headerPaint)
         y += 22f
         val stats = listOf(
-            "Height" to "${k.heightCm.toInt()} cm",
-            "Weight" to "${k.weightKg.toInt()} kg",
+            "Height" to k.heightText(),
+            "Weight" to k.weightText(),
             "Health Score" to "${k.overallScore}%"
         )
         var sx = MARGIN + 16f

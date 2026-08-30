@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.GuardianViewModel
 import com.rork.vitahero.data.PendingConsentDto
@@ -128,7 +129,10 @@ private fun ConsentRequestCard(
 
     HeroCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp)) {
-            Text(c.kidName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text(c.kidName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Spacer(Modifier.height(2.dp))
             Text(
                 listOf(c.schoolName, c.title).filter { it.isNotBlank() }.joinToString(" · "),

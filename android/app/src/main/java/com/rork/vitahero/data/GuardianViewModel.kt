@@ -63,6 +63,14 @@ class GuardianViewModel(
     private val _referrals = MutableStateFlow<List<ReferralDto>>(emptyList())
     val referrals: StateFlow<List<ReferralDto>> = _referrals.asStateFlow()
 
+    // ── everyday illness ──
+    private val _symptomLog = MutableStateFlow(SymptomLogDto())
+    val symptomLog: StateFlow<SymptomLogDto> = _symptomLog.asStateFlow()
+
+    /** Set after a save when the complaint has a version that needs care today. */
+    private val _symptomAdvice = MutableStateFlow("")
+    val symptomAdvice: StateFlow<String> = _symptomAdvice.asStateFlow()
+
     // ── plan and rights ──
     private val _entitlements = MutableStateFlow(EntitlementsDto())
     val entitlements: StateFlow<EntitlementsDto> = _entitlements.asStateFlow()
@@ -229,6 +237,57 @@ class GuardianViewModel(
         }
     }
 
+    // ─── Everyday illness ───────────────────────────────────
+
+    fun loadSymptoms(kidId: String) {
+        viewModelScope.launch { _symptomLog.value = repo.symptomLog(kidId) }
+    }
+
+    fun recordSymptom(
+        kidId: String,
+        symptom: String,
+        severity: String,
+        startedOn: String,
+        endedOn: String?,
+        note: String,
+        sawDoctor: Boolean,
+        missedSchool: Boolean,
+        onDone: () -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            _busy.value = true
+            repo.recordSymptom(
+                SymptomBody(
+                    kidId = kidId, symptom = symptom, severity = severity,
+                    startedOn = startedOn, endedOn = endedOn?.takeIf { it.isNotBlank() },
+                    note = note, sawDoctor = sawDoctor, missedSchool = missedSchool,
+                )
+            ).fold(
+                onSuccess = { saved ->
+                    _symptomLog.value = repo.symptomLog(kidId)
+                    // Kept whether or not there is advice: the record is saved
+                    // either way, and the advice is shown on top of it.
+                    _symptomAdvice.value = saved.advice
+                    if (saved.advice.isBlank()) say(tr(S.symptomSaved, locale))
+                    onDone()
+                },
+                onFailure = { e -> say(e.message ?: tr(S.symptomFailed, locale)) },
+            )
+            _busy.value = false
+        }
+    }
+
+    fun clearSymptomAdvice() { _symptomAdvice.value = "" }
+
+    fun deleteSymptom(kidId: String, eventId: String) {
+        viewModelScope.launch {
+            repo.deleteSymptom(eventId).fold(
+                onSuccess = { _symptomLog.value = repo.symptomLog(kidId) },
+                onFailure = { e -> say(e.message ?: tr(S.symptomFailed, locale)) },
+            )
+        }
+    }
+
     // ─── Plan and rights ────────────────────────────────────
 
     fun loadEntitlements() {
@@ -251,6 +310,22 @@ class GuardianViewModel(
                     say(tr(S.correctionSent, locale))
                 },
                 onFailure = { e -> say(e.message ?: tr(S.correctionFailed, locale)) },
+            )
+            _busy.value = false
+        }
+    }
+
+    /** The erasure right. Reachable only from the record screen. */
+    fun eraseChild(kidId: String, onDone: () -> Unit = {}) {
+        viewModelScope.launch {
+            _busy.value = true
+            repo.eraseChild(kidId).fold(
+                onSuccess = {
+                    _dataRights.value = repo.dataRights()
+                    say(tr(S.childErased, locale))
+                    onDone()
+                },
+                onFailure = { e -> say(e.message ?: tr(S.childEraseFailed, locale)) },
             )
             _busy.value = false
         }

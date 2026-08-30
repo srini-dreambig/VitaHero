@@ -26,10 +26,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Kid
+import com.rork.vitahero.data.heightText
+import com.rork.vitahero.data.weightText
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.EmptyState
@@ -37,6 +40,7 @@ import com.rork.vitahero.ui.components.FlagChip
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.bottomBarClearance
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.components.tf
 import com.rork.vitahero.ui.theme.AppTheme
@@ -52,7 +56,7 @@ fun KidsScreen(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = 24.dp)
+        contentPadding = PaddingValues(bottom = bottomBarClearance())
     ) {
         item {
             StatusBarSpacer()
@@ -105,11 +109,16 @@ private fun KidCard(kid: Kid, modifier: Modifier = Modifier, onClick: () -> Unit
                 KidAvatar(kid.name, kid.avatarColor, size = 56.dp)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(kid.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(kid.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                     Text(
                         "${kid.age} yrs · ${kid.gender} · ${kid.grade}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 Icon(
@@ -121,8 +130,8 @@ private fun KidCard(kid: Kid, modifier: Modifier = Modifier, onClick: () -> Unit
             }
             Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Metric("Height", "${kid.heightCm.toInt()} cm", Modifier.weight(1f))
-                Metric("Weight", "${kid.weightKg.toInt()} kg", Modifier.weight(1f))
+                Metric(t(S.heightLabel), kid.heightText(), Modifier.weight(1f))
+                Metric(t(S.weightLabel), kid.weightText(), Modifier.weight(1f))
             }
             Spacer(Modifier.height(14.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

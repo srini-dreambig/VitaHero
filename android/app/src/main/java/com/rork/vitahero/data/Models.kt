@@ -151,8 +151,12 @@ data class MealItem(
 
 data class Badge(
     val id: String,
-    val title: String,
-    val description: String,
+    /**
+     * Locale keys, not English. A badge is chrome a child reads, and it was
+     * the last place in the app still hardcoding English.
+     */
+    val titleKey: String,
+    val descriptionKey: String,
     val earned: Boolean,
     val progress: Float, // 0..1
     val accent: Long,
@@ -197,3 +201,14 @@ data class AppNotification(
 )
 
 enum class NotificationType { CAMP, CHECKUP, DIET, REWARD }
+
+/**
+ * A measurement as a parent should see it.
+ *
+ * Height and weight default to zero for a child no camp has screened, and
+ * "0 cm" is not a height — it is the absence of one, and it must not be
+ * rendered as a number.
+ */
+fun Kid.heightText(): String = if (heightCm > 0f) "${heightCm.toInt()} cm" else "\u2014"
+
+fun Kid.weightText(): String = if (weightKg > 0f) "${weightKg.toInt()} kg" else "\u2014"

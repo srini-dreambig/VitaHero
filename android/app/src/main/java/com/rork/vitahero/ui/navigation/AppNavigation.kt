@@ -44,6 +44,7 @@ import com.rork.vitahero.ui.screens.OnboardingScreen
 import com.rork.vitahero.ui.screens.OtpScreen
 import com.rork.vitahero.ui.screens.SchoolsScreen
 import com.rork.vitahero.ui.screens.SplashScreen
+import com.rork.vitahero.ui.screens.SymptomScreen
 
 object Routes {
     const val SPLASH = "splash"
@@ -69,6 +70,7 @@ object Routes {
     const val QUESTIONS = "questions"
     const val LIBRARY = "library"
     const val RECORD = "record"
+    const val SYMPTOMS = "symptoms/{kidId}"
 }
 
 private val OnboardingImages = listOf(
@@ -293,15 +295,8 @@ fun AppNavigation(
                         val file = PdfReportGenerator.generate(ctx, reportData)
                         PdfReportGenerator.shareReport(ctx, file)
                     },
-                    onAddGrowth = { height, weight, label ->
-                        kidsViewModel.addGrowthPoint(kid.id, height, weight, label)
-                    },
                     onRefreshWearable = { kidsViewModel.refreshWearableData(kid.id) },
-                    onDeleteKid = {
-                        kidsViewModel.deleteKid(kid.id) {
-                            navController.popBackStack()
-                        }
-                    },
+                    onLogSymptom = { navController.navigate("symptoms/${kid.id}") },
                     onOpenGrowthCharts = { navController.navigate("growth/${kid.id}") },
                     growthAssessment = kidsViewModel.growthAssessmentForKid(kid.id),
                 )
@@ -422,6 +417,21 @@ fun AppNavigation(
 
         composable(Routes.RECORD) {
             PrivacyScreen(
+                kids = state.kids,
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+                onErased = { kidsViewModel.forgetKidLocally(it) },
+            )
+        }
+
+        composable(
+            Routes.SYMPTOMS,
+            arguments = listOf(navArgument("kidId") { type = NavType.StringType })
+        ) { backStack ->
+            val id = backStack.arguments?.getString("kidId").orEmpty()
+            SymptomScreen(
+                kidId = id,
+                kidName = kidsViewModel.kidById(id)?.name.orEmpty(),
                 guardianViewModel = guardianViewModel,
                 onBack = { navController.popBackStack() },
             )

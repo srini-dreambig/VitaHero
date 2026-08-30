@@ -125,9 +125,11 @@ class ProfileViewModel(
                             avatarColor = (dto.name.hashCode() and 0xFFFFFF).toLong() or 0xFF000000,
                             overallScore = dto.overallScore,
                             growth = emptyList(),
-                            dental = runCatching { HealthFlag.valueOf(dto.dental) }.getOrDefault(HealthFlag.GOOD),
-                            eyesight = runCatching { HealthFlag.valueOf(dto.eyesight) }.getOrDefault(HealthFlag.GOOD),
-                            nutrition = runCatching { HealthFlag.valueOf(dto.nutrition) }.getOrDefault(HealthFlag.GOOD),
+                            // A value we cannot parse is an absence of data,
+                            // not a clean result. Same rule as BackendDataMapper.
+                            dental = runCatching { HealthFlag.valueOf(dto.dental) }.getOrDefault(HealthFlag.NOT_MEASURED),
+                            eyesight = runCatching { HealthFlag.valueOf(dto.eyesight) }.getOrDefault(HealthFlag.NOT_MEASURED),
+                            nutrition = runCatching { HealthFlag.valueOf(dto.nutrition) }.getOrDefault(HealthFlag.NOT_MEASURED),
                             lastCheckup = dto.lastCheckup,
                         )
                     }

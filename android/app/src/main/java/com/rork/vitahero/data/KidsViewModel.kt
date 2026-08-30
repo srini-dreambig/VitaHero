@@ -48,8 +48,16 @@ class KidsViewModel(
 
     fun streakForKid(kidId: String): StreakInfo = state.streaks.value[kidId] ?: StreakInfo()
 
+    /**
+     * A growth assessment, or null when nobody has measured this child.
+     *
+     * Height and weight default to zero, and a zero fed to the WHO tables comes
+     * back below the third percentile — so an unscreened child was being shown
+     * a severe stunting result, on a chart, as though it had been measured.
+     */
     fun growthAssessmentForKid(kidId: String): GrowthAssessment? =
-        kidById(kidId)?.let { GrowthStandards.assess(it) }
+        kidById(kidId)?.takeIf { it.heightCm > 0f && it.weightKg > 0f }
+            ?.let { GrowthStandards.assess(it) }
 
     fun toggleMeal(kidId: String, mealId: String) {
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
@@ -108,75 +116,51 @@ class KidsViewModel(
         container.persist(SyncEntity.MEALS, SyncEntity.STREAKS)
     }
 
-    fun addKid(
-        name: String, age: Int, gender: String, school: String, grade: String,
-        heightCm: Float, weightKg: Float,
-    ) {
-        val assessment = KidHealthAssessment.fromMeasurements(age, gender, heightCm, weightKg)
+    /**
+     * Add a child who is not on a school's roster.
+     *
+     * No measurements, and no flags. Every check starts NOT_MEASURED, because
+     * nobody has looked at this child yet — and a health app that answers
+     * "how are their teeth?" before anyone has looked in their mouth is worse
+     * than one that says it does not know. A camp fills these in; the app does
+     * not guess them, and neither does the parent.
+     */
+    fun addKid(name: String, age: Int, gender: String, school: String, grade: String) {
         val newKid = Kid(
             id = "k${System.currentTimeMillis()}",
             name = name, age = age, gender = gender, school = school, grade = grade,
-            heightCm = heightCm, weightKg = weightKg,
+            heightCm = 0f, weightKg = 0f,
             avatarColor = kidPalette[state.uiState.value.kids.size % kidPalette.size],
-            overallScore = assessment.overallScore,
-            growth = listOf(
-                GrowthPoint(
-                    id = "gp_${UUID.randomUUID().toString().take(12)}",
-                    label = "Now", height = heightCm, weight = weightKg,
-                ),
-            ),
-            dental = assessment.dental,
-            eyesight = assessment.eyesight,
-            nutrition = assessment.nutrition,
-            lastCheckup = "Not yet",
+            overallScore = 0,
+            growth = emptyList(),
+            dental = HealthFlag.NOT_MEASURED,
+            eyesight = HealthFlag.NOT_MEASURED,
+            nutrition = HealthFlag.NOT_MEASURED,
+            lastCheckup = "",
         )
         state.uiState.update { it.copy(kids = it.kids + newKid) }
         state.meals.update { it + (newKid.id to MealPlanGenerator.initialPlanFor(newKid)) }
         state.streaks.update { it + (newKid.id to StreakInfo()) }
-        container.persistNow(SyncEntity.KIDS, SyncEntity.MEALS, SyncEntity.STREAKS, SyncEntity.GROWTH)
+        container.persistNow(SyncEntity.KIDS, SyncEntity.MEALS, SyncEntity.STREAKS)
     }
 
-    fun addGrowthPoint(kidId: String, heightCm: Float, weightKg: Float, label: String) {
+    /**
+     * Drop a child from local state after the server erased them.
+     *
+     * The erasure itself belongs to the record screen and is logged as a data
+     * right; this only clears what this device is still holding.
+     */
+    fun forgetKidLocally(kidId: String) {
         state.uiState.update { ui ->
-            ui.copy(kids = ui.kids.map { kid ->
-                if (kid.id != kidId) kid
-                else {
-                    val updatedGrowth = kid.growth + GrowthPoint(
-                        id = "gp_${UUID.randomUUID().toString().take(12)}",
-                        label = label, height = heightCm, weight = weightKg,
-                    )
-                    kid.copy(
-                        growth = updatedGrowth,
-                        heightCm = heightCm,
-                        weightKg = weightKg,
-                        overallScore = computeScore(updatedGrowth),
-                        lastCheckup = label,
-                    )
-                }
-            })
+            ui.copy(
+                kids = ui.kids.filter { it.id != kidId },
+                wearableData = ui.wearableData - kidId,
+            )
         }
-        container.persist(SyncEntity.KIDS, SyncEntity.GROWTH)
-    }
-
-    fun deleteKid(kidId: String, onComplete: () -> Unit = {}) {
-        viewModelScope.launch {
-            try {
-                if (auth.isLoggedIn.value) api.deleteKid(kidId)
-            } catch (e: Exception) {
-                container.reportSyncError(e)
-            }
-            state.uiState.update { ui ->
-                ui.copy(
-                    kids = ui.kids.filter { it.id != kidId },
-                    wearableData = ui.wearableData - kidId,
-                )
-            }
-            state.meals.update { it - kidId }
-            state.streaks.update { it - kidId }
-            state.aiContent.update { it - kidId }
-            state.leaderboards.update { it - kidId }
-            onComplete()
-        }
+        state.meals.update { it - kidId }
+        state.streaks.update { it - kidId }
+        state.aiContent.update { it - kidId }
+        state.leaderboards.update { it - kidId }
     }
 
     fun refreshWearableData(kidId: String) {
@@ -220,13 +204,42 @@ class KidsViewModel(
         val streak = streakForKid(kidId)
         val totalMeals = mealList.size.coerceAtLeast(1)
 
+        // Every badge here describes something this app actually measures:
+        // meals logged, and the streak of days they were logged. The old set
+        // claimed water drunk, minutes played and "height on track 3 camps in
+        // a row" — none of which was ever recorded, all of them derived from
+        // the meal counter. A badge a child cannot have earned is a lie told
+        // to a child.
+        val dentalKnown = kid.dental != HealthFlag.NOT_MEASURED
         val badges = listOf(
-            Badge("b1", "Super Eater", "Log all meals for 7 days", eatenCount >= totalMeals && streak.currentStreak >= 7, 1f, 0xFF10B981, 7, streak.currentStreak),
-            Badge("b2", "Growth Champion", "Height on track 3 camps in a row", kid.overallScore >= 85, if (kid.overallScore >= 85) 1f else kid.overallScore / 100f, 0xFF2563EB, 100, kid.overallScore),
-            Badge("b3", "Hydration Hero", "Drank enough water all week", streak.currentStreak >= 5, (streak.currentStreak / 5f).coerceAtMost(1f), 0xFF06B6D4, 5, streak.currentStreak),
-            Badge("b4", "Bright Smile", "No cavities at last dental check", kid.dental == HealthFlag.GOOD, if (kid.dental == HealthFlag.GOOD) 1f else 0.6f, 0xFF8B5CF6, 1, if (kid.dental == HealthFlag.GOOD) 1 else 0),
-            Badge("b5", "Active Star", "Played 60 min daily for 5 days", eatenCount >= totalMeals, eatenCount / totalMeals.toFloat(), 0xFFF59E0B, totalMeals, eatenCount),
-            Badge("b6", "Veggie Warrior", "Ate veggies in 10 meals", eatenCount >= 6, (eatenCount / 10f).coerceAtMost(1f), 0xFFFB7185, 10, eatenCount),
+            Badge("b1", S.badgeSuperEater, S.badgeSuperEaterSub,
+                eatenCount >= totalMeals && streak.currentStreak >= 7,
+                (streak.currentStreak / 7f).coerceAtMost(1f),
+                0xFF10B981, 7, streak.currentStreak),
+            Badge("b2", S.badgeEveryMeal, S.badgeEveryMealSub,
+                eatenCount >= totalMeals,
+                eatenCount / totalMeals.toFloat(),
+                0xFF2563EB, totalMeals, eatenCount),
+            Badge("b3", S.badgeThreeDay, S.badgeThreeDaySub,
+                streak.currentStreak >= 3,
+                (streak.currentStreak / 3f).coerceAtMost(1f),
+                0xFF06B6D4, 3, streak.currentStreak),
+            Badge("b4", S.badgeTwoWeek, S.badgeTwoWeekSub,
+                streak.bestStreak >= 14,
+                (streak.bestStreak / 14f).coerceAtMost(1f),
+                0xFFF59E0B, 14, streak.bestStreak),
+            // The one clinical badge. Only meaningful once a dentist has
+            // actually looked; before that it shows as not yet checked rather
+            // than as partial progress toward something nobody did.
+            Badge("b5", S.badgeBrightSmile,
+                if (dentalKnown) S.badgeBrightSmileSub else S.badgeBrightSmileUnknown,
+                dentalKnown && kid.dental == HealthFlag.GOOD,
+                if (dentalKnown && kid.dental == HealthFlag.GOOD) 1f else 0f,
+                0xFF8B5CF6, 1, if (dentalKnown && kid.dental == HealthFlag.GOOD) 1 else 0),
+            Badge("b6", S.badgeHalfWay, S.badgeHalfWaySub,
+                eatenCount >= totalMeals / 2,
+                (eatenCount / (totalMeals / 2f).coerceAtLeast(1f)).coerceAtMost(1f),
+                0xFFFB7185, (totalMeals / 2).coerceAtLeast(1), eatenCount),
         )
 
         if (state.leaderboards.value[kidId] == null) {
@@ -264,17 +277,5 @@ class KidsViewModel(
             state.uiState.update { it.copy(kids = it.kids + newKids) }
             container.persist(SyncEntity.KIDS)
         }
-    }
-
-    private fun computeScore(growth: List<GrowthPoint>): Int {
-        if (growth.size < 2) return 80
-        val last = growth.last()
-        val prev = growth[growth.size - 2]
-        return when {
-            last.height - prev.height > 1f && last.weight - prev.weight in 0.3f..1.5f -> 92
-            last.height - prev.height > 0.5f -> 85
-            last.height - prev.height > 0f -> 78
-            else -> 70
-        }.coerceIn(0, 100)
     }
 }
