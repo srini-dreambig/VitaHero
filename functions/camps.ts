@@ -884,6 +884,137 @@ export async function saveScreening(
   return { kidId, saved };
 }
 
+/**
+ * C1 — everything a screener needs for a whole camp, in one request.
+ *
+ * School halls do not have reliable connectivity, so the console downloads this
+ * before the camp starts and works from it. It carries the camp's config, every
+ * participant with their consent state, and any findings already recorded, so
+ * a device that has been offline all morning still shows the truth as of the
+ * last sync.
+ */
+export async function campPack(sql: Sql, actor: Actor, campId: string) {
+  const access = await assertCampAccess(sql, actor, campId);
+  assertCan(access.canScreen, "screen children at this camp");
+  const camp = access.camp;
+
+  const participants = await sql`
+    SELECT p.kid_id, p.consent_status, p.consent_checks, p.attendance, p.status,
+           k.name, k.grade, k.section, k.gender, k.age, k.date_of_birth, k.student_ref,
+           k.guardian_name, k.height_cm AS prev_height, k.weight_kg AS prev_weight
+    FROM vita_hero.camp_participants p
+    JOIN vita_hero.kids k ON k.id = p.kid_id
+    WHERE p.camp_id = ${campId}
+    ORDER BY k.grade, k.section, k.name
+  `;
+  const findings = await sql`
+    SELECT kid_id, check_type, detail, flag, rationale, screener_note
+    FROM vita_hero.camp_findings WHERE camp_id = ${campId}
+  `;
+
+  const byKid = new Map<string, Array<Record<string, unknown>>>();
+  for (const f of findings) {
+    const k = f.kid_id as string;
+    const list = byKid.get(k) || [];
+    list.push({
+      checkType: f.check_type as string,
+      detail: (f.detail as Record<string, unknown>) || {},
+      flag: f.flag as string,
+      rationale: (f.rationale as string) || "",
+      note: (f.screener_note as string) || "",
+    });
+    byKid.set(k, list);
+  }
+
+  const campChecks: string[] = Array.isArray(camp.checks)
+    ? (camp.checks as string[])
+    : JSON.parse(String(camp.checks || "[]"));
+
+  return {
+    downloadedAt: new Date().toISOString(),
+    camp: {
+      id: campId,
+      title: camp.title as string,
+      date: (camp.date as string) || "",
+      venue: (camp.venue as string) || "",
+      schoolName: (camp.school_name as string) || "",
+      checks: campChecks,
+    },
+    participants: participants.map((p) => {
+      const consentChecks: string[] = Array.isArray(p.consent_checks)
+        ? (p.consent_checks as string[])
+        : JSON.parse(String(p.consent_checks || "[]"));
+      return {
+        kidId: p.kid_id as string,
+        name: p.name as string,
+        grade: (p.grade as string) || "",
+        section: (p.section as string) || "",
+        gender: (p.gender as string) || "",
+        age: (p.age as number) ?? null,
+        dob: (p.date_of_birth as string) || "",
+        studentRef: (p.student_ref as string) || "",
+        guardianName: (p.guardian_name as string) || "",
+        consentStatus: (p.consent_status as string) || "PENDING",
+        attendance: (p.attendance as string) || "UNKNOWN",
+        status: (p.status as string) || "NOT_SCREENED",
+        previousHeightCm: (p.prev_height as number) || null,
+        previousWeightKg: (p.prev_weight as number) || null,
+        // Partial consent narrows the checks for this child.
+        checks: consentChecks.length > 0 ? campChecks.filter((c) => consentChecks.includes(c)) : campChecks,
+        findings: byKid.get(p.kid_id as string) || [],
+      };
+    }),
+  };
+}
+
+/**
+ * C11 — apply a batch of offline captures.
+ *
+ * Every entry is applied independently and reported on independently: one
+ * child whose consent was withdrawn while the device was offline must not
+ * discard the other forty-nine the screener recorded. The server stays
+ * authoritative on consent, so a queued finding for a child who has since
+ * declined is rejected rather than written.
+ */
+export async function saveScreeningBulk(
+  sql: Sql,
+  actor: Actor,
+  campId: string,
+  entries: Array<Record<string, unknown>>
+) {
+  const access = await assertCampAccess(sql, actor, campId);
+  assertCan(access.canScreen, "screen children at this camp");
+
+  const applied: Array<{ kidId: string; saved: number }> = [];
+  const rejected: Array<{ kidId: string; reason: string; code: string }> = [];
+
+  for (const entry of entries) {
+    const kidId = String(entry.kidId || "");
+    if (!kidId) continue;
+    try {
+      if (entry.attendance) {
+        await setAttendance(sql, actor, campId, kidId, String(entry.attendance));
+      }
+      const findings = Array.isArray(entry.findings) ? (entry.findings as Record<string, unknown>[]) : [];
+      if (findings.length > 0) {
+        const r = await saveScreening(sql, actor, campId, kidId, { findings });
+        applied.push({ kidId, saved: r.saved.length });
+      } else if (entry.attendance) {
+        applied.push({ kidId, saved: 0 });
+      }
+    } catch (e) {
+      const err = e as ApiError;
+      rejected.push({
+        kidId,
+        reason: err.message || "Could not save",
+        code: err.code || "ERROR",
+      });
+    }
+  }
+
+  return { applied: applied.length, rejected, appliedDetail: applied };
+}
+
 /** C12 — reconciliation: rostered vs screened vs absent. */
 export async function campReconciliation(sql: Sql, actor: Actor, campId: string) {
   await assertCampAccess(sql, actor, campId);
@@ -973,7 +1104,36 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
     overridden: (f.flag as string) !== (f.auto_flag as string),
   }));
 
+  // I4 — the same flag at a previous camp changes what this one means. Pull the
+  // child's earlier released findings so the physician is not deciding blind.
+  const priorRows = await sql`
+    SELECT f.check_type, f.flag, sc.date, sc.title
+    FROM vita_hero.camp_findings f
+    JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
+    JOIN vita_hero.camp_participants pp ON pp.camp_id = f.camp_id AND pp.kid_id = f.kid_id
+    WHERE f.kid_id = ${kidId} AND f.camp_id <> ${campId}
+      AND pp.status = 'RELEASED' AND f.flag IN ('WATCH','ALERT')
+    ORDER BY sc.date DESC
+  `;
+  const priorByCheck = new Map<string, Array<{ flag: string; date: string; title: string }>>();
+  for (const r of priorRows) {
+    const key = r.check_type as string;
+    const list = priorByCheck.get(key) || [];
+    list.push({ flag: r.flag as string, date: (r.date as string) || "", title: (r.title as string) || "" });
+    priorByCheck.set(key, list);
+  }
+  for (const f of findings) {
+    (f as Record<string, unknown>).previous = priorByCheck.get(f.checkType) || [];
+    (f as Record<string, unknown>).recurring =
+      (f.flag === "WATCH" || f.flag === "ALERT") && (priorByCheck.get(f.checkType) || []).length > 0;
+  }
+  const recurring = findings.filter((f) => (f as Record<string, unknown>).recurring);
+
   const summary = summariseForApp(findings);
+  // A problem that did not resolve since the last camp warrants moving faster.
+  if (recurring.length > 0 && (summary.urgency === "NONE" || summary.urgency === "ROUTINE")) {
+    summary.urgency = "SOON";
+  }
   const existing = (p.recommendation as string) || "";
 
   return {
@@ -988,6 +1148,10 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
     status: (p.status as string) || "NOT_SCREENED",
     findings,
     summary,
+    recurring: recurring.map((f) => ({
+      checkType: f.checkType,
+      timesBefore: ((f as Record<string, unknown>).previous as unknown[]).length,
+    })),
     suggestedUrgency: summary.urgency,
     recommendation: existing || draftRecommendation(String(p.name), summary),
     recommendationIsDraft: !existing,
@@ -1000,13 +1164,14 @@ export async function reviewParticipant(
   actor: Actor,
   campId: string,
   kidId: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  sendSms?: (phone: string, body: string) => Promise<boolean>
 ) {
   const access = await assertCampAccess(sql, actor, campId);
   assertCan(access.canReview, "review results for this camp");
 
   const pRows = await sql`
-    SELECT status FROM vita_hero.camp_participants
+    SELECT status, urgency FROM vita_hero.camp_participants
     WHERE camp_id = ${campId} AND kid_id = ${kidId} LIMIT 1
   `;
   if (pRows.length === 0) throw new ApiError(404, "That child is not on this camp's list", "NOT_ON_CAMP");
@@ -1057,6 +1222,8 @@ export async function reviewParticipant(
     ? (urgencyInput as Urgency)
     : worstUrgency(findings.map((f) => f.urgency));
 
+  const wasUrgent = (pRows[0].urgency as string) === "URGENT";
+
   await sql`
     UPDATE vita_hero.camp_participants
     SET status = 'APPROVED', urgency = ${urgency}, recommendation = ${recommendation},
@@ -1064,7 +1231,38 @@ export async function reviewParticipant(
     WHERE camp_id = ${campId} AND kid_id = ${kidId}
   `;
 
-  return { kidId, status: "APPROVED", urgency };
+  // D4 — an urgent case is told now, not batched with everyone else at release.
+  // Waiting for the whole camp to be reviewed could be days.
+  let escalated = false;
+  if (urgency === "URGENT" && !wasUrgent && sendSms) {
+    const who = await sql`
+      SELECT k.name, pr.phone, s.name AS school_name
+      FROM vita_hero.camp_participants p
+      JOIN vita_hero.kids k ON k.id = p.kid_id
+      LEFT JOIN vita_hero.profiles pr ON pr.id = p.profile_id
+      LEFT JOIN vita_hero.school_camps sc ON sc.id = p.camp_id
+      LEFT JOIN vita_hero.schools s ON s.id = sc.school_id
+      WHERE p.camp_id = ${campId} AND p.kid_id = ${kidId} LIMIT 1
+    `;
+    const phone = (who[0]?.phone as string) || "";
+    if (phone) {
+      escalated = await sendSms(
+        phone,
+        "VitaHero: the doctor reviewing " + String(who[0]?.name || "your child") +
+          "'s school health check-up has flagged something that needs attention within a few days. " +
+          "Please open the VitaHero app, or call the school."
+      );
+    }
+    await sql`
+      INSERT INTO vita_hero.consent_log (id, camp_id, kid_id, profile_id, action, source, actor_id, note)
+      SELECT ${"esc_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)},
+             ${campId}, ${kidId}, p.profile_id, 'URGENT_ESCALATED', 'SMS', ${actor.profileId},
+             ${escalated ? "Guardian notified immediately" : "No mobile on file — school must call"}
+      FROM vita_hero.camp_participants p WHERE p.camp_id = ${campId} AND p.kid_id = ${kidId}
+    `;
+  }
+
+  return { kidId, status: "APPROVED", urgency, escalated };
 }
 
 // ─── D6 · Release ───────────────────────────────────────────
@@ -1206,6 +1404,10 @@ export async function releaseCamp(
     JOIN vita_hero.kids k ON k.id = p.kid_id
     LEFT JOIN vita_hero.profiles pr ON pr.id = p.profile_id
     WHERE p.camp_id = ${campId} AND p.urgency = 'URGENT' AND COALESCE(pr.phone,'') <> ''
+      AND NOT EXISTS (
+        SELECT 1 FROM vita_hero.consent_log cl
+        WHERE cl.camp_id = p.camp_id AND cl.kid_id = p.kid_id AND cl.action = 'URGENT_ESCALATED'
+      )
   `;
   let urgentNotified = 0;
   for (const u of urgent) {

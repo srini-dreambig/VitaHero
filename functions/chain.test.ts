@@ -36,6 +36,9 @@ import {
   assignCampStaff,
   getCamp,
   adminOverview,
+  campPack,
+  saveScreeningBulk,
+  updateCamp,
 } from "./camps";
 import { ensureReferralSchema, guardianReferrals, markReferralAttended, declineReferral,
   recordReferralOutcome, referralDashboard, nudgeReferrals, kidReferrals } from "./referrals";
@@ -500,7 +503,6 @@ suite("end to end", () => {
   });
 
   test("a released camp cannot be edited", async () => {
-    const { updateCamp } = await import("./camps");
     await expect(updateCamp(sql, admin, campId, { title: "Renamed" })).rejects.toThrow(/no longer be edited/);
   });
 
@@ -519,6 +521,165 @@ suite("end to end", () => {
     const still = await listParticipants(sql, OPS, campId, { status: "RELEASED" });
     expect(still.participants.length).toBe(5);
     await client.query("UPDATE vita_hero.school_camps SET grades='[\"Class 4\"]'::jsonb WHERE id=$1", [campId]);
+  });
+
+  // ── Stage C: offline camp day ──
+
+  test("the camp pack carries everything a screener needs offline", async () => {
+    const pack = await campPack(sql, screener, campId);
+    expect(pack.camp.checks.length).toBe(3);
+    expect(pack.participants.length).toBeGreaterThan(0);
+    const one = pack.participants[0];
+    expect(one.name).toBeTruthy();
+    expect(one.consentStatus).toBeTruthy();
+    // Each child carries the checks their own consent allows.
+    expect(Array.isArray(one.checks)).toBe(true);
+    expect(pack.downloadedAt).toBeTruthy();
+  });
+
+  test("a screener not on the camp cannot download its pack", async () => {
+    const stranger: Actor = { profileId: "ph_9999999998", name: "Other", role: "SCREENER", schoolId };
+    await expect(campPack(sql, stranger, campId)).rejects.toThrow(/not assigned to this camp/);
+  });
+
+  test("a batch of offline captures applies in one pass", async () => {
+    // A fresh camp so this does not disturb the released one.
+    const c2 = await createCamp(sql, admin, schoolId, {
+      title: "Offline Camp", date: "2026-11-02",
+      checks: ["Height & weight", "Vision"], grades: ["Class 7"],
+    });
+    const camp2 = c2.camp.id;
+    await buildCampRoster(sql, admin, camp2);
+    await assignCampStaff(sql, admin, camp2, { profileId: screener.profileId });
+    const parts = (await listParticipants(sql, admin, camp2, {})).participants;
+    expect(parts.length).toBeGreaterThanOrEqual(3);
+
+    for (const p of parts) {
+      await recordConsent(sql, camp2, p.kidId, "PAPER", { actorId: admin.profileId, source: "PAPER" });
+    }
+
+    const entries = parts.map((p, i) => ({
+      kidId: p.kidId,
+      attendance: "PRESENT",
+      findings: [
+        { checkType: "Height & weight", detail: { heightCm: 140 + i, weightKg: 34 + i } },
+        { checkType: "Vision", detail: { leftAcuity: "6/6", rightAcuity: "6/6" } },
+      ],
+    }));
+    const r = await saveScreeningBulk(sql, screener, camp2, entries);
+    expect(r.applied).toBe(parts.length);
+    expect(r.rejected.length).toBe(0);
+
+    const after = await listParticipants(sql, admin, camp2, {});
+    expect(after.participants.every((p) => p.status === "SCREENED")).toBe(true);
+    (globalThis as Record<string, unknown>).__camp2 = camp2;
+  });
+
+  test("one rejected child does not discard the rest of the batch", async () => {
+    const camp2 = (globalThis as Record<string, unknown>).__camp2 as string;
+    const parts = (await listParticipants(sql, admin, camp2, {})).participants;
+
+    // Consent withdrawn while the device was offline — the classic case.
+    await client.query(
+      "UPDATE vita_hero.camp_participants SET consent_status='DECLINED' WHERE camp_id=$1 AND kid_id=$2",
+      [camp2, parts[0].kidId]);
+
+    const entries = parts.map((p) => ({
+      kidId: p.kidId,
+      findings: [{ checkType: "Vision", detail: { leftAcuity: "6/12", rightAcuity: "6/12" } }],
+    }));
+    const r = await saveScreeningBulk(sql, screener, camp2, entries);
+
+    expect(r.rejected.length).toBe(1);
+    expect(r.rejected[0].kidId).toBe(parts[0].kidId);
+    expect(r.rejected[0].code).toBe("NO_CONSENT");
+    expect(r.applied).toBe(parts.length - 1);
+
+    // The declined child keeps their earlier reading; the rest took the new one.
+    const declined = await client.query(
+      "SELECT detail FROM vita_hero.camp_findings WHERE camp_id=$1 AND kid_id=$2 AND check_type='Vision'",
+      [camp2, parts[0].kidId]);
+    expect(declined.rows[0].detail.leftAcuity).toBe("6/6");
+    await client.query(
+      "UPDATE vita_hero.camp_participants SET consent_status='PAPER' WHERE camp_id=$1 AND kid_id=$2",
+      [camp2, parts[0].kidId]);
+  });
+
+  test("re-sending the same batch is safe", async () => {
+    const camp2 = (globalThis as Record<string, unknown>).__camp2 as string;
+    const parts = (await listParticipants(sql, admin, camp2, {})).participants;
+    const before = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.camp_findings WHERE camp_id=$1", [camp2]);
+    const entries = parts.map((p) => ({
+      kidId: p.kidId,
+      findings: [{ checkType: "Vision", detail: { leftAcuity: "6/6", rightAcuity: "6/6" } }],
+    }));
+    await saveScreeningBulk(sql, screener, camp2, entries);
+    const after = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.camp_findings WHERE camp_id=$1", [camp2]);
+    expect(after.rows[0].n).toBe(before.rows[0].n);
+  });
+
+  // ── Stage D: urgent escalation and repeat findings ──
+
+  test("marking a child urgent texts the guardian straight away", async () => {
+    const camp2 = (globalThis as Record<string, unknown>).__camp2 as string;
+    await assignCampStaff(sql, admin, camp2, { profileId: physician.profileId });
+    const q = await reviewQueue(sql, physician, camp2);
+    const sent: string[] = [];
+    const r = await reviewParticipant(sql, physician, camp2, q.queue[0].kidId, {
+      recommendation: "Please see an eye doctor within a few days.",
+      urgency: "URGENT",
+    }, async (to) => { sent.push(to); return true; });
+    expect(r.escalated).toBe(true);
+    expect(sent.length).toBe(1);
+
+    // Release must not text the same family a second time.
+    const rest = await reviewQueue(sql, physician, camp2);
+    for (const item of rest.queue.filter((x) => x.status === "SCREENED")) {
+      const d = await reviewDetail(sql, physician, camp2, item.kidId);
+      await reviewParticipant(sql, physician, camp2, item.kidId, {
+        recommendation: d.recommendation, urgency: "ROUTINE",
+      });
+    }
+    const releaseSms: string[] = [];
+    const rel = await releaseCamp(sql, physician, camp2, async (to) => { releaseSms.push(to); return true; });
+    expect(rel.released).toBeGreaterThan(0);
+    expect(releaseSms.length).toBe(0);
+  });
+
+  test("a repeat finding is surfaced to the physician", async () => {
+    // The same children were screened at both camps; the second camp's review
+    // should know about the first.
+    const camp2 = (globalThis as Record<string, unknown>).__camp2 as string;
+    // Give the earlier camp a genuine finding to recur. An earlier test reset
+    // every Vision reading to normal, and a normal result is not a recurrence.
+    const firstKid = (await listParticipants(sql, admin, camp2, {})).participants[0];
+    await client.query(
+      "UPDATE vita_hero.camp_findings SET flag='WATCH' WHERE camp_id=$1 AND kid_id=$2 AND check_type='Vision'",
+      [camp2, firstKid.kidId]);
+
+    const c3 = await createCamp(sql, admin, schoolId, {
+      title: "Follow-up Camp", date: "2027-03-02",
+      checks: ["Vision"], grades: ["Class 7"], academicYear: "2026-27",
+    });
+    const camp3 = c3.camp.id;
+    await buildCampRoster(sql, admin, camp3);
+    await assignCampStaff(sql, admin, camp3, { profileId: screener.profileId });
+    await assignCampStaff(sql, admin, camp3, { profileId: physician.profileId });
+    const parts = (await listParticipants(sql, admin, camp3, {})).participants;
+    const target = parts.find((p) => p.kidId === firstKid.kidId) || parts[0];
+    await recordConsent(sql, camp3, target.kidId, "PAPER", { actorId: admin.profileId, source: "PAPER" });
+    await saveScreening(sql, screener, camp3, target.kidId, {
+      findings: [{ checkType: "Vision", detail: { leftAcuity: "6/18", rightAcuity: "6/18" } }],
+    });
+    const d = await reviewDetail(sql, physician, camp3, target.kidId);
+    const vision = d.findings.find((f) => f.checkType === "Vision")!;
+    expect((vision as Record<string, unknown>).recurring).toBe(true);
+    expect(d.recurring.length).toBeGreaterThan(0);
+    // A problem that did not resolve since the last camp is not "routine".
+    expect(d.suggestedUrgency).not.toBe("NONE");
+    expect(d.suggestedUrgency).not.toBe("ROUTINE");
   });
 
   // ── Stage G: the referral loop ──
@@ -627,14 +788,17 @@ suite("end to end", () => {
 
   test("the school report answers coverage, findings and follow-through", async () => {
     const r = await schoolReport(sql, admin, schoolId, "2026-27");
-    expect(r.camps.length).toBe(1);
+    expect(r.camps.length).toBeGreaterThanOrEqual(1);
     // An earlier test widened this camp to Class 7 and rebuilt, so the roster
     // legitimately grew. What matters is that only the screened five count.
     expect(r.coverage!.rostered).toBeGreaterThanOrEqual(6);
-    expect(r.coverage!.screened).toBe(5);
+    // Several camps now sit in this academic year, so screened counts across
+    // all of them. What matters is that it never exceeds those on the roll.
+    expect(r.coverage!.screened).toBeGreaterThanOrEqual(5);
+    expect(r.coverage!.screened).toBeLessThanOrEqual(r.coverage!.rostered);
     expect(r.coverage!.screenedRate).toBeGreaterThan(0);
     const vision = r.prevalence.find((p) => p.checkType === "Vision")!;
-    expect(vision.measured).toBe(5);
+    expect(vision.measured).toBeGreaterThanOrEqual(5);
     expect(vision.alert).toBeGreaterThanOrEqual(1);
     expect(r.referrals!.total).toBeGreaterThan(0);
     expect(r.referrals!.closureRate).not.toBeNull();
@@ -786,9 +950,9 @@ suite("end to end", () => {
     const moved = await client.query(
       "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND academic_year='2027-28' AND grade='Class 7'", [schoolId]);
     expect(moved.rows[0].n).toBe(r.promoted);
-    const left = await client.query(
-      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND status='LEFT'", [schoolId]);
-    expect(left.rows[0].n).toBe(r.graduated);
+    const graduated = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND status='GRADUATED'", [schoolId]);
+    expect(graduated.rows[0].n).toBe(r.graduated);
   });
 
   test("rollover refuses a malformed year", async () => {
@@ -808,6 +972,6 @@ suite("end to end", () => {
     const actual = await client.query(
       "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE source='ADMIN'");
     expect(o.students).toBe(actual.rows[0].n);
-    expect(o.campStatus.RELEASED).toBe(1);
+    expect(o.campStatus.RELEASED).toBeGreaterThanOrEqual(1);
   });
 });

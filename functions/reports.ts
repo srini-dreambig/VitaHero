@@ -308,11 +308,35 @@ export async function programmeReport(sql: Sql, actor: Actor) {
   `;
 
   const t = totals[0] as Record<string, number>;
+  // K4 — which partners actually close the referrals sent to them. A partner
+  // hospital that receives referrals and never reports an outcome is a
+  // partnership on paper only.
+  const partners = await sql`
+    SELECT COALESCE(NULLIF(r.specialty,''), 'Other') AS specialty,
+      COALESCE(NULLIF(r.clinician_name,''), 'Not recorded') AS clinician,
+      COUNT(*)::int AS seen,
+      COUNT(*) FILTER (WHERE r.outcome = 'RESOLVED')::int AS resolved,
+      COUNT(*) FILTER (WHERE r.outcome = 'ONGOING')::int AS ongoing,
+      COUNT(*) FILTER (WHERE r.outcome = 'REFERRED_ON')::int AS referred_on
+    FROM vita_hero.referrals r
+    WHERE r.status = 'CLOSED'
+    GROUP BY specialty, clinician
+    ORDER BY seen DESC LIMIT 50
+  `;
+
   return {
     totals: {
       ...t,
       closureRate: t.referrals ? Math.round((t.referrals_closed / t.referrals) * 100) : null,
     },
+    partners: partners.map((p) => ({
+      specialty: p.specialty as string,
+      clinician: p.clinician as string,
+      seen: (p.seen as number) || 0,
+      resolved: (p.resolved as number) || 0,
+      ongoing: (p.ongoing as number) || 0,
+      referredOn: (p.referred_on as number) || 0,
+    })),
     schools: schools.map((s) => {
       const total = (s.referrals as number) || 0;
       const closed = (s.referrals_closed as number) || 0;
@@ -347,6 +371,83 @@ export async function programmeReport(sql: Sql, actor: Actor) {
       childrenScreened: (d.children_screened as number) || 0,
     })),
   };
+}
+
+// ─── H9, I3 · What to say to this family ────────────────────
+
+/**
+ * The app used to send every child the same daily "log your meals" reminder.
+ * This returns what is actually true of this child right now — what to nudge
+ * about, and what to congratulate — so a family with an open eye referral is
+ * not being reminded about breakfast.
+ */
+export async function guardianNudges(sql: Sql, profileId: string) {
+  const kids = await sql`
+    SELECT id, name, dental, eyesight, nutrition FROM vita_hero.kids
+    WHERE profile_id = ${profileId} AND COALESCE(status,'ACTIVE') = 'ACTIVE'
+  `;
+  const nudges: Array<{ kidId: string; kidName: string; kind: string; priority: number; text: string }> = [];
+
+  for (const k of kids) {
+    const kidId = k.id as string;
+    const name = k.name as string;
+
+    // Anything outstanding beats anything else we might say.
+    const open = await sql`
+      SELECT specialty, urgency, due_by FROM vita_hero.referrals
+      WHERE kid_id = ${kidId} AND status IN ('OPEN','BOOKED')
+      ORDER BY CASE urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END LIMIT 1
+    `;
+    if (open.length > 0) {
+      const u = (open[0].urgency as string) || "ROUTINE";
+      nudges.push({
+        kidId, kidName: name, kind: "REFERRAL", priority: u === "URGENT" ? 0 : u === "SOON" ? 1 : 3,
+        text: u === "URGENT"
+          ? `${name} needs to see a ${String(open[0].specialty).toLowerCase()} specialist within a few days.`
+          : `${name} still needs a ${String(open[0].specialty).toLowerCase()} check-up from the school camp.`,
+      });
+      continue;
+    }
+
+    // I3 — recognise a child who got better. This is what earns retention.
+    const trend = await sql`
+      WITH ranked AS (
+        SELECT sc.date,
+          MAX(CASE f.flag WHEN 'ALERT' THEN 2 WHEN 'WATCH' THEN 1 ELSE 0 END) AS severity,
+          ROW_NUMBER() OVER (ORDER BY sc.date DESC) AS rn
+        FROM vita_hero.camp_findings f
+        JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
+        JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
+        WHERE f.kid_id = ${kidId} AND p.status = 'RELEASED' AND f.flag <> 'NOT_MEASURED'
+        GROUP BY sc.date
+      )
+      SELECT (SELECT severity FROM ranked WHERE rn = 1) AS latest,
+             (SELECT severity FROM ranked WHERE rn = 2) AS previous
+    `;
+    const latest = trend[0]?.latest as number | null;
+    const previous = trend[0]?.previous as number | null;
+    if (latest !== null && previous !== null && latest < previous) {
+      nudges.push({
+        kidId, kidName: name, kind: "IMPROVED", priority: 2,
+        text: `${name} came back better at the last camp than the one before. Whatever you are doing is working.`,
+      });
+      continue;
+    }
+
+    // Otherwise nudge the flag that is actually amber, not a generic reminder.
+    const flags: Array<[string, string, string]> = [
+      ["nutrition", k.nutrition as string, `${name}'s nutrition was flagged at the camp — logging meals for a week helps the next check.`],
+      ["dental", k.dental as string, `${name}'s dental check was flagged — brushing twice a day is the single biggest thing.`],
+      ["eyesight", k.eyesight as string, `${name}'s vision was flagged — watch for squinting or sitting close to screens.`],
+    ];
+    const amber = flags.find((f) => f[1] === "WATCH" || f[1] === "ALERT");
+    if (amber) {
+      nudges.push({ kidId, kidName: name, kind: "FLAG", priority: 4, text: amber[2] });
+    }
+  }
+
+  nudges.sort((a, b) => a.priority - b.priority);
+  return { nudges };
 }
 
 // ─── K6 · Who has looked at a child's record ────────────────

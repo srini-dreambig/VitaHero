@@ -58,3 +58,15 @@ APP_PLAY_URL=
 # Guardians can, from the app: export everything held about them, ask for a
 # correction (an administrator accepts or rejects it), withdraw consent, and
 # delete a child or the whole account. Deletion erases camp findings too.
+
+# ─── Camp day without a signal ────────────────────────────────
+# School halls rarely have coverage. Before leaving the office, the screening
+# team opens the camp and presses "Download for offline use". Captures are then
+# saved on the device and upload automatically when a network returns; the
+# "Sync now" button forces it. The server stays authoritative on consent, so a
+# capture for a child whose guardian withdrew consent meanwhile is rejected on
+# sync and reported, never written.
+#
+# Two rules for the team: download while still on wi-fi, and do not clear
+# browser data before syncing.
+

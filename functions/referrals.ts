@@ -517,6 +517,30 @@ export async function nudgeReferrals(
   };
 }
 
+/**
+ * G2 — the specialties this family has an open referral for, so the app's
+ * booking screen opens on the right kind of doctor instead of a full list.
+ */
+export async function openReferralSpecialties(sql: Sql, profileId: string) {
+  const rows = await sql`
+    SELECT DISTINCT r.specialty, r.kid_id, k.name AS kid_name, r.urgency, r.id
+    FROM vita_hero.referrals r
+    JOIN vita_hero.kids k ON k.id = r.kid_id
+    WHERE r.profile_id = ${profileId} AND r.status IN ('OPEN','BOOKED')
+    ORDER BY CASE r.urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END
+  `;
+  return {
+    specialties: [...new Set(rows.map((r2) => r2.specialty as string))].filter(Boolean),
+    forChildren: rows.map((r2) => ({
+      referralId: r2.id as string,
+      kidId: r2.kid_id as string,
+      kidName: r2.kid_name as string,
+      specialty: (r2.specialty as string) || "",
+      urgency: (r2.urgency as string) || "ROUTINE",
+    })),
+  };
+}
+
 /** Per-child referral history, for the app's child detail screen. */
 export async function kidReferrals(sql: Sql, profileId: string, kidId: string) {
   const owns = await sql`

@@ -65,6 +65,8 @@ import {
   assignCampStaff,
   removeCampStaff,
   assertCampAccess,
+  campPack,
+  saveScreeningBulk,
 } from "./camps";
 import {
   ensureReferralSchema,
@@ -77,6 +79,7 @@ import {
   referralDetail,
   nudgeReferrals,
   kidReferrals,
+  openReferralSpecialties,
 } from "./referrals";
 import {
   ensureLifecycleSchema,
@@ -91,15 +94,21 @@ import {
   markStudentLeft,
   changeGuardianPhone,
   retentionReport,
+  purgeBeyondRetention,
   dataRightsHistory,
+  identityChallenge,
+  confirmIdentity,
+  acceptTerms,
+  TERMS_VERSION,
 } from "./lifecycle";
 import {
   kidHealthHistory,
   schoolReport,
   programmeReport,
   childAccessTrail,
+  guardianNudges,
 } from "./reports";
-import { PORTAL_HTML } from "./portal";
+import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
 const APP_ORIGIN = "https://kidhero.rork.app";
@@ -1528,6 +1537,20 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // STAGE A — school administration portal + API
       // ═══════════════════════════════════════════════════
 
+      // The console must open on a device that has been offline since it left
+      // the office, so its shell is cached. Data still comes from the pack the
+      // screener downloaded; this only guarantees the page itself loads.
+      if (path === "/admin/sw.js") {
+        return cors(new Response(SERVICE_WORKER_JS, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/javascript; charset=utf-8",
+            "Cache-Control": "no-cache",
+            "Service-Worker-Allowed": "/admin",
+          },
+        }));
+      }
+
       if (path === "/admin" || path === "/admin/") {
         return cors(new Response(PORTAL_HTML, {
           status: 200,
@@ -1550,6 +1573,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         try {
           if (path === "/api/admin/programme-report" && request.method === "GET") {
             return json(await programmeReport(sql, actor));
+          }
+          if (path === "/api/admin/retention" && request.method === "POST") {
+            const b = await readBody();
+            return json(await purgeBeyondRetention(sql, actor,
+              parseInt(String(b.years || "7"), 10), parseInt(String(b.confirm || "-1"), 10)));
           }
           if (path === "/api/admin/retention" && request.method === "GET") {
             return json(await retentionReport(sql, actor,
@@ -1660,6 +1688,16 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             return json(await setAttendance(sql, actor, campId, String(b.kidId || ""), String(b.attendance || "")));
           }
 
+          if (section === "pack" && method === "GET") {
+            return json(await campPack(sql, actor, campId));
+          }
+
+          if (section === "screening-bulk" && method === "POST") {
+            const b = await readBody();
+            return json(await saveScreeningBulk(sql, actor, campId,
+              Array.isArray(b.entries) ? (b.entries as Record<string, unknown>[]) : []));
+          }
+
           if (section === "screening") {
             if (!third) return json({ error: "Which child?" }, 400);
             if (method === "GET") return json(await getScreeningForm(sql, actor, campId, third));
@@ -1671,7 +1709,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (!third && method === "GET") return json(await reviewQueue(sql, actor, campId));
             if (third && method === "GET") return json(await reviewDetail(sql, actor, campId, third));
             if (third && method === "POST") {
-              return json(await reviewParticipant(sql, actor, campId, third, await readBody()));
+              return json(await reviewParticipant(sql, actor, campId, third, await readBody(), smsSender));
             }
             return json({ error: "Method not allowed" }, 405);
           }
@@ -2396,6 +2434,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path === "/api/referrals" || path.startsWith("/api/referrals/")
           || path === "/api/me/export" || path === "/api/me/correction"
           || path === "/api/me/consent/withdraw" || path === "/api/me/rights"
+          || path === "/api/me/identity" || path === "/api/me/terms" || path === "/api/me/nudges"
+          || path === "/api/referral-specialties"
           || path === "/api/me" || path === "/api/kids/history") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const pid = session.profileId;
@@ -2431,6 +2471,23 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
           if (path === "/api/me/export" && request.method === "GET") {
             return json(await exportGuardianData(sql, pid));
+          }
+          if (path === "/api/me/identity" && request.method === "GET") {
+            return json(await identityChallenge(sql, pid));
+          }
+          if (path === "/api/me/identity" && request.method === "POST") {
+            const b = await readBody();
+            return json(await confirmIdentity(sql, pid, String(b.answer || "")));
+          }
+          if (path === "/api/me/terms" && request.method === "POST") {
+            const b = await readBody();
+            return json(await acceptTerms(sql, pid, String(b.version || TERMS_VERSION)));
+          }
+          if (path === "/api/me/nudges" && request.method === "GET") {
+            return json(await guardianNudges(sql, pid));
+          }
+          if (path === "/api/referral-specialties" && request.method === "GET") {
+            return json(await openReferralSpecialties(sql, pid));
           }
           if (path === "/api/me/rights" && request.method === "GET") {
             return json(await dataRightsHistory(sql, pid));
@@ -2911,32 +2968,43 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
         const currentKidId = (body.current_kid_id as string) || "";
+
+        // The kid must be the caller's, otherwise "is_you" can be pointed at
+        // any child in the country.
+        const owned = await sql`
+          SELECT id, school_id, grade FROM vita_hero.kids
+          WHERE id = ${currentKidId} AND profile_id = ${session.profileId} LIMIT 1
+        `;
+        if (owned.length === 0) return json({ error: "That is not your child" }, 403);
+        const schoolId = (owned[0].school_id as string) || "";
+        const grade = (owned[0].grade as string) || "";
+
+        // Scoped to the child's own school, and their class where we know it.
+        // A national ranking of every child in the app is neither motivating
+        // nor something to put in front of a parent.
         const rows = await sql`
           WITH scored AS (
-            SELECT
-              k.id,
-              k.name,
-              k.overall_score AS score,
+            SELECT k.id, k.name, k.overall_score AS score,
               COALESCE(s.current_streak, 0) AS streak,
               (k.overall_score * 10 + COALESCE(s.current_streak, 0) * 50)::INT AS points
-            FROM ${sql(SCHEMA)}.kids k
-            LEFT JOIN ${sql(SCHEMA)}.streaks s ON s.kid_id = k.id
+            FROM vita_hero.kids k
+            LEFT JOIN vita_hero.streaks s ON s.kid_id = k.id
             WHERE k.profile_id IS NOT NULL
+              AND COALESCE(k.status,'ACTIVE') = 'ACTIVE'
+              AND (
+                (${schoolId} <> '' AND k.school_id = ${schoolId}
+                  AND (${grade} = '' OR k.grade = ${grade}))
+                OR (${schoolId} = '' AND k.id = ${currentKidId})
+              )
           ),
           ranked AS (
-            SELECT
-              ROW_NUMBER() OVER (ORDER BY s.points DESC, s.score DESC) AS rank,
-              s.name AS kid_name,
-              (s.id = ${currentKidId}) AS is_you,
-              s.score,
-              s.points
+            SELECT ROW_NUMBER() OVER (ORDER BY s.points DESC, s.score DESC) AS rank,
+              s.name AS kid_name, (s.id = ${currentKidId}) AS is_you, s.score, s.points
             FROM scored s
           )
           SELECT rank, kid_name, is_you, score, points
-          FROM ranked r
-          WHERE r.is_you OR r.rank <= 20
-          ORDER BY rank
-          LIMIT 20
+          FROM ranked r WHERE r.is_you OR r.rank <= 20
+          ORDER BY rank LIMIT 20
         `;
         const anonymized = rows.map((r: Record<string, unknown>) => ({
           ...r,

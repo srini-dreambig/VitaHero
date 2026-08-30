@@ -275,6 +275,7 @@ export const PORTAL_HTML = `<!doctype html>
     myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
     referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
     programme: null, rollover: null, refForm: null, refFilter: "",
+    pack: null, forceOffline: false, syncRejects: null, packInfo: null,
   };
   function set(p) { for (var k in p) S[k] = p[k]; render(); }
 
@@ -288,6 +289,81 @@ export const PORTAL_HTML = `<!doctype html>
   function signOut() {
     try { localStorage.removeItem("vh_console"); } catch (e) {}
     S.auth = null; S.view = "overview"; S.school = null; S.camp = null; render();
+  }
+
+  // ── offline pack and queue ──
+  //
+  // A camp day happens in a school hall with no signal. The screener downloads
+  // the camp pack while they still have one; captures go into a local queue and
+  // sync when the network returns. The server stays authoritative on consent,
+  // so a queued capture for a child whose guardian has since withdrawn is
+  // rejected on sync rather than written.
+  var PACK_KEY = "vh_pack_";
+  var QUEUE_KEY = "vh_queue_";
+
+  function packStore(campId, pack) {
+    try {
+      if (pack === null) localStorage.removeItem(PACK_KEY + campId);
+      else localStorage.setItem(PACK_KEY + campId, JSON.stringify(pack));
+      return true;
+    } catch (e) { return false; }
+  }
+  function packLoad(campId) {
+    try { var r = localStorage.getItem(PACK_KEY + campId); return r ? JSON.parse(r) : null; }
+    catch (e) { return null; }
+  }
+  function queueLoad(campId) {
+    try { var r = localStorage.getItem(QUEUE_KEY + campId); return r ? JSON.parse(r) : []; }
+    catch (e) { return []; }
+  }
+  function queueSave(campId, q) {
+    try { localStorage.setItem(QUEUE_KEY + campId, JSON.stringify(q)); return true; }
+    catch (e) { set({ error: "This device has run out of storage. Sync before recording more." }); return false; }
+  }
+  function queuePush(campId, entry) {
+    var q = queueLoad(campId);
+    // One entry per child: a screener correcting a measurement should replace
+    // what is queued, not send two conflicting captures.
+    var i = -1;
+    for (var j = 0; j < q.length; j++) if (q[j].kidId === entry.kidId) { i = j; break; }
+    if (i >= 0) {
+      if (entry.findings) q[i].findings = entry.findings;
+      if (entry.attendance) q[i].attendance = entry.attendance;
+      q[i].at = new Date().toISOString();
+    } else {
+      entry.at = new Date().toISOString();
+      q.push(entry);
+    }
+    return queueSave(campId, q) ? q.length : queueLoad(campId).length;
+  }
+  function queueCount() {
+    return S.camp ? queueLoad(S.camp.camp.id).length : 0;
+  }
+
+  function isOffline() { return S.forceOffline || !navigator.onLine; }
+
+  function syncQueue(campId, done) {
+    var q = queueLoad(campId);
+    if (q.length === 0) { if (done) done({ applied: 0, rejected: [] }); return; }
+    set({ busy: true, error: "" });
+    api("/api/admin/camps/" + campId + "/screening-bulk", { method: "POST", body: { entries: q } })
+      .then(function (r) {
+        S.busy = false;
+        // Keep only what the server refused, so nothing is silently lost.
+        var bad = {};
+        (r.rejected || []).forEach(function (x) { bad[x.kidId] = x; });
+        var left = q.filter(function (e) { return bad[e.kidId]; });
+        queueSave(campId, left);
+        S.syncRejects = r.rejected || [];
+        S.notice = r.applied + " children synced"
+          + (left.length ? ", " + left.length + " could not be saved" : "") + ".";
+        S.participants = null; S.screenData = null;
+        if (done) done(r);
+        refreshCamp();
+      })
+      .catch(function (e) {
+        set({ busy: false, error: "Could not sync: " + (e.message || "network error") });
+      });
   }
 
   // ── api ──
@@ -1579,36 +1655,127 @@ export const PORTAL_HTML = `<!doctype html>
 
   // ══════════════════════════════════════ camp day
   function campDay() {
-    if (!S.participants) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var c = S.camp.camp;
+    var pack = packLoad(c.id);
+    var queued = queueLoad(c.id);
+    var offline = isOffline();
+
+    // Offline, the downloaded pack is the only truth this device has.
+    var source = S.participants || (pack ? pack.participants : null);
+    if (!source) {
+      return el("div", null, campDayBar(pack, queued, offline),
+        el("div", { class: "card" }, el("div", { class: "empty" },
+          offline
+            ? el("div", null, el("h3", null, "No camp downloaded"),
+                el("p", { style: "font-size:13.5px" },
+                  "This device is offline and has no pack for this camp. Reconnect and download it before the camp starts."))
+            : "Loading\\u2026")));
+    }
+
     var q = (S.search || "").toLowerCase();
-    var list = S.participants.filter(function (p) {
+    var queuedIds = {};
+    queued.forEach(function (e) { queuedIds[e.kidId] = true; });
+    var list = source.filter(function (p) {
       return !q || p.name.toLowerCase().indexOf(q) >= 0 || (p.studentRef || "").toLowerCase().indexOf(q) >= 0;
     });
     var selected = S.screenKid;
-    return el("div", { class: "split" },
-      el("div", null,
-        el("input", { type: "text", placeholder: "Search name or roll number", value: S.search || "",
-          oninput: function (e) { S.search = e.target.value; render(); }, style: "margin-bottom:10px" }),
-        el("div", { class: "plist" }, list.length === 0
-          ? el("div", { class: "empty", style: "padding:24px 14px" },
-              c.participants ? "No match." : el("span", null, "No children on this camp yet. An administrator needs to build the list under Setup."))
-          : list.map(function (p) {
-              return el("button", { class: "pitem" + (selected === p.kidId ? " on" : ""),
-                onclick: function () { openScreening(p.kidId); } },
-                el("b", null, p.name),
-                el("div", { class: "sub" },
-                  el("span", null, (p.grade || "") + (p.section ? " " + p.section : "")),
-                  statusPill(p.consentStatus === "PENDING" || p.consentStatus === "DECLINED" ? p.consentStatus : p.status),
-                  p.attendance === "ABSENT" ? el("span", { class: "pill mute" }, "Absent") : null));
-            }))),
-      el("div", null, selected ? screeningPanel() : el("div", { class: "card" }, el("div", { class: "empty" },
-        el("h3", null, "Choose a child"),
-        el("p", { style: "font-size:13.5px" }, "Pick someone from the list to record their check-up.")))));
+    return el("div", null,
+      campDayBar(pack, queued, offline),
+      S.syncRejects && S.syncRejects.length
+        ? el("div", { class: "msg err" },
+            el("b", null, S.syncRejects.length + " could not be saved: "),
+            S.syncRejects.map(function (r) { return r.reason; })
+              .filter(function (v, i, a) { return a.indexOf(v) === i; }).join("; "))
+        : null,
+      el("div", { class: "split" },
+        el("div", null,
+          el("input", { type: "text", placeholder: "Search name or roll number", value: S.search || "",
+            oninput: function (e) { S.search = e.target.value; render(); }, style: "margin-bottom:10px" }),
+          el("div", { class: "plist" }, list.length === 0
+            ? el("div", { class: "empty", style: "padding:24px 14px" },
+                source.length ? "No match." : el("span", null, "No children on this camp yet. An administrator needs to build the list under Setup."))
+            : list.map(function (p) {
+                return el("button", { class: "pitem" + (selected === p.kidId ? " on" : ""),
+                  onclick: function () { openScreening(p.kidId); } },
+                  el("b", null, p.name),
+                  el("div", { class: "sub" },
+                    el("span", null, (p.grade || "") + (p.section ? " " + p.section : "")),
+                    statusPill(p.consentStatus === "PENDING" || p.consentStatus === "DECLINED" ? p.consentStatus : p.status),
+                    queuedIds[p.kidId] ? el("span", { class: "pill info" }, "Queued") : null,
+                    p.attendance === "ABSENT" ? el("span", { class: "pill mute" }, "Absent") : null));
+              }))),
+        el("div", null, selected ? screeningPanel() : el("div", { class: "card" }, el("div", { class: "empty" },
+          el("h3", null, "Choose a child"),
+          el("p", { style: "font-size:13.5px" }, "Pick someone from the list to record their check-up."))))));
+  }
+
+  function campDayBar(pack, queued, offline) {
+    var c = S.camp.camp;
+    function download() {
+      run(api("/api/admin/camps/" + c.id + "/pack"), function (d) {
+        if (!packStore(c.id, d)) {
+          S.error = "This device does not have room to store the camp. Free some space and try again.";
+          return;
+        }
+        S.notice = "Downloaded " + d.participants.length + " children. You can now work without a signal.";
+      });
+    }
+    return el("div", { class: "card", style: "margin-bottom:14px" },
+      el("div", { class: "card-b", style: "padding:12px 16px" },
+        el("div", { class: "row" },
+          el("span", { class: "pill " + (offline ? "warn" : "ok") }, offline ? "Offline" : "Online"),
+          pack
+            ? el("span", { class: "muted", style: "font-size:12.5px" },
+                pack.participants.length + " children downloaded " + fmtDate(pack.downloadedAt))
+            : el("span", { class: "muted", style: "font-size:12.5px" }, "Not downloaded for offline use"),
+          queued.length ? el("span", { class: "pill info" }, queued.length + " waiting to sync") : null,
+          el("span", { style: "flex:1" }),
+          !offline ? el("button", { class: "sm", disabled: S.busy, onclick: download },
+            pack ? "Refresh download" : "Download for offline use") : null,
+          queued.length && !offline
+            ? el("button", { class: "sm pri", disabled: S.busy, onclick: function () { syncQueue(c.id); } },
+                S.busy ? "Syncing\\u2026" : "Sync " + queued.length + " now")
+            : null,
+          el("button", { class: "sm ghost", onclick: function () { set({ forceOffline: !S.forceOffline }); } },
+            S.forceOffline ? "Rejoin network" : "Test offline")),
+        offline && queued.length
+          ? el("div", { class: "hint", style: "margin-top:8px" },
+              "Captures are saved on this device and upload when you are back on a network. Do not clear your browser data.")
+          : null));
   }
 
   function openScreening(kidId) {
-    S.screenKid = kidId; S.screenForm = null; S.error = ""; S.saved = null; render();
+    S.screenKid = kidId; S.screenForm = null; S.error = ""; S.saved = null;
+
+    // Offline, build the same shape from the downloaded pack plus anything
+    // already queued on this device, so the form looks identical either way.
+    if (isOffline()) {
+      var pack = packLoad(S.camp.camp.id);
+      var person = pack && pack.participants.filter(function (x) { return x.kidId === kidId; })[0];
+      if (!person) { set({ error: "That child is not in the downloaded camp." }); return; }
+      var queuedEntry = queueLoad(S.camp.camp.id).filter(function (e) { return e.kidId === kidId; })[0];
+      S.screenData = {
+        child: person,
+        consentStatus: person.consentStatus,
+        attendance: (queuedEntry && queuedEntry.attendance) || person.attendance,
+        status: person.status,
+        checks: person.checks,
+        excludedByConsent: pack.camp.checks.filter(function (ct) { return person.checks.indexOf(ct) < 0; }),
+        findings: (queuedEntry && queuedEntry.findings)
+          ? queuedEntry.findings.map(function (f) { return { checkType: f.checkType, detail: f.detail, flag: "", note: f.note || "" }; })
+          : person.findings,
+      };
+      var f0 = {};
+      (person.checks || []).forEach(function (ct) {
+        var prev = (S.screenData.findings || []).filter(function (x) { return x.checkType === ct; })[0];
+        f0[ct] = prev ? JSON.parse(JSON.stringify(prev.detail || {})) : {};
+      });
+      S.screenForm = f0;
+      render();
+      return;
+    }
+
+    render();
     run(api("/api/admin/camps/" + S.camp.camp.id + "/screening/" + encodeURIComponent(kidId)), function (d) {
       S.screenData = d;
       var form = {};
@@ -1627,6 +1794,13 @@ export const PORTAL_HTML = `<!doctype html>
     var blocked = d.consentStatus !== "GRANTED" && d.consentStatus !== "PAPER";
 
     function mark(v) {
+      if (isOffline()) {
+        queuePush(S.camp.camp.id, { kidId: ch.kidId, attendance: v });
+        d.attendance = v;
+        S.notice = ch.name + " marked " + v.toLowerCase() + ". Saved on this device.";
+        render();
+        return;
+      }
       run(api("/api/admin/camps/" + S.camp.camp.id + "/attendance", { method: "POST", body: { kidId: ch.kidId, attendance: v } }),
         function () { d.attendance = v; S.participants = null; S.notice = ch.name + " marked " + v.toLowerCase() + "."; loadCampTab(); });
     }
@@ -1638,6 +1812,16 @@ export const PORTAL_HTML = `<!doctype html>
         if (any) findings.push({ checkType: ct, detail: det, note: det.__note || "" });
       });
       if (findings.length === 0) { set({ error: "Record at least one measurement before saving." }); return; }
+      if (isOffline()) {
+        var n = queuePush(S.camp.camp.id, { kidId: ch.kidId, findings: findings, attendance: d.attendance });
+        // No flags to show: the clinical rules run on the server, and guessing
+        // them here would risk the device and the record disagreeing.
+        S.saved = null;
+        S.notice = "Saved " + ch.name + " on this device. " + n + " waiting to sync.";
+        S.screenKid = null; S.screenData = null;
+        render();
+        return;
+      }
       run(api("/api/admin/camps/" + S.camp.camp.id + "/screening/" + encodeURIComponent(ch.kidId), { method: "POST", body: { findings: findings } }),
         function (r) { S.saved = r.saved; S.participants = null; S.notice = "Saved " + ch.name + "'s check-up."; loadCampTab(); });
     }
@@ -1949,6 +2133,15 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   // ── boot ──
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/admin/sw.js", { scope: "/admin" }).catch(function () {});
+  }
+  window.addEventListener("online", function () {
+    render();
+    if (S.camp && !S.forceOffline && queueLoad(S.camp.camp.id).length) syncQueue(S.camp.camp.id);
+  });
+  window.addEventListener("offline", render);
+
   var saved = loadAuth();
   if (saved) {
     S.auth = saved;
@@ -1959,3 +2152,46 @@ export const PORTAL_HTML = `<!doctype html>
 </script>
 </body>
 </html>`;
+
+/**
+ * Caches the console's shell so a screener who left the office online can still
+ * open the page in a school hall with no signal. Deliberately minimal: it
+ * caches the page itself and nothing else. Camp data is not cached here — the
+ * screener downloads a camp pack explicitly, so what is available offline is
+ * something they chose rather than whatever happened to be in a cache.
+ */
+export const SERVICE_WORKER_JS = `
+const CACHE = "vitahero-console-v1";
+const SHELL = "/admin";
+
+self.addEventListener("install", function (e) {
+  e.waitUntil(caches.open(CACHE).then(function (c) { return c.add(SHELL); }).then(function () {
+    return self.skipWaiting();
+  }));
+});
+
+self.addEventListener("activate", function (e) {
+  e.waitUntil(caches.keys().then(function (keys) {
+    return Promise.all(keys.filter(function (k) { return k !== CACHE; })
+      .map(function (k) { return caches.delete(k); }));
+  }).then(function () { return self.clients.claim(); }));
+});
+
+self.addEventListener("fetch", function (e) {
+  var url = new URL(e.request.url);
+  if (e.request.method !== "GET") return;
+  // API calls must never be served stale — a cached participant list would
+  // show a screener consent that has since been withdrawn.
+  if (url.pathname.indexOf("/api/") === 0) return;
+  if (url.pathname !== "/admin" && url.pathname !== "/admin/") return;
+  e.respondWith(
+    fetch(e.request).then(function (res) {
+      var copy = res.clone();
+      caches.open(CACHE).then(function (c) { c.put(SHELL, copy); });
+      return res;
+    }).catch(function () {
+      return caches.match(SHELL);
+    })
+  );
+});
+`;

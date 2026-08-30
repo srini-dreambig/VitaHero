@@ -27,6 +27,9 @@ export async function ensureLifecycleSchema(sql: Sql): Promise<void> {
   await sql`ALTER TABLE vita_hero.kids ADD COLUMN IF NOT EXISTS left_at TIMESTAMPTZ`;
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS consent_withdrawn_at TIMESTAMPTZ`;
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS deletion_requested_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS identity_confirmed_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS terms_version TEXT DEFAULT ''`;
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS terms_accepted_at TIMESTAMPTZ`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS vita_hero.correction_requests (
@@ -67,6 +70,21 @@ async function logRight(sql: Sql, profileId: string, action: string, detail: str
     VALUES (${"drl_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)},
             ${profileId}, ${action}, ${detail}, ${actorId})
   `;
+}
+
+/** Bump this when the privacy terms materially change; guardians re-accept. */
+export const TERMS_VERSION = "2026-09-01";
+
+/** E5 — record which version of the terms this guardian accepted. */
+export async function acceptTerms(sql: Sql, profileId: string, version: string) {
+  const v = String(version || "").trim() || TERMS_VERSION;
+  await sql`
+    UPDATE vita_hero.profiles
+    SET terms_version = ${v}, terms_accepted_at = NOW(), consent_accepted = true, consent_declined = false
+    WHERE id = ${profileId}
+  `;
+  await logRight(sql, profileId, "TERMS_ACCEPTED", v, profileId);
+  return { accepted: true, version: v };
 }
 
 // ─── J5 · Export ────────────────────────────────────────────
@@ -415,7 +433,7 @@ export async function rolloverClasses(
       }
     } else if (grade === finalGrade) {
       const rows = await sql`
-        UPDATE vita_hero.kids SET status = 'LEFT', left_at = NOW()
+        UPDATE vita_hero.kids SET status = 'GRADUATED', left_at = NOW()
         WHERE school_id = ${schoolId} AND academic_year = ${fromYear} AND grade = ${grade}
           AND COALESCE(status,'ACTIVE') = 'ACTIVE'
         RETURNING id
@@ -424,8 +442,17 @@ export async function rolloverClasses(
     }
   }
 
+  // J3 — a child past the programme's upper age leaves it regardless of class.
+  // Screening standards here run to 18; beyond that the growth references do
+  // not apply and the flags would be meaningless.
+  const agedOut = await sql`
+    UPDATE vita_hero.kids SET status = 'AGED_OUT', left_at = NOW()
+    WHERE school_id = ${schoolId} AND COALESCE(status,'ACTIVE') = 'ACTIVE' AND age > 18
+    RETURNING id
+  `;
+
   await sql`UPDATE vita_hero.schools SET academic_year = ${toYear} WHERE id = ${schoolId}`;
-  return { fromYear, toYear, promoted, graduated };
+  return { fromYear, toYear, promoted, graduated, agedOut: agedOut.length };
 }
 
 /**
@@ -442,7 +469,8 @@ export async function markStudentLeft(
   assertSchoolAccess(actor, schoolId);
   const rows = await sql`
     UPDATE vita_hero.kids
-    SET status = ${leaving ? "LEFT" : "ACTIVE"}, left_at = ${leaving ? new Date().toISOString() : null}
+    SET status = ${leaving ? "LEFT" : "ACTIVE"},
+        left_at = ${leaving ? new Date().toISOString() : null}
     WHERE id = ${kidId} AND school_id = ${schoolId}
     RETURNING id, name, status
   `;
@@ -536,7 +564,7 @@ export async function retentionReport(sql: Sql, actor: Actor, retainYears = 7) {
   `;
   const leftLongAgo = await sql`
     SELECT COUNT(*)::int AS n FROM vita_hero.kids
-    WHERE status = 'LEFT' AND left_at IS NOT NULL AND left_at < ${iso}
+    WHERE status IN ('LEFT','GRADUATED','AGED_OUT') AND left_at IS NOT NULL AND left_at < ${iso}
   `;
   const dormant = await sql`
     SELECT COUNT(*)::int AS n FROM vita_hero.profiles
@@ -551,6 +579,110 @@ export async function retentionReport(sql: Sql, actor: Actor, retainYears = 7) {
     profilesWithNoChildren: (dormant[0]?.n as number) || 0,
     note: "Nothing is deleted automatically. Review these before erasing.",
   };
+}
+
+// ─── E4 · Identity confirmation ─────────────────────────────
+
+/**
+ * A phone number alone should not unlock a child's medical record.
+ *
+ * On first sign-in the app asks the guardian to confirm one of their children
+ * by picking from a short list — the real child among decoys drawn from the
+ * same school. Someone who has taken over the SIM but does not know the family
+ * fails. It is a low bar deliberately: a guardian under pressure at a camp
+ * should not be locked out by a hard quiz.
+ */
+export async function identityChallenge(sql: Sql, profileId: string) {
+  const rows = await sql`
+    SELECT id, name, school_id, grade FROM vita_hero.kids
+    WHERE profile_id = ${profileId} AND COALESCE(status,'ACTIVE') = 'ACTIVE'
+    ORDER BY name LIMIT 1
+  `;
+  if (rows.length === 0) {
+    // Nothing to protect yet, so nothing to prove.
+    return { required: false as const };
+  }
+  const real = rows[0];
+  const decoys = await sql`
+    SELECT DISTINCT name FROM vita_hero.kids
+    WHERE school_id = ${(real.school_id as string) || ""}
+      AND profile_id <> ${profileId} AND name <> ${real.name as string}
+    ORDER BY name LIMIT 20
+  `;
+  const pool = decoys.map((d) => d.name as string);
+  // Shuffle and take three, then drop the answer in at a random position.
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const options = pool.slice(0, 3);
+  options.splice(Math.floor(Math.random() * (options.length + 1)), 0, real.name as string);
+
+  return {
+    required: true as const,
+    question: "Which of these is your child?",
+    options,
+    hint: (real.grade as string) ? `They are in ${real.grade as string}.` : "",
+  };
+}
+
+export async function confirmIdentity(sql: Sql, profileId: string, answer: string) {
+  const rows = await sql`
+    SELECT id, name FROM vita_hero.kids
+    WHERE profile_id = ${profileId} AND COALESCE(status,'ACTIVE') = 'ACTIVE'
+      AND LOWER(name) = ${String(answer || "").trim().toLowerCase()}
+    LIMIT 1
+  `;
+  if (rows.length === 0) {
+    await logRight(sql, profileId, "IDENTITY_FAILED", String(answer || ""), profileId);
+    throw new ApiError(403, "That is not one of your children. Please check with the school.", "IDENTITY_FAILED");
+  }
+  await sql`
+    UPDATE vita_hero.profiles SET identity_confirmed_at = NOW() WHERE id = ${profileId}
+  `;
+  await logRight(sql, profileId, "IDENTITY_CONFIRMED", rows[0].name as string, profileId);
+  return { confirmed: true };
+}
+
+/**
+ * J9 — erase what the retention report listed, but only when an operator
+ * confirms this exact count. Deliberately not a scheduled job: a cron that
+ * quietly deletes children's health records is a bad thing to have running
+ * unattended, and the volume here does not need one.
+ */
+export async function purgeBeyondRetention(
+  sql: Sql,
+  actor: Actor,
+  retainYears: number,
+  confirmCount: number
+) {
+  if (!isOpsRole(actor.role)) {
+    throw new ApiError(403, "Retention is an operations action", "OPS_REQUIRED");
+  }
+  const report = await retentionReport(sql, actor, retainYears);
+  const expected = report.studentsLeftBeyondWindow;
+  if (expected === 0) return { purged: 0, note: "Nothing is beyond the retention window." };
+  if (confirmCount !== expected) {
+    throw new ApiError(
+      409,
+      `The report lists ${expected} records beyond the window; you confirmed ${confirmCount}. Re-read the report and confirm the exact number.`,
+      "CONFIRM_MISMATCH"
+    );
+  }
+
+  const cutoff = new Date();
+  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - retainYears);
+  const stale = await sql`
+    SELECT id, profile_id FROM vita_hero.kids
+    WHERE status IN ('LEFT','GRADUATED','AGED_OUT') AND left_at IS NOT NULL
+      AND left_at < ${cutoff.toISOString()}
+  `;
+  let purged = 0;
+  for (const k of stale) {
+    await deleteChild(sql, k.profile_id as string, k.id as string, actor.profileId);
+    purged++;
+  }
+  return { purged, retainYears, cutoff: cutoff.toISOString().slice(0, 10) };
 }
 
 /** The history behind one family's data-rights requests. */
