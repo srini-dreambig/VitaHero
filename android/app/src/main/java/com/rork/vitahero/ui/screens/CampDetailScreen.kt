@@ -57,6 +57,8 @@ fun CampDetailScreen(
     onBack: () -> Unit,
     onRegister: (kidId: String) -> Unit,
     onBookFollowUp: () -> Unit,
+    /** Open what a doctor released for one child at this camp. */
+    onOpenResult: (campId: String, kidId: String) -> Unit = { _, _ -> },
 ) {
     var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
     val upcoming = camp.status == CampStatus.UPCOMING
@@ -201,6 +203,44 @@ fun CampDetailScreen(
                     )
                 }
                 Spacer(Modifier.height(16.dp))
+            }
+        }
+
+        // After a school camp, each child's own result is a separate screen —
+        // the flags on the Kids tab are the summary, this is what the doctor
+        // actually wrote.
+        if (!upcoming && camp.isPartnerCamp && kids.isNotEmpty()) {
+            item {
+                Text(t(S.campResultTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))
+                kids.forEach { kid ->
+                    HeroCard(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp)
+                            .clickable {
+                                onOpenResult(camp.schoolCampId.ifBlank { camp.id }, kid.id)
+                            }
+                    ) {
+                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    t(S.campResultTitle),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Text(
+                                t(S.viewLabel),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = HeroBlue,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
             }
         }
 

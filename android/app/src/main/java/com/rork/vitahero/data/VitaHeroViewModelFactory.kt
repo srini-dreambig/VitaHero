@@ -22,6 +22,8 @@ class VitaHeroViewModelFactory(
                 BookingViewModel(application, container) as T
             modelClass.isAssignableFrom(ProfileViewModel::class.java) ->
                 ProfileViewModel(application, container) as T
+            modelClass.isAssignableFrom(GuardianViewModel::class.java) ->
+                GuardianViewModel(application, container) as T
             else -> throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
         }
     }

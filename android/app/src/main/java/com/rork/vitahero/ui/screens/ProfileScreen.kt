@@ -17,12 +17,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.outlined.Logout
 import androidx.compose.material.icons.outlined.ChildCare
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.LocalHospital
+import androidx.compose.material.icons.outlined.MedicalServices
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.People
@@ -79,6 +82,10 @@ fun ProfileScreen(
     onSelectLocale: (AppLocale) -> Unit,
     onOpenFamilySharing: () -> Unit,
     onOpenHospitals: () -> Unit = {},
+    onOpenReferrals: () -> Unit = {},
+    onOpenQuestions: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
+    onOpenRecord: () -> Unit = {},
     onLogout: () -> Unit
 ) {
     val context = LocalContext.current
@@ -195,6 +202,19 @@ fun ProfileScreen(
             Spacer(Modifier.height(12.dp))
             HeroCard(Modifier.fillMaxWidth()) {
                 Column {
+                    // The school pathway, in the order a parent meets it.
+                    LinkRow(
+                        Icons.Outlined.MedicalServices, HeroOrange, t(S.referralsTitle),
+                        t(S.referralsSub), onClick = onOpenReferrals
+                    )
+                    LinkRow(
+                        Icons.AutoMirrored.Outlined.HelpOutline, HeroBlue, t(S.questionsTitle),
+                        t(S.questionsSub), onClick = onOpenQuestions
+                    )
+                    LinkRow(
+                        Icons.AutoMirrored.Outlined.MenuBook, HeroPurple, t(S.libraryTitle),
+                        t(S.librarySub), onClick = onOpenLibrary
+                    )
                     LinkRow(
                         Icons.Outlined.LocalHospital, HeroPurple, t(S.linkedHospitals),
                         t(S.linkedHospitalsSub),
@@ -216,11 +236,12 @@ fun ProfileScreen(
                             Icon(Icons.AutoMirrored.Outlined.ArrowForwardIos, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                         }
                     }
+                    // Was a link to a web privacy page. A parent asking this
+                    // question wants to act on their own child's record, not
+                    // read a policy, so it opens the record itself.
                     LinkRow(
-                        Icons.Outlined.Lock, HeroBlue, t(S.privacyData), t(S.privacyDataSub),
-                        onClick = {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://kidhero.rork.app/privacy")))
-                        }
+                        Icons.Outlined.Lock, HeroBlue, t(S.privacyTitle), t(S.privacySub),
+                        onClick = onOpenRecord
                     )
                     LinkRow(
                         Icons.Outlined.SupportAgent, Color(0xFFF59E0B), t(S.helpSupport), t(S.helpSupportSub),

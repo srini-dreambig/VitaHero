@@ -80,6 +80,13 @@ fun MainScaffold(
     onOpenSchools: () -> Unit = {},
     onOpenHospitals: () -> Unit = {},
     onOpenCamp: (String) -> Unit = {},
+    onOpenConsent: () -> Unit = {},
+    onOpenReferrals: () -> Unit = {},
+    onOpenQuestions: () -> Unit = {},
+    onOpenLibrary: () -> Unit = {},
+    onOpenRecord: () -> Unit = {},
+    /** How many camps are waiting on this guardian to answer. */
+    pendingConsents: Int = 0,
     onOpenGrowthCharts: (String) -> Unit = {},
     onOpenFoodRecognition: (String, String) -> Unit,
     onLogout: () -> Unit,
@@ -123,6 +130,8 @@ fun MainScaffold(
                     onBookFollowUp = onOpenBooking,
                     onOpenCamp = onOpenCamp,
                     onOpenSchools = onOpenSchools,
+                    pendingConsents = pendingConsents,
+                    onOpenConsent = onOpenConsent,
                 )
                 Tab.REWARDS -> {
                     val leaderboards by kidsViewModel.leaderboards.collectAsState()
@@ -147,6 +156,10 @@ fun MainScaffold(
                     onSelectLocale = { profileViewModel.setLocale(it) },
                     onOpenFamilySharing = onOpenFamilySharing,
                     onOpenHospitals = onOpenHospitals,
+                    onOpenReferrals = onOpenReferrals,
+                    onOpenQuestions = onOpenQuestions,
+                    onOpenLibrary = onOpenLibrary,
+                    onOpenRecord = onOpenRecord,
                     onLogout = onLogout
                 )
             }

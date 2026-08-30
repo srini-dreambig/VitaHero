@@ -23,6 +23,12 @@ import com.rork.vitahero.data.rememberVitaHeroViewModels
 import com.rork.vitahero.ui.screens.AddKidScreen
 import com.rork.vitahero.ui.screens.AuthScreen
 import com.rork.vitahero.ui.screens.BookingScreen
+import com.rork.vitahero.ui.screens.CampConsentScreen
+import com.rork.vitahero.ui.screens.CampResultScreen
+import com.rork.vitahero.ui.screens.LibraryScreen
+import com.rork.vitahero.ui.screens.PrivacyScreen
+import com.rork.vitahero.ui.screens.QuestionsScreen
+import com.rork.vitahero.ui.screens.ReferralsScreen
 import com.rork.vitahero.ui.screens.CampDetailScreen
 import com.rork.vitahero.ui.screens.CampsScreen
 import com.rork.vitahero.ui.screens.ConsentScreen
@@ -57,6 +63,12 @@ object Routes {
     const val CAMP_DETAIL = "camp/{campId}"
     const val GROWTH_CHARTS = "growth/{kidId}"
     const val HOSPITALS = "hospitals"
+    const val CAMP_CONSENT = "campConsent"
+    const val CAMP_RESULT = "campResult/{campId}/{kidId}"
+    const val REFERRALS = "referrals"
+    const val QUESTIONS = "questions"
+    const val LIBRARY = "library"
+    const val RECORD = "record"
 }
 
 private val OnboardingImages = listOf(
@@ -78,6 +90,7 @@ fun AppNavigation(
     val campsViewModel = vms.camps
     val bookingViewModel = vms.booking
     val profileViewModel = vms.profile
+    val guardianViewModel = vms.guardian
 
     val state by appViewModel.uiState.collectAsState()
     val onboardingComplete by appViewModel.onboardingComplete.collectAsState()
@@ -102,6 +115,14 @@ fun AppNavigation(
             state.kids.forEach { kidsViewModel.refreshLeaderboard(it.id) }
         }
     }
+
+    // Consents, referrals, questions and the plan, once. These are what tell a
+    // parent something is waiting for them, so they load with the session
+    // rather than when a screen is first opened.
+    LaunchedEffect(isLoggedIn) {
+        if (isLoggedIn) guardianViewModel.refreshAll()
+    }
+    val pendingConsents by guardianViewModel.pendingConsents.collectAsState()
 
     val startDest = when {
         isLoggedIn -> Routes.MAIN
@@ -233,6 +254,12 @@ fun AppNavigation(
                 onOpenSchools = { navController.navigate(Routes.SCHOOLS) },
                 onOpenHospitals = { navController.navigate(Routes.HOSPITALS) },
                 onOpenCamp = { navController.navigate("camp/$it") },
+                onOpenConsent = { navController.navigate(Routes.CAMP_CONSENT) },
+                onOpenReferrals = { navController.navigate(Routes.REFERRALS) },
+                onOpenQuestions = { navController.navigate(Routes.QUESTIONS) },
+                onOpenLibrary = { navController.navigate(Routes.LIBRARY) },
+                onOpenRecord = { navController.navigate(Routes.RECORD) },
+                pendingConsents = pendingConsents.size,
                 onOpenGrowthCharts = { navController.navigate("growth/$it") },
                 onOpenFoodRecognition = { kidId, kidName ->
                     navController.navigate("foodRecognition/$kidId/$kidName")
@@ -347,6 +374,59 @@ fun AppNavigation(
             )
         }
 
+        // ── The school screening pathway, as a guardian sees it ──
+
+        composable(Routes.CAMP_CONSENT) {
+            CampConsentScreen(
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            Routes.CAMP_RESULT,
+            arguments = listOf(
+                navArgument("campId") { type = NavType.StringType },
+                navArgument("kidId") { type = NavType.StringType },
+            )
+        ) { backStack ->
+            CampResultScreen(
+                campId = backStack.arguments?.getString("campId").orEmpty(),
+                kidId = backStack.arguments?.getString("kidId").orEmpty(),
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.REFERRALS) {
+            ReferralsScreen(
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.QUESTIONS) {
+            QuestionsScreen(
+                kids = state.kids,
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.LIBRARY) {
+            LibraryScreen(
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.RECORD) {
+            PrivacyScreen(
+                guardianViewModel = guardianViewModel,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
         composable(Routes.NOTIFICATIONS) {
             val state by appViewModel.uiState.collectAsState()
             NotificationsScreen(
@@ -397,6 +477,9 @@ fun AppNavigation(
                         }
                     },
                     onBookFollowUp = { navController.navigate(Routes.BOOKING) },
+                    onOpenResult = { campId, kidId ->
+                        navController.navigate("campResult/$campId/$kidId")
+                    },
                 )
             }
         }

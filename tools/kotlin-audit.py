@@ -204,6 +204,254 @@ if "import com.rork.vitahero.data.HealthFlag" in kids_screen and "HealthFlag" no
     fail("KidsScreen.kt imports HealthFlag but no longer uses it")
 
 
+# ── 7b. translation coverage ────────────────────────────────
+#
+# Hindi and Telugu are partial by design — anything missing falls back to
+# English, which is legible but not what a Telugu-speaking parent in Hyderabad
+# should get. Reported so the gap is visible rather than forgotten.
+for name in ("hi", "te"):
+    m = re.search(r"private val " + name + r" = mapOf\((.*?)\n\)", locale, re.S)
+    if m:
+        n = len(re.findall(r"S\.(\w+) to ", m.group(1)))
+        total = len(re.findall(r"S\.(\w+) to ",
+                               re.search(r"private val en = mapOf\((.*?)\n\)", locale, re.S).group(1)))
+        pct = round(100 * n / total)
+        print(f"  note {name}: {n}/{total} strings translated ({pct}%); "
+              f"the rest fall back to English")
+
+
+# ── 8. redeclaration in object S ────────────────────────────
+#
+# Two `const val` of the same name is a compile error, and two different names
+# holding the same string key silently collapse in the locale maps. The second
+# one bit: a camp-consent "No, not this time" quietly overwrote the app's own
+# "Not now", which is the sort of thing nobody notices until a parent does.
+decls = re.findall(r'const val (\w+) = "([^"]+)"', locale)
+names = [n for n, _ in decls]
+dupe_names = sorted({n for n in names if names.count(n) > 1})
+if dupe_names:
+    fail(f"object S declares the same name twice (a compile error): {dupe_names}")
+else:
+    print(f"  ok  object S: {len(names)} constants, no redeclarations")
+
+by_key = {}
+for n, k in decls:
+    by_key.setdefault(k, []).append(n)
+shared = {k: v for k, v in by_key.items() if len(v) > 1}
+if shared:
+    fail(f"two constants share one string key, so one overwrites the other: {shared}")
+
+
+# ── 9. project imports resolve to a file that exists ────────
+#
+# A screen that imports a composable nobody wrote fails at compile time, and
+# these files were added in a batch, so a stale name is easy to leave behind.
+declared = set()
+for f, src in SRC.items():
+    pkg = re.search(r"^package ([\w.]+)", src, re.M)
+    if not pkg:
+        continue
+    for m in re.finditer(r"^(?:@\w+\s*)?(?:public |internal |private )?"
+                         r"(?:fun|class|object|interface|enum class|data class|val|const val) "
+                         r"(\w+)", src, re.M):
+        declared.add(pkg.group(1) + "." + m.group(1))
+
+missing = set()
+for f, src in SRC.items():
+    for m in re.finditer(r"^import (com\.rork\.vitahero\.[\w.]+)", src, re.M):
+        name = m.group(1)
+        if name.endswith(".*"):
+            continue
+        generated = ("com.rork.vitahero.BuildConfig", "com.rork.vitahero.R")
+        if name not in declared and not name.startswith(generated):
+            missing.add(f"{rel(f)} imports {name}, which nothing declares")
+for x in sorted(missing):
+    fail(x)
+if not missing:
+    print(f"  ok  every com.rork.vitahero import resolves ({len(declared)} declarations)")
+
+
+# ── 10. brackets balance ────────────────────────────────────
+#
+# Cheap, and it catches the one mistake a large generated edit actually makes.
+def balanced(src):
+    depth = {"(": 0, "[": 0, "{": 0}
+    close = {")": "(", "]": "[", "}": "{"}
+    i, n = 0, len(src)
+    in_str = in_char = in_line_c = in_block_c = False
+    in_raw = False
+    while i < n:
+        c = src[i]
+        two = src[i:i + 2]
+        three = src[i:i + 3]
+        if in_line_c:
+            if c == "\n":
+                in_line_c = False
+        elif in_block_c:
+            if two == "*/":
+                in_block_c = False
+                i += 1
+        elif in_raw:
+            if three == '"""':
+                in_raw = False
+                i += 2
+        elif in_str:
+            if c == "\\":
+                i += 1
+            elif c == '"':
+                in_str = False
+        elif in_char:
+            if c == "\\":
+                i += 1
+            elif c == "'":
+                in_char = False
+        elif two == "//":
+            in_line_c = True
+            i += 1
+        elif two == "/*":
+            in_block_c = True
+            i += 1
+        elif three == '"""':
+            in_raw = True
+            i += 2
+        elif c == '"':
+            in_str = True
+        elif c == "'":
+            in_char = True
+        elif c in depth:
+            depth[c] += 1
+        elif c in close:
+            depth[close[c]] -= 1
+            if depth[close[c]] < 0:
+                return c
+        i += 1
+    for k, v in depth.items():
+        if v != 0:
+            return f"{k} unbalanced by {v}"
+    return None
+
+unbalanced = 0
+for f, src in SRC.items():
+    problem = balanced(src)
+    if problem:
+        fail(f"{rel(f)} has unbalanced brackets: {problem}")
+        unbalanced += 1
+if not unbalanced:
+    print(f"  ok  brackets balance in all {len(SRC)} files")
+
+
+# ── 11. named arguments match a declared parameter ──────────
+#
+# The riskiest thing about wiring new screens by hand is calling one with an
+# argument name it does not have. Checked only for composables this project
+# declares, and only where the call names its arguments.
+def params_of(src, fname):
+    m = re.search(r"\bfun " + re.escape(fname) + r"\s*\(", src)
+    if not m:
+        return None
+    i = m.end()
+    depth, out = 1, []
+    while i < len(src) and depth:
+        if src[i] == "(":
+            depth += 1
+        elif src[i] == ")":
+            depth -= 1
+        out.append(src[i])
+        i += 1
+    body = "".join(out[:-1])
+    # KDoc above a parameter would otherwise swallow its name.
+    body = re.sub(r"/\*.*?\*/", "", body, flags=re.S)
+    body = re.sub(r"//[^\n]*", "", body)
+    # top-level commas only
+    # Only real brackets: a lambda type such as `() -> Unit` contains a `>`
+    # that must not be read as a closing angle bracket.
+    parts, depth, cur = [], 0, ""
+    for ch in body:
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            parts.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    parts.append(cur)
+    names = set()
+    for part in parts:
+        pm = re.match(r"\s*(?:@\w+\s*)*(?:vararg\s+)?(\w+)\s*:", part)
+        if pm:
+            names.add(pm.group(1))
+    return names
+
+SCREENS = {}
+for f, src in SRC.items():
+    for m in re.finditer(r"^@Composable\s*\n(?:private |internal )?fun (\w+)\s*\(", src, re.M):
+        SCREENS[m.group(1)] = params_of(src, m.group(1))
+
+bad_args = []
+
+
+def split_top(text):
+    """Split an argument list on commas that are not inside a nested bracket."""
+    parts, depth, cur = [], 0, ""
+    in_str = False
+    i = 0
+    while i < len(text):
+        ch = text[i]
+        if in_str:
+            if ch == "\\":
+                cur += text[i:i + 2]
+                i += 2
+                continue
+            if ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        elif ch == "," and depth == 0:
+            parts.append(cur)
+            cur = ""
+            i += 1
+            continue
+        cur += ch
+        i += 1
+    parts.append(cur)
+    return parts
+
+
+for f, src in SRC.items():
+    for name, allowed in SCREENS.items():
+        if not allowed:
+            continue
+        for m in re.finditer(r"(?<![\w.])" + re.escape(name) + r"\s*\(", src):
+            # the declaration itself, not a call
+            head = src[max(0, m.start() - 40):m.start()]
+            if re.search(r"fun\s+$", head):
+                continue
+            i, depth = m.end(), 1
+            while i < len(src) and depth:
+                if src[i] == "(":
+                    depth += 1
+                elif src[i] == ")":
+                    depth -= 1
+                i += 1
+            args = src[m.end():i - 1]
+            for part in split_top(args):
+                am = re.match(r"\s*(\w+)\s*=(?!=)", part)
+                if am and am.group(1) not in allowed:
+                    bad_args.append(
+                        f"{rel(f)} calls {name}({am.group(1)} = ...), but {name} has no "
+                        f"such parameter (it takes: {', '.join(sorted(allowed))})")
+for x in sorted(set(bad_args)):
+    fail(x)
+if not bad_args:
+    print(f"  ok  named arguments match declarations for {len(SCREENS)} composables")
+
+
 # ── result ──────────────────────────────────────────────────
 print("\n" + "=" * 60)
 if failures:

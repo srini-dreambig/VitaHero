@@ -57,6 +57,9 @@ fun CampsScreen(
     onBookFollowUp: () -> Unit,
     onOpenCamp: (String) -> Unit = {},
     onOpenSchools: () -> Unit = {},
+    /** How many camps are waiting on this guardian to answer. */
+    pendingConsents: Int = 0,
+    onOpenConsent: () -> Unit = {},
 ) {
     val upcoming = camps.filter { it.status == CampStatus.UPCOMING }
     val past = camps.filter { it.status == CampStatus.COMPLETED }
@@ -92,6 +95,39 @@ fun CampsScreen(
                 }
             }
             Spacer(Modifier.height(12.dp))
+
+            // A camp cannot happen for a child whose guardian has not answered,
+            // so this sits above everything else on the screen while it is true.
+            if (pendingConsents > 0) {
+                HeroCard(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onOpenConsent)
+                ) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Outlined.School,
+                            contentDescription = null,
+                            tint = HeroOrange,
+                            modifier = Modifier.size(24.dp),
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                t(S.campConsentTitle),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                t(S.campConsentSub),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
         }
 
         if (camps.isEmpty()) {
