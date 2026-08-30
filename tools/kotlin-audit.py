@@ -25,7 +25,9 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path("/home/user/VitaHero/android/app/src/main/java/com/rork/vitahero")
+# Resolved from this file rather than hardcoded, so the audit runs wherever
+# the repository is checked out.
+ROOT = Path(__file__).resolve().parent.parent / "android/app/src/main/java/com/rork/vitahero"
 FILES = sorted(ROOT.rglob("*.kt"))
 SRC = {f: f.read_text() for f in FILES}
 
