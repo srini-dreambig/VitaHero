@@ -318,13 +318,19 @@ fun KidDetailScreen(
                 DetailTab.GROWTH -> GrowthTab(kid, growthAssessment, onOpenGrowthCharts)
                 DetailTab.DENTAL -> FlagTab(
                     t(S.dentalTabLabel), kid.dental,
-                    if (kid.dental == HealthFlag.GOOD) t(S.dentalGoodMsg)
-                    else t(S.dentalWatchMsg)
+                    when (kid.dental) {
+                        HealthFlag.NOT_MEASURED -> t(S.notMeasuredMsg)
+                        HealthFlag.GOOD -> t(S.dentalGoodMsg)
+                        else -> t(S.dentalWatchMsg)
+                    }
                 )
                 DetailTab.EYE -> FlagTab(
                     t(S.eyeTabLabel), kid.eyesight,
-                    if (kid.eyesight == HealthFlag.GOOD) t(S.eyeGoodMsg)
-                    else t(S.eyeWatchMsg)
+                    when (kid.eyesight) {
+                        HealthFlag.NOT_MEASURED -> t(S.notMeasuredMsg)
+                        HealthFlag.GOOD -> t(S.eyeGoodMsg)
+                        else -> t(S.eyeWatchMsg)
+                    }
                 )
                 DetailTab.NUTRITION -> NutritionTab(kid, onOpenDiet)
             }
@@ -606,8 +612,11 @@ private fun NutritionTab(kid: Kid, onOpenDiet: () -> Unit) {
                 }
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    if (kid.nutrition == HealthFlag.GOOD) t(S.balancedDietMsg)
-                    else t(S.ironLowMsg),
+                    when (kid.nutrition) {
+                        HealthFlag.NOT_MEASURED -> t(S.notMeasuredMsg)
+                        HealthFlag.GOOD -> t(S.balancedDietMsg)
+                        else -> t(S.ironLowMsg)
+                    },
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

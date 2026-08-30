@@ -56,6 +56,9 @@ object PdfReportGenerator {
         val warnPaint = Paint(Paint.ANTI_ALIAS_FLAG).also {
             it.typeface = Typeface.DEFAULT_BOLD; it.textSize = 12f; it.color = 0xFFF59E0B.toInt()
         }
+        val mutedPaint = Paint(Paint.ANTI_ALIAS_FLAG).also {
+            it.typeface = Typeface.DEFAULT_BOLD; it.textSize = 12f; it.color = 0xFF94A3B8.toInt()
+        }
         val linePaint = Paint().also { it.color = 0xFFE6EEEA.toInt(); it.strokeWidth = 1f }
         val bgPaint = Paint().also { it.color = 0xFFF6FBF9.toInt(); it.style = Paint.Style.FILL }
         val headerBgPaint = Paint().also { it.color = 0xFF10B981.toInt() }
@@ -131,7 +134,12 @@ object PdfReportGenerator {
             Triple("Nutrition", k.nutrition.label, k.nutrition)
         )
         flags.forEach { (name, label, flag) ->
-            val fp = when (flag) { HealthFlag.GOOD -> greenPaint; HealthFlag.ALERT -> alertPaint; HealthFlag.WATCH -> warnPaint }
+            val fp = when (flag) {
+                HealthFlag.GOOD -> greenPaint
+                HealthFlag.ALERT -> alertPaint
+                HealthFlag.WATCH -> warnPaint
+                HealthFlag.NOT_MEASURED -> mutedPaint
+            }
             canvas.drawText("$name: $label", MARGIN + 4f, y, fp)
             y += 20f
         }

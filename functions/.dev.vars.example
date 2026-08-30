@@ -21,15 +21,28 @@ ANDROID_CERT_SHA256=
 # Optional Play Store URL used as the install fallback on the invite landing page.
 APP_PLAY_URL=
 
-# ─── Stage A · school administration portal ───────────────────
-# The portal is served by this worker at  https://<worker-host>/admin
+# ─── VitaHero Console ─────────────────────────────────────────
+# Served by this worker at  https://<worker-host>/admin
 #
 # First-time setup:
 #   1. Set ADMIN_API_KEY above and deploy.
-#   2. Open /admin and sign in with that key ("VitaHero ops" tab).
-#   3. Optional: give yourself a phone login so you stop pasting the key —
+#   2. Open /admin and sign in with that key ("Ops key" tab).
+#   3. Give yourself a phone login so you stop pasting the key:
 #      curl -X POST https://<worker-host>/api/admin/ops/grant \
 #        -H "X-Admin-Key: $ADMIN_API_KEY" -H "Content-Type: application/json" \
 #        -d '{"phone":"9876543210","name":"Your Name"}'
-#   4. Add a school, set its classes, then add that school's own administrator.
-#      They sign in at /admin with their mobile number and an OTP.
+#
+# Running a camp, end to end:
+#   1. Add a school and the checks it has agreed to (Programme).
+#   2. Set its classes and sections.
+#   3. Upload the student roster (CSV).
+#   4. Add people: an administrator, screeners, and a supervising physician.
+#      They all sign in at /admin with their mobile number and an OTP.
+#   5. Schedule a camp: date, checks, which classes.
+#   6. Build the list of children  <-- without this the camp has nobody on it
+#      and a screener signing in sees an empty list.
+#   7. Assign screeners and a physician to that camp.
+#   8. Request consent by SMS. Paper forms can be recorded in the console.
+#   9. Camp day: the screening team records findings per child.
+#  10. The physician reviews every child and approves.
+#  11. Release. Only then do guardians see anything in the app.

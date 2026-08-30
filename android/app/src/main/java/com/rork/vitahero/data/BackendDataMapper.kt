@@ -77,5 +77,5 @@ object BackendDataMapper {
     )
 
     private fun parseFlag(value: String): HealthFlag =
-        runCatching { HealthFlag.valueOf(value) }.getOrDefault(HealthFlag.GOOD)
+        runCatching { HealthFlag.valueOf(value) }.getOrDefault(HealthFlag.NOT_MEASURED)
 }

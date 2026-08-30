@@ -29,6 +29,13 @@ import {
 import { validateRoster, commitRoster, listRoster, listRosterBatches } from "./roster";
 
 const URL = process.env.TEST_DATABASE_URL;
+
+/** Swap the database name in a connection string. */
+function URL2(base: string, db: string): string {
+  const u = new globalThis.URL(base);
+  u.pathname = "/" + db;
+  return u.toString();
+}
 const suite = URL ? describe : describe.skip;
 
 let client: pg.Client;
@@ -83,11 +90,25 @@ async function baseSchema(s: Sql) {
       district TEXT DEFAULT '', partner_code TEXT NOT NULL UNIQUE,
       contact_email TEXT DEFAULT '', description TEXT DEFAULT '', active BOOLEAN DEFAULT true
     )`;
+  // Roster commit enrols each guardian with the school so the parent app can
+  // surface that school's camps to them.
+  await s`
+    CREATE TABLE IF NOT EXISTS vita_hero.school_enrollments (
+      id TEXT PRIMARY KEY, profile_id TEXT NOT NULL, school_id TEXT NOT NULL, kid_id TEXT,
+      status TEXT DEFAULT 'ACTIVE', enrolled_at TIMESTAMPTZ DEFAULT NOW(),
+      UNIQUE (profile_id, school_id)
+    )`;
 }
 
 beforeAll(async () => {
   if (!URL) return;
-  client = new pg.Client({ connectionString: URL });
+  // Its own database, so the integration suites never race each other.
+  const admin = new pg.Client({ connectionString: URL });
+  await admin.connect();
+  await admin.query("DROP DATABASE IF EXISTS vh_test_stage_a");
+  await admin.query("CREATE DATABASE vh_test_stage_a");
+  await admin.end();
+  client = new pg.Client({ connectionString: URL2(URL, "vh_test_stage_a") });
   await client.connect();
   sql = neonShim(client);
   await client.query("DROP SCHEMA IF EXISTS vita_hero CASCADE");

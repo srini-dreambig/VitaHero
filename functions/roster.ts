@@ -572,6 +572,27 @@ export async function commitRoster(
       );
     }
 
+    // Enrol each guardian with the school. Without this the parent app's camp
+    // list, which keys off school_enrollments, stays empty for an imported
+    // family and they never see the camp their child was screened at.
+    const guardianIds = [...new Set(prepared.map((p) => p.profileId))];
+    for (const group of chunk(guardianIds, 100)) {
+      const values: string[] = [];
+      const params: unknown[] = [];
+      group.forEach((profileId, i) => {
+        const b = i * 2;
+        values.push(`($${b + 1}, $${b + 2}, $${group.length * 2 + 1}, 'ACTIVE')`);
+        params.push(`enr_${profileId}_${schoolId}`.slice(0, 120), profileId);
+      });
+      params.push(schoolId);
+      await sql.query(
+        `INSERT INTO vita_hero.school_enrollments (id, profile_id, school_id, status)
+         VALUES ${values.join(", ")}
+         ON CONFLICT (profile_id, school_id) DO NOTHING`,
+        params
+      );
+    }
+
     // Denormalised school name on the student row, used by the parent app.
     await sql`
       UPDATE vita_hero.kids SET school = (SELECT name FROM vita_hero.schools WHERE id = ${schoolId})

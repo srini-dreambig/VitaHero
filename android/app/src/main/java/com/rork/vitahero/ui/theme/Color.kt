@@ -28,6 +28,7 @@ val HairLine = Color(0xFFE2E9EF)
 val FlagGood = Color(0xFF10B981)
 val FlagWatch = Color(0xFFF59E0B)
 val FlagAlert = Color(0xFFEF4444)
+val FlagNeutral = Color(0xFF94A3B8)
 
 // Dark theme palette
 val DarkBg = Color(0xFF0B1121)

@@ -38,6 +38,34 @@ import {
   listRoster,
   listRosterBatches,
 } from "./roster";
+import {
+  ensureCampSchema,
+  listCamps,
+  listMyCamps,
+  getCamp,
+  createCamp,
+  updateCamp,
+  buildCampRoster,
+  listParticipants,
+  requestConsent,
+  recordConsent,
+  setAttendance,
+  getScreeningForm,
+  saveScreening,
+  campReconciliation,
+  reviewQueue,
+  reviewDetail,
+  reviewParticipant,
+  releaseCamp,
+  pendingConsents,
+  guardianCampResult,
+  adminOverview,
+  addStaffMember,
+  listStaff,
+  assignCampStaff,
+  removeCampStaff,
+  assertCampAccess,
+} from "./camps";
 import { PORTAL_HTML } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
@@ -527,123 +555,16 @@ function kidBmi(heightCm: number, weightKg: number): number {
   return m > 0 ? weightKg / (m * m) : 0;
 }
 
-function stableHash(input: string): number {
-  let h = 0;
-  for (let i = 0; i < input.length; i++) {
-    h = (Math.imul(31, h) + input.charCodeAt(i)) | 0;
-  }
-  return Math.abs(h);
-}
 
-function nutritionFlagFromBmi(bmi: number): string {
-  if (bmi <= 0) return "GOOD";
-  if (bmi < 14) return "WATCH";
-  if (bmi > 19.5) return "ALERT";
-  if (bmi < 15 || bmi > 18) return "WATCH";
-  return "GOOD";
-}
 
-function deriveCampFlags(
-  kid: Record<string, unknown>,
-  checks: string[],
-  campId: string,
-  resultSummary: string | null
-): { dental: string; eyesight: string; nutrition: string; height_cm: number; weight_kg: number } {
-  const heightCm = Number(kid.height_cm) || 0;
-  const weightKg = Number(kid.weight_kg) || 0;
-  const bmi = kidBmi(heightCm, weightKg);
-  const seed = stableHash(`${kid.id}:${campId}`);
-  const checkText = checks.join(" ").toLowerCase();
-
-  let dental = (kid.dental as string) || "GOOD";
-  let eyesight = (kid.eyesight as string) || "GOOD";
-  let nutrition = nutritionFlagFromBmi(bmi);
-
-  if (checkText.includes("dental")) {
-    if (resultSummary?.toLowerCase().includes("follow-up")) {
-      dental = seed % 7 === 0 ? "ALERT" : seed % 3 === 0 ? "WATCH" : "GOOD";
-    } else {
-      dental = seed % 11 === 0 ? "WATCH" : "GOOD";
-    }
-  }
-  if (checkText.includes("eye")) {
-    eyesight = seed % 13 === 0 ? "WATCH" : "GOOD";
-  }
-  if (
-    checkText.includes("nutrition") ||
-    checkText.includes("hemoglobin") ||
-    checkText.includes("bmi")
-  ) {
-    if (bmi > 0 && bmi < 14) nutrition = "WATCH";
-    if (bmi > 19.5) nutrition = "ALERT";
-    else if (seed % 9 === 0 && nutrition === "GOOD") nutrition = "WATCH";
-  }
-
-  const heightAdj = heightCm > 0 ? Math.round(heightCm + (seed % 3) - 1) : heightCm;
-  const weightAdj =
-    weightKg > 0 ? Math.round((weightKg + ((seed % 5) - 2) * 0.1) * 10) / 10 : weightKg;
-
-  return {
-    dental,
-    eyesight,
-    nutrition,
-    height_cm: heightAdj || heightCm,
-    weight_kg: weightAdj || weightKg,
-  };
-}
-
-async function ensureCampKidResults(
-  sql: Sql,
-  profileId: string
-): Promise<void> {
-  const pending = await sql`
-    SELECT cr.kid_id, cr.school_camp_id, sc.checks, sc.date, sc.status, sc.result_summary
-    FROM ${sql(SCHEMA)}.camp_registrations cr
-    JOIN ${sql(SCHEMA)}.school_camps sc ON sc.id = cr.school_camp_id
-    WHERE cr.profile_id = ${profileId}
-      AND sc.status = 'COMPLETED'
-      AND NOT EXISTS (
-        SELECT 1 FROM ${sql(SCHEMA)}.camp_kid_results ckr
-        WHERE ckr.kid_id = cr.kid_id AND ckr.school_camp_id = cr.school_camp_id
-      )
-  `;
-
-  for (const row of pending) {
-    const kidRows = await sql`
-      SELECT * FROM ${sql(SCHEMA)}.kids
-      WHERE id = ${row.kid_id as string} AND profile_id = ${profileId}
-      LIMIT 1
-    `;
-    if (kidRows.length === 0) continue;
-
-    const checks = Array.isArray(row.checks)
-      ? (row.checks as string[])
-      : JSON.parse(String(row.checks || "[]"));
-    const flags = deriveCampFlags(
-      kidRows[0] as Record<string, unknown>,
-      checks,
-      row.school_camp_id as string,
-      (row.result_summary as string) || null
-    );
-    const resultId = `ckr_${row.school_camp_id}_${row.kid_id}`;
-    await sql`
-      INSERT INTO ${sql(SCHEMA)}.camp_kid_results
-        (id, profile_id, school_camp_id, kid_id, dental, eyesight, nutrition, height_cm, weight_kg)
-      VALUES (
-        ${resultId}, ${profileId}, ${row.school_camp_id}, ${row.kid_id},
-        ${flags.dental}, ${flags.eyesight}, ${flags.nutrition},
-        ${flags.height_cm}, ${flags.weight_kg}
-      )
-      ON CONFLICT (school_camp_id, kid_id) DO NOTHING
-    `;
-  }
-}
 
 async function mergeCampResultsIntoKids(
   sql: Sql,
   profileId: string
 ): Promise<void> {
-  await ensureCampKidResults(sql, profileId);
+  // Projects released camp results onto the child's headline flags. Results are
+  // written only by releaseCamp() in camps.ts, after a physician has approved
+  // them — nothing is derived or guessed here.
   await sql`
     UPDATE ${sql(SCHEMA)}.kids k SET
       dental = COALESCE(l.dental, k.dental),
@@ -1116,9 +1037,8 @@ async function resolveActor(
   }
   const session = await authenticateSession(sql, extractToken(request));
   if (!session) return null;
-  if (session.role !== "SCHOOL_ADMIN" && session.role !== "ADMIN" && session.role !== "SUPERADMIN") {
-    return null;
-  }
+  const staffRoles = ["SCHOOL_ADMIN", "SCREENER", "PHYSICIAN", "ADMIN", "SUPERADMIN"];
+  if (!staffRoles.includes(session.role)) return null;
   return {
     profileId: session.profileId,
     name: session.name,
@@ -1504,6 +1424,7 @@ export default {
         try {
           await ensureSchema(sql);
           await ensureStageASchema(sql);
+          await ensureCampSchema(sql);
           schemaReady = true;
         } catch (schemaErr) {
           console.error("Schema init error:", schemaErr);
@@ -1582,6 +1503,124 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }));
       }
 
+      // ── Admin: overview, my camps, camp operations ──
+      if (path === "/api/admin/overview" || path === "/api/admin/my-camps"
+          || path === "/api/admin/camps" || path.startsWith("/api/admin/camps/")) {
+        const actor = await resolveActor(request, sql, env);
+        if (!actor) {
+          return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
+        }
+        const method = request.method;
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try { return (await request.json()) as Record<string, unknown>; }
+          catch { throw new ApiError(400, "Expected a JSON body", "BAD_JSON"); }
+        };
+        const smsSender = (to: string, body: string) => sendTwilioSms(env, to, body);
+
+        try {
+          if (path === "/api/admin/overview" && method === "GET") {
+            return json(await adminOverview(sql, actor));
+          }
+          if (path === "/api/admin/my-camps" && method === "GET") {
+            return json(await listMyCamps(sql, actor));
+          }
+
+          const rest = path.slice("/api/admin/camps".length).replace(/^\//, "");
+          const parts = rest ? rest.split("/").map(decodeURIComponent) : [];
+          if (parts.length === 0) return json({ error: "Not found" }, 404);
+
+          const campId = parts[0];
+          const section = parts[1] || "";
+          const third = parts[2] || "";
+
+          if (!section) {
+            if (method === "GET") return json(await getCamp(sql, actor, campId));
+            if (method === "PATCH" || method === "PUT") {
+              return json(await updateCamp(sql, actor, campId, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          if (section === "roster" && method === "POST") {
+            return json(await buildCampRoster(sql, actor, campId));
+          }
+
+          if (section === "participants" && method === "GET") {
+            return json(await listParticipants(sql, actor, campId, {
+              consent: url.searchParams.get("consent") || undefined,
+              attendance: url.searchParams.get("attendance") || undefined,
+              status: url.searchParams.get("status") || undefined,
+              search: url.searchParams.get("q") || undefined,
+            }));
+          }
+
+          if (section === "reconciliation" && method === "GET") {
+            return json(await campReconciliation(sql, actor, campId));
+          }
+
+          if (section === "consent") {
+            if (third === "request" && method === "POST") {
+              return json(await requestConsent(sql, actor, campId, smsSender, url.origin));
+            }
+            if (third === "record" && method === "POST") {
+              const b = await readBody();
+              const access = await assertCampAccess(sql, actor, campId);
+              if (!access.canSchedule) {
+                return json({ error: "You cannot record consent for this camp", code: "FORBIDDEN" }, 403);
+              }
+              const decision = String(b.decision || "").toUpperCase();
+              if (decision !== "GRANTED" && decision !== "DECLINED" && decision !== "PAPER") {
+                return json({ error: "Decision must be GRANTED, DECLINED or PAPER", code: "BAD_DECISION" }, 400);
+              }
+              return json(await recordConsent(sql, campId, String(b.kidId || ""), decision, {
+                actorId: actor.profileId,
+                source: String(b.source || "PAPER"),
+                checks: Array.isArray(b.checks) ? (b.checks as string[]) : undefined,
+                note: String(b.note || ""),
+              }));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          if (section === "attendance" && method === "POST") {
+            const b = await readBody();
+            return json(await setAttendance(sql, actor, campId, String(b.kidId || ""), String(b.attendance || "")));
+          }
+
+          if (section === "screening") {
+            if (!third) return json({ error: "Which child?" }, 400);
+            if (method === "GET") return json(await getScreeningForm(sql, actor, campId, third));
+            if (method === "POST") return json(await saveScreening(sql, actor, campId, third, await readBody()));
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          if (section === "review") {
+            if (!third && method === "GET") return json(await reviewQueue(sql, actor, campId));
+            if (third && method === "GET") return json(await reviewDetail(sql, actor, campId, third));
+            if (third && method === "POST") {
+              return json(await reviewParticipant(sql, actor, campId, third, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          if (section === "release" && method === "POST") {
+            return json(await releaseCamp(sql, actor, campId, smsSender));
+          }
+
+          if (section === "staff") {
+            if (method === "POST") return json(await assignCampStaff(sql, actor, campId, await readBody()));
+            if (method === "DELETE" && third) return json(await removeCampStaff(sql, actor, campId, third));
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          console.error("Camp route error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
+
       if (path === "/api/admin/schools" || path.startsWith("/api/admin/schools/")) {
         const actor = await resolveActor(request, sql, env);
         if (!actor) {
@@ -1629,6 +1668,20 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (method === "POST" || method === "PUT") {
               return json(await setClasses(sql, actor, schoolId, await readBody()));
             }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Camps for this school (B1)
+          if (section === "camps") {
+            if (method === "GET") return json(await listCamps(sql, actor, schoolId));
+            if (method === "POST") return json(await createCamp(sql, actor, schoolId, await readBody()), 201);
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // Screeners and physicians attached to this school
+          if (section === "staff") {
+            if (method === "GET") return json(await listStaff(sql, actor, schoolId));
+            if (method === "POST") return json(await addStaffMember(sql, actor, schoolId, await readBody()), 201);
             return json({ error: "Method not allowed" }, 405);
           }
 
@@ -2221,6 +2274,58 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // ═══════════════════════════════════════════════════
       // Camps
       // ═══════════════════════════════════════════════════
+
+      // ── Guardian: camp consent and released results ──
+      if (path === "/api/camps/consents" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          return json(await pendingConsents(sql, session.profileId));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message }, 500);
+        }
+      }
+
+      if (path === "/api/camps/consent" && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          const body: Record<string, unknown> = await request.json();
+          const decision = String(body.decision || "").toUpperCase();
+          if (decision !== "GRANTED" && decision !== "DECLINED") {
+            return json({ error: "Decision must be GRANTED or DECLINED", code: "BAD_DECISION" }, 400);
+          }
+          return json(await recordConsent(
+            sql,
+            String(body.campId || ""),
+            String(body.kidId || ""),
+            decision,
+            {
+              actorId: session.profileId,
+              source: "APP",
+              checks: Array.isArray(body.checks) ? (body.checks as string[]) : undefined,
+              profileId: session.profileId,
+            }
+          ));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message }, 500);
+        }
+      }
+
+      if (path === "/api/camps/result" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          return json(await guardianCampResult(
+            sql,
+            session.profileId,
+            url.searchParams.get("camp_id") || "",
+            url.searchParams.get("kid_id") || ""
+          ));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message }, 500);
+        }
+      }
 
       if (path === "/api/camps" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);

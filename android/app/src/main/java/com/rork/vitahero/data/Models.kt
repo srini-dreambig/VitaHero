@@ -3,12 +3,20 @@ package com.rork.vitahero.data
 import androidx.compose.ui.graphics.Color
 import com.rork.vitahero.ui.theme.FlagAlert
 import com.rork.vitahero.ui.theme.FlagGood
+import com.rork.vitahero.ui.theme.FlagNeutral
 import com.rork.vitahero.ui.theme.FlagWatch
 
 enum class HealthFlag(val label: String, val color: Color) {
     GOOD("On track", FlagGood),
     WATCH("Needs attention", FlagWatch),
-    ALERT("See a doctor", FlagAlert)
+    ALERT("See a doctor", FlagAlert),
+
+    /**
+     * Nothing has been measured yet — no camp has screened this, or the camp
+     * did not include this check. Distinct from GOOD on purpose: silence is
+     * not a clean bill of health, and showing it as one misleads a parent.
+     */
+    NOT_MEASURED("Not measured yet", FlagNeutral)
 }
 
 data class HealthMetric(

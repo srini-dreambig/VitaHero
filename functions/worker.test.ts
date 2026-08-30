@@ -58,7 +58,7 @@ describe("the portal", () => {
     expect(r.status).toBe(200);
     expect(r.headers.get("Content-Type")).toContain("text/html");
     const body = await r.text();
-    expect(body).toContain("School administration");
+    expect(body).toContain("VitaHero Console");
     expect(body).toContain("<script>");
   });
 
