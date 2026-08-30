@@ -3776,3 +3776,5 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
     }
   },
 };
+
+// Neon serverless driver dependency restored (see functions/package.json).
