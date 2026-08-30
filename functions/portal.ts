@@ -3107,15 +3107,35 @@ export const PORTAL_HTML = `<!doctype html>
     clear(root);
     if (!S.auth) { add(root, viewSignIn()); return; }
 
+    // A screen that throws must not take the console with it.
+    //
+    // render() clears the root before it rebuilds, so any error thrown while
+    // building a screen used to leave a white page with no navigation and
+    // nothing in the log — and one missing field in one API response is enough
+    // to cause it. Keeping the shell means the failure is legible and you can
+    // still click somewhere else.
     var body;
-    if (S.view === "newSchool") body = viewNewSchool();
-    else if (S.view === "school" && S.school) body = viewSchool();
-    else if (S.view === "camp" && S.camp) body = viewCamp();
-    else if (S.view === "mycamps") body = viewMyCamps();
-    else if (S.view === "library") body = viewLibrary();
-    else if (S.view === "hospitals") body = viewHospitals();
-    else if (S.view === "schools") body = viewSchools();
-    else body = viewOverview();
+    try {
+      if (S.view === "newSchool") body = viewNewSchool();
+      else if (S.view === "school" && S.school) body = viewSchool();
+      else if (S.view === "camp" && S.camp) body = viewCamp();
+      else if (S.view === "mycamps") body = viewMyCamps();
+      else if (S.view === "library") body = viewLibrary();
+      else if (S.view === "hospitals") body = viewHospitals();
+      else if (S.view === "schools") body = viewSchools();
+      else body = viewOverview();
+    } catch (renderErr) {
+      body = el("div", { class: "card" }, el("div", { class: "card-b" },
+        el("h2", { style: "margin-bottom:4px" }, "This screen could not be drawn"),
+        el("p", { class: "muted", style: "font-size:13.5px" },
+          "The data it was given is not the shape it expected. Nothing has been " +
+          "lost \u2014 reloading usually clears it. If it keeps happening, send " +
+          "this line to VitaHero support."),
+        el("p", { class: "mono", style: "font-size:12px;color:var(--err);margin-top:8px" },
+          String((renderErr && renderErr.message) || renderErr)),
+        el("div", { class: "row", style: "margin-top:12px" },
+          el("button", { class: "pri", onclick: function () { location.reload(); } }, "Reload"))));
+    }
 
     add(root, el("div", { class: "shell" }, sidebar(),
       el("div", { class: "main" },
