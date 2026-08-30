@@ -73,7 +73,7 @@ import {
   setCampStaffActive,
 } from "./camps";
 import { adminAnalytics } from "./analytics";
-import { makeSender, smsProvider } from "./messaging";
+import { makeSender, smsProvider, textbeeDevice } from "./messaging";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import {
   ensureReferralSchema,
@@ -1753,7 +1753,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           // anything is sent, so "0 of 2" is never the first time anyone
           // learns the gateway is not configured.
           if (path === "/api/admin/sms-status" && method === "GET") {
-            return json(smsProvider(env));
+            const status = smsProvider(env);
+            // For textbee, configuration alone is not enough: the registered
+            // phone must also be connected or every send queues forever. The
+            // screen shows that before anyone clicks Invite.
+            if (status.provider === "textbee" && status.configured) {
+              const device = await textbeeDevice(env);
+              return json({ ...status, device });
+            }
+            return json(status);
           }
           if (path === "/api/admin/analytics" && method === "GET") {
             return json(await adminAnalytics(sql, actor, {

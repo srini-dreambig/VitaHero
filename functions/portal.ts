@@ -2197,7 +2197,11 @@ export const PORTAL_HTML = `<!doctype html>
           detail: "Could not check whether SMS is configured." }; })
         ? null
         : S.smsStatus.configured
-          ? null
+          ? S.smsStatus.device && S.smsStatus.device.online === false
+            ? el("div", { class: "msg err" },
+                el("b", null, "The sending phone is not connected. "),
+                "TextBee has the message queued but the registered Android phone has not picked it up. Open the TextBee app on that phone and sign it back in, then send again.")
+            : null
           : el("div", { class: "msg err" },
               el("b", null, "No text message can be sent. "), S.smsStatus.detail),
       el("div", { class: "stats" },

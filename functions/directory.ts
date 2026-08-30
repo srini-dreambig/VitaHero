@@ -169,7 +169,8 @@ export async function deleteDoctor(sql: Sql, actor: Actor, id: string) {
 export async function inviteStatus(sql: Sql, actor: Actor, schoolId: string) {
   assertSchoolAccess(actor, schoolId);
   const rows = await sql`
-    SELECT DISTINCT p.id, p.name, p.phone, p.is_logged_in, p.invited_at,
+    SELECT DISTINCT p.id, p.name, p.phone, p.is_logged_in,
+      TO_CHAR(p.invited_at, 'YYYY-MM-DD') AS invited_at,
       (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.profile_id = p.id AND k.school_id = ${schoolId}) AS children
     FROM vita_hero.school_enrollments e
     JOIN vita_hero.profiles p ON p.id = e.profile_id
@@ -182,7 +183,11 @@ export async function inviteStatus(sql: Sql, actor: Actor, schoolId: string) {
     phone: (r.phone as string) || "",
     children: (r.children as number) || 0,
     usingApp: r.is_logged_in === true,
-    invitedAt: r.invited_at ? String(r.invited_at) : "",
+    // Formatted in SQL on purpose: the driver hands timestamptz back as a
+    // JS Date, String() renders it like "Sat Aug 30 2026 …", and the panel
+    // slices that into "Sat Aug 30" — which JavaScript then parses as the
+    // year 2001. A plain YYYY-MM-DD string cannot be misread.
+    invitedAt: (r.invited_at as string) || "",
   }));
   const joined = guardians.filter((g) => g.usingApp).length;
   return {
