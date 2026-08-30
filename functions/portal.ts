@@ -263,6 +263,54 @@ export const PORTAL_HTML = `<!doctype html>
   .issues li.e{color:var(--err)} .issues li.w{color:var(--warn)}
   tbody tr.rowerr{background:var(--err-bg)} tbody tr.rowwarn{background:var(--warn-bg)}
 
+  /* ── dashboard ──
+     Bars are divs and the trend is inline SVG. No chart library: the console
+     is one file that has to open on a tethered phone in a school hall, and
+     four bar charts are not worth a network dependency. */
+  /* Two panels of comparable weight — .split is a 280px sidebar and squeezes
+     the funnel until its labels wrap. */
+  .duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:18px;align-items:start}
+  @media(max-width:1080px){.duo{grid-template-columns:minmax(0,1fr)}}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--sh);padding:14px 16px;min-width:0}
+  .kpi .lbl{font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
+  .kpi .big{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1;margin-top:6px;
+    font-variant-numeric:tabular-nums;color:var(--ink)}
+  .kpi .big.none{font-size:18px;font-weight:600;color:var(--ink-3);letter-spacing:0}
+  .kpi .sub{font-size:12px;color:var(--ink-3);margin-top:3px}
+  .kpi.lead{background:linear-gradient(135deg,var(--brand),var(--brand-dk));border-color:transparent}
+  .kpi.lead .lbl,.kpi.lead .sub{color:rgba(255,255,255,.82)}
+  .kpi.lead .big{color:#fff}
+  .kpi.lead .big.none{color:rgba(255,255,255,.82)}
+
+  /* The pathway, read top to bottom. Each row is one stage of A-D. */
+  .fun{display:flex;flex-direction:column;gap:2px}
+  .fun .frow{display:grid;grid-template-columns:1fr 62px;align-items:center;gap:10px;padding:3px 0}
+  .fun .ftrack{position:relative;background:var(--sunk);border-radius:5px;height:32px;overflow:hidden}
+  .fun .ffill{position:absolute;inset:0 auto 0 0;background:var(--brand-sf);border-right:2px solid var(--brand)}
+  .fun .ftx{position:relative;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;
+    font-size:13px;font-weight:550;color:var(--ink);white-space:nowrap;overflow:hidden}
+  .fun .stg{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--brand-dk);
+    background:#fff;border:1px solid var(--brand-sf);border-radius:4px;padding:1px 5px;flex:none}
+  .fun .fn{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--ink-2);font-weight:600}
+  .fun .fpc{text-align:right;font-size:13px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  .fun .flost{font-size:11.5px;color:var(--err);padding:1px 0 2px 10px}
+
+  /* Prevalence: one stacked bar per check, in the flag colours the app uses. */
+  .sbar{display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--sunk)}
+  .sbar i{display:block;height:100%}
+  .sbar i.good{background:var(--ok)} .sbar i.watch{background:var(--warn)}
+  .sbar i.alert{background:var(--err)} .sbar i.nm{background:#CBD5E1}
+  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--ink-2);margin-top:10px}
+  .legend span{display:flex;align-items:center;gap:5px}
+  .legend b{width:9px;height:9px;border-radius:2px;display:block}
+
+  .chart{width:100%;height:190px;display:block;overflow:visible}
+  .chart .gl{stroke:var(--line-2);stroke-width:1}
+  .chart .ax{fill:var(--ink-3);font-size:10px}
+  .bad{color:var(--err);font-weight:600}
+
   @media(max-width:820px){
     .shell{grid-template-columns:minmax(0,1fr)}
     .nav{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding-bottom:8px}
@@ -668,6 +716,13 @@ export const PORTAL_HTML = `<!doctype html>
     if (isClinical()) { S.view = "mycamps"; loadMyCamps(); return; }
     run(api("/api/admin/overview"), function (d) {
       S.overview = d; S.view = "overview";
+      // The dashboard and the school list fill in behind the counters rather
+      // than holding the first paint. Each failure is handled on its own, so a
+      // slow analytics query cannot blank the page.
+      api("/api/admin/analytics").then(
+        function (r) { S.analytics = r; },
+        function () { S.analyticsError = true; }
+      ).then(render);
       api("/api/admin/schools").then(function (r) {
         S.schools = r.schools;
         if (isSchoolAdmin() && r.schools.length === 1) S.school = r.schools[0];
@@ -757,6 +812,9 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { style: "flex:1" }),
         el("button", { onclick: loadProgrammeReport }, S.programme ? "Hide programme report" : "Programme report")) : null,
       S.programme ? programmePanel() : null,
+      // "Students on roll" and the camp counts moved into the dashboard KPIs
+      // above; what is left here is the reach of the app itself, which the
+      // pathway funnel does not cover.
       el("div", { class: "stats" },
         isOps() ? el("div", { class: "stat" }, el("b", null, o.schools), el("span", null, "schools")) : null,
         el("div", { class: "stat" }, el("b", null, o.students), el("span", null, "students on roll")),
@@ -764,6 +822,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat ok" }, el("b", null, o.guardiansActivated), el("span", null, "using the app")),
         el("div", { class: "stat info" }, el("b", null, (cs.SCHEDULED || 0) + (cs.IN_PROGRESS || 0)), el("span", null, "camps running")),
         el("div", { class: "stat" }, el("b", null, cs.RELEASED || 0), el("span", null, "camps released"))),
+      dashboard(),
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Camps needing attention")),
         o.upcoming.length === 0
@@ -785,6 +844,229 @@ export const PORTAL_HTML = `<!doctype html>
                   el("td", null, statusPill(c.status)),
                   el("td", null, el("button", { class: "sm" }, "Open")));
               })))));
+  }
+
+  // ══════════════════════════════════════ dashboard (K1, K2)
+  //
+  // What this has to answer, in this order: is the programme closing the
+  // referrals it raises (G9 — the only number that says a child was actually
+  // helped), where in the pathway are cohorts falling out, and which school
+  // needs a phone call this week. Counters alone answered none of those.
+
+  var NS = "http://www.w3.org/2000/svg";
+  function sv(tag, attrs) {
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, k) && attrs[k] !== null) {
+        n.setAttribute(k, String(attrs[k]));
+      }
+    }
+    for (var i = 2; i < arguments.length; i++) {
+      if (arguments[i]) n.appendChild(arguments[i]);
+    }
+    return n;
+  }
+  function svText(t) { return document.createTextNode(String(t)); }
+
+  /** A percentage that has no denominator prints as a dash, never as 0%. */
+  function pctText(v) { return v === null || v === undefined ? "—" : v + "%"; }
+
+  function kpi(label, value, sub, cls) {
+    var missing = value === null || value === undefined;
+    return el("div", { class: "kpi" + (cls ? " " + cls : "") },
+      el("div", { class: "lbl" }, label),
+      el("div", { class: "big" + (missing ? " none" : "") }, missing ? "No data yet" : value),
+      sub ? el("div", { class: "sub" }, sub) : null);
+  }
+
+  /**
+   * The pathway as a funnel.
+   *
+   * The drop between two steps is the story — 40 children consented and 12
+   * screened is a camp-day problem, 40 screened and 12 released is a review
+   * backlog. Naming the stage (B3, C8, D6) ties the row back to the pathway
+   * the programme is run against.
+   */
+  function funnel(steps) {
+    var top = steps.length ? steps[0].count : 0;
+    return el("div", { class: "fun" }, steps.map(function (st, i) {
+      var w = top > 0 ? Math.round((st.count / top) * 100) : 0;
+      var prev = i > 0 ? steps[i - 1] : null;
+      var lost = prev ? prev.count - st.count : 0;
+      return el("div", null,
+        el("div", { class: "frow" },
+          el("div", { class: "ftrack" },
+            el("div", { class: "ffill", style: "width:" + w + "%" }),
+            el("div", { class: "ftx" },
+              el("span", { class: "stg" }, st.stage), st.label,
+              el("span", { class: "fn" }, st.count))),
+          el("div", { class: "fpc" }, pctText(st.pct))),
+        lost > 0 ? el("div", { class: "flost" },
+          lost + " did not reach this step") : null);
+    }));
+  }
+
+  /**
+   * Twelve months of children screened, with referrals closed drawn over it.
+   *
+   * Screening that never closes a referral has not helped anyone, so the two
+   * series belong on one axis where the gap between them is visible.
+   */
+  function trendChart(trend) {
+    var W = 720, H = 190, padL = 34, padB = 22, padT = 8;
+    var max = 0;
+    trend.forEach(function (t) { max = Math.max(max, t.screened, t.referralsRaised); });
+    if (max === 0) max = 1;
+    var iw = W - padL - 8, ih = H - padB - padT;
+    var step = iw / trend.length;
+    var bw = Math.max(6, Math.min(26, step * 0.42));
+
+    var g = sv("svg", { class: "chart", viewBox: "0 0 " + W + " " + H,
+      preserveAspectRatio: "none", role: "img" });
+    g.appendChild(sv("title", null, svText("Children screened and referrals closed, by month")));
+
+    // Gridlines and the value axis.
+    [0, 0.5, 1].forEach(function (f) {
+      var y = padT + ih - ih * f;
+      g.appendChild(sv("line", { class: "gl", x1: padL, y1: y, x2: W - 8, y2: y }));
+      var lab = sv("text", { class: "ax", x: 4, y: y + 3 });
+      lab.appendChild(svText(String(Math.round(max * f))));
+      g.appendChild(lab);
+    });
+
+    trend.forEach(function (t, i) {
+      var x = padL + step * i + (step - bw * 2 - 2) / 2;
+      var hs = Math.round((t.screened / max) * ih);
+      var hc = Math.round((t.referralsClosed / max) * ih);
+      g.appendChild(sv("rect", { x: x, y: padT + ih - hs, width: bw, height: hs,
+        rx: 2, fill: "var(--brand)" }));
+      g.appendChild(sv("rect", { x: x + bw + 2, y: padT + ih - hc, width: bw, height: hc,
+        rx: 2, fill: "var(--ok)" }));
+      // Every third month, so the axis stays readable on a phone.
+      if (i % 3 === 0 || i === trend.length - 1) {
+        var lab = sv("text", { class: "ax", x: x, y: H - 6 });
+        lab.appendChild(svText(t.month.slice(2).replace("-", "/")));
+        g.appendChild(lab);
+      }
+    });
+    return g;
+  }
+
+  function legend(items) {
+    return el("div", { class: "legend" }, items.map(function (it) {
+      return el("span", null, el("b", { style: "background:" + it[1] }), it[0]);
+    }));
+  }
+
+  /** Prevalence per check, in the same flag colours the parent app uses. */
+  function prevalenceBars(rows) {
+    return el("div", null,
+      rows.map(function (r) {
+        var t = r.total || 1;
+        var pc = function (v) { return (v / t) * 100 + "%"; };
+        var flagged = r.watch + r.alert;
+        return el("div", { style: "margin-bottom:12px" },
+          el("div", { class: "row", style: "justify-content:space-between;margin-bottom:5px" },
+            el("b", { style: "font-size:13px" }, r.checkType),
+            el("span", { class: "muted", style: "font-size:12px" },
+              flagged + " of " + r.total + " flagged"
+              + (r.notMeasured ? " · " + r.notMeasured + " not measured" : ""))),
+          el("div", { class: "sbar" },
+            el("i", { class: "good", style: "width:" + pc(r.good) }),
+            el("i", { class: "watch", style: "width:" + pc(r.watch) }),
+            el("i", { class: "alert", style: "width:" + pc(r.alert) }),
+            el("i", { class: "nm", style: "width:" + pc(r.notMeasured) })));
+      }),
+      legend([["Normal", "var(--ok)"], ["Watch", "var(--warn)"],
+              ["Alert", "var(--err)"], ["Not measured", "#CBD5E1"]]));
+  }
+
+  function dashboard() {
+    if (S.analyticsError) {
+      return el("div", { class: "card" }, el("div", { class: "card-b" },
+        el("p", { class: "muted" }, "The dashboard could not be loaded. The counters above are live.")));
+    }
+    var a = S.analytics;
+    if (!a) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading the dashboard…"));
+    var r = a.referrals;
+    var screened = (a.funnel.find(function (f) { return f.key === "screened"; }) || {}).count || 0;
+
+    return el("div", null,
+      el("div", { class: "kpis" },
+        // The headline is closure, not screening. A programme that screens
+        // thousands and closes nothing has not helped a single child.
+        kpi("Referral closure", r.closureRate === null ? null : r.closureRate + "%",
+          r.total ? r.closed + " of " + r.total + " referrals closed" : "No referrals raised yet",
+          "lead"),
+        kpi("Children screened", screened,
+          a.funnel[0].count ? a.funnel[0].count + " on camp rosters" : null),
+        kpi("Open referrals", r.open + r.booked,
+          (r.urgentOpen ? r.urgentOpen + " urgent" : "none urgent")
+          + (r.overdue ? " · " + r.overdue + " overdue" : "")),
+        kpi("Days to close", r.avgDaysToClose === null ? null : r.avgDaysToClose,
+          "average, referral raised to closed")),
+
+      el("div", { class: "duo" },
+        el("div", { class: "card" },
+          el("div", { class: "card-h" }, el("h2", null, "Where the pathway stands"),
+            el("span", { class: "muted", style: "font-size:12px" }, "Stages B–D")),
+          el("div", { class: "card-b" }, funnel(a.funnel))),
+        el("div", { class: "card" },
+          el("div", { class: "card-h" }, el("h2", null, "Last twelve months")),
+          el("div", { class: "card-b" },
+            trendChart(a.trend),
+            legend([["Children screened", "var(--brand)"], ["Referrals closed", "var(--ok)"]])))),
+
+      a.prevalence.length
+        ? el("div", { class: "card" },
+            el("div", { class: "card-h" }, el("h2", null, "What screening is finding")),
+            el("div", { class: "card-b" }, prevalenceBars(a.prevalence)))
+        : null,
+
+      a.bySchool.length
+        ? el("div", { class: "card" },
+            el("div", { class: "card-h" }, el("h2", null, "Schools")),
+            el("div", { class: "tws" }, el("table", null,
+              el("thead", null, el("tr", null,
+                el("th", null, "School"), el("th", null, "District"),
+                el("th", { class: "num" }, "On roll"), el("th", { class: "num" }, "Screened"),
+                el("th", { class: "num" }, "Coverage"), el("th", { class: "num" }, "Referrals"),
+                el("th", { class: "num" }, "Closed"), el("th", null, "Last camp"))),
+              el("tbody", null, a.bySchool.map(function (sc) {
+                return el("tr", { class: "click", onclick: function () { openSchool(sc.id); } },
+                  el("td", null, el("b", null, sc.name),
+                    sc.city ? el("div", { class: "muted", style: "font-size:11.5px" }, sc.city) : null),
+                  el("td", { class: "muted" }, sc.district || "—"),
+                  el("td", { class: "num" }, sc.students),
+                  el("td", { class: "num" }, sc.screened),
+                  el("td", { class: "num" }, pctText(sc.coverage)),
+                  el("td", { class: "num" }, sc.referrals),
+                  el("td", { class: "num" + (sc.closureRate !== null && sc.closureRate < 50 ? " bad" : "") },
+                    pctText(sc.closureRate)),
+                  el("td", null, sc.lastCamp ? fmtDate(sc.lastCamp) : el("span", { class: "muted" }, "none yet")));
+              })))))
+        : null,
+
+      // K2. Nothing here identifies a school or a child; this is the shape the
+      // view takes when it goes to a district office or a funder.
+      a.byDistrict.length
+        ? el("div", { class: "card" },
+            el("div", { class: "card-h" }, el("h2", null, "By district"),
+              el("span", { class: "muted", style: "font-size:12px" }, "Aggregate only — no school, no child")),
+            el("div", { class: "tws" }, el("table", null,
+              el("thead", null, el("tr", null,
+                el("th", null, "District"), el("th", { class: "num" }, "Schools"),
+                el("th", { class: "num" }, "Children screened"), el("th", { class: "num" }, "Flagged"),
+                el("th", { class: "num" }, "Rate"))),
+              el("tbody", null, a.byDistrict.map(function (d) {
+                return el("tr", null,
+                  el("td", null, el("b", null, d.district)),
+                  el("td", { class: "num" }, d.schools),
+                  el("td", { class: "num" }, d.screened),
+                  el("td", { class: "num" }, d.flagged),
+                  el("td", { class: "num" }, pctText(d.flaggedPct)));
+              })))))
+        : null);
   }
 
   function loadProgrammeReport() {

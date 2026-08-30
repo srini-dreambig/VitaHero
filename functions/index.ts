@@ -68,6 +68,7 @@ import {
   campPack,
   saveScreeningBulk,
 } from "./camps";
+import { adminAnalytics } from "./analytics";
 import {
   ensureReferralSchema,
   guardianReferrals,
@@ -1728,7 +1729,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       }
 
       // ── Admin: overview, my camps, camp operations ──
-      if (path === "/api/admin/overview" || path === "/api/admin/my-camps"
+      if (path === "/api/admin/overview" || path === "/api/admin/analytics"
+          || path === "/api/admin/my-camps"
           || path === "/api/admin/camps" || path.startsWith("/api/admin/camps/")) {
         const actor = await resolveActor(request, sql, env);
         if (!actor) {
@@ -1744,6 +1746,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         try {
           if (path === "/api/admin/overview" && method === "GET") {
             return json(await adminOverview(sql, actor));
+          }
+          if (path === "/api/admin/analytics" && method === "GET") {
+            return json(await adminAnalytics(sql, actor, {
+              schoolId: url.searchParams.get("school_id") || "",
+            }));
           }
           if (path === "/api/admin/my-camps" && method === "GET") {
             return json(await listMyCamps(sql, actor));

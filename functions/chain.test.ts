@@ -40,6 +40,7 @@ import {
   saveScreeningBulk,
   updateCamp,
 } from "./camps";
+import { adminAnalytics } from "./analytics";
 import { ensureReferralSchema, guardianReferrals, markReferralAttended, declineReferral,
   recordReferralOutcome, referralDashboard, nudgeReferrals, kidReferrals } from "./referrals";
 import { ensureLifecycleSchema, exportGuardianData, requestCorrection, listCorrections,
@@ -984,5 +985,104 @@ suite("end to end", () => {
       "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE source='ADMIN'");
     expect(o.students).toBe(actual.rows[0].n);
     expect(o.campStatus.RELEASED).toBeGreaterThanOrEqual(1);
+  });
+
+  // ── the ops dashboard, over the pathway this suite just ran ──
+
+  test("the funnel reads down the pathway and never grows on the way", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    const at = (k: string) => a.funnel.find((f) => f.key === k)!;
+    expect(at("rostered").count).toBeGreaterThan(0);
+    // Consent cannot exceed the roster, attendance cannot exceed consent, and
+    // so on down. A funnel that widens is a counting bug, and it would be
+    // reported to a school as coverage.
+    const order = ["rostered", "consented", "present", "screened", "reviewed", "released"];
+    for (let i = 1; i < order.length; i++) {
+      expect(at(order[i]).count).toBeLessThanOrEqual(at(order[i - 1]).count);
+    }
+    expect(at("released").count).toBeGreaterThan(0);
+    // Every step names the pathway stage it belongs to, so the dashboard can
+    // say where a cohort stalled rather than only that it did.
+    expect(at("released").stage).toBe("D6");
+  });
+
+  test("the funnel counts against the roster it was measured on", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    const rostered = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.camp_participants");
+    expect(a.funnel[0].count).toBe(rostered.rows[0].n);
+    expect(a.funnel[0].pct).toBe(100);
+  });
+
+  test("closure rate is the headline, and excludes families who declined", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    const rows = await client.query(
+      "SELECT COUNT(*)::int total, COUNT(*) FILTER (WHERE status='CLOSED')::int closed, " +
+      "COUNT(*) FILTER (WHERE status='DECLINED')::int declined FROM vita_hero.referrals");
+    const { total, closed, declined } = rows.rows[0];
+    expect(a.referrals.total).toBe(total);
+    expect(a.referrals.closed).toBe(closed);
+    const actionable = total - declined;
+    expect(a.referrals.closureRate).toBe(
+      actionable > 0 ? Math.round((closed / actionable) * 100) : null
+    );
+  });
+
+  test("an average with nothing behind it is null, not zero", async () => {
+    // A programme that has closed no referrals must not report closing them
+    // instantly. This is the same rule as "not measured" on a child's card.
+    const rows = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.referrals WHERE closed_at IS NOT NULL");
+    const a = await adminAnalytics(sql, OPS);
+    if (rows.rows[0].n === 0) expect(a.referrals.avgDaysToClose).toBeNull();
+    else expect(typeof a.referrals.avgDaysToClose).toBe("number");
+  });
+
+  test("prevalence counts what was not measured as its own thing", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    expect(a.prevalence.length).toBeGreaterThan(0);
+    for (const p of a.prevalence) {
+      expect(p.good + p.watch + p.alert + p.notMeasured).toBe(p.total);
+    }
+  });
+
+  test("the trend covers twelve months with the quiet ones shown", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    expect(a.trend.length).toBe(12);
+    // Consecutive, ascending, no gaps — a month with no camp has to appear as
+    // a zero or the chart quietly rewrites history.
+    const months = a.trend.map((t) => t.month);
+    expect([...months].sort()).toEqual(months);
+    expect(a.trend.some((t) => t.screened > 0)).toBe(true);
+  });
+
+  test("a school admin sees their own school whatever they ask for", async () => {
+    const other = await createSchool(sql, OPS, {
+      name: "Another School", city: "Warangal", district: "Hanamkonda",
+    });
+    const scoped = await adminAnalytics(sql, admin, { schoolId: other.school.id });
+    expect(scoped.scope).toBe(schoolId);
+    expect(scoped.bySchool.length).toBe(1);
+    expect(scoped.bySchool[0].id).toBe(schoolId);
+    // K2 is an ops view; a school does not get the district rollup.
+    expect(scoped.byDistrict).toEqual([]);
+  });
+
+  test("the district rollup carries no school and no child", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    expect(a.byDistrict.length).toBeGreaterThan(0);
+    const keys = Object.keys(a.byDistrict[0]).sort();
+    expect(keys).toEqual(["district", "flagged", "flaggedPct", "schools", "screened"]);
+  });
+
+  test("per-school coverage is against the roll, not against itself", async () => {
+    const a = await adminAnalytics(sql, OPS);
+    const row = a.bySchool.find((s) => s.id === schoolId)!;
+    const students = await client.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.kids WHERE school_id=$1 AND source='ADMIN'", [schoolId]);
+    expect(row.students).toBe(students.rows[0].n);
+    expect(row.coverage).toBe(
+      row.students > 0 ? Math.round((row.screened / row.students) * 100) : null
+    );
   });
 });
