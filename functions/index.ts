@@ -5,8 +5,41 @@
 // Updated: 2026-06-15 — email/password + Neon Auth social sign-in (idToken exchange, no callbackURL)
 
 import { neon } from "@neondatabase/serverless";
+import {
+  Sql,
+  SCHEMA,
+  DEFAULT_COUNTRY_CODE,
+  normalizePhone,
+  profileIdForPhone,
+  slugify,
+  buildStudentRef,
+  parseNum,
+  deriveAge,
+  rowField,
+} from "./common";
+import {
+  Actor,
+  ApiError,
+  ensureStageASchema,
+  createSchool,
+  getSchool,
+  listSchools,
+  updateSchool,
+  listClasses,
+  setClasses,
+  addSchoolAdmin,
+  listSchoolAdmins,
+  removeSchoolAdmin,
+  grantOpsRole,
+} from "./schools";
+import {
+  validateRoster,
+  commitRoster,
+  listRoster,
+  listRosterBatches,
+} from "./roster";
+import { PORTAL_HTML } from "./portal";
 
-const SCHEMA = "vita_hero";
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
 const APP_ORIGIN = "https://kidhero.rork.app";
 const APP_CALLBACK_URL = "https://kidhero.rork.app/auth/callback";
@@ -18,7 +51,6 @@ const OTP_MAX_ATTEMPTS = 5;
 // VitaHero is a closed, admin-provisioned app: parents log in by phone only and
 // must have been imported by an admin first. Public self-signup is disabled.
 const ANDROID_PACKAGE = "com.rork.vitahero";
-const DEFAULT_COUNTRY_CODE = "91"; // India
 const INVITE_EXPIRY_DAYS = 30;
 const INVITE_RESEND_COOLDOWN_HOURS = 24;
 const IMPORT_MAX_ROWS = 2000;
@@ -79,7 +111,7 @@ function sanitizeProfile(row: Record<string, unknown> | null | undefined): Recor
 }
 
 async function kidOwnedByProfile(
-  sql: ReturnType<typeof neon>,
+  sql: Sql,
   kidId: string,
   profileId: string
 ): Promise<boolean> {
@@ -90,7 +122,7 @@ async function kidOwnedByProfile(
   return rows.length > 0;
 }
 
-async function ensureSchema(sql: ReturnType<typeof neon>): Promise<void> {
+async function ensureSchema(sql: Sql): Promise<void> {
   await sql`CREATE SCHEMA IF NOT EXISTS ${sql(SCHEMA)}`;
 
   await sql`
@@ -419,7 +451,7 @@ function generateDoctorSlots(
   return slots;
 }
 
-async function seedPartnerSchools(sql: ReturnType<typeof neon>): Promise<void> {
+async function seedPartnerSchools(sql: Sql): Promise<void> {
   const schoolCount = await sql`SELECT COUNT(*)::int AS c FROM ${sql(SCHEMA)}.schools`;
   if ((schoolCount[0]?.c as number) > 0) return;
 
@@ -561,7 +593,7 @@ function deriveCampFlags(
 }
 
 async function ensureCampKidResults(
-  sql: ReturnType<typeof neon>,
+  sql: Sql,
   profileId: string
 ): Promise<void> {
   const pending = await sql`
@@ -608,7 +640,7 @@ async function ensureCampKidResults(
 }
 
 async function mergeCampResultsIntoKids(
-  sql: ReturnType<typeof neon>,
+  sql: Sql,
   profileId: string
 ): Promise<void> {
   await ensureCampKidResults(sql, profileId);
@@ -797,7 +829,7 @@ async function callToolkitFoodVision(
   }
 }
 
-async function ensureHospitalPartnerships(sql: ReturnType<typeof neon>): Promise<void> {
+async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
   await sql`
     CREATE TABLE IF NOT EXISTS ${sql(SCHEMA)}.hospitals (
       id TEXT PRIMARY KEY,
@@ -886,7 +918,7 @@ async function ensureHospitalPartnerships(sql: ReturnType<typeof neon>): Promise
   `;
 }
 
-async function linkCampHospitals(sql: ReturnType<typeof neon>): Promise<void> {
+async function linkCampHospitals(sql: Sql): Promise<void> {
   const campHospitalLinks: Record<string, string> = {
     sc_oak_1: "hosp_rainbow",
     sc_oak_2: "hosp_kims",
@@ -906,7 +938,7 @@ async function linkCampHospitals(sql: ReturnType<typeof neon>): Promise<void> {
 }
 
 async function getFamilyOwnerId(
-  sql: ReturnType<typeof neon>,
+  sql: Sql,
   familyCode: string,
   fallbackProfileId: string
 ): Promise<string> {
@@ -936,13 +968,13 @@ function anonymizeLeaderboardName(name: string, rank: number, isYou: boolean): s
 // ─── Session Auth ───────────────────────────────────────────
 
 async function authenticateSession(
-  sql: ReturnType<typeof neon>,
+  sql: Sql,
   token: string
-): Promise<{ profileId: string; userId: string; name: string; role: string } | null> {
+): Promise<{ profileId: string; userId: string; name: string; role: string; schoolId: string | null } | null> {
   if (!token || token.length < 30) return null;
   try {
     const rows = await sql`
-      SELECT id, user_id, name, role FROM ${sql(SCHEMA)}.profiles
+      SELECT id, user_id, name, role, school_id FROM ${sql(SCHEMA)}.profiles
       WHERE session_token = ${token} LIMIT 1
     `;
     if (rows.length === 0) return null;
@@ -951,6 +983,7 @@ async function authenticateSession(
       userId: rows[0].user_id || "",
       name: rows[0].name,
       role: (rows[0].role as string) || "PARENT",
+      schoolId: (rows[0].school_id as string) || null,
     };
   } catch {
     return null;
@@ -995,40 +1028,6 @@ async function sendTwilioSms(
 
 // ─── Closed-app helpers (provisioning, admin auth, invites) ──
 
-/** Normalize a raw phone string into E.164 + the 10-digit local key. */
-function normalizePhone(raw: string | undefined | null): { e164: string; last10: string } | null {
-  if (!raw) return null;
-  const hadPlus = raw.trim().startsWith("+");
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length < 10) return null;
-  const last10 = digits.slice(-10);
-  // Preserve an explicit country code if one was provided, else default.
-  let cc = DEFAULT_COUNTRY_CODE;
-  if (digits.length > 10) cc = digits.slice(0, digits.length - 10);
-  else if (hadPlus) cc = ""; // already E.164-ish without national digits — unlikely
-  const e164 = `+${cc || DEFAULT_COUNTRY_CODE}${last10}`;
-  return { e164, last10 };
-}
-
-function profileIdForPhone(last10: string): string {
-  return `ph_${last10}`;
-}
-
-function slugify(s: string): string {
-  return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
-}
-
-/** Stable per-child identity so re-imports across camps update the same kid row. */
-function buildStudentRef(
-  provided: string | undefined,
-  last10: string,
-  name: string,
-  dobOrAge: string
-): string {
-  const explicit = (provided || "").trim();
-  if (explicit) return `sid_${slugify(explicit)}`;
-  return `auto_${last10}_${slugify(name)}_${slugify(dobOrAge || "na")}`;
-}
 
 function b64urlEncode(bytes: ArrayBuffer | Uint8Array): string {
   const arr = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
@@ -1085,7 +1084,7 @@ async function verifyInviteToken(token: string, env: Env): Promise<string | null
 /** Admin gate: ADMIN_API_KEY header (bootstrap) OR a role=ADMIN session. */
 async function requireAdmin(
   request: Request,
-  sql: ReturnType<typeof neon>,
+  sql: Sql,
   env: Env
 ): Promise<{ adminId: string } | null> {
   const headerKey = request.headers.get("X-Admin-Key") || "";
@@ -1099,19 +1098,37 @@ async function requireAdmin(
   return null;
 }
 
+/**
+ * Resolve who is calling an administrative endpoint.
+ *
+ * The bootstrap API key acts as SUPERADMIN. Otherwise the session's own role
+ * decides, and parents (or revoked administrators) are refused outright rather
+ * than being allowed through to a per-school check that might pass.
+ */
+async function resolveActor(
+  request: Request,
+  sql: Sql,
+  env: Env
+): Promise<Actor | null> {
+  const headerKey = request.headers.get("X-Admin-Key") || "";
+  if (env.ADMIN_API_KEY && headerKey && headerKey === env.ADMIN_API_KEY) {
+    return { profileId: "apikey", name: "VitaHero Ops", role: "SUPERADMIN", schoolId: null };
+  }
+  const session = await authenticateSession(sql, extractToken(request));
+  if (!session) return null;
+  if (session.role !== "SCHOOL_ADMIN" && session.role !== "ADMIN" && session.role !== "SUPERADMIN") {
+    return null;
+  }
+  return {
+    profileId: session.profileId,
+    name: session.name,
+    role: session.role,
+    schoolId: session.schoolId,
+  };
+}
+
 // ─── Admin import (CSV/Excel rows → provisioned data) ────────
 
-/** Case-insensitive, punctuation-insensitive field accessor for a CSV/Excel row. */
-function rowField(row: Record<string, unknown>, ...wanted: string[]): string {
-  for (const k of Object.keys(row)) {
-    const norm = k.toLowerCase().replace(/[^a-z0-9]/g, "");
-    if (wanted.includes(norm)) {
-      const v = row[k];
-      return v == null ? "" : String(v).trim();
-    }
-  }
-  return "";
-}
 
 function normHealthFlag(v: string): string {
   const s = (v || "").trim().toUpperCase();
@@ -1121,25 +1138,7 @@ function normHealthFlag(v: string): string {
   return "GOOD";
 }
 
-function parseNum(v: string): number | null {
-  if (!v) return null;
-  const n = parseFloat(v.replace(/[^0-9.]/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
 
-function deriveAge(dob: string, age: string): number {
-  const a = parseInt(age, 10);
-  if (Number.isFinite(a) && a > 0 && a < 25) return a;
-  // dob like YYYY-MM-DD or DD-MM-YYYY or YYYY
-  const yearMatch = dob.match(/\b(19|20)\d{2}\b/);
-  if (yearMatch) {
-    const y = parseInt(yearMatch[0], 10);
-    const now = new Date().getFullYear();
-    const diff = now - y;
-    if (diff > 0 && diff < 25) return diff;
-  }
-  return 0;
-}
 
 interface ImportRowResult {
   row: number;
@@ -1163,7 +1162,7 @@ interface ImportReport {
 }
 
 async function processImport(
-  sql: ReturnType<typeof neon>,
+  sql: Sql,
   env: Env,
   rows: Record<string, unknown>[],
   opts: { dryRun: boolean; sendInvites: boolean; filename: string; adminId: string; appOrigin: string }
@@ -1356,7 +1355,7 @@ async function processImport(
 
 /** Send an invite SMS to a provisioned parent (respects a resend cooldown). */
 async function sendInviteForPhone(
-  sql: ReturnType<typeof neon>,
+  sql: Sql,
   env: Env,
   last10: string,
   e164: string,
@@ -1441,7 +1440,7 @@ async function callNeonAuth(
 
 /** Create or update a profile in vita_hero.profiles after Neon Auth success. */
 async function upsertProfileFromNeonAuth(
-  sql: ReturnType<typeof neon>,
+  sql: Sql,
   user: NeonAuthUser,
   provider: string,
   role?: string
@@ -1479,6 +1478,9 @@ async function upsertProfileFromNeonAuth(
 
 // ─── Entrypoint ─────────────────────────────────────────────
 
+/** Per-isolate latch so schema init does not run on every request. */
+let schemaReady = false;
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
@@ -1494,11 +1496,19 @@ export default {
     try {
       const sql = neon(dbUrl);
 
-      try {
-        await ensureSchema(sql);
-      } catch (schemaErr) {
-        console.error("Schema init error:", schemaErr);
-        return json({ error: "Database schema initialization failed" }, 500);
+      // Schema init is idempotent but not free: it issues ~46 statements, and
+      // with the Neon HTTP driver each one is its own round trip. Running it per
+      // request put that cost in front of every single call. Once per isolate is
+      // enough; a deploy-time migration would be better still.
+      if (!schemaReady) {
+        try {
+          await ensureSchema(sql);
+          await ensureStageASchema(sql);
+          schemaReady = true;
+        } catch (schemaErr) {
+          console.error("Schema init error:", schemaErr);
+          return json({ error: "Database schema initialization failed" }, 500);
+        }
       }
 
       // ── Health Check ─────────────────────────────────
@@ -1556,6 +1566,132 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 <script>try{window.location.href=${JSON.stringify(deepLink)};}catch(e){}</script>
 </body></html>`;
         return cors(new Response(html, { status: 200, headers: { "Content-Type": "text/html; charset=utf-8" } }));
+      }
+
+      // ═══════════════════════════════════════════════════
+      // STAGE A — school administration portal + API
+      // ═══════════════════════════════════════════════════
+
+      if (path === "/admin" || path === "/admin/") {
+        return cors(new Response(PORTAL_HTML, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-cache",
+          },
+        }));
+      }
+
+      if (path === "/api/admin/schools" || path.startsWith("/api/admin/schools/")) {
+        const actor = await resolveActor(request, sql, env);
+        if (!actor) {
+          return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
+        }
+
+        // /api/admin/schools/<id>/<section>/<extra>
+        const rest = path.slice("/api/admin/schools".length).replace(/^\//, "");
+        const parts = rest ? rest.split("/").map(decodeURIComponent) : [];
+        const method = request.method;
+        const readBody = async (): Promise<Record<string, unknown>> => {
+          try {
+            return (await request.json()) as Record<string, unknown>;
+          } catch {
+            throw new ApiError(400, "Expected a JSON body", "BAD_JSON");
+          }
+        };
+
+        try {
+          // Collection
+          if (parts.length === 0) {
+            if (method === "GET") return json(await listSchools(sql, actor));
+            if (method === "POST") return json(await createSchool(sql, actor, await readBody()), 201);
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          const schoolId = parts[0];
+          const section = parts[1] || "";
+
+          // Single school
+          if (!section) {
+            if (method === "GET") return json(await getSchool(sql, actor, schoolId));
+            if (method === "PATCH" || method === "PUT") {
+              return json(await updateSchool(sql, actor, schoolId, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // A4 — classes and sections
+          if (section === "classes") {
+            if (method === "GET") {
+              const year = url.searchParams.get("year") || "";
+              return json(await listClasses(sql, actor, schoolId, year));
+            }
+            if (method === "POST" || method === "PUT") {
+              return json(await setClasses(sql, actor, schoolId, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // A3 — school administrators
+          if (section === "admins") {
+            if (method === "GET") return json(await listSchoolAdmins(sql, actor, schoolId));
+            if (method === "POST") {
+              return json(await addSchoolAdmin(sql, actor, schoolId, await readBody()), 201);
+            }
+            if (method === "DELETE" && parts[2]) {
+              return json(await removeSchoolAdmin(sql, actor, schoolId, parts[2]));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // A5-A8 — roster
+          if (section === "roster") {
+            const sub = parts[2] || "";
+            if (!sub && method === "GET") {
+              return json(await listRoster(
+                sql, actor, schoolId,
+                url.searchParams.get("year") || "",
+                (url.searchParams.get("q") || "").toLowerCase(),
+                parseInt(url.searchParams.get("limit") || "100", 10),
+                parseInt(url.searchParams.get("offset") || "0", 10)
+              ));
+            }
+            if (sub === "validate" && method === "POST") {
+              return json(await validateRoster(sql, actor, schoolId, await readBody()));
+            }
+            if (sub === "commit" && method === "POST") {
+              return json(await commitRoster(sql, actor, schoolId, await readBody()));
+            }
+            if (sub === "batches" && method === "GET") {
+              return json(await listRosterBatches(sql, actor, schoolId));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) {
+            return json({ error: e.message, code: e.code }, e.status);
+          }
+          console.error("Stage A error:", e);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
+      }
+
+      // Bootstrap an operations account from the API key, so the first real
+      // person can sign in by phone instead of pasting the key every time.
+      if (path === "/api/admin/ops/grant" && request.method === "POST") {
+        const headerKey = request.headers.get("X-Admin-Key") || "";
+        if (!env.ADMIN_API_KEY || headerKey !== env.ADMIN_API_KEY) {
+          return json({ error: "Admin API key required", code: "ADMIN_REQUIRED" }, 403);
+        }
+        try {
+          const body: Record<string, unknown> = await request.json();
+          return json(await grantOpsRole(sql, String(body.phone || ""), String(body.name || "")));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return json({ error: (e as Error).message || "Request failed" }, 500);
+        }
       }
 
       // ═══════════════════════════════════════════════════
@@ -1750,7 +1886,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const sessionToken = generateToken();
 
         const existing = await sql`
-          SELECT id, provisioned, name FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
+          SELECT id, provisioned, name, role, school_id
+          FROM ${sql(SCHEMA)}.profiles WHERE id = ${profileId} LIMIT 1
         `;
 
         if (existing.length === 0 || existing[0].provisioned !== true) {
@@ -1783,6 +1920,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             phone,
             name: (existing[0].name as string) || "Parent",
             auth_provider: "PHONE",
+            role: (existing[0].role as string) || "PARENT",
+            school_id: (existing[0].school_id as string) || null,
           },
         });
       }
