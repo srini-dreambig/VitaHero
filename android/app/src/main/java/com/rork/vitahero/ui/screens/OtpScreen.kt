@@ -3,6 +3,7 @@ package com.rork.vitahero.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -132,7 +134,11 @@ fun OtpScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // OTP input
+        // OTP input. The real field is an invisible 1dp BasicTextField; the
+        // painted digit boxes have no pointer handlers of their own, so taps
+        // fall through to the Row below. The handler refocuses the field and
+        // explicitly re-shows the keyboard on EVERY tap — tapping an already
+        // focused field does not re-open a dismissed keyboard on its own.
         Box {
             // Invisible text field for keyboard
             BasicTextField(
@@ -141,14 +147,20 @@ fun OtpScreen(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                 modifier = Modifier
                     .focusRequester(focus)
-                    .focusable()
                     .size(1.dp),
                 textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground)
             ) {}
 
             // Visible digit boxes
             Row(
-                Modifier.fillMaxWidth(),
+                Modifier
+                    .fillMaxWidth()
+                    .pointerInput(Unit) {
+                        detectTapGestures {
+                            focus.requestFocus()
+                            keyboard?.show()
+                        }
+                    },
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 repeat(6) { i ->
