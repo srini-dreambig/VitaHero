@@ -38,7 +38,7 @@ object ApiService {
      */
     val baseUrl: String by lazy {
         BuildConfig.RORK_FUNCTIONS_URL.ifBlank {
-            "https://kidhero-health-backend.rork.app"
+            "https://kidhero-health-sync-backend.rork.app"
         }
     }
 
