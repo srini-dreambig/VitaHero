@@ -2,7 +2,6 @@ package com.rork.vitahero.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -91,6 +91,7 @@ fun OtpScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.systemBars)
+            .imePadding()
             .padding(horizontal = 24.dp)
     ) {
         IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
@@ -134,59 +135,58 @@ fun OtpScreen(
             Spacer(Modifier.height(16.dp))
         }
 
-        // OTP input. The real field is an invisible 1dp BasicTextField; the
-        // painted digit boxes have no pointer handlers of their own, so taps
-        // fall through to the Row below. The handler refocuses the field and
-        // explicitly re-shows the keyboard on EVERY tap — tapping an already
-        // focused field does not re-open a dismissed keyboard on its own.
-        Box {
-            // Invisible text field for keyboard
-            BasicTextField(
-                value = code,
-                onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                modifier = Modifier
-                    .focusRequester(focus)
-                    .size(1.dp),
-                textStyle = TextStyle(color = MaterialTheme.colorScheme.onBackground)
-            ) {}
-
-            // Visible digit boxes
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .pointerInput(Unit) {
-                        detectTapGestures {
-                            focus.requestFocus()
-                            keyboard?.show()
-                        }
-                    },
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                repeat(6) { i ->
-                    val char = code.getOrNull(i)?.toString() ?: ""
-                    val active = i == code.length
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .height(58.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .border(
-                                width = if (active) 2.dp else 1.dp,
-                                color = if (active) HeroOrange else MaterialTheme.colorScheme.outline,
-                                shape = RoundedCornerShape(14.dp)
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isVerifying && code.length == 6 && i == 5) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                strokeWidth = 2.dp,
-                                color = HeroOrange
-                            )
-                        } else {
-                            Text(char, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        // OTP input. The digit row IS the text field — it is drawn in
+        // BasicTextField's decorationBox, so a tap anywhere on the row lands
+        // on the real input instead of decoration painted over it. The tap
+        // handler re-shows the keyboard on every tap, because tapping an
+        // already-focused field does not re-open a dismissed keyboard.
+        BasicTextField(
+            value = code,
+            onValueChange = { if (it.length <= 6) code = it.filter(Char::isDigit) },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(focus),
+            textStyle = TextStyle(color = Color.Transparent)
+        ) { innerTextField ->
+            Box {
+                innerTextField()
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .pointerInput(Unit) {
+                            detectTapGestures {
+                                focus.requestFocus()
+                                keyboard?.show()
+                            }
+                        },
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    repeat(6) { i ->
+                        val char = code.getOrNull(i)?.toString() ?: ""
+                        val active = i == code.length
+                        Box(
+                            Modifier
+                                .weight(1f)
+                                .height(58.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(MaterialTheme.colorScheme.surface)
+                                .border(
+                                    width = if (active) 2.dp else 1.dp,
+                                    color = if (active) HeroOrange else MaterialTheme.colorScheme.outline,
+                                    shape = RoundedCornerShape(14.dp)
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isVerifying && code.length == 6 && i == 5) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = HeroOrange
+                                )
+                            } else {
+                                Text(char, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }
