@@ -37,7 +37,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Camp
-import com.rork.vitahero.data.CampStatus
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard

@@ -39,7 +39,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Camp
-import com.rork.vitahero.data.CampStatus
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.EmptyState
