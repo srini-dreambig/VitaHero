@@ -1,5 +1,6 @@
 package com.rork.vitahero.data
 
+import android.app.Activity
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -96,7 +97,8 @@ class AppViewModel(
     fun signUpWithEmail(name: String, email: String, password: String) =
         auth.signUpWithEmail(name, email, password)
     fun signInWithEmail(email: String, password: String) = auth.signInWithEmail(email, password)
-    fun sendPhoneOtp(phone: String) = auth.sendPhoneOtp(phone)
+    fun requestPhoneOtp(activity: Activity, phone: String) = auth.requestPhoneOtp(activity, phone)
+    fun resendPhoneOtp(activity: Activity, phone: String) = auth.resendPhoneOtp(activity, phone)
     fun verifyPhoneOtp(phone: String, token: String) = auth.verifyPhoneOtp(phone, token)
     fun clearAuthError() = auth.clearAuthError()
     fun clearAuthLoading() = auth.clearAuthLoading()

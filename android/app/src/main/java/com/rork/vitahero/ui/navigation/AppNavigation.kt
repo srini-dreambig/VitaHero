@@ -1,5 +1,6 @@
 package com.rork.vitahero.ui.navigation
 
+import android.app.Activity
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -187,6 +188,7 @@ fun AppNavigation(
 
         composable(Routes.AUTH) {
             LaunchedEffect(Unit) { appViewModel.clearAuthError() }
+            val activity = LocalContext.current as? Activity
 
             AuthScreen(
                 isLoading = authLoading,
@@ -202,7 +204,7 @@ fun AppNavigation(
                 onContinueWithPhone = { p ->
                     phone = p
                     pendingName = "Parent"
-                    appViewModel.sendPhoneOtp(p)
+                    activity?.let { appViewModel.requestPhoneOtp(it, p) }
                     navController.navigate("otp/$p/$pendingName")
                 },
             )
@@ -219,6 +221,7 @@ fun AppNavigation(
             val n = backStack.arguments?.getString("name").orEmpty()
 
             LaunchedEffect(Unit) { appViewModel.clearAuthError() }
+            val activity = LocalContext.current as? Activity
 
             val otpError by appViewModel.authError.collectAsState()
             val otpVerifying by appViewModel.authLoading.collectAsState()
@@ -234,7 +237,7 @@ fun AppNavigation(
                 onVerified = { code ->
                     appViewModel.verifyPhoneOtp(p, code)
                 },
-                onResend = { appViewModel.sendPhoneOtp(p) },
+                onResend = { activity?.let { appViewModel.resendPhoneOtp(it, p) } },
                 isVerifying = otpVerifying,
                 error = otpError
             )

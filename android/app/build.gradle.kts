@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 import java.util.Properties
@@ -99,6 +100,8 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.mlkit.image.labeling)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
