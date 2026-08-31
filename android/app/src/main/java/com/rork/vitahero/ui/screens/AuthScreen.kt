@@ -63,7 +63,7 @@ private enum class AuthTab { GOOGLE, EMAIL, PHONE }
  * Auth screen with three tabs:
  * - Google Sign-In (one tap)
  * - Email/password (sign-up or sign-in)
- * - Phone OTP via Twilio
+ * - Phone OTP via Firebase
  */
 @Composable
 fun AuthScreen(

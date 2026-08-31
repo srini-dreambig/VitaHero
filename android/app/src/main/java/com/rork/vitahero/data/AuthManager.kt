@@ -1,5 +1,6 @@
 package com.rork.vitahero.data
 
+import android.app.Activity
 import android.app.Application
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -144,27 +145,63 @@ class AuthManager(private val app: Application) {
         ApiService.sessionToken = token
     }
 
-    fun sendPhoneOtp(phone: String) {
+    /**
+     * Requests the login OTP via Firebase's Phone provider. Firebase only
+     * allows the request to originate from the parent's own device; the SMS
+     * is sent by Google, not our backend.
+     */
+    fun requestPhoneOtp(activity: Activity, phone: String) {
         _authLoading.value = true
         _authError.value = null
-        scope.launch {
-            val formatted = if (phone.startsWith("+")) phone else "+91$phone"
-            api.sendPhoneOtp(formatted).fold(
-                onSuccess = { _authLoading.value = false },
-                onFailure = { e ->
-                    _authError.value = e.message ?: tr(S.authOtpSendFailed, AppLocale.ENGLISH)
-                    _authLoading.value = false
-                }
-            )
-        }
+        val formatted = if (phone.startsWith("+")) phone else "+91$phone"
+        FirebaseOtp.requestCode(
+            activity,
+            formatted,
+            onCodeSent = { _authLoading.value = false },
+            onAutoVerified = { idToken -> signInWithFirebaseToken(idToken) },
+            onError = { message ->
+                _authError.value = message
+                _authLoading.value = false
+            }
+        )
+    }
+
+    /** Resends the Firebase OTP using the force-resending token. */
+    fun resendPhoneOtp(activity: Activity, phone: String) {
+        _authLoading.value = true
+        _authError.value = null
+        val formatted = if (phone.startsWith("+")) phone else "+91$phone"
+        FirebaseOtp.resendCode(
+            activity,
+            formatted,
+            onCodeSent = { _authLoading.value = false },
+            onAutoVerified = { idToken -> signInWithFirebaseToken(idToken) },
+            onError = { message ->
+                _authError.value = message
+                _authLoading.value = false
+            }
+        )
     }
 
     fun verifyPhoneOtp(phone: String, otp: String) {
         _authLoading.value = true
         _authError.value = null
         scope.launch {
-            val formatted = if (phone.startsWith("+")) phone else "+91$phone"
-            api.verifyPhoneOtp(formatted, otp).fold(
+            FirebaseOtp.verifyCode(otp).fold(
+                onSuccess = { idToken -> signInWithFirebaseToken(idToken) },
+                onFailure = { e ->
+                    _authError.value = e.message ?: tr(S.authOtpInvalid, AppLocale.ENGLISH)
+                    _authLoading.value = false
+                }
+            )
+        }
+    }
+
+    /** Exchanges the Firebase ID token for a VitaHero backend session. */
+    private fun signInWithFirebaseToken(idToken: String) {
+        _authLoading.value = true
+        scope.launch {
+            api.firebasePhoneSignIn(idToken).fold(
                 onSuccess = { resp -> onAuthSuccess(resp) },
                 onFailure = { e ->
                     _authError.value = e.message ?: tr(S.authOtpInvalid, AppLocale.ENGLISH)

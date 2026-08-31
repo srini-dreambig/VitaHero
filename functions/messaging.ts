@@ -140,15 +140,86 @@ async function sendTwilio(env: SmsEnv, to: string, body: string): Promise<SmsRes
 }
 
 /**
+ * Whether the TextBee sending phone is actually connected.
+ *
+ * TextBee's send endpoint queues a message and returns 2xx even when the
+ * registered Android phone is off, offline, or has the app force-closed —
+ * the message then sits unsent forever while the console reports success.
+ * Asking after the device first is what turns "Sent to 2 of 2" into a
+ * statement someone can act on: if the phone is not talking to TextBee,
+ * the send fails here with instructions instead of lying.
+ *
+ * `online` is true/false only when the API actually said; null means the
+ * response did not carry a recognisable status, in which case we still
+ * attempt the send rather than blocking on a field we misread.
+ */
+export async function textbeeDevice(env: SmsEnv): Promise<{
+  reachable: boolean;
+  online: boolean | null;
+  detail: string;
+}> {
+  const base = String(env.TEXTBEE_BASE_URL || TEXTBEE_DEFAULT).replace(/\/+$/, "");
+  // There is no GET /devices/{id} route in textbee's API — only the list —
+  // so the device is found by id in the list response.
+  const url = `${base}/gateway/devices`;
+  try {
+    const resp = await fetch(url, { headers: { "x-api-key": String(env.TEXTBEE_API_KEY) } });
+    if (!resp.ok) {
+      return { reachable: false, online: null, detail: `TextBee ${resp.status}: ${trim(await resp.text())}` };
+    }
+    const parsed = (await resp.json()) as Record<string, unknown>;
+    const list = Array.isArray(parsed.data) ? (parsed.data as Record<string, unknown>[]) : [];
+    const dev = list.find((d) => String(d._id ?? d.id ?? "") === String(env.TEXTBEE_DEVICE_ID));
+    if (!dev) {
+      return {
+        reachable: true,
+        online: null,
+        detail: "The configured TextBee device ID was not found in this account — check TEXTBEE_DEVICE_ID against the textbee dashboard.",
+      };
+    }
+
+    const heartbeat = dev.lastHeartbeat ?? dev.lastHeartbeatAt ?? dev.last_seen;
+    const heartbeatAge = heartbeat ? Date.now() - new Date(String(heartbeat)).getTime() : NaN;
+    const online: boolean | null =
+      typeof dev.onlineStatus === "boolean" ? (dev.onlineStatus as boolean)
+      : typeof dev.isOnline === "boolean" ? (dev.isOnline as boolean)
+      : dev.status === "ONLINE" ? true
+      : dev.status === "OFFLINE" ? false
+      : Number.isFinite(heartbeatAge) ? (heartbeatAge as number) < 5 * 60_000
+      : null;
+
+    return {
+      reachable: true,
+      online,
+      detail: online === false
+        ? "The TextBee phone has not checked in" + (Number.isFinite(heartbeatAge) ? " for a while (last contact " + new Date(String(heartbeat)).toISOString() + ")." : ".")
+        : online === true
+          ? "TextBee phone is connected."
+          : "TextBee device status could not be determined.",
+    };
+  } catch (e) {
+    return { reachable: false, online: null, detail: `TextBee unreachable: ${(e as Error).message}` };
+  }
+}
+
+/**
  * TextBee, written against its published gateway API.
  *
- * The exact request shape has not been exercised against a live account from
- * here, so the provider's own status and response body are reported verbatim
- * on failure. If this is wrong for your device it will say so on the first
- * send rather than failing quietly, which is the whole point of the change.
+ * The send request is only attempted once the device check has confirmed the
+ * phone is there to receive it (or could not be determined) — a queued message
+ * on a dead phone must not be reported as sent.
  */
 async function sendTextbee(env: SmsEnv, to: string, body: string): Promise<SmsResult> {
   const base = String(env.TEXTBEE_BASE_URL || TEXTBEE_DEFAULT).replace(/\/+$/, "");
+  const device = await textbeeDevice(env);
+  if (!device.reachable) return { ok: false, reason: device.detail };
+  if (device.online === false) {
+    return {
+      ok: false,
+      reason: "The TextBee phone is not connected, so the text cannot go out. " +
+        "Open the TextBee app on the sending phone and sign it back in, then send again.",
+    };
+  }
   const url = `${base}/gateway/devices/${env.TEXTBEE_DEVICE_ID}/send-sms`;
   try {
     const resp = await fetch(url, {

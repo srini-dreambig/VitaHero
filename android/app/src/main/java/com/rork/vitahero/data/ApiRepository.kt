@@ -127,6 +127,25 @@ class ApiRepository {
         }
     }
 
+    /** Exchanges a Firebase phone-auth ID token for a VitaHero session. */
+    suspend fun firebasePhoneSignIn(idToken: String): Result<GoogleAuthResponse> = onIo {
+        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
+        try {
+            val resp = http.post("$base/api/auth/phone/firebase-verify") {
+                contentType(ContentType.Application.Json)
+                setBody(mapOf("idToken" to idToken))
+            }
+            if (resp.status.isSuccess()) {
+                Result.success(resp.body<GoogleAuthResponse>())
+            } else {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                Result.failure(Exception(err?.error ?: "Sign-in failed"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun fetchMyProfile(): ProfileDto? = onIo {
         if (skipNetwork) return@onIo null
         try {

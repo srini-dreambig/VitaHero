@@ -73,7 +73,7 @@ import {
   setCampStaffActive,
 } from "./camps";
 import { adminAnalytics } from "./analytics";
-import { makeSender, smsProvider } from "./messaging";
+import { makeSender, smsProvider, textbeeDevice } from "./messaging";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import {
   ensureReferralSchema,
@@ -176,6 +176,7 @@ import {
   campPeople,
 } from "./directory";
 import { migrate, SCHEMA_VERSION } from "./migrate";
+import { servePrivacyPage, serveDataDeletionPage } from "./pages";
 import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
@@ -214,7 +215,17 @@ interface Env {
   ANDROID_CERT_SHA256?: string;
   // Play Store listing URL used as install fallback in the invite landing page.
   APP_PLAY_URL?: string;
+  // Firebase Web API key used to validate phone-auth ID tokens server-side.
+  FIREBASE_API_KEY?: string;
 }
+
+/**
+ * Firebase Web API key for project vitahero-8c5c0 (public client identifier,
+ * also shipped inside the Android app's google-services.json). Used by
+ * /api/auth/phone/firebase-verify to validate on-device Firebase phone-auth
+ * ID tokens; override with the FIREBASE_API_KEY binding if it ever rotates.
+ */
+const FIREBASE_WEB_API_KEY = "AIzaSyCRkecFBarBe-Z1TOPxk9eeohHhL-ZF1Kk";
 
 // ─── Helpers ────────────────────────────────────────────────
 
@@ -1525,6 +1536,14 @@ export default {
 
     const url = new URL(request.url);
     const path = url.pathname;
+
+    // ── Static pages required by Google Play ────────────
+    //
+    // The store listing and Data safety form link to these. They must answer
+    // even if the database is unreachable, so they sit in front of it.
+    if (path === "/privacy") return servePrivacyPage();
+    if (path === "/data-deletion") return serveDataDeletionPage();
+
     const dbUrl = env.DATABASE_URL;
 
     if (!dbUrl) {
@@ -1753,7 +1772,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           // anything is sent, so "0 of 2" is never the first time anyone
           // learns the gateway is not configured.
           if (path === "/api/admin/sms-status" && method === "GET") {
-            return json(smsProvider(env));
+            const status = smsProvider(env);
+            // For textbee, configuration alone is not enough: the registered
+            // phone must also be connected or every send queues forever. The
+            // screen shows that before anyone clicks Invite.
+            if (status.provider === "textbee" && status.configured) {
+              const device = await textbeeDevice(env);
+              return json({ ...status, device });
+            }
+            return json(status);
           }
           if (path === "/api/admin/analytics" && method === "GET") {
             return json(await adminAnalytics(sql, actor, {
@@ -2612,6 +2639,81 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             id: profileId,
             user_id: profileId,
             phone,
+            name: (existing[0].name as string) || "Parent",
+            auth_provider: "PHONE",
+            role: (existing[0].role as string) || "PARENT",
+            school_id: (existing[0].school_id as string) || null,
+          },
+        });
+      }
+
+      // ── Firebase Phone Auth: exchange Firebase ID token for a session ──
+      // The OTP itself is requested and verified on-device by Firebase's Phone
+      // provider (Firebase only allows the request from the parent's own
+      // phone). The app sends us the resulting Firebase ID token; we validate
+      // it with Google and mint the same session the OTP flow used to.
+      if (path === "/api/auth/phone/firebase-verify" && request.method === "POST") {
+        const body: Record<string, unknown> = await request.json();
+        const idToken = (body.idToken as string)?.trim();
+        if (!idToken) return json({ error: "Missing idToken" }, 400);
+
+        const apiKey = env.FIREBASE_API_KEY || FIREBASE_WEB_API_KEY;
+        let lookupResp: Response;
+        try {
+          lookupResp = await fetch(
+            `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${apiKey}`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ idToken }),
+            }
+          );
+        } catch {
+          return json({ error: "Could not verify sign-in. Please try again." }, 502);
+        }
+        if (!lookupResp.ok) {
+          return json({ error: "Sign-in session expired. Please request a new code." }, 401);
+        }
+        const lookup = (await lookupResp.json()) as {
+          users?: Array<{ phoneNumber?: string }>;
+        };
+        const fbPhone = lookup.users?.[0]?.phoneNumber;
+        if (!fbPhone) return json({ error: "No phone number on this sign-in" }, 401);
+
+        // Closed app: the parent must have been provisioned by an admin import.
+        const norm = normalizePhone(fbPhone);
+        if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
+        const profileId = profileIdForPhone(norm.last10);
+        const sessionToken = generateToken();
+
+        const existing = await sql`
+          SELECT id, provisioned, name, role, school_id
+          FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1
+        `;
+
+        if (existing.length === 0 || existing[0].provisioned !== true) {
+          return json(
+            {
+              error: "This number isn't registered. Please contact your school or camp organizer.",
+              code: "NOT_PROVISIONED",
+            },
+            403
+          );
+        }
+
+        await sql`
+          UPDATE vita_hero.profiles
+          SET session_token = ${sessionToken}, is_logged_in = true, phone = ${fbPhone},
+              user_id = COALESCE(user_id, ${profileId})
+          WHERE id = ${profileId}
+        `;
+
+        return json({
+          token: sessionToken,
+          profile: {
+            id: profileId,
+            user_id: profileId,
+            phone: fbPhone,
             name: (existing[0].name as string) || "Parent",
             auth_provider: "PHONE",
             role: (existing[0].role as string) || "PARENT",

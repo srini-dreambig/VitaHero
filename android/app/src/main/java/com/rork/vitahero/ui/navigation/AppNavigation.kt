@@ -1,5 +1,6 @@
 package com.rork.vitahero.ui.navigation
 
+import android.app.Activity
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -36,6 +37,7 @@ import com.rork.vitahero.ui.screens.FamilySharingScreen
 import com.rork.vitahero.ui.screens.FoodRecognitionScreen
 import com.rork.vitahero.ui.screens.GrowthChartsScreen
 import com.rork.vitahero.ui.screens.HospitalsScreen
+import com.rork.vitahero.ui.screens.KidDetailMissingScreen
 import com.rork.vitahero.ui.screens.KidDetailScreen
 import com.rork.vitahero.ui.screens.MainScaffold
 import com.rork.vitahero.ui.screens.NotificationsScreen
@@ -186,6 +188,7 @@ fun AppNavigation(
 
         composable(Routes.AUTH) {
             LaunchedEffect(Unit) { appViewModel.clearAuthError() }
+            val activity = LocalContext.current as? Activity
 
             AuthScreen(
                 isLoading = authLoading,
@@ -201,7 +204,7 @@ fun AppNavigation(
                 onContinueWithPhone = { p ->
                     phone = p
                     pendingName = "Parent"
-                    appViewModel.sendPhoneOtp(p)
+                    activity?.let { appViewModel.requestPhoneOtp(it, p) }
                     navController.navigate("otp/$p/$pendingName")
                 },
             )
@@ -218,6 +221,7 @@ fun AppNavigation(
             val n = backStack.arguments?.getString("name").orEmpty()
 
             LaunchedEffect(Unit) { appViewModel.clearAuthError() }
+            val activity = LocalContext.current as? Activity
 
             val otpError by appViewModel.authError.collectAsState()
             val otpVerifying by appViewModel.authLoading.collectAsState()
@@ -233,7 +237,7 @@ fun AppNavigation(
                 onVerified = { code ->
                     appViewModel.verifyPhoneOtp(p, code)
                 },
-                onResend = { appViewModel.sendPhoneOtp(p) },
+                onResend = { activity?.let { appViewModel.resendPhoneOtp(it, p) } },
                 isVerifying = otpVerifying,
                 error = otpError
             )
@@ -300,6 +304,10 @@ fun AppNavigation(
                     onOpenGrowthCharts = { navController.navigate("growth/${kid.id}") },
                     growthAssessment = kidsViewModel.growthAssessmentForKid(kid.id),
                 )
+            } else {
+                // A route id with no matching child must never render a blank
+                // screen (which reads as a freeze) — it gets an explanation.
+                KidDetailMissingScreen(onBack = { navController.popBackStack() })
             }
         }
 

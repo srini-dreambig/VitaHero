@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 import java.util.Properties
@@ -25,10 +26,10 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.rork.vitahero"
+        applicationId = "kallam.healthcare"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
+        versionCode = 2
         versionName = "1.0"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
@@ -99,6 +100,8 @@ dependencies {
     implementation(libs.googleid)
     implementation(libs.mlkit.image.labeling)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
 
     debugImplementation(libs.androidx.ui.tooling)
 }
