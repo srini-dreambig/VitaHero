@@ -1580,6 +1580,47 @@ suite("releasing a whole school", () => {
     expect(kid.rows[0].last_checkup).toBe("2026-09-10");
   });
 
+  // The other end of the same camp: taking children off a roster, which was a
+  // DELETE per child. A handful most days, but a change to the camp's classes
+  // or a year rollover makes it the whole school at once.
+  test("rebuilding a roster removes the whole school in a bounded number of statements", async () => {
+    const CAMP2 = "cmp_big2";
+    await bigSql`
+      INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, checks, grades, academic_year)
+      VALUES (${CAMP2}, ${SCHOOL}, 'Second Camp', '2026-11-10', 'DRAFT',
+              '["Vision"]'::jsonb, '["Class 4"]'::jsonb, '')
+    `;
+    await bigSql`
+      INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role, active)
+      VALUES ('cs_big2', ${CAMP2}, ${PHYSICIAN.profileId}, 'PHYSICIAN', true)
+    `;
+
+    const OPS_ACTOR: Actor = { profileId: "ph_ops_big", name: "Ops", role: "SUPERADMIN", schoolId: null };
+    const built = await buildCampRoster(bigSql, OPS_ACTOR, CAMP2);
+    expect(built.added).toBe(CHILDREN);
+
+    // Narrow the camp to a class nobody is in. Nothing has been consented or
+    // screened on this camp, so every child is eligible to come off.
+    await bigSql`UPDATE vita_hero.school_camps SET grades = '["Class 9"]'::jsonb WHERE id = ${CAMP2}`;
+
+    statements = 0;
+    const rebuilt = await buildCampRoster(counted, OPS_ACTOR, CAMP2);
+    expect(rebuilt.removed).toBe(CHILDREN);
+    expect(rebuilt.total).toBe(0);
+    // Two hundred deletes used to be two hundred statements. The rest of the
+    // rebuild is a handful of reads and the camp's own count update.
+    console.log(`    ${CHILDREN} children taken off a roster in ${statements} statements`);
+    expect(statements).toBeLessThan(10);
+
+    const left = await big.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.camp_participants WHERE camp_id=$1", [CAMP2]);
+    expect(left.rows[0].n).toBe(0);
+    // The released camp alongside it is untouched.
+    const other = await big.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.camp_participants WHERE camp_id=$1", [CAMP]);
+    expect(other.rows[0].n).toBe(CHILDREN);
+  });
+
   test("releasing twice does not duplicate anything", async () => {
     // Nothing is APPROVED any more, so the second call refuses outright — the
     // status transition is what makes release idempotent.

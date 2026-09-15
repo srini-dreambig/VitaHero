@@ -225,3 +225,94 @@ describe("driver compatibility", () => {
     expect(offenders).toEqual([]);
   });
 });
+
+// ── what the seed steps cost, and what they must not do ──
+//
+// The DDL is batched, so the expensive part of a first request was never the
+// schema — it was the seeds, which run after the batch with the real driver,
+// one outbound subrequest each. Cloudflare allows 50 on the free plan, and the
+// route still has its own queries to make afterwards.
+describe("seeding a fresh database", () => {
+  /** An `Sql` that records statements and answers reads with given rows. */
+  function fakeSql(reads: Array<{ match: RegExp; rows: Record<string, unknown>[] }> = []) {
+    const statements: Array<{ text: string; params: unknown[] }> = [];
+    const answer = (text: string, params: unknown[]) => {
+      statements.push({ text, params });
+      for (const r of reads) if (r.match.test(text)) return Promise.resolve(r.rows);
+      return Promise.resolve([] as Record<string, unknown>[]);
+    };
+    const fn: any = (strings: TemplateStringsArray | string, ...values: unknown[]) => {
+      if (typeof strings === "string") throw new Error("sql(identifier) is not supported by the Neon driver");
+      let text = "";
+      const params: unknown[] = [];
+      for (let i = 0; i < strings.length; i++) {
+        text += strings[i];
+        if (i < values.length) { params.push(values[i]); text += "$" + params.length; }
+      }
+      return answer(text, params);
+    };
+    fn.query = (text: string, params: unknown[] = []) => answer(text, params);
+    fn.statements = statements;
+    return fn;
+  }
+
+  test("the library is one statement, not one per article and locale", async () => {
+    const { seedLibraryIfEmpty } = await import("./library");
+    const sql = fakeSql();
+    await seedLibraryIfEmpty(sql);
+    const inserts = sql.statements.filter((s: { text: string }) =>
+      /INSERT INTO vita_hero\.library_articles/.test(s.text));
+    expect(inserts.length).toBe(1);
+    // Six articles really are in there; they were not lost in the batching.
+    expect(inserts[0].params.length % 10).toBe(0);
+    expect(inserts[0].params.length / 10).toBeGreaterThanOrEqual(6);
+  });
+
+  test("a school ops deleted does not come back", async () => {
+    // The real failure this moved for. In the DDL path the COUNT below was
+    // handed an empty result, so the guard never fired, and the inserts landed
+    // every time the schema version moved. DO NOTHING hid that only while the
+    // demo rows still existed — once ops deleted one, the next migration put it
+    // straight back.
+    const { seedPartnerSchools } = await import("./index");
+    const populated = fakeSql([
+      { match: /COUNT\(\*\)::int AS c FROM vita_hero\.schools/, rows: [{ c: 3 }] },
+    ]);
+    await seedPartnerSchools(populated);
+    expect(populated.statements.length).toBe(1);
+    expect(populated.statements.some((s: { text: string }) => /INSERT INTO/.test(s.text))).toBe(false);
+  });
+
+  test("but an empty database still gets its demo schools, in two statements", async () => {
+    const { seedPartnerSchools } = await import("./index");
+    const empty = fakeSql([
+      { match: /COUNT\(\*\)::int AS c FROM vita_hero\.schools/, rows: [{ c: 0 }] },
+    ]);
+    await seedPartnerSchools(empty);
+    const inserts = empty.statements.filter((s: { text: string }) => /INSERT INTO/.test(s.text));
+    expect(inserts.length).toBe(2);
+    expect(inserts[0].text).toContain("vita_hero.schools");
+    expect(inserts[1].text).toContain("vita_hero.school_camps");
+    // Four schools of seven columns, six camps of twelve.
+    expect(inserts[0].params.length).toBe(4 * 7);
+    expect(inserts[1].params.length).toBe(6 * 12);
+    // The camps carry their hospital on the insert, so nothing has to go back
+    // over the same six ids afterwards to patch it in.
+    expect(inserts[1].params).toContain("hosp_rainbow");
+  });
+
+  test("a seed step that reads is not run against the recorder", async () => {
+    // migrate() hands the DDL a recorder whose reads come back empty. Any step
+    // that decides something from a read has to be a seed, or its guard is
+    // decoration. seedPartnerSchools was in the DDL path with exactly that
+    // problem, so the shape is worth asserting rather than remembering.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("index.ts", "utf8");
+    const ensureSchema = src.slice(
+      src.indexOf("async function ensureSchema("),
+      src.indexOf("async function seedDoctorsIfEmpty(")
+    );
+    expect(ensureSchema).not.toContain("seedPartnerSchools(sql)");
+    expect(src).toContain("const SEED_STEPS = [seedDoctorsIfEmpty, seedPartnerSchools, seedLibraryIfEmpty]");
+  });
+});

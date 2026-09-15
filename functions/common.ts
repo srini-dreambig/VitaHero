@@ -245,6 +245,38 @@ export function currentAcademicYear(now = new Date()): string {
 }
 
 /** Split an array into fixed-size chunks for batched SQL statements. */
+/**
+ * Send many rows as one statement.
+ *
+ * `template` carries the marker `%VALUES%` where the row tuples belong, and
+ * every row must have the same width. Batched at a hundred rows, because a
+ * single statement with thousands of parameters is its own problem.
+ *
+ * This exists because "one round trip per row" is the failure this codebase
+ * keeps rediscovering: it took the schema migration down, it made releasing a
+ * camp's results impossible at any real school size, and on Cloudflare — where
+ * every statement is an outbound subrequest against a hard cap — it is never
+ * merely slow.
+ */
+export async function insertRows(
+  sql: Sql,
+  template: string,
+  rows: unknown[][]
+): Promise<void> {
+  if (rows.length === 0) return;
+  const width = rows[0].length;
+  for (const group of chunk(rows, 100)) {
+    const values = group
+      .map((_, i) => `(${Array.from({ length: width }, (_, k) => "$" + (i * width + k + 1)).join(", ")})`)
+      .join(", ");
+    // The function form of replace, so a `$` sequence in the generated tuples
+    // is never read as a capture-group reference. Today they are only `$1`,
+    // `$2`, … which survive intact, but `$&` would not, and a helper that is
+    // safe only by accident is one edit away from producing broken SQL.
+    await sql.query(template.replace("%VALUES%", () => values), group.flat());
+  }
+}
+
 export function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));

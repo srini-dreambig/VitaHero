@@ -551,13 +551,25 @@ export async function buildCampRoster(sql: Sql, actor: Actor, campId: string) {
 
   // Drop children who no longer match, but never one who has been screened or
   // has consent on file — that would silently discard a real record.
+  //
+  // One statement, not one per child. Usually this removes a handful, but after
+  // a year rollover or a change to the camp's classes it can be the whole
+  // roster, and a delete per child is the same fan-out that made releasing a
+  // camp impossible: on Cloudflare each one is an outbound subrequest against a
+  // hard cap.
+  const toRemove = existing
+    .filter((row) => !eligibleIds.has(row.kid_id as string))
+    .filter((row) => (row.status as string) === "NOT_SCREENED" && (row.consent_status as string) === "PENDING")
+    .map((row) => row.kid_id as string);
+
   let removed = 0;
-  for (const row of existing) {
-    const kidId = row.kid_id as string;
-    if (eligibleIds.has(kidId)) continue;
-    if ((row.status as string) !== "NOT_SCREENED" || (row.consent_status as string) !== "PENDING") continue;
-    await sql`DELETE FROM vita_hero.camp_participants WHERE camp_id = ${campId} AND kid_id = ${kidId}`;
-    removed++;
+  for (const group of chunk(toRemove, 500)) {
+    const gone = await sql`
+      DELETE FROM vita_hero.camp_participants
+      WHERE camp_id = ${campId} AND kid_id = ANY(${group})
+      RETURNING kid_id
+    `;
+    removed += gone.length;
   }
 
   await sql`

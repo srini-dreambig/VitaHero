@@ -15,6 +15,7 @@ import {
   parseNum,
   deriveAge,
   rowField,
+  insertRows,
 } from "./common";
 import {
   Actor,
@@ -597,8 +598,6 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await ensureHospitalPartnerships(sql);
-  await seedPartnerSchools(sql);
-  await linkCampHospitals(sql);
 }
 
 /**
@@ -618,13 +617,14 @@ async function seedDoctorsIfEmpty(sql: Sql): Promise<void> {
       ["d4", "Dr. Karthik Nair", "Nutrition", "KIMS Hospital", 4.6],
       ["d5", "Dr. Priya Sharma", "General Paediatrics", "Continental Hospitals", 4.5],
     ] as const;
-    for (const [id, name, specialty, hospital, rating] of doctors) {
-      await sql`
-        INSERT INTO vita_hero.doctors (id, name, specialty, hospital, rating)
-        VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})
-        ON CONFLICT (id) DO NOTHING
-      `;
-    }
+    await insertRows(
+      sql,
+      `INSERT INTO vita_hero.doctors (id, name, specialty, hospital, rating)
+       SELECT v.id, v.name, v.specialty, v.hospital, v.rating::numeric
+       FROM (VALUES %VALUES%) AS v(id, name, specialty, hospital, rating)
+       ON CONFLICT (id) DO NOTHING`,
+      doctors.map((d) => [...d])
+    );
   }
 }
 
@@ -659,7 +659,24 @@ function generateDoctorSlots(
   return slots;
 }
 
-async function seedPartnerSchools(sql: Sql): Promise<void> {
+/**
+ * The demo partner schools and their camps, once, on a database that has none.
+ *
+ * This used to be called from `ensureSchema`, which was wrong twice over.
+ *
+ * `ensureSchema` is pure DDL: it is handed a recorder that writes statements
+ * down instead of running them, and reads come back empty. So the
+ * `SELECT COUNT(*)` guard below always saw zero and never fired. The inserts
+ * survived that only because they say DO NOTHING — which in turn meant an ops
+ * user who deleted a demo school got it back the next time the schema version
+ * moved, because by then the row it would have conflicted with was gone. A
+ * school returning from the dead after somebody deliberately removed it is not
+ * a cosmetic problem, and the console can delete schools now.
+ *
+ * Run as a seed step the read is real, the guard does its job, and the whole
+ * thing is two statements rather than ten.
+ */
+export async function seedPartnerSchools(sql: Sql): Promise<void> {
   const schoolCount = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.schools`;
   if ((schoolCount[0]?.c as number) > 0) return;
 
@@ -668,15 +685,14 @@ async function seedPartnerSchools(sql: Sql): Promise<void> {
     ["sch_dps", "Delhi Public School Hyderabad", "Hyderabad", "Khajaguda", "DPS2026", "nurse@dpshyd.com", "Vision, dental & nutrition camps every term"],
     ["sch_jgs", "Johnson Grammar School", "Hyderabad", "Habsiguda", "JGS2026", "wellness@jgs.edu.in", "IAP-aligned growth monitoring"],
     ["sch_chirec", "CHIREC International School", "Hyderabad", "Kondapur", "CHI2026", "health@chirec.in", "WHO growth charts integrated with camp results"],
-  ] as const;
+  ];
 
-  for (const [id, name, city, district, code, email, desc] of schools) {
-    await sql`
-      INSERT INTO vita_hero.schools (id, name, city, district, partner_code, contact_email, description)
-      VALUES (${id}, ${name}, ${city}, ${district}, ${code}, ${email}, ${desc})
-      ON CONFLICT (id) DO NOTHING
-    `;
-  }
+  await insertRows(
+    sql,
+    `INSERT INTO vita_hero.schools (id, name, city, district, partner_code, contact_email, description)
+     VALUES %VALUES% ON CONFLICT (id) DO NOTHING`,
+    schools
+  );
 
   const now = new Date();
   const fmt = (d: Date) =>
@@ -686,37 +702,31 @@ async function seedPartnerSchools(sql: Sql): Promise<void> {
   const d45 = new Date(now); d45.setDate(d45.getDate() + 45);
   const d60 = new Date(now); d60.setDate(d60.getDate() - 30);
 
-  const campHospitalById: Record<string, string> = {
-    sc_oak_1: "hosp_rainbow",
-    sc_oak_2: "hosp_kims",
-    sc_oak_past: "hosp_rainbow",
-    sc_dps_1: "hosp_lvp",
-    sc_jgs_1: "hosp_rainbow",
-    sc_chirec_1: "hosp_continental",
-  };
+  // The hospital each camp is run with, carried on the row rather than patched
+  // in afterwards by a second pass over the same six ids.
+  const camps: unknown[][] = [
+    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision", "Haemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null, "hosp_rainbow"],
+    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "SCHEDULED", ["Height & weight", "Haemoglobin"], ["Class 6", "Class 7", "Class 8"], 180, null, "hosp_kims"],
+    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "SCHEDULED", ["Dental", "Vision"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null, "hosp_lvp"],
+    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "SCHEDULED", ["Height & weight"], ["Class 4", "Class 5", "Class 6"], 200, null, "hosp_rainbow"],
+    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision"], ["All grades"], 400, null, "hosp_continental"],
+    ["sc_oak_past", "sch_oak", "Mid-Term Dental Check", "Completed screening — 3 follow-ups recommended", fmt(d60), "10:00 AM – 12:00 PM", "COMPLETED", ["Dental"], ["Class 3", "Class 4"], 120, "142 children screened · 3 follow-ups recommended", "hosp_rainbow"],
+  ];
 
-  const camps = [
-    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision", "Haemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null],
-    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "SCHEDULED", ["Height & weight", "Haemoglobin"], ["Class 6", "Class 7", "Class 8"], 180, null],
-    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "SCHEDULED", ["Dental", "Vision"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null],
-    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "SCHEDULED", ["Height & weight"], ["Class 4", "Class 5", "Class 6"], 200, null],
-    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision"], ["All grades"], 400, null],
-    ["sc_oak_past", "sch_oak", "Mid-Term Dental Check", "Completed screening — 3 follow-ups recommended", fmt(d60), "10:00 AM – 12:00 PM", "COMPLETED", ["Dental"], ["Class 3", "Class 4"], 120, "142 children screened · 3 follow-ups recommended"],
-  ] as const;
-
-  for (const [id, schoolId, title, desc, date, time, status, checks, grades, cap, summary] of camps) {
-    const hospitalId = campHospitalById[id] || null;
-    await sql`
-      INSERT INTO vita_hero.school_camps
-        (id, school_id, title, description, date, time, status, checks, grades, capacity, result_summary, hospital_id)
-      VALUES (
-        ${id}, ${schoolId}, ${title}, ${desc}, ${date}, ${time}, ${status},
-        ${JSON.stringify(checks)}::jsonb, ${JSON.stringify(grades)}::jsonb,
-        ${cap}, ${summary}, ${hospitalId}
-      )
-      ON CONFLICT (id) DO NOTHING
-    `;
-  }
+  await insertRows(
+    sql,
+    `INSERT INTO vita_hero.school_camps
+       (id, school_id, title, description, date, time, status, checks, grades, capacity, result_summary, hospital_id)
+     SELECT v.id, v.school_id, v.title, v.description, v.date, v.time, v.status,
+            v.checks::jsonb, v.grades::jsonb, v.capacity::int, v.result_summary, v.hospital_id
+     FROM (VALUES %VALUES%) AS v(id, school_id, title, description, date, time, status,
+                                 checks, grades, capacity, result_summary, hospital_id)
+     ON CONFLICT (id) DO NOTHING`,
+    camps.map((c) => [
+      c[0], c[1], c[2], c[3], c[4], c[5], c[6],
+      JSON.stringify(c[7]), JSON.stringify(c[8]), c[9], c[10], c[11],
+    ])
+  );
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -734,8 +744,6 @@ function kidBmi(heightCm: number, weightKg: number): number {
   const m = heightCm / 100;
   return m > 0 ? weightKg / (m * m) : 0;
 }
-
-
 
 
 async function mergeCampResultsIntoKids(
@@ -1024,24 +1032,6 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
   `;
 }
 
-async function linkCampHospitals(sql: Sql): Promise<void> {
-  const campHospitalLinks: Record<string, string> = {
-    sc_oak_1: "hosp_rainbow",
-    sc_oak_2: "hosp_kims",
-    sc_oak_past: "hosp_rainbow",
-    sc_dps_1: "hosp_lvp",
-    sc_jgs_1: "hosp_rainbow",
-    sc_chirec_1: "hosp_continental",
-  };
-
-  for (const [campId, hospitalId] of Object.entries(campHospitalLinks)) {
-    await sql`
-      UPDATE vita_hero.school_camps
-      SET hospital_id = ${hospitalId}
-      WHERE id = ${campId} AND (hospital_id IS NULL OR hospital_id = '')
-    `;
-  }
-}
 
 async function getFamilyOwnerId(
   sql: Sql,
@@ -1279,7 +1269,6 @@ function normHealthFlag(v: string): string {
   if (s === "ALERT" || s === "CRITICAL" || s === "REFER" || s === "BAD") return "ALERT";
   return "GOOD";
 }
-
 
 
 interface ImportRowResult {
@@ -1638,7 +1627,7 @@ const SCHEMA_STEPS = [
 ];
 
 /** Steps that have to read before they write. Only ever touch an empty table. */
-const SEED_STEPS = [seedDoctorsIfEmpty, seedLibraryIfEmpty];
+const SEED_STEPS = [seedDoctorsIfEmpty, seedPartnerSchools, seedLibraryIfEmpty];
 
 /** Per-isolate latch so schema init does not run on every request. */
 let schemaReady = false;

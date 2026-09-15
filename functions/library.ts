@@ -14,7 +14,7 @@
 // article does not need a deploy — which is the actual reason to build this
 // before the content exists.
 
-import { Sql, isOpsRole } from "./common";
+import { Sql, insertRows, isOpsRole } from "./common";
 import { Actor, ApiError } from "./schools";
 import { CHECK_TYPES, isCheckType } from "./clinical";
 
@@ -143,19 +143,28 @@ async function seedLibrary(sql: Sql): Promise<void> {
     },
   ];
 
+  const rows: unknown[][] = [];
   for (const s of seeds) {
     for (const locale of Object.keys(s.t)) {
       const c = s.t[locale];
-      await sql`
-        INSERT INTO vita_hero.library_articles
-          (id, slug, locale, title, summary, body, check_types, flags, min_age, max_age, published, created_by)
-        VALUES (${`lib_${s.slug}_${locale}`}, ${s.slug}, ${locale}, ${c.title}, ${c.summary}, ${c.body},
-                ${JSON.stringify(s.checks)}::jsonb, ${JSON.stringify(s.flags)}::jsonb,
-                ${s.minAge}, ${s.maxAge}, true, 'seed')
-        ON CONFLICT (slug, locale) DO NOTHING
-      `;
+      rows.push([
+        `lib_${s.slug}_${locale}`, s.slug, locale, c.title, c.summary, c.body,
+        JSON.stringify(s.checks), JSON.stringify(s.flags), s.minAge, s.maxAge,
+      ]);
     }
   }
+
+  await insertRows(
+    sql,
+    `INSERT INTO vita_hero.library_articles
+       (id, slug, locale, title, summary, body, check_types, flags, min_age, max_age, published, created_by)
+     SELECT v.id, v.slug, v.locale, v.title, v.summary, v.body,
+            v.check_types::jsonb, v.flags::jsonb, v.min_age::int, v.max_age::int, true, 'seed'
+     FROM (VALUES %VALUES%) AS v(id, slug, locale, title, summary, body,
+                                 check_types, flags, min_age, max_age)
+     ON CONFLICT (slug, locale) DO NOTHING`,
+    rows
+  );
 }
 
 function mapArticle(r: Record<string, unknown>) {
