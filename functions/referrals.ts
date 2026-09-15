@@ -14,7 +14,7 @@
 // partner and a funder actually care about, and it is the one number the
 // programme could not previously produce for a single child.
 
-import { Sql, isOpsRole, slugify } from "./common";
+import { Sql, chunk, isOpsRole, slugify } from "./common";
 import { SmsSender } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { assertCampAccess } from "./camps";
@@ -93,43 +93,69 @@ function dueDate(urgency: string, from = new Date()): string {
   return d.toISOString().slice(0, 10);
 }
 
+
 /**
- * G1 — open a referral for every finding a physician flagged.
+ * G1 — turn every flag a physician confirmed into a tracked referral, for a
+ * whole camp, in one statement per batch.
  *
- * Called from releaseCamp, inside the same pass that publishes results, so a
- * guardian never sees "see a doctor" without a matching tracked referral.
- * Idempotent on (camp, kid, check) so re-releasing does not duplicate.
+ * A guardian is never told "see a doctor" without something following it up.
+ * This used to be a round trip per flagged finding, called once per child. A camp where a hundred children each had two flags
+ * was two hundred sequential queries on top of everything else release was
+ * already doing per child — see the note on `releaseCamp`.
+ *
+ * Same idempotency: the unique index on (camp, kid, check, generation) is what
+ * makes a re-release add nothing, and DO NOTHING plus RETURNING tells us how
+ * many were genuinely new.
  */
-export async function openReferralsForChild(
+export async function openReferralsForCamp(
   sql: Sql,
-  opts: {
-    campId: string;
+  campId: string,
+  schoolId: string,
+  createdBy: string,
+  children: Array<{
     kidId: string;
     profileId: string;
-    schoolId: string;
-    createdBy: string;
     urgency: Urgency;
     findings: Array<{ checkType: string; flag: Flag; rationale: string }>;
-  }
+  }>
 ): Promise<number> {
-  const needing = opts.findings.filter((f) => f.flag === "WATCH" || f.flag === "ALERT");
+  type Row = [string, string, string, string, string, string, string, string, string, string, string, string, string];
+  const rows: Row[] = [];
+
+  for (const c of children) {
+    for (const f of c.findings) {
+      if (f.flag !== "WATCH" && f.flag !== "ALERT") continue;
+      const id = `ref_${campId.slice(-8)}_${slugify(c.kidId).slice(0, 16)}_${slugify(f.checkType)}`;
+      // A WATCH is routine unless the physician marked the whole child urgent.
+      const urgency = f.flag === "ALERT" ? (c.urgency === "NONE" ? "SOON" : c.urgency) : "ROUTINE";
+      rows.push([
+        id, campId, c.kidId, c.profileId, schoolId, f.checkType,
+        SPECIALTY[f.checkType] || "Paediatrics", f.flag, urgency,
+        f.rationale, "OPEN", createdBy, dueDate(urgency),
+      ]);
+    }
+  }
+  if (rows.length === 0) return 0;
+
   let opened = 0;
-  for (const f of needing) {
-    const id = `ref_${opts.campId.slice(-8)}_${slugify(opts.kidId).slice(0, 16)}_${slugify(f.checkType)}`;
-    // A WATCH is routine unless the physician marked the whole child urgent.
-    const urgency = f.flag === "ALERT" ? opts.urgency === "NONE" ? "SOON" : opts.urgency : "ROUTINE";
-    const rows = await sql`
-      INSERT INTO vita_hero.referrals
-        (id, camp_id, kid_id, profile_id, school_id, check_type, specialty, flag,
-         urgency, reason, status, created_by, due_by)
-      VALUES
-        (${id}, ${opts.campId}, ${opts.kidId}, ${opts.profileId}, ${opts.schoolId},
-         ${f.checkType}, ${SPECIALTY[f.checkType] || "Paediatrics"}, ${f.flag},
-         ${urgency}, ${f.rationale}, 'OPEN', ${opts.createdBy}, ${dueDate(urgency)})
-      ON CONFLICT (camp_id, kid_id, check_type, generation) DO NOTHING
-      RETURNING id
-    `;
-    if (rows.length > 0) opened++;
+  for (const group of chunk(rows, 100)) {
+    const values: string[] = [];
+    const params: unknown[] = [];
+    group.forEach((r, i) => {
+      const b = i * 13;
+      values.push(`(${r.map((_, k) => "$" + (b + k + 1)).join(", ")})`);
+      params.push(...r);
+    });
+    const res = await sql.query(
+      `INSERT INTO vita_hero.referrals
+         (id, camp_id, kid_id, profile_id, school_id, check_type, specialty, flag,
+          urgency, reason, status, created_by, due_by)
+       VALUES ${values.join(", ")}
+       ON CONFLICT (camp_id, kid_id, check_type, generation) DO NOTHING
+       RETURNING id`,
+      params
+    );
+    opened += (res as unknown[]).length;
   }
   return opened;
 }

@@ -20,7 +20,7 @@ import {
 } from "./common";
 import { SmsSender } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
-import { openReferralsForChild } from "./referrals";
+import { openReferralsForCamp } from "./referrals";
 import { logRecordAccess } from "./oversight";
 import {
   CHECK_TYPES,
@@ -1358,6 +1358,27 @@ export async function reviewParticipant(
  * Only APPROVED children are released. A child who was screened but never
  * reviewed stays invisible, which is the point of the gate.
  */
+/**
+ * Publish a camp's approved results to the families.
+ *
+ * This is the moment the whole programme exists for, and it used to be written
+ * as a loop over children with seven sequential statements inside it: read that
+ * child's findings, write the app's result row, update the child, add a growth
+ * point, add a registration, enrol the guardian, open referrals, mark released.
+ *
+ * On Cloudflare every one of those is an outbound subrequest, and the platform
+ * allows 50 on the free plan and 1000 on the paid one. A camp of forty children
+ * blew the free limit; around a hundred and forty blew the paid one. Long
+ * before either, the wall time did it — a few hundred sequential round trips to
+ * Neon is minutes, not milliseconds. So "release the results" worked on the
+ * handful of children a demo has and failed on a real school, which is the
+ * worst possible shape for a bug to have.
+ *
+ * It is the same fan-out problem the schema migration had, and the fix is the
+ * same one `buildCampRoster` and `commitRoster` already use: read everything
+ * once, decide in memory, and write in batches. A camp of five hundred children
+ * now costs about thirty statements instead of three and a half thousand.
+ */
 export async function releaseCamp(
   sql: Sql,
   actor: Actor,
@@ -1379,98 +1400,163 @@ export async function releaseCamp(
   }
 
   const campDate = (camp.date as string) || "";
-  let released = 0;
-  let referralsOpened = 0;
+  const schoolId = camp.school_id as string;
 
-  for (const row of approved) {
-    const kidId = row.kid_id as string;
-    const profileId = row.profile_id as string;
-
-    const fRows = await sql`
-      SELECT check_type, flag, urgency, detail, rationale FROM vita_hero.camp_findings
-      WHERE camp_id = ${campId} AND kid_id = ${kidId}
-    `;
-    const findings = fRows.map((f) => ({
+  // Every finding for the camp in one read, then grouped by child. This single
+  // query replaces one per child.
+  const allFindings = await sql`
+    SELECT kid_id, check_type, flag, urgency, detail, rationale
+    FROM vita_hero.camp_findings WHERE camp_id = ${campId}
+  `;
+  const findingsByKid = new Map<string, Array<{
+    checkType: string; flag: Flag; urgency: Urgency;
+    detail: Record<string, unknown>; rationale: string;
+  }>>();
+  for (const f of allFindings) {
+    const kidId = f.kid_id as string;
+    const list = findingsByKid.get(kidId) || [];
+    list.push({
       checkType: f.check_type as string,
       flag: f.flag as Flag,
       urgency: (f.urgency as Urgency) || "NONE",
       detail: (f.detail as Record<string, unknown>) || {},
       rationale: (f.rationale as string) || "",
-    }));
-    const s = summariseForApp(findings);
+    });
+    findingsByKid.set(kidId, list);
+  }
 
-    // The parent app's camp result row.
-    await sql`
+  // Everything each child needs written, worked out before anything is written.
+  const plan = approved.map((row) => {
+    const kidId = row.kid_id as string;
+    const findings = findingsByKid.get(kidId) || [];
+    return {
+      kidId,
+      profileId: row.profile_id as string,
+      urgency: (row.urgency as Urgency) || "NONE",
+      findings,
+      summary: summariseForApp(findings),
+    };
+  });
+
+  /** Send one batched statement per hundred rows. */
+  const writeBatched = async (
+    rows: unknown[][],
+    build: (values: string, count: number) => string
+  ): Promise<void> => {
+    if (rows.length === 0) return;
+    const width = rows[0].length;
+    for (const group of chunk(rows, 100)) {
+      const values = group
+        .map((_, i) => `(${Array.from({ length: width }, (_, k) => "$" + (i * width + k + 1)).join(", ")})`)
+        .join(", ");
+      await sql.query(build(values, group.length), group.flat());
+    }
+  };
+
+  // The parent app's camp result row.
+  await writeBatched(
+    plan.map((p) => [
+      `ckr_${campId.slice(-10)}_${slugify(p.kidId).slice(0, 20)}`,
+      p.profileId, campId, p.kidId,
+      p.summary.dental, p.summary.eyesight, p.summary.nutrition,
+      p.summary.heightCm, p.summary.weightKg,
+    ]),
+    (values) => `
       INSERT INTO vita_hero.camp_kid_results
         (id, profile_id, school_camp_id, kid_id, dental, eyesight, nutrition, height_cm, weight_kg, recorded_at)
-      VALUES
-        (${"ckr_" + campId.slice(-10) + "_" + slugify(kidId).slice(0, 20)},
-         ${profileId}, ${campId}, ${kidId}, ${s.dental}, ${s.eyesight}, ${s.nutrition},
-         ${s.heightCm}, ${s.weightKg}, NOW())
+      SELECT v.id, v.profile_id, v.school_camp_id, v.kid_id, v.dental, v.eyesight, v.nutrition,
+             v.height_cm::numeric, v.weight_kg::numeric, NOW()
+      FROM (VALUES ${values}) AS v(id, profile_id, school_camp_id, kid_id, dental, eyesight, nutrition, height_cm, weight_kg)
       ON CONFLICT (school_camp_id, kid_id) DO UPDATE SET
         dental = EXCLUDED.dental, eyesight = EXCLUDED.eyesight, nutrition = EXCLUDED.nutrition,
-        height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg, recorded_at = NOW()
-    `;
+        height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg, recorded_at = NOW()`
+  );
 
-    // The child's headline flags, as the app reads them.
-    await sql`
-      UPDATE vita_hero.kids SET
-        dental = ${s.dental},
-        eyesight = ${s.eyesight},
-        nutrition = ${s.nutrition},
-        height_cm = COALESCE(${s.heightCm}, height_cm),
-        weight_kg = COALESCE(${s.weightKg}, weight_kg),
-        overall_score = ${s.overallScore},
-        last_checkup = ${campDate || "Camp"}
-      WHERE id = ${kidId}
-    `;
+  // The child's headline flags, as the app reads them.
+  await writeBatched(
+    plan.map((p) => [
+      p.kidId, p.summary.dental, p.summary.eyesight, p.summary.nutrition,
+      p.summary.heightCm, p.summary.weightKg, p.summary.overallScore, campDate || "Camp",
+    ]),
+    (values) => `
+      UPDATE vita_hero.kids k SET
+        dental = v.dental, eyesight = v.eyesight, nutrition = v.nutrition,
+        height_cm = COALESCE(v.height_cm::numeric, k.height_cm),
+        weight_kg = COALESCE(v.weight_kg::numeric, k.weight_kg),
+        overall_score = v.overall_score::int,
+        last_checkup = v.last_checkup
+      FROM (VALUES ${values}) AS v(kid_id, dental, eyesight, nutrition, height_cm, weight_kg, overall_score, last_checkup)
+      WHERE k.id = v.kid_id`
+  );
 
-    // A point on the growth chart, if the camp measured one.
-    if (s.heightCm !== null || s.weightKg !== null) {
-      await sql`
-        INSERT INTO vita_hero.growth_points (id, kid_id, user_id, label, height, weight)
-        VALUES (${"gp_" + slugify(kidId).slice(0, 20) + "_" + slugify(campDate || campId)},
-                ${kidId}, ${profileId}, ${campDate || "Camp"},
-                ${s.heightCm ?? 0}, ${s.weightKg ?? 0})
-        ON CONFLICT (id) DO UPDATE SET
-          height = EXCLUDED.height, weight = EXCLUDED.weight, recorded_at = NOW()
-      `;
-    }
+  // A point on the growth chart, for the children the camp actually measured.
+  await writeBatched(
+    plan
+      .filter((p) => p.summary.heightCm !== null || p.summary.weightKg !== null)
+      .map((p) => [
+        `gp_${slugify(p.kidId).slice(0, 20)}_${slugify(campDate || campId)}`,
+        p.kidId, p.profileId, campDate || "Camp",
+        p.summary.heightCm ?? 0, p.summary.weightKg ?? 0,
+      ]),
+    (values) => `
+      INSERT INTO vita_hero.growth_points (id, kid_id, user_id, label, height, weight)
+      SELECT v.id, v.kid_id, v.user_id, v.label, v.height::numeric, v.weight::numeric
+      FROM (VALUES ${values}) AS v(id, kid_id, user_id, label, height, weight)
+      ON CONFLICT (id) DO UPDATE SET
+        height = EXCLUDED.height, weight = EXCLUDED.weight, recorded_at = NOW()`
+  );
 
-    // Registration row, so the app's existing camp screens line up.
-    await sql`
+  // Registration rows, so the app's existing camp screens line up.
+  await writeBatched(
+    plan.map((p) => [
+      `reg_${slugify(p.kidId).slice(0, 20)}_${campId.slice(-8)}`, p.profileId, campId, p.kidId,
+    ]),
+    (values) => `
       INSERT INTO vita_hero.camp_registrations (id, profile_id, school_camp_id, kid_id)
-      VALUES (${"reg_" + slugify(kidId).slice(0, 20) + "_" + campId.slice(-8)}, ${profileId}, ${campId}, ${kidId})
-      ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING
-    `;
+      VALUES ${values}
+      ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING`
+  );
 
-    // The guardian must be enrolled with the school to see partner camps.
-    await sql`
-      INSERT INTO vita_hero.school_enrollments (id, profile_id, school_id, kid_id, status)
-      VALUES (${"enr_" + slugify(profileId).slice(0, 20) + "_" + slugify(String(camp.school_id)).slice(0, 16)},
-              ${profileId}, ${camp.school_id as string}, ${kidId}, 'ACTIVE')
-      ON CONFLICT (profile_id, school_id) DO NOTHING
-    `;
-
-    // G1 — every flag a physician confirmed becomes a tracked referral, so a
-    // guardian is never told "see a doctor" without something following it up.
-    referralsOpened += await openReferralsForChild(sql, {
-      campId,
-      kidId,
-      profileId,
-      schoolId: camp.school_id as string,
-      createdBy: actor.profileId,
-      urgency: (row.urgency as Urgency) || "NONE",
-      findings: findings.map((f) => ({ checkType: f.checkType, flag: f.flag, rationale: f.rationale })),
-    });
-
-    await sql`
-      UPDATE vita_hero.camp_participants
-      SET status = 'RELEASED', released_at = NOW()
-      WHERE camp_id = ${campId} AND kid_id = ${kidId}
-    `;
-    released++;
+  // The guardian must be enrolled with the school to see partner camps. One
+  // guardian can have several children here, and the conflict target is
+  // (profile, school), so the duplicates have to go before the statement does —
+  // Postgres rejects a row affecting the same key twice in one command.
+  const enrolments = new Map<string, unknown[]>();
+  for (const p of plan) {
+    const key = `${p.profileId}|${schoolId}`;
+    if (!enrolments.has(key)) {
+      enrolments.set(key, [
+        `enr_${slugify(p.profileId).slice(0, 20)}_${slugify(schoolId).slice(0, 16)}`,
+        p.profileId, schoolId, p.kidId, "ACTIVE",
+      ]);
+    }
   }
+  await writeBatched(
+    [...enrolments.values()],
+    (values) => `
+      INSERT INTO vita_hero.school_enrollments (id, profile_id, school_id, kid_id, status)
+      VALUES ${values}
+      ON CONFLICT (profile_id, school_id) DO NOTHING`
+  );
+
+  // G1 — every flag a physician confirmed becomes a tracked referral, so a
+  // guardian is never told "see a doctor" without something following it up.
+  const referralsOpened = await openReferralsForCamp(
+    sql, campId, schoolId, actor.profileId,
+    plan.map((p) => ({
+      kidId: p.kidId,
+      profileId: p.profileId,
+      urgency: p.urgency,
+      findings: p.findings.map((f) => ({ checkType: f.checkType, flag: f.flag, rationale: f.rationale })),
+    }))
+  );
+
+  // One statement for the whole camp: these are exactly the rows just written.
+  await sql`
+    UPDATE vita_hero.camp_participants
+    SET status = 'RELEASED', released_at = NOW()
+    WHERE camp_id = ${campId} AND status = 'APPROVED'
+  `;
 
   await sql`
     UPDATE vita_hero.school_camps
@@ -1490,18 +1576,25 @@ export async function releaseCamp(
         WHERE cl.camp_id = p.camp_id AND cl.kid_id = p.kid_id AND cl.action = 'URGENT_ESCALATED'
       )
   `;
+  // Every urgent parent is still texted — an SMS is one subrequest each and
+  // there is no bulk endpoint — but eight at a time rather than strictly one
+  // after another, so a camp with a bad day does not run out of wall clock
+  // before the last parent is told.
   let urgentNotified = 0;
-  for (const u of urgent) {
-    const ok = await sendSms(
-      u.phone as string,
-      `VitaHero: ${u.name}'s school health check-up found something that needs a doctor's attention soon. Please open the VitaHero app for details.`
+  for (const group of chunk(urgent, 8)) {
+    const sent = await Promise.all(
+      group.map((u) =>
+        sendSms(
+          u.phone as string,
+          `VitaHero: ${u.name}'s school health check-up found something that needs a doctor's attention soon. Please open the VitaHero app for details.`
+        ).catch(() => false)
+      )
     );
-    if (ok) urgentNotified++;
+    urgentNotified += sent.filter(Boolean).length;
   }
 
-  return { released, referralsOpened, urgentNotified };
+  return { released: plan.length, referralsOpened, urgentNotified };
 }
-
 // ─── Guardian-facing (parent app) ───────────────────────────
 
 /** Consent requests waiting on this guardian. */

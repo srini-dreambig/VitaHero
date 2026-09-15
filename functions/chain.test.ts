@@ -1429,3 +1429,162 @@ suite("end to end", () => {
     );
   });
 });
+
+// ── releasing a camp the size of a real school ──
+//
+// Release used to be a loop over children with seven sequential statements
+// inside it. On Cloudflare each statement is an outbound subrequest, and the
+// platform allows 50 on the free plan and 1000 on the paid one, so a camp of
+// forty children broke on free and roughly a hundred and forty broke on paid —
+// and the wall time of that many sequential round trips to Neon broke it
+// sooner. It worked on the handful of children a demo has and failed on a real
+// school, which is the worst shape a bug can have.
+//
+// The guard is on the statement count, because that is the thing that was
+// wrong. Correctness of the released data is covered by "end to end" above.
+suite("releasing a whole school", () => {
+  let big: pg.Client;
+  let bigSql: Sql;
+  let counted: Sql;
+  let statements = 0;
+
+  const SCHOOL = "sch_big";
+  const CAMP = "cmp_big";
+  const CHILDREN = 200;
+  const PHYSICIAN: Actor = { profileId: "ph_phys_big", name: "Dr Rao", role: "PHYSICIAN", schoolId: SCHOOL };
+
+  beforeAll(async () => {
+    if (!URL) return;
+    const admin = new pg.Client({ connectionString: URL! });
+    await admin.connect();
+    await admin.query("DROP DATABASE IF EXISTS vh_test_scale");
+    await admin.query("CREATE DATABASE vh_test_scale");
+    await admin.end();
+    big = new pg.Client({ connectionString: URL2(URL!, "vh_test_scale") });
+    await big.connect();
+    bigSql = neonShim(big);
+    await legacySchema(bigSql);
+    await ensureStageASchema(bigSql);
+    await ensureCampSchema(bigSql);
+    await ensureReferralSchema(bigSql);
+
+    // Counts what release actually sends, which is the whole point here.
+    const inner = bigSql as unknown as ((...a: unknown[]) => unknown) & { query: (t: string, p: unknown[]) => unknown };
+    const wrapper: any = (...args: unknown[]) => { statements++; return (inner as any)(...args); };
+    wrapper.query = (t: string, p: unknown[] = []) => { statements++; return inner.query(t, p); };
+    counted = wrapper as Sql;
+
+    await bigSql`INSERT INTO vita_hero.schools (id, name, partner_code) VALUES (${SCHOOL}, 'Big School', 'BIG-1')`;
+    await bigSql`
+      INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, checks, grades)
+      VALUES (${CAMP}, ${SCHOOL}, 'Annual', '2026-09-10', 'SCREENED', '["Height & weight","Dental","Vision"]'::jsonb, '["Class 4"]'::jsonb)
+    `;
+    await bigSql`
+      INSERT INTO vita_hero.profiles (id, name, phone, role, school_id, provisioned)
+      VALUES (${PHYSICIAN.profileId}, 'Dr Rao', '+919800000900', 'PHYSICIAN', ${SCHOOL}, true)
+    `;
+    await bigSql`
+      INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role, active)
+      VALUES ('cs_big', ${CAMP}, ${PHYSICIAN.profileId}, 'PHYSICIAN', true)
+    `;
+
+    // One guardian per two children, so the enrolment de-duplication is real.
+    for (let i = 0; i < CHILDREN; i++) {
+      const pid = `ph_9${String(800000000 + Math.floor(i / 2)).slice(0, 9)}`;
+      const kid = `k_big_${i}`;
+      await bigSql`
+        INSERT INTO vita_hero.profiles (id, name, phone, role, provisioned)
+        VALUES (${pid}, ${"Guardian " + i}, ${"+91" + pid.slice(3)}, 'PARENT', true)
+        ON CONFLICT (id) DO NOTHING
+      `;
+      await bigSql`
+        INSERT INTO vita_hero.kids (id, profile_id, name, age, grade, school_id, source)
+        VALUES (${kid}, ${pid}, ${"Child " + i}, 9, 'Class 4', ${SCHOOL}, 'ADMIN')
+      `;
+      await bigSql`
+        INSERT INTO vita_hero.camp_participants
+          (id, camp_id, school_id, kid_id, profile_id, status, urgency, consent_status)
+        VALUES (${"cp_big_" + i}, ${CAMP}, ${SCHOOL}, ${kid}, ${pid}, 'APPROVED',
+                ${i % 20 === 0 ? "URGENT" : "NONE"}, 'GRANTED')
+      `;
+      // Every seventh child was not measured — child 0 included, deliberately.
+      // A multi-row VALUES takes its column types from the first row, so a camp
+      // that opens with an unmeasured child is exactly where a batched write
+      // falls over if the casts are not explicit.
+      const measured = i % 7 !== 0;
+      await bigSql`
+        INSERT INTO vita_hero.camp_findings (id, camp_id, kid_id, check_type, flag, urgency, detail, rationale)
+        VALUES (${"cf_big_h" + i}, ${CAMP}, ${kid}, 'Height & weight',
+                ${measured ? "NORMAL" : "NOT_MEASURED"}, 'NONE',
+                ${measured ? JSON.stringify({ heightCm: 120 + (i % 10), weightKg: 24 + (i % 5) }) : "{}"}::jsonb, '')
+      `;
+      // Every third child carries a flag, so referrals are opened in bulk too.
+      if (i % 3 === 0) {
+        await bigSql`
+          INSERT INTO vita_hero.camp_findings (id, camp_id, kid_id, check_type, flag, urgency, detail, rationale)
+          VALUES (${"cf_big_d" + i}, ${CAMP}, ${kid}, 'Dental', 'ALERT', 'SOON', '{}'::jsonb, 'Visible decay')
+        `;
+      }
+    }
+  });
+  afterAll(async () => { if (big) await big.end(); });
+
+  test(`releases all ${CHILDREN} children`, async () => {
+    statements = 0;
+    const r = await releaseCamp(counted, PHYSICIAN, CAMP, noSms);
+    expect(r.released).toBe(CHILDREN);
+    // Every third child had an ALERT, so each gets one tracked referral.
+    expect(r.referralsOpened).toBe(Math.ceil(CHILDREN / 3));
+  });
+
+  test("without one statement per child", async () => {
+    // Batched at 100 rows, a 200-child camp is a handful of statements per
+    // table plus a few singletons. The old loop sent well over 1400 and would
+    // have been cut off by the platform long before finishing. The ceiling is
+    // deliberately far below that and still far above what is needed.
+    console.log(`    ${CHILDREN} children released in ${statements} statements`);
+    expect(statements).toBeLessThan(60);
+  });
+
+  test("the results are actually there", async () => {
+    const results = await big.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.camp_kid_results WHERE school_camp_id=$1", [CAMP]);
+    expect(results.rows[0].n).toBe(CHILDREN);
+
+    // A growth point only for the children the camp actually measured.
+    const unmeasured = Math.ceil(CHILDREN / 7);
+    const growth = await big.query("SELECT COUNT(*)::int n FROM vita_hero.growth_points");
+    expect(growth.rows[0].n).toBe(CHILDREN - unmeasured);
+
+    // An unmeasured child keeps whatever height was on file rather than being
+    // overwritten with a zero.
+    const skipped = await big.query("SELECT height_cm FROM vita_hero.kids WHERE id='k_big_0'");
+    expect(Number(skipped.rows[0].height_cm)).toBe(0);
+
+    const regs = await big.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.camp_registrations WHERE school_camp_id=$1", [CAMP]);
+    expect(regs.rows[0].n).toBe(CHILDREN);
+
+    // Two children per guardian, and the conflict target is (profile, school),
+    // so the duplicates have to be collapsed before the statement is sent.
+    const enrol = await big.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.school_enrollments WHERE school_id=$1", [SCHOOL]);
+    expect(enrol.rows[0].n).toBe(CHILDREN / 2);
+
+    const released = await big.query(
+      "SELECT COUNT(*)::int n FROM vita_hero.camp_participants WHERE camp_id=$1 AND status='RELEASED'", [CAMP]);
+    expect(released.rows[0].n).toBe(CHILDREN);
+
+    const kid = await big.query("SELECT height_cm, last_checkup FROM vita_hero.kids WHERE id='k_big_3'");
+    expect(Number(kid.rows[0].height_cm)).toBe(123);
+    expect(kid.rows[0].last_checkup).toBe("2026-09-10");
+  });
+
+  test("releasing twice does not duplicate anything", async () => {
+    // Nothing is APPROVED any more, so the second call refuses outright — the
+    // status transition is what makes release idempotent.
+    await expect(releaseCamp(bigSql, PHYSICIAN, CAMP, noSms)).rejects.toThrow(/Nothing has been approved/);
+    const refs = await big.query("SELECT COUNT(*)::int n FROM vita_hero.referrals WHERE camp_id=$1", [CAMP]);
+    expect(refs.rows[0].n).toBe(Math.ceil(CHILDREN / 3));
+  });
+});
