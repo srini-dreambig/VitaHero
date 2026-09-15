@@ -333,6 +333,13 @@ export async function deleteAccount(sql: Sql, profileId: string) {
   await sql`DELETE FROM vita_hero.correction_requests WHERE profile_id = ${profileId}`;
   await sql`DELETE FROM vita_hero.referrals WHERE profile_id = ${profileId}`;
 
+  // Every device, not just the one that asked. An erased account whose tablet
+  // still held a live session would keep answering requests for a profile row
+  // that no longer exists.
+  try {
+    await sql`DELETE FROM vita_hero.sessions WHERE profile_id = ${profileId}`;
+  } catch { /* pre-migration database */ }
+
   // The rights log outlives the profile on purpose: it is the evidence that
   // the erasure was asked for and carried out.
   await logRight(sql, profileId, "ACCOUNT_DELETED", "All data erased on request", profileId);

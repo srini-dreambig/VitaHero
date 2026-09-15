@@ -319,6 +319,25 @@ async function ensureSchema(sql: Sql): Promise<void> {
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invite_count INT DEFAULT 0`;
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS school_id TEXT`;
 
+  // One row per signed-in device.
+  //
+  // A session used to be a single column on the profile, which made signing in
+  // an act that silently destroyed every other sign-in for that person. See
+  // `authenticateSession` for what that did to the app.
+  await sql`
+    CREATE TABLE IF NOT EXISTS vita_hero.sessions (
+      token TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      revoked_at TIMESTAMPTZ,
+      device TEXT DEFAULT ''
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS sessions_profile ON vita_hero.sessions(profile_id, revoked_at)`;
+  await sql`CREATE INDEX IF NOT EXISTS sessions_expiry ON vita_hero.sessions(expires_at)`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS vita_hero.phone_otps (
       phone TEXT PRIMARY KEY,
@@ -1036,24 +1055,96 @@ function anonymizeLeaderboardName(name: string, rank: number, isYou: boolean): s
 
 // ─── Session Auth ───────────────────────────────────────────
 
+/**
+ * How long a session lasts without being used. Every authenticated request
+ * pushes it out again, so a parent who opens the app in term time is never
+ * asked to sign in; one who last opened it two academic years ago is.
+ */
+const SESSION_TTL_DAYS = 180;
+
+/**
+ * Mint a session for a device.
+ *
+ * The bug this replaces: a session was a single `session_token` column on the
+ * profile, so every sign-in overwrote the one before it. Signing in on a
+ * second device, or simply signing in again after a while, invalidated the
+ * token the first device was still holding — and the first device never found
+ * out, because the app read the resulting 401 as "no data" and drew an empty
+ * screen that looked like a loading failure. A parent with a phone and a
+ * tablet could not have both working at once.
+ *
+ * `profiles.session_token` is still written: tokens minted before this table
+ * existed are still in the field and are still honoured. It is now a record of
+ * the most recent sign-in rather than the only one that works.
+ */
+async function mintSession(sql: Sql, profileId: string, device = ""): Promise<string> {
+  const token = generateToken();
+  const expires = new Date(Date.now() + SESSION_TTL_DAYS * 86_400_000).toISOString();
+  try {
+    await sql`
+      INSERT INTO vita_hero.sessions (token, profile_id, expires_at, device)
+      VALUES (${token}, ${profileId}, ${expires}, ${device.slice(0, 200)})
+    `;
+  } catch {
+    // A database that has not run the migration yet: profiles.session_token
+    // still carries this sign-in, so nobody is locked out by the gap.
+  }
+  return token;
+}
+
+/** Revoke one device's session. Logging out of a phone leaves the tablet alone. */
+async function revokeSession(sql: Sql, token: string): Promise<void> {
+  try {
+    await sql`UPDATE vita_hero.sessions SET revoked_at = NOW() WHERE token = ${token}`;
+  } catch { /* pre-migration database */ }
+  await sql`
+    UPDATE vita_hero.profiles
+    SET session_token = NULL, is_logged_in = false
+    WHERE session_token = ${token}
+  `;
+}
+
 async function authenticateSession(
   sql: Sql,
   token: string
 ): Promise<{ profileId: string; userId: string; name: string; role: string; schoolId: string | null } | null> {
   if (!token || token.length < 30) return null;
+
+  const shape = (r: Record<string, unknown>) => ({
+    profileId: r.id as string,
+    userId: (r.user_id as string) || "",
+    name: r.name as string,
+    role: (r.role as string) || "PARENT",
+    schoolId: (r.school_id as string) || null,
+  });
+
+  try {
+    const rows = await sql`
+      SELECT p.id, p.user_id, p.name, p.role, p.school_id
+      FROM vita_hero.sessions s
+      JOIN vita_hero.profiles p ON p.id = s.profile_id
+      WHERE s.token = ${token} AND s.revoked_at IS NULL AND s.expires_at > NOW()
+      LIMIT 1
+    `;
+    if (rows.length > 0) {
+      // Sliding expiry, best effort: a failed touch must never fail the request.
+      Promise.resolve(
+        sql`UPDATE vita_hero.sessions SET last_seen_at = NOW() WHERE token = ${token}`
+      ).catch(() => {});
+      return shape(rows[0]);
+    }
+  } catch {
+    // The table is not there yet. Fall through to the column below, which is
+    // where every token issued before this change lives.
+  }
+
   try {
     const rows = await sql`
       SELECT id, user_id, name, role, school_id FROM vita_hero.profiles
       WHERE session_token = ${token} LIMIT 1
     `;
     if (rows.length === 0) return null;
-    return {
-      profileId: rows[0].id,
-      userId: rows[0].user_id || "",
-      name: rows[0].name,
-      role: (rows[0].role as string) || "PARENT",
-      schoolId: (rows[0].school_id as string) || null,
-    };
+    return shape(rows[0]);
   } catch {
     return null;
   }
@@ -1478,7 +1569,7 @@ async function upsertProfileFromNeonAuth(
   role?: string
 ): Promise<{ profileId: string; sessionToken: string }> {
   const profileId = `na_${user.id.slice(0, 24)}`;
-  const sessionToken = generateToken();
+  const sessionToken = await mintSession(sql, profileId, provider);
 
   const existing = await sql`
     SELECT id FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1
@@ -2629,7 +2720,6 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const norm = normalizePhone(phone);
         if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
         const profileId = profileIdForPhone(norm.last10);
-        const sessionToken = generateToken();
 
         const existing = await sql`
           SELECT id, provisioned, name, role, school_id
@@ -2646,6 +2736,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           );
         }
 
+        const sessionToken = await mintSession(sql, profileId, "PHONE");
         await sql`
           UPDATE vita_hero.profiles
           SET session_token = ${sessionToken}, is_logged_in = true, phone = ${phone},
@@ -2709,7 +2800,6 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const norm = normalizePhone(fbPhone);
         if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
         const profileId = profileIdForPhone(norm.last10);
-        const sessionToken = generateToken();
 
         const existing = await sql`
           SELECT id, provisioned, name, role, school_id
@@ -2726,6 +2816,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           );
         }
 
+        const sessionToken = await mintSession(sql, profileId, "FIREBASE_PHONE");
         await sql`
           UPDATE vita_hero.profiles
           SET session_token = ${sessionToken}, is_logged_in = true, phone = ${fbPhone},
@@ -2762,13 +2853,9 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // ── Logout ───────────────────────────────────────
       if (path === "/api/auth/logout" && request.method === "POST") {
         const token = extractToken(request);
-        if (token) {
-          await sql`
-            UPDATE vita_hero.profiles
-            SET session_token = NULL, is_logged_in = false
-            WHERE session_token = ${token}
-          `;
-        }
+        // Only this device. Signing out of a phone used to be indistinguishable
+        // from signing out of every device the family owns.
+        if (token) await revokeSession(sql, token);
         return json({ success: true });
       }
 

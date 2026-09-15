@@ -900,3 +900,117 @@ describe("sms configuration is legible before and after a send", () => {
     expect(readFileSync("index.ts", "utf8")).not.toContain("+12562828337");
   });
 });
+
+// ── sessions ──
+//
+// A session used to be a single `session_token` column on the profile. Signing
+// in overwrote it, so the phone that was still holding the previous token was
+// silently logged out — and because the app read the resulting 401 as "no
+// data", it drew an empty screen rather than asking anyone to sign in again.
+// That is the report these tests exist to keep fixed: "I sign in again after a
+// long time and it loads with fallback options, not real data."
+describe("sessions", () => {
+  const TOKEN = "a".repeat(48);
+  const OTHER = "b".repeat(48);
+  const bearer = (t: string) => ({ Authorization: "Bearer " + t, "Content-Type": "application/json" });
+
+  /** A token that exists in vita_hero.sessions, unrevoked and unexpired. */
+  const liveSession = (role = "ADMIN") => ({
+    match: /vita_hero\.sessions[\s\S]*JOIN/,
+    rows: [{ id: "ph_1", user_id: "ph_1", name: "Ops", role, school_id: null }],
+  });
+
+  test("a token in the sessions table authenticates", async () => {
+    handlers = [liveSession()];
+    expect((await call("/api/admin/schools", { headers: bearer(TOKEN) })).status).toBe(200);
+  });
+
+  test("the lookup refuses a revoked or expired row", async () => {
+    // No handler matches, so the join returns nothing — which is what a
+    // revoked_at or a past expires_at produces in the real query.
+    handlers = [];
+    expect((await call("/api/admin/schools", { headers: bearer(TOKEN) })).status).toBe(401);
+  });
+
+  test("the query itself excludes revoked and expired sessions", async () => {
+    handlers = [liveSession()];
+    await call("/api/admin/schools", { headers: bearer(TOKEN) });
+    const join = calls.find((c) => /vita_hero\.sessions[\s\S]*JOIN/.test(c.text));
+    expect(join).toBeDefined();
+    expect(join!.text).toContain("revoked_at IS NULL");
+    expect(join!.text).toContain("expires_at >");
+  });
+
+  test("a token issued before the table existed still works", async () => {
+    // The sessions join finds nothing; the old column is the fallback, so
+    // shipping this does not sign out everyone already holding a token.
+    handlers = [{
+      match: /session_token = /,
+      rows: [{ id: "ph_1", user_id: "ph_1", name: "Ops", role: "ADMIN", school_id: null }],
+    }];
+    expect((await call("/api/admin/schools", { headers: bearer(TOKEN) })).status).toBe(200);
+  });
+
+  test("using a session slides its expiry out", async () => {
+    handlers = [liveSession()];
+    await call("/api/admin/schools", { headers: bearer(TOKEN) });
+    expect(calls.some((c) => /UPDATE vita_hero\.sessions[\s\S]*last_seen_at/.test(c.text))).toBe(true);
+  });
+
+  test("signing out revokes that one token, not the whole profile", async () => {
+    handlers = [liveSession("PARENT")];
+    const r = await call("/api/auth/logout", { method: "POST", headers: bearer(TOKEN) });
+    expect(r.status).toBe(200);
+
+    const revoke = calls.find((c) => /UPDATE vita_hero\.sessions[\s\S]*revoked_at = NOW\(\)/.test(c.text));
+    expect(revoke).toBeDefined();
+    // Scoped to the presented token. A logout that matched on profile_id would
+    // take the family's other device down with it.
+    expect(revoke!.params).toContain(TOKEN);
+    expect(revoke!.text).toContain("WHERE token =");
+    expect(revoke!.params).not.toContain(OTHER);
+  });
+
+  test("signing in records a new session instead of replacing the only one", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.phone_otps/, rows: [
+        { phone: "+919876543210", otp: "123456", attempts: 0,
+          expires_at: new Date(Date.now() + 600_000).toISOString() },
+      ] },
+      { match: /SELECT id, provisioned/, rows: [
+        { id: "ph_9876543210", provisioned: true, name: "Priya", role: "PARENT", school_id: null },
+      ] },
+    ];
+    const r = await call("/api/auth/phone/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "+919876543210", otp: "123456" }),
+    });
+    expect(r.status).toBe(200);
+
+    const insert = calls.find((c) => /INSERT INTO vita_hero\.sessions/.test(c.text));
+    expect(insert).toBeDefined();
+    // The token handed back is the one that was recorded, and it carries an
+    // expiry — a session with no end is how the old column behaved.
+    const token = (await r.json()).token as string;
+    expect(insert!.params).toContain(token);
+    expect(insert!.text).toContain("expires_at");
+  });
+
+  test("an unregistered number never leaves a session behind", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.phone_otps/, rows: [
+        { phone: "+919876543210", otp: "123456", attempts: 0,
+          expires_at: new Date(Date.now() + 600_000).toISOString() },
+      ] },
+      { match: /SELECT id, provisioned/, rows: [] },
+    ];
+    const r = await call("/api/auth/phone/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "+919876543210", otp: "123456" }),
+    });
+    expect(r.status).toBe(403);
+    expect(calls.some((c) => /INSERT INTO vita_hero\.sessions/.test(c.text))).toBe(false);
+  });
+});
