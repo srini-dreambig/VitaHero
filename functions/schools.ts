@@ -704,3 +704,304 @@ export async function grantOpsRole(sql: Sql, phone: string, name: string) {
   `;
   return { profileId, phone: norm.e164, role: ROLE_ADMIN };
 }
+
+// ─── A9 · Closing a school down ─────────────────────────────
+//
+// The console could create a school and never get rid of one. In practice the
+// list fills with duplicates and pilot rows typed in during a demo, and the
+// only way to clear one was a hand-written SQL statement against production.
+//
+// Two different acts were hiding behind the single word "delete", so there are
+// two operations here:
+//
+//   archive   The school stops running. Parents no longer see it, no camp can
+//             be scheduled, staff lose their sign-in. Everything recorded
+//             about a child stays exactly where it is, and the school can be
+//             reopened. This is what closing a partnership actually means and
+//             it is the one to reach for.
+//
+//   delete    The row and its configuration are gone for good. Allowed only
+//             while the school has no clinical footprint — no camp has run, no
+//             finding, referral or photograph exists. That restriction is the
+//             point: a screening programme's records are not ops' to erase by
+//             clicking through a dialog, and a guardian's erasure right is a
+//             separate, per-child pathway that already exists in lifecycle.ts.
+//
+// A school that has screened children and is finished is archived, not
+// deleted. The console says so rather than leaving you to guess.
+
+/** Tables that hold a school's own configuration, cleared by a hard delete. */
+const SCHOOL_OWNED_TABLES = [
+  "school_classes",
+  "roster_batches",
+  "school_enrollments",
+  "school_camps",
+  "correction_requests",
+  "question_messages",
+  "question_threads",
+  "school_contracts",
+] as const;
+
+export interface SchoolFootprint {
+  students: number;
+  camps: number;
+  campsRun: number;
+  findings: number;
+  referrals: number;
+  photos: number;
+  staff: number;
+  /** True when deleting would destroy a record of something done to a child. */
+  clinical: boolean;
+}
+
+/**
+ * What is attached to this school, counted before anything is removed.
+ *
+ * Every count is taken defensively: a table that a given deployment has not
+ * migrated yet must not turn "can I delete this?" into a 500. An uncounted
+ * table reads as zero, which is why `campsRun` — the one that actually gates
+ * the delete — is derived from camps and findings together rather than from a
+ * single optional table.
+ */
+export async function schoolFootprint(sql: Sql, schoolId: string): Promise<SchoolFootprint> {
+  const count = async (run: () => Promise<Record<string, unknown>[]>): Promise<number> => {
+    try {
+      const rows = await run();
+      return Number(rows[0]?.c) || 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  const students = await count(() => sql`
+    SELECT COUNT(*)::int AS c FROM vita_hero.kids WHERE school_id = ${schoolId}`);
+  const camps = await count(() => sql`
+    SELECT COUNT(*)::int AS c FROM vita_hero.camps WHERE school_id = ${schoolId}`);
+  const campsRun = await count(() => sql`
+    SELECT COUNT(*)::int AS c FROM vita_hero.camps
+    WHERE school_id = ${schoolId} AND UPPER(COALESCE(status, '')) NOT IN ('DRAFT', 'SCHEDULED', 'CANCELLED')`);
+  const findings = await count(() => sql`
+    SELECT COUNT(*)::int AS c FROM vita_hero.camp_findings f
+    JOIN vita_hero.camps c ON c.id = f.camp_id WHERE c.school_id = ${schoolId}`);
+  const referrals = await count(() => sql`
+    SELECT COUNT(*)::int AS c FROM vita_hero.referrals WHERE school_id = ${schoolId}`);
+  const photos = await count(() => sql`
+    SELECT COUNT(*)::int AS c FROM vita_hero.finding_photos WHERE school_id = ${schoolId}`);
+  const staff = await count(() => sql`
+    SELECT COUNT(*)::int AS c FROM vita_hero.profiles
+    WHERE school_id = ${schoolId} AND role IN ('SCHOOL_ADMIN', 'SCREENER', 'PHYSICIAN')`);
+
+  return {
+    students,
+    camps,
+    campsRun,
+    findings,
+    referrals,
+    photos,
+    staff,
+    clinical: campsRun > 0 || findings > 0 || referrals > 0 || photos > 0,
+  };
+}
+
+/** Ops-facing preview: what a delete would take, and whether it is allowed. */
+export async function schoolDeletionPreview(sql: Sql, actor: Actor, schoolId: string) {
+  assertOps(actor);
+  const rows = await sql`SELECT id, name, active, status FROM vita_hero.schools WHERE id = ${schoolId} LIMIT 1`;
+  if (rows.length === 0) throw new ApiError(404, "School not found", "NOT_FOUND");
+  const footprint = await schoolFootprint(sql, schoolId);
+  return {
+    school: {
+      id: rows[0].id as string,
+      name: (rows[0].name as string) || "",
+      active: rows[0].active !== false,
+      status: (rows[0].status as string) || "ACTIVE",
+    },
+    footprint,
+    canDelete: !footprint.clinical,
+    // The console shows this verbatim, so it says what is true of this school
+    // rather than reciting the rule in the abstract.
+    reason: footprint.clinical
+      ? "This school has screening records. Archive it instead — the records stay, and nobody can sign in or schedule a camp."
+      : "",
+  };
+}
+
+/**
+ * Stop a school running, or start it again.
+ *
+ * Archiving revokes staff sessions on the way out. Leaving a physician signed
+ * in to a school that has closed is the kind of quiet leftover access that a
+ * children's health programme cannot defend, and it costs one statement here.
+ */
+export async function setSchoolArchived(
+  sql: Sql,
+  actor: Actor,
+  schoolId: string,
+  archived: boolean
+) {
+  assertOps(actor);
+
+  const rows = await sql`SELECT id, name FROM vita_hero.schools WHERE id = ${schoolId} LIMIT 1`;
+  if (rows.length === 0) throw new ApiError(404, "School not found", "NOT_FOUND");
+
+  await sql`
+    UPDATE vita_hero.schools
+    SET active = ${!archived}, status = ${archived ? "ARCHIVED" : "ACTIVE"}
+    WHERE id = ${schoolId}
+  `;
+
+  if (archived) {
+    await sql`
+      UPDATE vita_hero.profiles
+      SET session_token = NULL, is_logged_in = false
+      WHERE school_id = ${schoolId} AND role IN ('SCHOOL_ADMIN', 'SCREENER', 'PHYSICIAN')
+    `;
+    try {
+      await sql`
+        UPDATE vita_hero.sessions SET revoked_at = NOW()
+        WHERE revoked_at IS NULL AND profile_id IN (
+          SELECT id FROM vita_hero.profiles
+          WHERE school_id = ${schoolId} AND role IN ('SCHOOL_ADMIN', 'SCREENER', 'PHYSICIAN'))
+      `;
+    } catch {
+      // Pre-migration database: profiles.session_token above is the whole story.
+    }
+  }
+
+  return getSchool(sql, actor, schoolId);
+}
+
+/**
+ * Delete a school for good.
+ *
+ * `confirmName` must match the school's name. It is not ceremony: the console
+ * lists schools by name and the ids are opaque, so typing the name is the only
+ * check that proves the row being deleted is the row that was read.
+ */
+export async function deleteSchool(
+  sql: Sql,
+  actor: Actor,
+  schoolId: string,
+  confirmName: string
+) {
+  assertOps(actor);
+
+  const rows = await sql`SELECT id, name FROM vita_hero.schools WHERE id = ${schoolId} LIMIT 1`;
+  if (rows.length === 0) throw new ApiError(404, "School not found", "NOT_FOUND");
+  const name = (rows[0].name as string) || "";
+
+  if (tidyName(confirmName).toLowerCase() !== tidyName(name).toLowerCase()) {
+    throw new ApiError(400, `Type the school's name exactly — "${name}" — to confirm`, "CONFIRM_NAME");
+  }
+
+  const footprint = await schoolFootprint(sql, schoolId);
+  if (footprint.clinical) {
+    throw new ApiError(
+      409,
+      "This school has screening records and cannot be deleted. Archive it instead — that stops it running and keeps the records.",
+      "HAS_RECORDS"
+    );
+  }
+
+  // Camps first: only drafts and cancelled camps can exist at this point, but
+  // their staff assignments and consent rows still reference them.
+  const camps = await sql`SELECT id FROM vita_hero.camps WHERE school_id = ${schoolId}`;
+  for (const camp of camps) {
+    const campId = camp.id as string;
+    for (const table of ["camp_staff", "camp_participants", "consent_log", "camp_registrations"]) {
+      try {
+        await sql.query(`DELETE FROM vita_hero.${table} WHERE camp_id = $1`, [campId]);
+      } catch {
+        // Not every deployment has every optional table.
+      }
+    }
+  }
+  await sql`DELETE FROM vita_hero.camps WHERE school_id = ${schoolId}`;
+
+  for (const table of SCHOOL_OWNED_TABLES) {
+    try {
+      await sql.query(`DELETE FROM vita_hero.${table} WHERE school_id = $1`, [schoolId]);
+    } catch {
+      // As above — a missing table means there was nothing of ours in it.
+    }
+  }
+
+  // Children keep their profile and their parents; they simply stop belonging
+  // to a school that no longer exists. Deleting a child's record is a separate
+  // right with its own pathway, and this is not it.
+  await sql`UPDATE vita_hero.kids SET school_id = NULL WHERE school_id = ${schoolId}`;
+
+  // Staff of a school that is gone are de-scoped the same way a removed
+  // administrator is: the profile survives so audit trails still resolve.
+  await sql`
+    UPDATE vita_hero.profiles
+    SET role = 'REVOKED', school_id = NULL, session_token = NULL,
+        is_logged_in = false, provisioned = false
+    WHERE school_id = ${schoolId} AND role IN ('SCHOOL_ADMIN', 'SCREENER', 'PHYSICIAN')
+  `;
+
+  await sql`DELETE FROM vita_hero.schools WHERE id = ${schoolId}`;
+
+  return { deleted: schoolId, name, footprint };
+}
+
+/**
+ * Revoke a screener's or physician's access to a school.
+ *
+ * The People tab could add clinical staff and only ever remove an
+ * administrator, so a doctor who left the school kept a working sign-in
+ * indefinitely. Same treatment as `removeSchoolAdmin`: demote and de-scope,
+ * never delete, so "who screened this child" still answers.
+ */
+export async function removeStaffMember(
+  sql: Sql,
+  actor: Actor,
+  schoolId: string,
+  profileId: string
+) {
+  assertSchoolAccess(actor, schoolId);
+
+  if (profileId === actor.profileId) {
+    throw new ApiError(400, "You cannot remove your own access", "SELF_REMOVE");
+  }
+
+  const rows = await sql`
+    SELECT id, name, role, school_id FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1
+  `;
+  if (rows.length === 0) throw new ApiError(404, "That person was not found", "NOT_FOUND");
+
+  const role = (rows[0].role as string) || "";
+  if ((rows[0].school_id as string) !== schoolId || !["SCREENER", "PHYSICIAN"].includes(role)) {
+    throw new ApiError(404, "That person is not clinical staff at this school", "NOT_FOUND");
+  }
+
+  await sql`
+    UPDATE vita_hero.profiles
+    SET role = 'REVOKED', school_id = NULL, session_token = NULL,
+        is_logged_in = false, provisioned = false
+    WHERE id = ${profileId}
+  `;
+
+  // Their camp assignments are revoked rather than dropped, which is the rule
+  // camp_staff already follows for a doctor removed from a single camp.
+  try {
+    await sql`
+      UPDATE vita_hero.camp_staff
+      SET active = false, revoked_at = NOW(), revoked_by = ${actor.profileId}
+      WHERE profile_id = ${profileId} AND active IS NOT false
+    `;
+  } catch {
+    // Older schema without the revocation columns: the profile change is enough.
+  }
+
+  try {
+    await sql`
+      UPDATE vita_hero.sessions SET revoked_at = NOW()
+      WHERE profile_id = ${profileId} AND revoked_at IS NULL
+    `;
+  } catch {
+    // Pre-migration database.
+  }
+
+  return { removed: profileId, name: (rows[0].name as string) || "", role };
+}

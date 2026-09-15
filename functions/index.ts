@@ -29,6 +29,10 @@ import {
   addSchoolAdmin,
   listSchoolAdmins,
   removeSchoolAdmin,
+  removeStaffMember,
+  setSchoolArchived,
+  schoolDeletionPreview,
+  deleteSchool,
   grantOpsRole,
 } from "./schools";
 import {
@@ -2201,6 +2205,22 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (method === "PATCH" || method === "PUT") {
               return json(await updateSchool(sql, actor, schoolId, await readBody()));
             }
+            // A9 — closing a school down. The name is sent in the body rather
+            // than the query string so it is not left sitting in a request log.
+            if (method === "DELETE") {
+              const b = await readBody();
+              return json(await deleteSchool(sql, actor, schoolId, String(b.confirmName || "")));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // A9 — archive, reopen, and the preview that says which is possible.
+          if (section === "archive") {
+            if (method === "GET") return json(await schoolDeletionPreview(sql, actor, schoolId));
+            if (method === "POST") {
+              const b = await readBody();
+              return json(await setSchoolArchived(sql, actor, schoolId, b.archived !== false));
+            }
             return json({ error: "Method not allowed" }, 405);
           }
 
@@ -2272,6 +2292,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (method === "GET") return json(await listStaff(sql, actor, schoolId));
             if (method === "POST" && !parts[2]) {
               return json(await addStaffMember(sql, actor, schoolId, await readBody()), 201);
+            }
+            // Revoking a screener's or physician's access to the school. The
+            // tab could add them and never take them away.
+            if (method === "DELETE" && parts[2]) {
+              return json(await removeStaffMember(sql, actor, schoolId, parts[2]));
             }
             // A sign-in code an administrator can read out.
             //

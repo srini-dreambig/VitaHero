@@ -663,7 +663,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
   function statusPill(s) {
     var m = { DRAFT: "mute", SCHEDULED: "info", IN_PROGRESS: "warn", SCREENED: "warn",
-      RELEASED: "ok", CANCELLED: "mute", NOT_SCREENED: "mute", APPROVED: "ok",
+      RELEASED: "ok", CANCELLED: "mute", ARCHIVED: "mute", NOT_SCREENED: "mute", APPROVED: "ok",
       PENDING: "mute", GRANTED: "ok", DECLINED: "err", PAPER: "ok",
       PRESENT: "ok", ABSENT: "mute", REFUSED: "err", UNKNOWN: "mute" };
     var t = { IN_PROGRESS: "In progress", NOT_SCREENED: "Not screened", PAPER: "Paper consent" };
@@ -768,6 +768,7 @@ export const PORTAL_HTML = `<!doctype html>
       S.camps = null; S.upload = null; S.form = null; S.addChild = null;
       S.referrals = null; S.report = null; S.corrections = null; S.refKid = null;
       S.threads = null; S.thread = null; S.billing = null; S.invites = null;
+      S.danger = null;
       loadSchoolTab();
     });
   }
@@ -780,6 +781,14 @@ export const PORTAL_HTML = `<!doctype html>
       run(api("/api/admin/schools/" + id + "/admins"), function (d) {
         S.admins = d.admins;
         api("/api/admin/schools/" + id + "/staff").then(function (r) { S.staff = r.staff; render(); }).catch(function () {});
+      });
+    }
+    // The programme tab carries the archive/delete panel for ops, and that
+    // panel has to know what is attached to the school before it can say
+    // which of the two is possible.
+    else if (t === "programme" && isOps() && !S.danger) {
+      run(api("/api/admin/schools/" + id + "/archive"), function (d) {
+        S.danger = { schoolId: id, footprint: d.footprint, canDelete: d.canDelete, reason: d.reason, confirm: "" };
       });
     }
     else if (t === "history" && !S.batches) run(api("/api/admin/schools/" + id + "/roster/batches"), function (d) { S.batches = d.batches; });
@@ -1286,7 +1295,85 @@ export const PORTAL_HTML = `<!doctype html>
               return el("label", { class: "chip" + (on ? " on" : "") },
                 el("input", { type: "checkbox", checked: on, onchange: function () { tog(c); } }), c); }))),
           el("div", { class: "fld" }, el("label", null, "Notes"), el("textarea", { oninput: b("description") }, f.description)))),
-      el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save changes"));
+      el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save changes"),
+      isOps() ? dangerZone(s) : null);
+  }
+
+  // ══════════════════════════════════════ closing a school down
+  //
+  // Ops could create schools and never get rid of one, so the list filled with
+  // duplicates and demo rows. Two separate acts live here, deliberately not
+  // behind one button: archiving stops a school running and keeps every
+  // record; deleting removes the row and is refused outright once any child
+  // has been screened. The panel loads the school's actual footprint first, so
+  // it can say which of the two applies instead of finding out on submit.
+  function dangerZone(s) {
+    var d = S.danger;
+    if (!d || d.schoolId !== s.id) {
+      return el("div", { class: "card", style: "margin-top:24px" },
+        el("div", { class: "card-b" }, el("span", { class: "muted" }, "Checking what is attached to this school\\u2026")));
+    }
+
+    var fp = d.footprint;
+    var archived = s.active === false || s.status === "ARCHIVED";
+
+    function setArchived(next) {
+      var verb = next ? "Archive" : "Reopen";
+      var warn = next
+        ? "Archive " + s.name + "?\\n\\nIt stops running: parents no longer see it, no camp can be scheduled, and its staff are signed out. Every record is kept and you can reopen it."
+        : "Reopen " + s.name + "? Staff will need a new sign-in code.";
+      if (!confirm(warn)) return;
+      run(api("/api/admin/schools/" + s.id + "/archive", { method: "POST", body: { archived: next } }), function (r) {
+        S.school = r.school; S.danger = null; S.notice = verb + "d " + r.school.name + ".";
+      });
+    }
+
+    function destroy() {
+      run(api("/api/admin/schools/" + s.id, { method: "DELETE", body: { confirmName: d.confirm } }), function (r) {
+        S.danger = null; S.school = null; S.schools = null;
+        S.notice = "Deleted " + r.name + ".";
+        loadSchools();
+      });
+    }
+
+    function stat(n, label) {
+      return el("div", { class: "row", style: "gap:6px" },
+        el("b", null, String(n)), el("span", { class: "muted", style: "font-size:13px" }, label));
+    }
+
+    return el("div", { class: "card", style: "margin-top:24px;border-color:#f0c9c9" },
+      el("div", { class: "card-h" }, el("h2", null, "Closing this school down"),
+        archived ? el("span", { class: "pill mute" }, "Archived") : null),
+      el("div", { class: "card-b" },
+        el("div", { class: "row", style: "gap:18px;flex-wrap:wrap;margin-bottom:14px" },
+          stat(fp.students, "students"),
+          stat(fp.camps, "camps"),
+          stat(fp.findings, "findings recorded"),
+          stat(fp.referrals, "referrals"),
+          stat(fp.staff, "staff")),
+
+        el("div", { class: "fld" },
+          el("label", null, archived ? "Reopen" : "Archive"),
+          el("p", { class: "muted", style: "font-size:13px;margin:0 0 8px" },
+            archived
+              ? "This school is closed. Reopening lets its staff sign in and camps be scheduled again."
+              : "Stops the school running and signs its staff out. Nothing recorded about a child is touched, and this can be undone."),
+          el("button", { class: archived ? "pri" : "dang", disabled: S.busy,
+            onclick: function () { setArchived(!archived); } },
+            archived ? "Reopen school" : "Archive school")),
+
+        el("div", { class: "fld", style: "margin-top:18px;padding-top:18px;border-top:1px solid #eee" },
+          el("label", null, "Delete permanently"),
+          d.canDelete
+            ? el("div", null,
+                el("p", { class: "muted", style: "font-size:13px;margin:0 0 8px" },
+                  "No child has been screened here, so there is nothing clinical to lose. This removes the school, its classes, its roster batches and its draft camps. Students keep their own records and stop belonging to a school."),
+                el("input", { type: "text", value: d.confirm, placeholder: "Type " + s.name + " to confirm",
+                  oninput: function (e) { d.confirm = e.target.value; render(); } }),
+                el("button", { class: "dang", style: "margin-top:10px",
+                  disabled: S.busy || trim(d.confirm).toLowerCase() !== trim(s.name).toLowerCase(),
+                  onclick: destroy }, S.busy ? "Deleting\\u2026" : "Delete this school"))
+            : el("div", { class: "msg err", style: "margin:0" }, d.reason))));
   }
 
   function tabClasses() {
@@ -1419,6 +1506,18 @@ export const PORTAL_HTML = `<!doctype html>
         S.notice = a.name + " no longer has access.";
       });
     }
+
+    // A screener or physician could be added here and never taken away, so a
+    // doctor who left the school kept a working sign-in. Removing revokes the
+    // sign-in and their camp assignments; the profile itself stays, because
+    // "who screened this child" has to keep answering.
+    function removeStaff(a) {
+      if (!confirm("Remove " + a.name + "?\\n\\nThey are signed out and taken off every camp at this school. Results they already recorded are kept.")) return;
+      run(api("/api/admin/schools/" + S.school.id + "/staff/" + encodeURIComponent(a.profileId), { method: "DELETE" }), function () {
+        S.staff = (S.staff || []).filter(function (x) { return x.profileId !== a.profileId; });
+        S.notice = a.name + " no longer has access.";
+      });
+    }
     var people = (S.admins || []).map(function (a) { return { p: a, role: "SCHOOL_ADMIN" }; })
       .concat((S.staff || []).map(function (a) { return { p: a, role: a.role }; }));
     var roleName = { SCHOOL_ADMIN: "Administrator", SCREENER: "Screening team", PHYSICIAN: "Physician" };
@@ -1460,9 +1559,9 @@ export const PORTAL_HTML = `<!doctype html>
                   // someone who already administers this school.
                   el("button", { class: "sm", onclick: function () { signinCode(x.p); } },
                     icon("phone", 13), " Sign-in code"),
-                  x.role === "SCHOOL_ADMIN"
-                    ? el("button", { class: "sm dang", onclick: function () { removeAdmin(x.p); } }, "Remove")
-                    : null)));
+                  el("button", { class: "sm dang", onclick: function () {
+                    if (x.role === "SCHOOL_ADMIN") removeAdmin(x.p); else removeStaff(x.p);
+                  } }, "Remove"))));
             }))))
         : el("div", { class: "card" }, el("div", { class: "empty" }, "Nobody added yet.")));
   }
