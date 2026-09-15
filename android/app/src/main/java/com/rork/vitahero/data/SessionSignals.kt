@@ -6,6 +6,7 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * What actually happened to a request, as opposed to what it returned.
@@ -41,6 +42,17 @@ object SessionSignals {
     private val _reach = MutableStateFlow(Reach.OK)
     val reach: StateFlow<Reach> = _reach.asStateFlow()
 
+    /**
+     * How many calls have failed to reach the server, ever.
+     *
+     * [reach] only says how the *last* call went, which is no use to a refresh
+     * that makes a dozen of them: half can fail and the last one succeed. Read
+     * this before and after a batch of reads, and if it moved, some of what
+     * came back is missing rather than absent.
+     */
+    private val failures = AtomicInteger(0)
+    val transportFailures: Int get() = failures.get()
+
     /** Set when the server rejected our token. The app signs out and says so. */
     private val _sessionEnded = MutableStateFlow(false)
     val sessionEnded: StateFlow<Boolean> = _sessionEnded.asStateFlow()
@@ -57,6 +69,7 @@ object SessionSignals {
     }
 
     fun noteUnreachable() {
+        failures.incrementAndGet()
         _reach.value = Reach.UNREACHABLE
     }
 

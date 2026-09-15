@@ -13,10 +13,27 @@ class BackendDataLoader(
     private val api: ApiRepository,
     private val state: AppStateHolder,
 ) {
+    /**
+     * The refreshed list, or what is already on screen.
+     *
+     * Every read here falls back to an empty list when it fails, and this
+     * method then wrote all of them into app state unconditionally. So a
+     * refresh on a bad connection — and this runs after adding a child, after
+     * booking, after a profile change — replaced a family's children, camps and
+     * appointments with nothing. The screen went blank and the app looked
+     * broken, when in truth it had simply failed to ask.
+     *
+     * An empty list is only believed when the server actually answered. A
+     * parent who removes their last child still sees it go.
+     */
+    private fun <T> List<T>.orKeep(current: List<T>, reached: Boolean): List<T> =
+        if (reached || isNotEmpty()) this else current
+
     suspend fun fetchAndApply(onKidIdsLoaded: suspend (List<String>) -> Unit = {}) {
         if (!ApiService.isConfigured || !auth.isLoggedIn.value) return
         if (auth.profileId.value.isBlank()) return
 
+        val failuresBefore = SessionSignals.transportFailures
         val profile = api.fetchMyProfile()
         val kidDtos = api.fetchKids()
         val kidsFromBackend = kidDtos.map { BackendDataMapper.mapKid(it) }
@@ -49,7 +66,11 @@ class BackendDataLoader(
             .mapValues { (_, list) -> list.map(BackendDataMapper::mapMeal) }
 
         val mealsWithBootstrap = mealsFromBackend.toMutableMap()
-        for (kid in kidsWithGrowth) {
+        // Only bootstrap a plan for a child the server genuinely has none for.
+        // When the meals read failed, "none" is not something we know, and
+        // generating one would write a fabricated day over a real one.
+        val mealsAreTrustworthy = SessionSignals.transportFailures == failuresBefore
+        for (kid in if (mealsAreTrustworthy) kidsWithGrowth else emptyList()) {
             if (mealsWithBootstrap[kid.id].isNullOrEmpty()) {
                 val plan = MealPlanGenerator.initialPlanFor(kid)
                 mealsWithBootstrap[kid.id] = plan
@@ -127,44 +148,49 @@ class BackendDataLoader(
             AppLocale.entries.firstOrNull { it.code == code }
         } ?: state.uiState.value.locale
 
+        // Anything that failed on the way here means the empty lists below are
+        // "we could not ask", not "there is nothing".
+        val reached = SessionSignals.transportFailures == failuresBefore
+
         withContext(Dispatchers.Main) {
-            state.uiState.value = state.uiState.value.copy(
+            val now = state.uiState.value
+            state.uiState.value = now.copy(
                 userId = auth.profileId.value,
-                parentName = profile?.name?.ifBlank { state.uiState.value.parentName }
-                    ?: state.uiState.value.parentName,
-                phone = profile?.phone?.ifBlank { state.uiState.value.phone }
-                    ?: state.uiState.value.phone,
-                email = profile?.email?.ifBlank { state.uiState.value.email }
-                    ?: state.uiState.value.email,
-                kids = kidsWithGrowth,
-                camps = campsFromBackend,
-                partnerSchools = mySchools,
-                availableSchools = browseSchools,
-                appointments = appointmentsFromBackend,
-                doctors = doctorsFromBackend,
-                bookingDirectory = bookingDirectory,
+                parentName = profile?.name?.ifBlank { now.parentName }
+                    ?: now.parentName,
+                phone = profile?.phone?.ifBlank { now.phone }
+                    ?: now.phone,
+                email = profile?.email?.ifBlank { now.email }
+                    ?: now.email,
+                kids = kidsWithGrowth.orKeep(now.kids, reached),
+                camps = campsFromBackend.orKeep(now.camps, reached),
+                partnerSchools = mySchools.orKeep(now.partnerSchools, reached),
+                availableSchools = browseSchools.orKeep(now.availableSchools, reached),
+                appointments = appointmentsFromBackend.orKeep(now.appointments, reached),
+                doctors = doctorsFromBackend.orKeep(now.doctors, reached),
+                bookingDirectory = bookingDirectory ?: now.bookingDirectory,
                 bookingCity = bookingCity,
-                notifications = notificationsFromBackend,
-                familyCode = profile?.familyCode?.ifBlank { state.uiState.value.familyCode }
-                    ?: state.uiState.value.familyCode,
-                coParents = coParentsFromBackend,
-                darkTheme = profile?.darkTheme ?: state.uiState.value.darkTheme,
+                notifications = notificationsFromBackend.orKeep(now.notifications, reached),
+                familyCode = profile?.familyCode?.ifBlank { now.familyCode }
+                    ?: now.familyCode,
+                coParents = coParentsFromBackend.orKeep(now.coParents, reached),
+                darkTheme = profile?.darkTheme ?: now.darkTheme,
                 locale = restoredLocale,
                 notificationsEnabled = profile?.notificationsEnabled
-                    ?: state.uiState.value.notificationsEnabled,
+                    ?: now.notificationsEnabled,
                 campRemindersEnabled = profile?.campRemindersEnabled
-                    ?: state.uiState.value.campRemindersEnabled,
-                consentAccepted = profile?.consentAccepted ?: state.uiState.value.consentAccepted,
-                consentDeclined = profile?.consentDeclined ?: state.uiState.value.consentDeclined,
+                    ?: now.campRemindersEnabled,
+                consentAccepted = profile?.consentAccepted ?: now.consentAccepted,
+                consentDeclined = profile?.consentDeclined ?: now.consentDeclined,
             )
-            state.meals.value = mealsWithBootstrap
-            state.streaks.value = streaksFromBackend
+            if (reached || mealsWithBootstrap.isNotEmpty()) state.meals.value = mealsWithBootstrap
+            if (reached || streaksFromBackend.isNotEmpty()) state.streaks.value = streaksFromBackend
             if (aiFromBackend.isNotEmpty()) {
                 state.aiContent.value = state.aiContent.value + aiFromBackend
             }
             profile?.onboardingComplete?.let { if (it) auth.setOnboardingComplete(true) }
         }
 
-        onKidIdsLoaded(kidsWithGrowth.map { it.id })
+        onKidIdsLoaded(state.uiState.value.kids.map { it.id })
     }
 }
