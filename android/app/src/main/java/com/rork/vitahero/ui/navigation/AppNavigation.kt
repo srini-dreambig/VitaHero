@@ -74,6 +74,21 @@ object Routes {
     const val SYMPTOMS = "symptoms/{kidId}"
 }
 
+/**
+ * The destinations that exist precisely because nobody is signed in.
+ *
+ * Written as the exception rather than the rule so that adding a screen does
+ * not quietly leave it out: anything not listed here is a signed-in screen and
+ * must give way when the session ends.
+ */
+private val SIGNED_OUT_ROUTES = setOf(
+    Routes.SPLASH,
+    Routes.CONSENT,
+    Routes.ONBOARDING,
+    Routes.AUTH,
+    Routes.OTP,
+)
+
 private val OnboardingImages = listOf(
     "https://r2-pub.rork.com/projects/0cso3uprrwvti6zjwr0jl/assets/6cdc1d51-87b7-4ac2-b9f4-aa840c15f557.png",
     "https://r2-pub.rork.com/projects/0cso3uprrwvti6zjwr0jl/assets/acc98ce6-ff4d-4751-9aa8-f9cbeaab5ef0.png",
@@ -108,6 +123,20 @@ fun AppNavigation(
         if (isLoggedIn) {
             navController.navigate(Routes.MAIN) {
                 popUpTo(Routes.SPLASH) { inclusive = true }
+                launchSingleTop = true
+            }
+        } else if (navController.currentDestination?.route !in SIGNED_OUT_ROUTES) {
+            // The session ended while the app was open — the server rejected
+            // the token, rather than anyone tapping Log out. Only the explicit
+            // logout used to navigate, so a parent whose session ended stayed
+            // on a screen that could no longer load anything and drew empty
+            // lists instead of saying why. AuthScreen carries the reason.
+            //
+            // Guarded on the current route so the explicit logout, which has
+            // already navigated by the time this runs, does not push a second
+            // sign-in screen onto the stack.
+            navController.navigate(Routes.AUTH) {
+                popUpTo(Routes.MAIN) { inclusive = true }
                 launchSingleTop = true
             }
         }

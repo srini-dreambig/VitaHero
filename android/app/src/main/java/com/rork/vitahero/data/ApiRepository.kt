@@ -8,8 +8,8 @@ import io.ktor.client.request.parameter
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
@@ -38,13 +38,14 @@ class ApiRepository {
                 contentType(ContentType.Application.Json)
                 setBody(mapOf("id_token" to idToken))
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(resp.body<GoogleAuthResponse>())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Google sign-in failed"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -60,13 +61,14 @@ class ApiRepository {
                     "password" to password
                 ))
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(resp.body<GoogleAuthResponse>())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Sign up failed"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -78,13 +80,14 @@ class ApiRepository {
                 contentType(ContentType.Application.Json)
                 setBody(mapOf("email" to email, "password" to password))
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(resp.body<GoogleAuthResponse>())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Invalid email or password"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -96,7 +99,7 @@ class ApiRepository {
                 contentType(ContentType.Application.Json)
                 setBody(mapOf("phone" to phone))
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 val body = try { resp.body<PhoneSendResponse>() } catch (_: Exception) { PhoneSendResponse(true) }
                 if (body.success) Result.success(Unit)
                 else Result.failure(Exception(body.note ?: "SMS delivery failed"))
@@ -105,6 +108,7 @@ class ApiRepository {
                 Result.failure(Exception(err?.error ?: "Failed to send OTP"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -116,13 +120,14 @@ class ApiRepository {
                 contentType(ContentType.Application.Json)
                 setBody(mapOf("phone" to phone, "otp" to otp))
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(resp.body<GoogleAuthResponse>())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Invalid OTP"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -135,13 +140,14 @@ class ApiRepository {
                 contentType(ContentType.Application.Json)
                 setBody(mapOf("idToken" to idToken))
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(resp.body<GoogleAuthResponse>())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Sign-in failed"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -152,8 +158,35 @@ class ApiRepository {
             val resp = http.get("$base/api/auth/me") {
                 authHeaders().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.status.isSuccess()) resp.body<ProfileDto>() else null
-        } catch (_: Exception) { null }
+            if (resp.observed()) resp.body<ProfileDto>() else null
+        } catch (e: Exception) { noteTransportFailure(e); null }
+    }
+
+    /**
+     * The same call, but saying which kind of "no" came back.
+     *
+     * Restoring a session on launch has to tell a rejected token apart from a
+     * server it could not reach: the first means sign in again, the second
+     * means the train went into a tunnel. [fetchMyProfile] collapses both into
+     * null, and a launch with no signal used to delete a perfectly good token
+     * because of it.
+     */
+    suspend fun fetchMyProfileOutcome(): RestoreOutcome = onIo {
+        if (skipNetwork) return@onIo RestoreOutcome.Unreachable
+        try {
+            val resp = http.get("$base/api/auth/me") {
+                authHeaders().forEach { (k, v) -> header(k, v) }
+            }
+            when {
+                resp.status == HttpStatusCode.Unauthorized -> RestoreOutcome.Rejected
+                resp.observed() -> RestoreOutcome.Ok(resp.body())
+                // Any other refusal is the server's problem, not the token's.
+                else -> RestoreOutcome.Unreachable
+            }
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            RestoreOutcome.Unreachable
+        }
     }
 
     suspend fun logout(): Result<Unit> = onIo {
@@ -178,7 +211,7 @@ class ApiRepository {
         val resp = http.get("$base/api/kids") {
             authHeaders().forEach { (k, v) -> header(k, v) }
         }
-        if (resp.status.isSuccess()) resp.body<List<KidDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<KidDto>>() else emptyList()
     }
 
     suspend fun upsertKid(dto: KidDto): Result<Unit> = onIo {
@@ -192,7 +225,7 @@ class ApiRepository {
         val resp = http.get("$base/api/camps") {
             authHeaders().forEach { (k, v) -> header(k, v) }
         }
-        if (resp.status.isSuccess()) resp.body<List<CampDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<CampDto>>() else emptyList()
     }
 
     suspend fun upsertCamp(dto: CampDto): Result<Unit> = onIo {
@@ -205,7 +238,7 @@ class ApiRepository {
         val resp = http.get("$base/api/appointments") {
             authHeaders().forEach { (k, v) -> header(k, v) }
         }
-        if (resp.status.isSuccess()) resp.body<List<AppointmentDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<AppointmentDto>>() else emptyList()
     }
 
     suspend fun upsertAppointment(dto: AppointmentDto): Result<Unit> = onIo {
@@ -225,7 +258,7 @@ class ApiRepository {
         val resp = http.get("$base/api/meals") {
             authHeaders().forEach { (k, v) -> header(k, v) }
         }
-        if (resp.status.isSuccess()) resp.body<List<MealItemDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<MealItemDto>>() else emptyList()
     }
 
     suspend fun upsertMeals(dtos: List<MealItemDto>): Result<Unit> = onIo {
@@ -239,7 +272,7 @@ class ApiRepository {
             authHeaders().forEach { (k, v) -> header(k, v) }
             url { parameters.append("kid_id", kidId) }
         }
-        if (resp.status.isSuccess()) resp.body<List<GrowthPointDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<GrowthPointDto>>() else emptyList()
     }
 
     suspend fun upsertGrowthPoint(dto: GrowthPointDto): Result<Unit> = onIo {
@@ -253,7 +286,7 @@ class ApiRepository {
             authHeaders().forEach { (k, v) -> header(k, v) }
             url { parameters.append("kid_id", kidId) }
         }
-        if (!resp.status.isSuccess()) return@onIo null
+        if (!resp.observed()) return@onIo null
         try {
             resp.body<StreakDto?>()
         } catch (_: Exception) {
@@ -271,7 +304,7 @@ class ApiRepository {
         val resp = http.get("$base/api/co-parents") {
             authHeaders().forEach { (k, v) -> header(k, v) }
         }
-        if (resp.status.isSuccess()) resp.body<List<CoParentDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<CoParentDto>>() else emptyList()
     }
 
     suspend fun upsertCoParent(dto: CoParentDto) = onIo {
@@ -290,7 +323,7 @@ class ApiRepository {
             authHeaders().forEach { (k, v) -> header(k, v) }
             url { parameters.append("code", code) }
         }
-        if (resp.status.isSuccess()) resp.body<ProfileDto>() else null
+        if (resp.observed()) resp.body<ProfileDto>() else null
     }
 
     suspend fun fetchDoctors(city: String = "", hospitalId: String = "", specialty: String = ""): List<DoctorDto> = onIo {
@@ -303,7 +336,7 @@ class ApiRepository {
                 if (specialty.isNotBlank()) parameters.append("specialty", specialty)
             }
         }
-        if (resp.status.isSuccess()) resp.body<List<DoctorDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<DoctorDto>>() else emptyList()
     }
 
     suspend fun fetchBookingSlots(doctorId: String): List<BookingSlotDto> = onIo {
@@ -312,7 +345,7 @@ class ApiRepository {
             authHeaders().forEach { (k, v) -> header(k, v) }
             url { parameters.append("doctor_id", doctorId) }
         }
-        if (resp.status.isSuccess()) {
+        if (resp.observed()) {
             resp.body<BookingSlotsResponse>().slots
         } else emptyList()
     }
@@ -333,7 +366,7 @@ class ApiRepository {
                 lng?.let { parameters.append("lng", it.toString()) }
             }
         }
-        if (resp.status.isSuccess()) resp.body<BookingDirectoryDto>() else null
+        if (resp.observed()) resp.body<BookingDirectoryDto>() else null
     }
 
     suspend fun fetchNotifications(): List<NotificationDto> = onIo {
@@ -341,7 +374,7 @@ class ApiRepository {
         val resp = http.get("$base/api/notifications") {
             authHeaders().forEach { (k, v) -> header(k, v) }
         }
-        if (resp.status.isSuccess()) resp.body<List<NotificationDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<NotificationDto>>() else emptyList()
     }
 
     suspend fun fetchSchools(): List<SchoolDto> = onIo {
@@ -349,7 +382,7 @@ class ApiRepository {
         val resp = http.get("$base/api/schools") {
             authHeaders().forEach { (k, v) -> header(k, v) }
         }
-        if (resp.status.isSuccess()) resp.body<List<SchoolDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<SchoolDto>>() else emptyList()
     }
 
     suspend fun fetchMySchools(): List<MySchoolDto> = onIo {
@@ -357,7 +390,7 @@ class ApiRepository {
         val resp = http.get("$base/api/schools/my") {
             authHeaders().forEach { (k, v) -> header(k, v) }
         }
-        if (resp.status.isSuccess()) resp.body<List<MySchoolDto>>() else emptyList()
+        if (resp.observed()) resp.body<List<MySchoolDto>>() else emptyList()
     }
 
     suspend fun enrollSchool(partnerCode: String, kidId: String?): Result<SchoolEnrollResponse> = onIo {
@@ -372,13 +405,14 @@ class ApiRepository {
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(resp.body<SchoolEnrollResponse>())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Enrollment failed"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -391,13 +425,14 @@ class ApiRepository {
                 contentType(ContentType.Application.Json)
                 setBody(mapOf("school_camp_id" to schoolCampId, "kid_id" to kidId))
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(resp.body<CampRegisterResponse>())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Registration failed"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -418,7 +453,7 @@ class ApiRepository {
             authHeaders().forEach { (k, v) -> header(k, v) }
             url { parameters.append("kid_id", kidId) }
         }
-        if (resp.status.isSuccess()) {
+        if (resp.observed()) {
             try { resp.body<AiDietTipDto?>() } catch (_: Exception) { null }
         } else null
     }
@@ -430,7 +465,7 @@ class ApiRepository {
             contentType(ContentType.Application.Json)
             setBody(mapOf("kid_id" to kidId))
         }
-        if (resp.status.isSuccess()) {
+        if (resp.observed()) {
             try { resp.body<AiDietTipDto>() } catch (_: Exception) { null }
         } else null
     }
@@ -445,7 +480,7 @@ class ApiRepository {
                 "mime" to mime,
             ))
         }
-        if (resp.status.isSuccess()) {
+        if (resp.observed()) {
             try { resp.body<FoodRecognitionResponseDto>() } catch (_: Exception) { null }
         } else null
     }
@@ -457,7 +492,7 @@ class ApiRepository {
             val resp = http.get("$base/api/invite/resolve") {
                 parameter("token", token)
             }
-            if (!resp.status.isSuccess()) return@onIo null
+            if (!resp.observed()) return@onIo null
             val dto = resp.body<InviteResolveDto>()
             if (dto.valid && !dto.last10.isNullOrBlank()) dto.last10 else null
         } catch (_: Exception) {
@@ -495,12 +530,13 @@ class ApiRepository {
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(Unit)
             } else {
                 Result.failure(Exception("Sync failed (${resp.status.value})"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }

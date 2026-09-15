@@ -344,6 +344,8 @@ object S {
     const val authSignupFailed = "auth_signup_failed"
     const val authSigninFailed = "auth_signin_failed"
     const val authMissingToken = "auth_missing_token"
+    const val authSessionEnded = "auth_session_ended"
+    const val serverUnreachable = "server_unreachable"
     const val authOtpSendFailed = "auth_otp_send_failed"
     const val authOtpInvalid = "auth_otp_invalid"
     const val familyInvalid = "family_invalid"
@@ -801,6 +803,8 @@ private val en = mapOf(
     S.authSignupFailed to "Sign up failed. Please check your details.",
     S.authSigninFailed to "Invalid email or password.",
     S.authMissingToken to "Sign-in incomplete. Please try again.",
+    S.authSessionEnded to "You were signed out. Sign in again to see your children\u2019s records.",
+    S.serverUnreachable to "Can\u2019t reach VitaHero. What you see may be out of date.",
     S.authOtpSendFailed to "Could not send OTP. Please try again.",
     S.authOtpInvalid to "Invalid OTP. Please try again.",
     S.familyInvalid to "Family code not found. Please check and try again.",
@@ -954,6 +958,8 @@ private val en = mapOf(
 )
 
 private val hi = mapOf(
+    S.authSessionEnded to "\u0906\u092A\u0915\u094B \u0938\u093E\u0907\u0928 \u0906\u0909\u091F \u0915\u0930 \u0926\u093F\u092F\u093E \u0917\u092F\u093E \u0925\u093E\u0964 \u0905\u092A\u0928\u0947 \u092C\u091A\u094D\u091A\u094B\u0902 \u0915\u0947 \u0930\u093F\u0915\u0949\u0930\u094D\u0921 \u0926\u0947\u0916\u0928\u0947 \u0915\u0947 \u0932\u093F\u090F \u092B\u093F\u0930 \u0938\u0947 \u0938\u093E\u0907\u0928 \u0907\u0928 \u0915\u0930\u0947\u0902\u0964",
+    S.serverUnreachable to "VitaHero \u0938\u0947 \u0938\u0902\u092A\u0930\u094D\u0915 \u0928\u0939\u0940\u0902 \u0939\u094B \u092A\u093E \u0930\u0939\u093E\u0964 \u091C\u094B \u0926\u093F\u0916 \u0930\u0939\u093E \u0939\u0948 \u0935\u0939 \u092A\u0941\u0930\u093E\u0928\u093E \u0939\u094B \u0938\u0915\u0924\u093E \u0939\u0948\u0964",
     S.recordUnavailable to "इस बच्चे का रिकॉर्ड अभी उपलब्ध नहीं है। वापस जाकर सूची से बच्चा चुनें।",
     S.dentalGoodMsg to "\u092A\u093F\u091B\u0932\u0940 \u091C\u093E\u0901\u091A \u092E\u0947\u0902 \u0915\u094B\u0908 \u0915\u0948\u0935\u093F\u091F\u0940 \u0928\u0939\u0940\u0902 \u092E\u093F\u0932\u0940\u0964 \u0926\u093F\u0928 \u092E\u0947\u0902 \u0926\u094B \u092C\u093E\u0930 \u092C\u094D\u0930\u0936 \u0915\u0930\u0924\u0947 \u0930\u0939\u0947\u0902\u0964",
     S.dentalWatchMsg to "\u0925\u094B\u0921\u093C\u0940 \u092A\u094D\u0932\u0947\u0915 \u0926\u093F\u0916\u0940\u0964 2 \u0938\u092A\u094D\u0924\u093E\u0939 \u092E\u0947\u0902 \u0926\u093E\u0902\u0924\u094B\u0902 \u0915\u0940 \u091C\u093E\u0901\u091A \u0915\u0930\u093E\u090F\u0901\u0964",
@@ -1288,6 +1294,8 @@ private val hi = mapOf(
 )
 
 private val te = mapOf(
+    S.authSessionEnded to "\u0C2E\u0C40\u0C30\u0C41 \u0C38\u0C48\u0C28\u0C4D \u0C05\u0C35\u0C41\u0C1F\u0C4D \u0C05\u0C2F\u0C4D\u0C2F\u0C3E\u0C30\u0C41. \u0C2E\u0C40 \u0C2A\u0C3F\u0C32\u0C4D\u0C32\u0C32 \u0C30\u0C3F\u0C15\u0C3E\u0C30\u0C4D\u0C21\u0C41\u0C32\u0C28\u0C41 \u0C1A\u0C42\u0C21\u0C1F\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C2E\u0C33\u0C4D\u0C32\u0C40 \u0C38\u0C48\u0C28\u0C4D \u0C07\u0C28\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F.",
+    S.serverUnreachable to "VitaHero \u0C15\u0C3F \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C1F\u0C4D \u0C05\u0C35\u0C32\u0C47\u0C26\u0C41. \u0C15\u0C28\u0C2C\u0C21\u0C41\u0C24\u0C41\u0C28\u0C4D\u0C28\u0C35\u0C3F \u0C2A\u0C3E\u0C24\u0C35\u0C3F \u0C15\u0C3E\u0C35\u0C1A\u0C4D\u0C1A\u0C41.",
     S.recordUnavailable to "ఈ పిల్లవాడి రికార్డ్ ఇప్పుడు అందుబాటులో లేదు. వెనక్కి వెళ్లి జాబితా నుండి పిల్లవాడిని ఎంచుకోండి.",
     S.risingHero to "%s \u0C12\u0C15 \u0C0E\u0C26\u0C41\u0C17\u0C41\u0C24\u0C41\u0C28\u0C4D\u0C28 \u0C39\u0C40\u0C30\u0C4B!",
     S.notMeasuredMsg to "\u0C08 \u0C2A\u0C30\u0C40\u0C15\u0C4D\u0C37 \u0C07\u0C02\u0C15\u0C3E \u0C1C\u0C30\u0C17\u0C32\u0C47\u0C26\u0C41. \u0C24\u0C26\u0C41\u0C2A\u0C30\u0C3F \u0C38\u0C4D\u0C15\u0C42\u0C32\u0C4D \u0C39\u0C46\u0C32\u0C4D\u0C24\u0C4D \u0C15\u0C4D\u0C2F\u0C3E\u0C02\u0C2A\u0C4D \u0C24\u0C30\u0C4D\u0C35\u0C3E\u0C24 \u0C07\u0C15\u0C4D\u0C15\u0C21 \u0C15\u0C28\u0C2C\u0C21\u0C41\u0C24\u0C41\u0C02\u0C26\u0C3F.",

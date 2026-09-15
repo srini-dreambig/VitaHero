@@ -20,11 +20,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
@@ -98,6 +100,7 @@ fun MainScaffold(
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
     val state by appViewModel.uiState.collectAsState()
     val unread = state.notifications.count { it.unread }
+    val unreachable by appViewModel.serverUnreachable.collectAsState()
 
     Box(
         Modifier
@@ -169,11 +172,55 @@ fun MainScaffold(
             }
         }
 
+        // Says the app could not reach the server, rather than letting a screen
+        // with nothing on it stand as the answer. Every read falls back to
+        // empty on failure, which is fine as long as the parent is told that
+        // is what they are looking at — before this, they were not, and an
+        // empty app was indistinguishable from a child with no records.
+        if (unreachable) {
+            OfflineBanner(
+                message = appViewModel.unreachableMessage(),
+                modifier = Modifier.align(Alignment.TopCenter),
+            )
+        }
+
         BottomBar(
             selected = tab,
             onSelect = { tab = it },
             modifier = Modifier.align(Alignment.BottomCenter)
         )
+    }
+}
+
+@Composable
+private fun OfflineBanner(message: String, modifier: Modifier = Modifier) {
+    val statusBarPadding = WindowInsets.statusBars.asPaddingValues()
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(top = statusBarPadding.calculateTopPadding()),
+        color = MaterialTheme.colorScheme.errorContainer,
+        shadowElevation = 4.dp,
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CloudOff,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(18.dp),
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+        }
     }
 }
 

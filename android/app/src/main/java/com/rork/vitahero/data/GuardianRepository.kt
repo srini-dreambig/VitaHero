@@ -8,7 +8,6 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import io.ktor.http.isSuccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -48,8 +47,9 @@ class GuardianRepository {
                 headers().forEach { (k, v) -> header(k, v) }
                 url { params.forEach { (k, v) -> parameters.append(k, v) } }
             }
-            if (resp.status.isSuccess()) resp.body<T>() else fallback
-        } catch (_: Exception) {
+            if (resp.observed()) resp.body<T>() else fallback
+        } catch (e: Exception) {
+            noteTransportFailure(e)
             fallback
         }
     }
@@ -69,13 +69,14 @@ class GuardianRepository {
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(resp.body<T>())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Request failed"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -206,9 +207,10 @@ class GuardianRepository {
             val resp = http.delete("$base/api/me/symptoms/$eventId") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.status.isSuccess()) Result.success(SimpleOkDto())
+            if (resp.observed()) Result.success(SimpleOkDto())
             else Result.failure(Exception("Could not delete that"))
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -257,13 +259,14 @@ class GuardianRepository {
             val resp = http.delete("$base/api/kids/$kidId") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.status.isSuccess()) {
+            if (resp.observed()) {
                 Result.success(SimpleOkDto())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Request failed"))
             }
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
