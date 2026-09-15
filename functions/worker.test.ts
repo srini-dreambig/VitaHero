@@ -1014,3 +1014,102 @@ describe("sessions", () => {
     expect(calls.some((c) => /INSERT INTO vita_hero\.sessions/.test(c.text))).toBe(false);
   });
 });
+
+// ── ownership on the sync endpoints ──
+//
+// These routes take the primary key from the request body, because the app
+// mints ids while offline. The other half of that bargain was missing: the
+// upserts said `ON CONFLICT (id) DO UPDATE SET profile_id =
+// EXCLUDED.profile_id` and nothing checked who owned the row. Posting a child
+// id that was not yours moved that child — and every finding, referral and
+// photograph hanging off them — onto your account. Kid ids are built from the
+// guardian's number, the child's name and four random characters, so they were
+// not much of a secret either.
+describe("a client-supplied id cannot reach another account's row", () => {
+  const TOKEN = "a".repeat(48);
+  const bearer = { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" };
+  const asParent = () => [{
+    match: /session_token = /,
+    rows: [{ id: "ph_mine", user_id: "ph_mine", name: "Priya", role: "PARENT", school_id: null }],
+  }];
+
+  /** Every upsert on the sync surface, with a body the app would really send. */
+  const UPSERTS: Array<[string, string, Record<string, unknown>]> = [
+    ["a child", "/api/kids", { id: "k_auto_9876543210_arjun_2015_ab12", name: "Arjun", age: 9, gender: "M" }],
+    ["an appointment", "/api/appointments", { id: "apt_1", doctor_name: "Dr Rao", specialty: "Dental", kid_name: "Arjun", date: "2026-10-01", time: "10:00" }],
+    ["a camp entry", "/api/camps", { id: "cmp_1", title: "Annual", school: "Silver Oaks", date: "2026-10-01", time: "09:00" }],
+    ["a co-parent", "/api/co-parents", { id: "cop_1", name: "Ravi", relation: "Father" }],
+  ];
+
+  for (const [what, path, body] of UPSERTS) {
+    test(`${what}: the update is scoped to the caller`, async () => {
+      handlers = asParent();
+      await call(path, { method: "POST", headers: bearer, body: JSON.stringify(body) });
+      const upsert = calls.find((c) => /ON CONFLICT \(id\) DO UPDATE/.test(c.text));
+      expect(upsert).toBeDefined();
+      // The predicate is what makes a conflict on someone else's row do nothing.
+      expect(upsert!.text).toMatch(/DO UPDATE[\s\S]*WHERE[\s\S]*profile_id = /);
+      expect(upsert!.params).toContain("ph_mine");
+      // And the row can no longer be handed to whoever posted last.
+      expect(upsert!.text).not.toContain("profile_id = EXCLUDED.profile_id");
+    });
+
+    test(`${what}: a row that belongs to someone else is refused, not silently returned`, async () => {
+      // The upsert matched nothing, which is exactly what the owner predicate
+      // produces for another account's id.
+      handlers = asParent();
+      const r = await call(path, { method: "POST", headers: bearer, body: JSON.stringify(body) });
+      expect(r.status).toBe(409);
+      expect((await r.json()).code).toBe("NOT_YOURS");
+    });
+  }
+
+  test("a growth point can only land on a child the caller owns", async () => {
+    handlers = [
+      ...asParent(),
+      { match: /FROM vita_hero\.kids\s+WHERE id = /, rows: [{ id: "k_mine" }] },
+    ];
+    await call("/api/growth-points", {
+      method: "POST", headers: bearer,
+      body: JSON.stringify({ id: "gp_k_theirs_2026-09-01", kid_id: "k_mine", label: "Camp", height: 130, weight: 28 }),
+    });
+    const upsert = calls.find((c) => /INSERT INTO vita_hero\.growth_points/.test(c.text));
+    expect(upsert).toBeDefined();
+    // Tied to the kid that was just ownership-checked, so a point id belonging
+    // to another child updates nothing. The kid_id itself is no longer
+    // rewritable, which is what let a row be moved between children.
+    expect(upsert!.text).toMatch(/DO UPDATE[\s\S]*WHERE[\s\S]*kid_id = /);
+    expect(upsert!.text).not.toContain("kid_id = EXCLUDED.kid_id");
+  });
+
+  test("meals are refused for a child the caller does not own", async () => {
+    handlers = [
+      ...asParent(),
+      // The ownership lookup comes back with fewer kids than were asked for.
+      { match: /SELECT id FROM vita_hero\.kids\s+WHERE id = ANY/, rows: [] },
+    ];
+    const r = await call("/api/meals", {
+      method: "POST", headers: bearer,
+      body: JSON.stringify([{ id: "ml_1", kid_id: "k_theirs", time_slot: "Breakfast", name: "Idli" }]),
+    });
+    expect(r.status).toBe(404);
+    expect(calls.some((c) => /INSERT INTO vita_hero\.meal_items/.test(c.text))).toBe(false);
+  });
+
+  test("a whole day's plan is one statement, not one per meal", async () => {
+    handlers = [
+      ...asParent(),
+      { match: /SELECT id FROM vita_hero\.kids\s+WHERE id = ANY/, rows: [{ id: "k_mine" }] },
+    ];
+    const plan = ["Breakfast", "Lunch", "Snack", "Dinner"].map((slot, i) => ({
+      id: `ml_${i}`, kid_id: "k_mine", time_slot: slot, name: "Idli", detail: "", kcal: 200, eaten: false,
+    }));
+    const r = await call("/api/meals", {
+      method: "POST", headers: bearer, body: JSON.stringify(plan),
+    });
+    expect(r.status).toBe(201);
+    const inserts = calls.filter((c) => /INSERT INTO vita_hero\.meal_items/.test(c.text));
+    expect(inserts.length).toBe(1);
+    expect(inserts[0].text).toMatch(/DO UPDATE[\s\S]*WHERE[\s\S]*profile_id = /);
+  });
+});

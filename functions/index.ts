@@ -249,6 +249,24 @@ function json(data: unknown, status = 200): Response {
   }));
 }
 
+/**
+ * The answer when a request carries an id that belongs to somebody else.
+ *
+ * These endpoints take the primary key from the request body — they are a sync
+ * API, and the app mints ids offline. What was missing was the other half of
+ * that bargain: the upserts said `ON CONFLICT (id) DO UPDATE SET profile_id =
+ * EXCLUDED.profile_id` with nothing checking who owned the row first. Posting
+ * a child id that was not yours moved that child, and every finding, referral
+ * and photograph hanging off them, onto your account. Kid ids are built from
+ * the guardian's number, the child's name and four random characters, so they
+ * were not much of a secret either.
+ *
+ * Every one of those statements now carries an owner predicate, which makes a
+ * conflict on someone else's row update nothing and return nothing. This is
+ * what the route says when that happens.
+ */
+const NOT_YOURS = { error: "That record belongs to another account", code: "NOT_YOURS" };
+
 function extractToken(request: Request): string {
   return (request.headers.get("Authorization") || "").replace("Bearer ", "");
 }
@@ -3028,7 +3046,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${(body.nutrition as string) || "GOOD"}, ${(body.last_checkup as string) || "Not yet"}
           )
           ON CONFLICT (id) DO UPDATE SET
-            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            user_id = EXCLUDED.user_id,
             name = EXCLUDED.name, age = EXCLUDED.age, gender = EXCLUDED.gender,
             school = EXCLUDED.school, grade = EXCLUDED.grade,
             avatar_color = EXCLUDED.avatar_color,
@@ -3055,8 +3073,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
                 SELECT 1 FROM vita_hero.camp_kid_results ckr WHERE ckr.kid_id = EXCLUDED.id
               ) THEN vita_hero.kids.overall_score
               ELSE EXCLUDED.overall_score END
+          WHERE vita_hero.kids.profile_id = ${session.profileId}
           RETURNING *
         `;
+        if (row.length === 0) return json(NOT_YOURS, 409);
         return json(row[0], 201);
       }
 
@@ -3110,12 +3130,14 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${date}, ${time}
           )
           ON CONFLICT (id) DO UPDATE SET
-            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            user_id = EXCLUDED.user_id,
             doctor_id = EXCLUDED.doctor_id,
             doctor_name = EXCLUDED.doctor_name, specialty = EXCLUDED.specialty,
             kid_name = EXCLUDED.kid_name, date = EXCLUDED.date, time = EXCLUDED.time
+          WHERE vita_hero.appointments.profile_id = ${session.profileId}
           RETURNING *
         `;
+        if (row.length === 0) return json(NOT_YOURS, 409);
         return json(row[0], 201);
       }
 
@@ -3415,13 +3437,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${(body.result_summary as string) || null}
           )
           ON CONFLICT (id) DO UPDATE SET
-            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            user_id = EXCLUDED.user_id,
             title = EXCLUDED.title, school = EXCLUDED.school,
             date = EXCLUDED.date, time = EXCLUDED.time,
             status = EXCLUDED.status, checks = EXCLUDED.checks,
             result_summary = EXCLUDED.result_summary
+          WHERE vita_hero.camps.profile_id = ${session.profileId}
           RETURNING *
         `;
+        if (row.length === 0) return json(NOT_YOURS, 409);
         return json(row[0], 201);
       }
 
@@ -3439,28 +3463,56 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body = await request.json() as Record<string, unknown>[];
         const meals = Array.isArray(body) ? body : [body];
-        const results = [];
-        for (const m of meals) {
-          const row = await sql`
-            INSERT INTO vita_hero.meal_items
-              (id, profile_id, user_id, kid_id, time_slot, name, detail, kcal, eaten)
-            VALUES (
-              ${m.id as string}, ${session.profileId},
-              ${session.userId || null}, ${m.kid_id as string},
-              ${m.time_slot as string}, ${m.name as string},
-              ${(m.detail as string) || ""}, ${(m.kcal as number) || 0},
-              ${(m.eaten as boolean) || false}
-            )
-            ON CONFLICT (id) DO UPDATE SET
-              profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
-              kid_id = EXCLUDED.kid_id, time_slot = EXCLUDED.time_slot,
-              name = EXCLUDED.name, detail = EXCLUDED.detail,
-              kcal = EXCLUDED.kcal, eaten = EXCLUDED.eaten
-            RETURNING *
-          `;
-          results.push(row[0]);
+        if (meals.length === 0) return json([], 201);
+        if (meals.length > 500) {
+          return json({ error: "Too many meals in one request", code: "TOO_MANY" }, 413);
         }
-        return json(results, 201);
+
+        // Only this parent's own children. The kid id arrived from the client
+        // and was never checked, so a day's plan could be written onto
+        // somebody else's child.
+        const kidIds = [...new Set(meals.map((m) => String(m.kid_id || "")).filter(Boolean))];
+        if (kidIds.length > 0) {
+          const mine = await sql`
+            SELECT id FROM vita_hero.kids
+            WHERE id = ANY(${kidIds}) AND profile_id = ${session.profileId}
+          `;
+          if (mine.length !== kidIds.length) return json({ error: "Kid not found" }, 404);
+        }
+
+        // One statement for the whole plan. The app sends a bootstrap plan of
+        // several meals per child, and this used to be a round trip each.
+        const values: string[] = [];
+        const params: unknown[] = [];
+        meals.forEach((m, i) => {
+          const b = i * 9;
+          values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8}, $${b + 9})`);
+          params.push(
+            String(m.id || ""),
+            session.profileId,
+            session.userId || null,
+            String(m.kid_id || ""),
+            String(m.time_slot || ""),
+            String(m.name || ""),
+            String(m.detail || ""),
+            Number(m.kcal) || 0,
+            m.eaten === true,
+          );
+        });
+        const rows = await sql.query(
+          `INSERT INTO vita_hero.meal_items
+             (id, profile_id, user_id, kid_id, time_slot, name, detail, kcal, eaten)
+           VALUES ${values.join(", ")}
+           ON CONFLICT (id) DO UPDATE SET
+             user_id = EXCLUDED.user_id,
+             kid_id = EXCLUDED.kid_id, time_slot = EXCLUDED.time_slot,
+             name = EXCLUDED.name, detail = EXCLUDED.detail,
+             kcal = EXCLUDED.kcal, eaten = EXCLUDED.eaten
+           WHERE vita_hero.meal_items.profile_id = $${params.length + 1}
+           RETURNING *`,
+          [...params, session.profileId]
+        );
+        return json(rows, 201);
       }
 
       // ═══════════════════════════════════════════════════
@@ -3533,11 +3585,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${(body.height as number) || 0}, ${(body.weight as number) || 0}, NOW()
           )
           ON CONFLICT (id) DO UPDATE SET
-            kid_id = EXCLUDED.kid_id, user_id = EXCLUDED.user_id,
+            user_id = EXCLUDED.user_id,
             label = EXCLUDED.label, height = EXCLUDED.height,
             weight = EXCLUDED.weight
+          WHERE vita_hero.growth_points.kid_id = ${kidId}
           RETURNING *
         `;
+        if (row.length === 0) return json(NOT_YOURS, 409);
         return json(row[0], 201);
       }
 
@@ -3592,11 +3646,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${body.relation as string}, ${(body.joined_date as string) || ""}
           )
           ON CONFLICT (id) DO UPDATE SET
-            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            user_id = EXCLUDED.user_id,
             name = EXCLUDED.name, relation = EXCLUDED.relation,
             joined_date = EXCLUDED.joined_date
+          WHERE vita_hero.co_parents.profile_id = ${session.profileId}
           RETURNING *
         `;
+        if (row.length === 0) return json(NOT_YOURS, 409);
         return json(row[0], 201);
       }
 
