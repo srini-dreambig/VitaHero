@@ -47,6 +47,8 @@ import com.rork.vitahero.ui.screens.OtpScreen
 import com.rork.vitahero.ui.screens.SchoolsScreen
 import com.rork.vitahero.ui.screens.SplashScreen
 import com.rork.vitahero.ui.screens.SymptomScreen
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 object Routes {
     const val SPLASH = "splash"
@@ -325,7 +327,13 @@ fun AppNavigation(
                     onOpenDiet = { navController.navigate("diet/${kid.id}") },
                     onShareReport = { ctx ->
                         val reportData = ReportData(kid, meals, streak, badges)
-                        val file = PdfReportGenerator.generate(ctx, reportData, reportLocale)
+                        // Drawing a PDF page and writing it to disk is not main
+                        // thread work; it used to be, and on a slower phone that
+                        // is a visible freeze or an ANR. Only the share sheet
+                        // needs to be raised from the main thread.
+                        val file = withContext(Dispatchers.Default) {
+                            PdfReportGenerator.generate(ctx, reportData, reportLocale)
+                        }
                         PdfReportGenerator.shareReport(ctx, file)
                     },
                     onRefreshWearable = { kidsViewModel.refreshWearableData(kid.id) },

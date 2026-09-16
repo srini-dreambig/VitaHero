@@ -184,6 +184,40 @@ so claiming to support it was worse than not. Android 12L and later ignore the
 lock on large screens, so foldables and tablets still rotate — which is why the
 saved screen state matters regardless.
 
+## Performance, measured
+
+- **Every hot query read the whole table.** Built the real schema, filled it to
+  40,000 guardians and 60,000 children, and asked the planner: sequential scan
+  on all six of the app's busiest reads, including the authentication lookup
+  that runs on every request. Thirteen indexes, chosen not generated — an
+  index costs about 8µs per inserted row and a camp day is write-heavy, so
+  only leading columns of genuinely hot queries get one. `planner.test.ts`
+  asserts plan shape so it cannot drift back.
+- **Opening the app was twenty sequential round trips.** Profile, then
+  children, then a call per child, then seven more, then two more calls per
+  child. There are two levels of real dependency in it; it is two round trips
+  now, whatever the family size. About 2.9s to 0.3s at 150ms latency.
+- **The PDF report ran on the main thread**, and its progress indicator was
+  theatre: it showed for a fixed 800ms while nothing happened, hid itself, and
+  only then did the work — so the freeze began exactly when the user was told
+  it had finished.
+- **EncryptedSharedPreferences was rebuilt on every access**, seven times a
+  launch, each one a keystore round trip. Built once now.
+
+Looked at and left alone, with reasons:
+
+- **46 `collectAsState` rather than `collectAsStateWithLifecycle`.** Every one
+  is over a `StateFlow`, which has no upstream to keep warm, and Compose pauses
+  recomposition when the window is not visible. Converting them is best
+  practice with little measurable gain here, and it is 46 sites nobody can
+  compile in this environment.
+- **The in-memory caches** (meals, streaks, tips, leaderboards, booking slots)
+  are keyed by child or doctor and cleared on sign-out. Bounded, not leaks.
+- **The onboarding flag is read from the keystore during construction**, on the
+  main thread. It is one read, now against a cached instance, and moving it off
+  the critical path risks showing a returning parent the onboarding screen for
+  a frame. Not worth the trade without a device to check it on.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
