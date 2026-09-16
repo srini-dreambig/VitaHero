@@ -49,7 +49,12 @@ export async function adminAnalytics(sql: Sql, actor: Actor, opts: { schoolId?: 
   const schoolId = ops ? opts.schoolId || "" : actor.schoolId || "";
   const all = !schoolId;
 
-  const funnelRows = await sql`
+  // Seven independent aggregates. They were awaited in turn, so the analytics
+  // screen paid seven round trips to Neon to draw one page; issued together
+  // they cost one.
+  const [funnelRows, refRows, prevalence, screenedByMonth, referralsByMonth, bySchool, byDistrict] =
+    await Promise.all([
+    sql`
     SELECT
       COUNT(*)::int AS rostered,
       COUNT(*) FILTER (WHERE consent_status IN ('GRANTED','PAPER'))::int AS consented,
@@ -61,9 +66,8 @@ export async function adminAnalytics(sql: Sql, actor: Actor, opts: { schoolId?: 
       COUNT(*) FILTER (WHERE released_at IS NOT NULL)::int AS released
     FROM vita_hero.camp_participants
     WHERE (${all} OR school_id = ${schoolId})
-  `;
-
-  const refRows = await sql`
+  `,
+    sql`
     SELECT
       COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE status = 'OPEN')::int AS open,
@@ -79,12 +83,8 @@ export async function adminAnalytics(sql: Sql, actor: Actor, opts: { schoolId?: 
         FILTER (WHERE closed_at IS NOT NULL) AS avg_days_to_close
     FROM vita_hero.referrals
     WHERE (${all} OR school_id = ${schoolId})
-  `;
-
-  // Prevalence per check. A finding recorded as NOT_MEASURED is counted and
-  // reported: a check nobody actually performed must not read as a clean
-  // result, here or anywhere else.
-  const prevalence = await sql`
+  `,
+    sql`
     SELECT f.check_type,
       COUNT(*)::int AS total,
       COUNT(*) FILTER (WHERE f.flag = 'GOOD')::int AS good,
@@ -96,9 +96,8 @@ export async function adminAnalytics(sql: Sql, actor: Actor, opts: { schoolId?: 
     WHERE (${all} OR sc.school_id = ${schoolId})
     GROUP BY f.check_type
     ORDER BY COUNT(*) FILTER (WHERE f.flag IN ('WATCH','ALERT')) DESC
-  `;
-
-  const screenedByMonth = await sql`
+  `,
+    sql`
     SELECT to_char(date_trunc('month', screened_at), 'YYYY-MM') AS month,
            COUNT(*)::int AS screened
     FROM vita_hero.camp_participants
@@ -106,9 +105,8 @@ export async function adminAnalytics(sql: Sql, actor: Actor, opts: { schoolId?: 
       AND screened_at >= date_trunc('month', NOW()) - (${TREND_MONTHS - 1} || ' months')::interval
       AND (${all} OR school_id = ${schoolId})
     GROUP BY 1 ORDER BY 1
-  `;
-
-  const referralsByMonth = await sql`
+  `,
+    sql`
     SELECT to_char(date_trunc('month', created_at), 'YYYY-MM') AS month,
            COUNT(*)::int AS raised,
            COUNT(*) FILTER (WHERE closed_at IS NOT NULL)::int AS closed
@@ -116,11 +114,8 @@ export async function adminAnalytics(sql: Sql, actor: Actor, opts: { schoolId?: 
     WHERE created_at >= date_trunc('month', NOW()) - (${TREND_MONTHS - 1} || ' months')::interval
       AND (${all} OR school_id = ${schoolId})
     GROUP BY 1 ORDER BY 1
-  `;
-
-  // One row per school: how far each got through the pathway, and whether its
-  // referrals close. This is the list ops works from.
-  const bySchool = await sql`
+  `,
+    sql`
     SELECT s.id, s.name, s.city, s.district,
       (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.school_id = s.id AND k.source = 'ADMIN') AS students,
       COUNT(p.id)::int AS rostered,
@@ -135,26 +130,28 @@ export async function adminAnalytics(sql: Sql, actor: Actor, opts: { schoolId?: 
     GROUP BY s.id, s.name, s.city, s.district
     ORDER BY COUNT(p.id) DESC, s.name
     LIMIT 200
-  `;
-
-  // K2 — the district rollup. Ops only, and never per-child: this is the view
-  // a health department or a funder is shown, so it carries no name, no
-  // identifier and no school small enough to single a child out.
-  const byDistrict = ops
-    ? await sql`
-        SELECT COALESCE(NULLIF(s.district, ''), s.city, 'Unrecorded') AS district,
-          COUNT(DISTINCT s.id)::int AS schools,
-          COUNT(p.id) FILTER (WHERE p.status <> 'NOT_SCREENED')::int AS screened,
-          COUNT(p.id) FILTER (WHERE p.status <> 'NOT_SCREENED'
-            AND p.urgency <> 'NONE')::int AS flagged
-        FROM vita_hero.schools s
-        LEFT JOIN vita_hero.camp_participants p ON p.school_id = s.id
-        WHERE s.active = true
-        GROUP BY 1
-        HAVING COUNT(p.id) FILTER (WHERE p.status <> 'NOT_SCREENED') > 0
-        ORDER BY 2 DESC, 1
+  `,
+    // K2 — the district rollup. Ops only, and never per-child: this is the view
+    // a health department or a funder is shown, so it carries no name, no
+    // identifier and no school small enough to single a child out.
+    // Conditional, but still independent — held inside the same batch so an
+    // ops user does not pay a seventh network wait for it.
+    ops
+      ? sql`
+      SELECT COALESCE(NULLIF(s.district, ''), s.city, 'Unrecorded') AS district,
+        COUNT(DISTINCT s.id)::int AS schools,
+        COUNT(p.id) FILTER (WHERE p.status <> 'NOT_SCREENED')::int AS screened,
+        COUNT(p.id) FILTER (WHERE p.status <> 'NOT_SCREENED'
+          AND p.urgency <> 'NONE')::int AS flagged
+      FROM vita_hero.schools s
+      LEFT JOIN vita_hero.camp_participants p ON p.school_id = s.id
+      WHERE s.active = true
+      GROUP BY 1
+      HAVING COUNT(p.id) FILTER (WHERE p.status <> 'NOT_SCREENED') > 0
+      ORDER BY 2 DESC, 1
       `
-    : [];
+      : Promise.resolve([] as Record<string, unknown>[]),
+  ]);
 
   const f = funnelRows[0] || {};
   const r = refRows[0] || {};

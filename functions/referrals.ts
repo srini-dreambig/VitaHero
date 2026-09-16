@@ -367,46 +367,50 @@ export async function referralDashboard(
 ) {
   assertSchoolAccess(actor, schoolId);
 
-  const totals = await sql`
-    SELECT
-      COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE status = 'OPEN')::int AS open,
-      COUNT(*) FILTER (WHERE status = 'BOOKED')::int AS booked,
-      COUNT(*) FILTER (WHERE status = 'ATTENDED')::int AS attended,
-      COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed,
-      COUNT(*) FILTER (WHERE status = 'DECLINED')::int AS declined,
-      COUNT(*) FILTER (WHERE status = 'EXPIRED')::int AS expired,
-      COUNT(*) FILTER (WHERE urgency = 'URGENT' AND status IN ('OPEN','BOOKED'))::int AS urgent_open,
-      COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED') AND due_by <> '' AND due_by < ${new Date().toISOString().slice(0, 10)})::int AS overdue
-    FROM vita_hero.referrals
-    WHERE school_id = ${schoolId} AND (${!opts.campId} OR camp_id = ${opts.campId || ""})
-  `;
+  // Three independent reads over the same filter. Sent together they cost one
+  // network hop instead of three.
+  const [totals, bySpecialty, rows] = await Promise.all([
+    sql`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'OPEN')::int AS open,
+        COUNT(*) FILTER (WHERE status = 'BOOKED')::int AS booked,
+        COUNT(*) FILTER (WHERE status = 'ATTENDED')::int AS attended,
+        COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed,
+        COUNT(*) FILTER (WHERE status = 'DECLINED')::int AS declined,
+        COUNT(*) FILTER (WHERE status = 'EXPIRED')::int AS expired,
+        COUNT(*) FILTER (WHERE urgency = 'URGENT' AND status IN ('OPEN','BOOKED'))::int AS urgent_open,
+        COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED') AND due_by <> '' AND due_by < ${new Date().toISOString().slice(0, 10)})::int AS overdue
+      FROM vita_hero.referrals
+      WHERE school_id = ${schoolId} AND (${!opts.campId} OR camp_id = ${opts.campId || ""})
+    `,
 
-  const bySpecialty = await sql`
-    SELECT specialty,
-      COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed
-    FROM vita_hero.referrals
-    WHERE school_id = ${schoolId} AND (${!opts.campId} OR camp_id = ${opts.campId || ""})
-    GROUP BY specialty ORDER BY total DESC
-  `;
+    sql`
+      SELECT specialty,
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed
+      FROM vita_hero.referrals
+      WHERE school_id = ${schoolId} AND (${!opts.campId} OR camp_id = ${opts.campId || ""})
+      GROUP BY specialty ORDER BY total DESC
+    `,
 
-  const rows = await sql`
-    SELECT r.*, k.name AS kid_name, k.grade, k.section, p.phone AS guardian_phone,
-           k.guardian_name, sc.title AS camp_title
-    FROM vita_hero.referrals r
-    JOIN vita_hero.kids k ON k.id = r.kid_id
-    LEFT JOIN vita_hero.profiles p ON p.id = r.profile_id
-    LEFT JOIN vita_hero.school_camps sc ON sc.id = r.camp_id
-    WHERE r.school_id = ${schoolId}
-      AND (${!opts.status} OR r.status = ${opts.status || ""})
-      AND (${!opts.campId} OR r.camp_id = ${opts.campId || ""})
-    ORDER BY
-      CASE r.status WHEN 'OPEN' THEN 0 WHEN 'BOOKED' THEN 1 WHEN 'ATTENDED' THEN 2 ELSE 3 END,
-      CASE r.urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END,
-      r.created_at DESC
-    LIMIT 500
-  `;
+    sql`
+      SELECT r.*, k.name AS kid_name, k.grade, k.section, p.phone AS guardian_phone,
+             k.guardian_name, sc.title AS camp_title
+      FROM vita_hero.referrals r
+      JOIN vita_hero.kids k ON k.id = r.kid_id
+      LEFT JOIN vita_hero.profiles p ON p.id = r.profile_id
+      LEFT JOIN vita_hero.school_camps sc ON sc.id = r.camp_id
+      WHERE r.school_id = ${schoolId}
+        AND (${!opts.status} OR r.status = ${opts.status || ""})
+        AND (${!opts.campId} OR r.camp_id = ${opts.campId || ""})
+      ORDER BY
+        CASE r.status WHEN 'OPEN' THEN 0 WHEN 'BOOKED' THEN 1 WHEN 'ATTENDED' THEN 2 ELSE 3 END,
+        CASE r.urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END,
+        r.created_at DESC
+      LIMIT 500
+    `,
+  ]);
 
   const t = totals[0] as Record<string, number>;
   // Declined counts as resolved for the purpose of "did we chase everyone" —
@@ -510,6 +514,10 @@ export async function nudgeReferrals(
     RETURNING id
   `;
 
+  // Deliberately after the expiry above, not alongside it: expiring the
+  // overdue referrals is what decides which ones are still worth a nudge.
+  // Issuing these two together would text families about referrals that had
+  // just lapsed.
   const due = await sql`
     SELECT r.id, r.urgency, r.specialty, k.name AS kid_name, p.phone
     FROM vita_hero.referrals r

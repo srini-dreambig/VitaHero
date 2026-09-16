@@ -218,16 +218,20 @@ export async function inviteGuardians(
   const only = opts.onlyNotJoined !== false;
   const picked = Array.isArray(opts.profileIds) ? opts.profileIds.filter(Boolean) : [];
 
-  const rows = await sql`
-    SELECT DISTINCT p.id, p.name, p.phone
-    FROM vita_hero.school_enrollments e
-    JOIN vita_hero.profiles p ON p.id = e.profile_id
-    WHERE e.school_id = ${schoolId} AND e.status = 'ACTIVE' AND p.role = 'PARENT'
-      AND (${!only} OR p.is_logged_in IS NOT TRUE)
-      AND (${picked.length === 0} OR p.id = ANY(${picked}))
-  `;
+  // The guardians to text and the school's name for the text itself are
+  // independent; one wait before any SMS goes out.
+  const [rows, school] = await Promise.all([
+    sql`
+      SELECT DISTINCT p.id, p.name, p.phone
+      FROM vita_hero.school_enrollments e
+      JOIN vita_hero.profiles p ON p.id = e.profile_id
+      WHERE e.school_id = ${schoolId} AND e.status = 'ACTIVE' AND p.role = 'PARENT'
+        AND (${!only} OR p.is_logged_in IS NOT TRUE)
+        AND (${picked.length === 0} OR p.id = ANY(${picked}))
+    `,
 
-  const school = await sql`SELECT name FROM vita_hero.schools WHERE id = ${schoolId} LIMIT 1`;
+    sql`SELECT name FROM vita_hero.schools WHERE id = ${schoolId} LIMIT 1`,
+  ]);
   const schoolName = (school[0]?.name as string) || "your school";
 
   let sent = 0;

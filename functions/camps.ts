@@ -306,29 +306,32 @@ export async function listMyCamps(sql: Sql, actor: Actor) {
 
 export async function getCamp(sql: Sql, actor: Actor, campId: string) {
   const access = await assertCampAccess(sql, actor, campId);
-  const counts = await sql`
-    SELECT
-      COUNT(*)::int AS participant_count,
-      COUNT(*) FILTER (WHERE consent_status IN ('GRANTED','PAPER'))::int AS consented_count,
-      COUNT(*) FILTER (WHERE consent_status = 'DECLINED')::int AS declined_count,
-      COUNT(*) FILTER (WHERE consent_status = 'PENDING')::int AS pending_count,
-      COUNT(*) FILTER (WHERE attendance = 'PRESENT')::int AS present_count,
-      COUNT(*) FILTER (WHERE attendance = 'ABSENT')::int AS absent_count,
-      COUNT(*) FILTER (WHERE status IN ('SCREENED','APPROVED','RELEASED'))::int AS screened_count,
-      COUNT(*) FILTER (WHERE status = 'SCREENED')::int AS awaiting_review_count,
-      COUNT(*) FILTER (WHERE status IN ('APPROVED','RELEASED'))::int AS approved_count,
-      COUNT(*) FILTER (WHERE status = 'RELEASED')::int AS released_count,
-      COUNT(*) FILTER (WHERE urgency = 'URGENT')::int AS urgent_count
-    FROM vita_hero.camp_participants WHERE camp_id = ${campId}
-  `;
-  const staff = await sql`
-    SELECT cs.profile_id, cs.staff_role, cs.active, cs.doctor_id, cs.revoked_at,
-           p.name, p.phone
-    FROM vita_hero.camp_staff cs
-    LEFT JOIN vita_hero.profiles p ON p.id = cs.profile_id
-    WHERE cs.camp_id = ${campId}
-    ORDER BY cs.active DESC, cs.staff_role, p.name
-  `;
+  // The tallies and the assigned staff are independent; one wait.
+  const [counts, staff] = await Promise.all([
+    sql`
+      SELECT
+        COUNT(*)::int AS participant_count,
+        COUNT(*) FILTER (WHERE consent_status IN ('GRANTED','PAPER'))::int AS consented_count,
+        COUNT(*) FILTER (WHERE consent_status = 'DECLINED')::int AS declined_count,
+        COUNT(*) FILTER (WHERE consent_status = 'PENDING')::int AS pending_count,
+        COUNT(*) FILTER (WHERE attendance = 'PRESENT')::int AS present_count,
+        COUNT(*) FILTER (WHERE attendance = 'ABSENT')::int AS absent_count,
+        COUNT(*) FILTER (WHERE status IN ('SCREENED','APPROVED','RELEASED'))::int AS screened_count,
+        COUNT(*) FILTER (WHERE status = 'SCREENED')::int AS awaiting_review_count,
+        COUNT(*) FILTER (WHERE status IN ('APPROVED','RELEASED'))::int AS approved_count,
+        COUNT(*) FILTER (WHERE status = 'RELEASED')::int AS released_count,
+        COUNT(*) FILTER (WHERE urgency = 'URGENT')::int AS urgent_count
+      FROM vita_hero.camp_participants WHERE camp_id = ${campId}
+    `,
+    sql`
+      SELECT cs.profile_id, cs.staff_role, cs.active, cs.doctor_id, cs.revoked_at,
+             p.name, p.phone
+      FROM vita_hero.camp_staff cs
+      LEFT JOIN vita_hero.profiles p ON p.id = cs.profile_id
+      WHERE cs.camp_id = ${campId}
+      ORDER BY cs.active DESC, cs.staff_role, p.name
+    `,
+  ]);
   // Counts come back snake_case from SQL; the rest of the API is camelCase, so
   // normalise here rather than leaving callers to guess which shape they got.
   const c = counts[0] as Record<string, number>;
@@ -509,18 +512,22 @@ export async function buildCampRoster(sql: Sql, actor: Actor, campId: string) {
     throw new ApiError(400, "Choose the classes this camp covers first", "NO_GRADES");
   }
 
-  const eligible = await sql`
-    SELECT k.id, k.profile_id
-    FROM vita_hero.kids k
-    WHERE k.school_id = ${schoolId}
-      AND (k.academic_year = ${year} OR COALESCE(k.academic_year,'') = '')
-      AND k.grade = ANY(${grades})
-      AND (${sections.length === 0} OR COALESCE(k.section,'') = ANY(${sections}))
-  `;
+  // Who is eligible and who is already on the camp are two independent reads,
+  // and the diff between them needs both anyway; one wait.
+  const [eligible, existing] = await Promise.all([
+    sql`
+      SELECT k.id, k.profile_id
+      FROM vita_hero.kids k
+      WHERE k.school_id = ${schoolId}
+        AND (k.academic_year = ${year} OR COALESCE(k.academic_year,'') = '')
+        AND k.grade = ANY(${grades})
+        AND (${sections.length === 0} OR COALESCE(k.section,'') = ANY(${sections}))
+    `,
 
-  const existing = await sql`
-    SELECT kid_id, status, consent_status FROM vita_hero.camp_participants WHERE camp_id = ${campId}
-  `;
+    sql`
+      SELECT kid_id, status, consent_status FROM vita_hero.camp_participants WHERE camp_id = ${campId}
+    `,
+  ]);
   const existingIds = new Set(existing.map((r) => r.kid_id as string));
   const eligibleIds = new Set(eligible.map((r) => r.id as string));
 
@@ -988,19 +995,23 @@ export async function campPack(sql: Sql, actor: Actor, campId: string) {
   assertCan(access.canScreen, "screen children at this camp");
   const camp = access.camp;
 
-  const participants = await sql`
-    SELECT p.kid_id, p.consent_status, p.consent_checks, p.attendance, p.status,
-           k.name, k.grade, k.section, k.gender, k.age, k.date_of_birth, k.student_ref,
-           k.guardian_name, k.height_cm AS prev_height, k.weight_kg AS prev_weight
-    FROM vita_hero.camp_participants p
-    JOIN vita_hero.kids k ON k.id = p.kid_id
-    WHERE p.camp_id = ${campId}
-    ORDER BY k.grade, k.section, k.name
-  `;
-  const findings = await sql`
-    SELECT kid_id, check_type, detail, flag, rationale, screener_note
-    FROM vita_hero.camp_findings WHERE camp_id = ${campId}
-  `;
+  // The roll and the findings already recorded against it are independent, so
+  // a screener on a school's wifi waits once for the pack, not twice.
+  const [participants, findings] = await Promise.all([
+    sql`
+      SELECT p.kid_id, p.consent_status, p.consent_checks, p.attendance, p.status,
+             k.name, k.grade, k.section, k.gender, k.age, k.date_of_birth, k.student_ref,
+             k.guardian_name, k.height_cm AS prev_height, k.weight_kg AS prev_weight
+      FROM vita_hero.camp_participants p
+      JOIN vita_hero.kids k ON k.id = p.kid_id
+      WHERE p.camp_id = ${campId}
+      ORDER BY k.grade, k.section, k.name
+    `,
+    sql`
+      SELECT kid_id, check_type, detail, flag, rationale, screener_note
+      FROM vita_hero.camp_findings WHERE camp_id = ${campId}
+    `,
+  ]);
 
   const byKid = new Map<string, Array<Record<string, unknown>>>();
   for (const f of findings) {
@@ -1692,47 +1703,53 @@ export async function adminOverview(sql: Sql, actor: Actor) {
   const scoped = !isOpsRole(actor.role);
   const schoolId = actor.schoolId || "";
 
-  const schools = scoped
-    ? await sql`SELECT COUNT(*)::int AS n FROM vita_hero.schools WHERE id = ${schoolId}`
-    : await sql`SELECT COUNT(*)::int AS n FROM vita_hero.schools WHERE active = true`;
+  // Six counts that know nothing about each other, so they go together. Each
+  // one is a separate round trip to Neon from a worker that may be an ocean
+  // away; awaiting them in turn made the console's first screen pay six
+  // latencies to draw five numbers.
+  const [schools, students, guardians, activated, camps, upcoming] = await Promise.all([
+    scoped
+      ? sql`SELECT COUNT(*)::int AS n FROM vita_hero.schools WHERE id = ${schoolId}`
+      : sql`SELECT COUNT(*)::int AS n FROM vita_hero.schools WHERE active = true`,
 
-  const students = scoped
-    ? await sql`SELECT COUNT(*)::int AS n FROM vita_hero.kids WHERE school_id = ${schoolId}`
-    : await sql`SELECT COUNT(*)::int AS n FROM vita_hero.kids WHERE source = 'ADMIN'`;
+    scoped
+      ? sql`SELECT COUNT(*)::int AS n FROM vita_hero.kids WHERE school_id = ${schoolId}`
+      : sql`SELECT COUNT(*)::int AS n FROM vita_hero.kids WHERE source = 'ADMIN'`,
 
-  const guardians = scoped
-    ? await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE role='PARENT' AND school_id = ${schoolId}`
-    : await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE role='PARENT' AND provisioned = true`;
+    scoped
+      ? sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE role='PARENT' AND school_id = ${schoolId}`
+      : sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE role='PARENT' AND provisioned = true`,
 
-  const activated = scoped
-    ? await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE role='PARENT' AND school_id = ${schoolId} AND is_logged_in = true`
-    : await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE role='PARENT' AND is_logged_in = true`;
+    scoped
+      ? sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE role='PARENT' AND school_id = ${schoolId} AND is_logged_in = true`
+      : sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE role='PARENT' AND is_logged_in = true`,
 
-  const camps = scoped
-    ? await sql`
-        SELECT status, COUNT(*)::int AS n FROM vita_hero.school_camps
-        WHERE active = true AND school_id = ${schoolId} GROUP BY status`
-    : await sql`
-        SELECT status, COUNT(*)::int AS n FROM vita_hero.school_camps
-        WHERE active = true GROUP BY status`;
+    scoped
+      ? sql`
+          SELECT status, COUNT(*)::int AS n FROM vita_hero.school_camps
+          WHERE active = true AND school_id = ${schoolId} GROUP BY status`
+      : sql`
+          SELECT status, COUNT(*)::int AS n FROM vita_hero.school_camps
+          WHERE active = true GROUP BY status`,
 
-  const upcoming = scoped
-    ? await sql`
-        SELECT sc.id, sc.title, sc.date, sc.status, s.name AS school_name,
-          (SELECT COUNT(*)::int FROM vita_hero.camp_participants p WHERE p.camp_id = sc.id) AS participants,
-          (SELECT COUNT(*)::int FROM vita_hero.camp_participants p WHERE p.camp_id = sc.id
-             AND p.consent_status IN ('GRANTED','PAPER')) AS consented
-        FROM vita_hero.school_camps sc JOIN vita_hero.schools s ON s.id = sc.school_id
-        WHERE sc.active = true AND sc.school_id = ${schoolId} AND sc.status <> 'RELEASED'
-        ORDER BY sc.date LIMIT 10`
-    : await sql`
-        SELECT sc.id, sc.title, sc.date, sc.status, s.name AS school_name,
-          (SELECT COUNT(*)::int FROM vita_hero.camp_participants p WHERE p.camp_id = sc.id) AS participants,
-          (SELECT COUNT(*)::int FROM vita_hero.camp_participants p WHERE p.camp_id = sc.id
-             AND p.consent_status IN ('GRANTED','PAPER')) AS consented
-        FROM vita_hero.school_camps sc JOIN vita_hero.schools s ON s.id = sc.school_id
-        WHERE sc.active = true AND sc.status <> 'RELEASED'
-        ORDER BY sc.date LIMIT 10`;
+    scoped
+      ? sql`
+          SELECT sc.id, sc.title, sc.date, sc.status, s.name AS school_name,
+            (SELECT COUNT(*)::int FROM vita_hero.camp_participants p WHERE p.camp_id = sc.id) AS participants,
+            (SELECT COUNT(*)::int FROM vita_hero.camp_participants p WHERE p.camp_id = sc.id
+               AND p.consent_status IN ('GRANTED','PAPER')) AS consented
+          FROM vita_hero.school_camps sc JOIN vita_hero.schools s ON s.id = sc.school_id
+          WHERE sc.active = true AND sc.school_id = ${schoolId} AND sc.status <> 'RELEASED'
+          ORDER BY sc.date LIMIT 10`
+      : sql`
+          SELECT sc.id, sc.title, sc.date, sc.status, s.name AS school_name,
+            (SELECT COUNT(*)::int FROM vita_hero.camp_participants p WHERE p.camp_id = sc.id) AS participants,
+            (SELECT COUNT(*)::int FROM vita_hero.camp_participants p WHERE p.camp_id = sc.id
+               AND p.consent_status IN ('GRANTED','PAPER')) AS consented
+          FROM vita_hero.school_camps sc JOIN vita_hero.schools s ON s.id = sc.school_id
+          WHERE sc.active = true AND sc.status <> 'RELEASED'
+          ORDER BY sc.date LIMIT 10`,
+  ]);
 
   const campStatus: Record<string, number> = {};
   for (const r of camps) campStatus[(r.status as string) || "DRAFT"] = (r.n as number) || 0;

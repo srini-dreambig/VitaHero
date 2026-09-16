@@ -449,24 +449,27 @@ export async function billingSummary(sql: Sql, actor: Actor) {
   if (!isOpsRole(actor.role)) {
     throw new ApiError(403, "This is an operations view", "OPS_REQUIRED");
   }
-  const inv = await sql`
-    SELECT
-      COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE status = 'DRAFT')::int AS draft,
-      COUNT(*) FILTER (WHERE status = 'SENT')::int AS sent,
-      COUNT(*) FILTER (WHERE status = 'PAID')::int AS paid,
-      COALESCE(SUM(subtotal_paise) FILTER (WHERE status = 'PAID'), 0) AS paid_paise,
-      COALESCE(SUM(subtotal_paise) FILTER (WHERE status = 'SENT'), 0) AS outstanding_paise
-    FROM vita_hero.invoices
-  `;
-  const contracts = await sql`
-    SELECT shape, COUNT(*)::int AS n FROM vita_hero.school_contracts
-    WHERE active = true GROUP BY shape
-  `;
-  const plans = await sql`
-    SELECT COALESCE(plan,'FREE') AS plan, COUNT(*)::int AS n
-    FROM vita_hero.profiles WHERE role = 'PARENT' GROUP BY plan
-  `;
+  // Invoices, contracts and plans are independent; one wait.
+  const [inv, contracts, plans] = await Promise.all([
+    sql`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'DRAFT')::int AS draft,
+        COUNT(*) FILTER (WHERE status = 'SENT')::int AS sent,
+        COUNT(*) FILTER (WHERE status = 'PAID')::int AS paid,
+        COALESCE(SUM(subtotal_paise) FILTER (WHERE status = 'PAID'), 0) AS paid_paise,
+        COALESCE(SUM(subtotal_paise) FILTER (WHERE status = 'SENT'), 0) AS outstanding_paise
+      FROM vita_hero.invoices
+    `,
+    sql`
+      SELECT shape, COUNT(*)::int AS n FROM vita_hero.school_contracts
+      WHERE active = true GROUP BY shape
+    `,
+    sql`
+      SELECT COALESCE(plan,'FREE') AS plan, COUNT(*)::int AS n
+      FROM vita_hero.profiles WHERE role = 'PARENT' GROUP BY plan
+    `,
+  ]);
   // An aggregate always returns a row against Postgres, but a caller that
   // hands us an empty result should get zeros rather than a 500.
   const i = (inv[0] || {}) as Record<string, unknown>;

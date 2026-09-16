@@ -195,19 +195,23 @@ function mapArticle(r: Record<string, unknown>) {
 export async function libraryForGuardian(sql: Sql, profileId: string, locale: string) {
   const loc = LOCALES.includes(locale as (typeof LOCALES)[number]) ? locale : "en";
 
-  const findings = await sql`
-    SELECT DISTINCT f.check_type, f.flag, k.age, k.id AS kid_id, k.name AS kid_name
-    FROM vita_hero.camp_findings f
-    JOIN vita_hero.kids k ON k.id = f.kid_id
-    JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
-    WHERE k.profile_id = ${profileId} AND p.status = 'RELEASED'
-      AND f.flag IN ('WATCH','ALERT')
-  `;
+  // What was flagged for this family and the published articles are read
+  // independently and matched up in memory; one wait.
+  const [findings, rows] = await Promise.all([
+    sql`
+      SELECT DISTINCT f.check_type, f.flag, k.age, k.id AS kid_id, k.name AS kid_name
+      FROM vita_hero.camp_findings f
+      JOIN vita_hero.kids k ON k.id = f.kid_id
+      JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
+      WHERE k.profile_id = ${profileId} AND p.status = 'RELEASED'
+        AND f.flag IN ('WATCH','ALERT')
+    `,
 
-  const rows = await sql`
-    SELECT * FROM vita_hero.library_articles
-    WHERE published = true AND (locale = ${loc} OR locale = 'en')
-  `;
+    sql`
+      SELECT * FROM vita_hero.library_articles
+      WHERE published = true AND (locale = ${loc} OR locale = 'en')
+    `,
+  ]);
 
   // Prefer the requested language, fall back to English per slug.
   const bySlug = new Map<string, Record<string, unknown>>();

@@ -16,6 +16,7 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import pg from "pg";
 import type { Sql } from "./common";
+import { serialQuery } from "./pgserial";
 import { ensureStageASchema, createSchool, setClasses, addSchoolAdmin, type Actor } from "./schools";
 import { commitRoster } from "./roster";
 import {
@@ -100,6 +101,7 @@ let sql: Sql;
 const noSms = async () => ({ ok: true, reason: "" });
 
 function neonShim(c: pg.Client): Sql {
+  const send = serialQuery(c);
   const q = (s: string) => '"' + s.replace(/"/g, '""') + '"';
   const fn: any = (strings: TemplateStringsArray | string, ...values: unknown[]) => {
     // The real @neondatabase/serverless v1 driver REJECTS this call. A test
@@ -124,9 +126,9 @@ function neonShim(c: pg.Client): Sql {
         else { params.push(values[i]); text += "$" + params.length; }
       }
     }
-    return c.query(text, params).then((r) => r.rows);
+    return send(text, params);
   };
-  fn.query = (text: string, params: unknown[]) => c.query(text, params).then((r) => r.rows);
+  fn.query = (text: string, params: unknown[]) => send(text, params);
   return fn as Sql;
 }
 
