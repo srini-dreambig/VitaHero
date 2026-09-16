@@ -177,7 +177,18 @@ fun FamilySharingScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.Share, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(t(S.shareYourCode).take(25) + "…", color = HeroOrange, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                // Was .take(25) + "…", which cut every language
+                                // mid-word — Telugu inside a consonant cluster.
+                                // One line, ellipsised by the text layout, which
+                                // knows where the characters actually end.
+                                Text(
+                                    t(S.shareYourCode),
+                                    color = HeroOrange,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                         }
@@ -247,7 +258,14 @@ fun FamilySharingScreen(
                             OutlinedTextField(
                                 value = joinCode,
                                 onValueChange = { joinCode = it.take(6) },
-                                placeholder = { Text(t(S.familyCodePlaceholder).take(10) + "…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                placeholder = {
+                                    Text(
+                                        t(S.familyCodePlaceholder),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                                 singleLine = true,
                                 shape = RoundedCornerShape(14.dp),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),

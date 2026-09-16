@@ -139,6 +139,37 @@ The empty state no longer offers a button. It says the school adds children
 using the mobile number they hold, and to ask the office if one is missing —
 which is the only thing that can actually help.
 
+## Layout across devices
+
+The first pass fixed clearance under the bottom bar and the status bar. This
+one looked at what varies between one phone and another: width, the keyboard,
+the user's font-size setting, and dark mode.
+
+- **The OTP screen could not reach its own button.** Nothing scrolled, and the
+  content needs about 470dp. Portrait on a 360x800 phone, system bars take
+  ~72dp and a numeric keypad ~280dp, leaving ~448dp — and the keypad opens by
+  itself on arrival. Verify was clipped off the bottom, worse with an error
+  showing or the font scale raised. It scrolls now, with a minimum height equal
+  to the viewport so the button still sits at the bottom when there is room.
+- **"Resend cod".** Three labels were cut to a fixed character count —
+  `.take(10)`, `.take(25)` — which truncates English mid-word and Telugu inside
+  a consonant cluster, where the pieces do not render as letters at all.
+  Replaced with a line limit and an ellipsis, which is applied by the text
+  layout and knows where a character ends.
+- **"Didn't get the code?Resend in 30s"** — two strings laid against each other
+  with nothing between them, in every language.
+- **Digit boxes were a fixed 58dp holding a fixed 24sp digit.** `sp` follows
+  the phone's font setting, so at 200% the digit was taller than its box.
+- **Error panels were a hardcoded light red** on the OTP and sign-in screens: a
+  bright pink panel in the middle of a dark screen in dark mode.
+- **The main button was a fixed 56dp.** A translated label that needs two lines
+  — and at a raised font scale the English ones do — lost the second line, so
+  the button read as half a sentence. It has a minimum height now and the label
+  wraps.
+
+Not changed, and worth knowing: the app is portrait-only in practice and has
+not been looked at in landscape or on a tablet.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
