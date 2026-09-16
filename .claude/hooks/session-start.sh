@@ -77,4 +77,14 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
   echo "export DATABASE_URL=\"$URL\"" >> "$CLAUDE_ENV_FILE"
 fi
 
+# ── Kotlin front end ───────────────────────────────────────────
+# Warm the compiler jars so ./tools/kotlin-parse.sh is instant. Maven Central
+# is reachable here even though dl.google.com is not, which is why a real parse
+# is possible at all while a real build is not.
+if [ -x "$PROJECT_DIR/tools/kotlin-parse.sh" ]; then
+  KOTLIN_PARSE_CACHE=/var/tmp/vitahero-kotlinc \
+    "$PROJECT_DIR/tools/kotlin-parse.sh" >/dev/null 2>&1 || true
+  echo "export KOTLIN_PARSE_CACHE=/var/tmp/vitahero-kotlinc" >> "${CLAUDE_ENV_FILE:-/dev/null}"
+fi
+
 echo "session-start: Postgres 16 ready on $PGPORT; the database tests will run"

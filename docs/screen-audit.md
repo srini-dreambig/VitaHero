@@ -174,7 +174,19 @@ not been looked at in landscape or on a tablet.
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
 in the environment this was built in, so no SDK or AndroidX artifact is
-reachable. `tools/kotlin-audit.py` covers what it can — redeclarations,
-unresolved imports, bracket balance, named arguments, exhaustive `when` over
-the flag enum, missing translations, unused imports — and it has now caught
-four real bugs. It is not a compiler. Run `./gradlew compileDebugKotlin`.
+reachable — `maven.google.com` looks reachable but redirects straight to it.
+
+Two things run in its place, and between them they cover more than they used to:
+
+- `tools/kotlin-parse.sh` runs the **real Kotlin compiler front end**. Maven
+  Central is reachable even though Google's Maven is not, so the compiler
+  itself can be fetched. It cannot type-check without AndroidX, so unresolved
+  references are filtered; what it does prove is that every file parses. That
+  matters because a dangling comma left by an automated edit reads as balanced
+  to a bracket counter, and slipped through twice in one week.
+- `tools/kotlin-audit.py` covers what regular expressions can — missing
+  translations, duplicate locale keys, unused imports, named arguments,
+  exhaustive `when` over the flag enum. It has caught five real bugs.
+
+Neither is a build. Run `./gradlew compileDebugKotlin` before shipping, and
+look at the OTP screen at 200% font scale on a real phone.
