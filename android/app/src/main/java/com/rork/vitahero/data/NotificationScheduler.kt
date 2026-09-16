@@ -110,6 +110,30 @@ object NotificationScheduler {
         scheduleAlarm(context, (doctorName + date).hashCode(), title, body, CHANNEL_CHECKUP, calendar.timeInMillis)
     }
 
+    /**
+     * Take back a checkup reminder for an appointment that did not happen.
+     *
+     * Booking scheduled this the moment the parent tapped, before the server
+     * had agreed to anything. When the server then refused the slot, the alarm
+     * stayed set and would have reminded them, on the day, of an appointment
+     * that never existed. Same request code as [scheduleCheckupReminder], which
+     * is what identifies the alarm to cancel.
+     */
+    fun cancelCheckupReminder(
+        context: Context,
+        doctorName: String,
+        date: String,
+    ) {
+        val requestCode = (doctorName + date).hashCode()
+        val intent = Intent(context, NotificationReceiver::class.java)
+        val pending = PendingIntent.getBroadcast(
+            context, requestCode, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        (context.getSystemService(Context.ALARM_SERVICE) as AlarmManager).cancel(pending)
+        pending.cancel()
+    }
+
     fun scheduleDietReminder(
         context: Context,
         kidName: String,

@@ -6,6 +6,9 @@ import android.widget.Toast
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -21,6 +24,27 @@ class BookingViewModel(
     private val state get() = container.state
     private val auth get() = container.auth
     private val api get() = container.api
+
+    /**
+     * Whether a booking is on its way to the server.
+     *
+     * The confirm button had no in-flight state at all: on a slow connection
+     * the screen did not change, so a parent tapped again. It also flipped
+     * straight to "booked" whatever the server said.
+     */
+    private val _booking = MutableStateFlow(false)
+    val booking: StateFlow<Boolean> = _booking.asStateFlow()
+
+    /** The outcome of the last booking attempt, for the screen to react to. */
+    sealed interface BookingOutcome {
+        data object Confirmed : BookingOutcome
+        data class Refused(val message: String) : BookingOutcome
+    }
+
+    private val _lastBooking = MutableStateFlow<BookingOutcome?>(null)
+    val lastBooking: StateFlow<BookingOutcome?> = _lastBooking.asStateFlow()
+
+    fun clearBookingOutcome() { _lastBooking.value = null }
 
     val bookingSlots get() = state.bookingSlots
 
@@ -95,22 +119,65 @@ class BookingViewModel(
         }
     }
 
+    /**
+     * Book a slot, and wait to be told it is really booked.
+     *
+     * This used to add the appointment to the screen, schedule the reminder
+     * notification and fire the write off unwatched. The server refuses a slot
+     * somebody else has already taken — and that refusal went nowhere. The
+     * parent kept an appointment that did not exist, was reminded of it three
+     * hours beforehand, and turned up at the hospital for it.
+     *
+     * The write goes first now. Nothing is shown, and no alarm is set, until
+     * the server has accepted it.
+     */
     fun bookAppointment(doctor: Doctor, kidName: String, date: String, time: String) {
-        val appt = Appointment(
-            id = "a${System.currentTimeMillis()}",
-            doctorId = doctor.id,
-            doctorName = doctor.name,
-            specialty = doctor.specialty,
-            kidName = kidName,
-            date = date,
-            time = time,
-        )
-        state.uiState.update { it.copy(appointments = it.appointments + appt) }
-        NotificationScheduler.scheduleCheckupReminder(
-            getApplication(), doctor.name, kidName, date, time, state.uiState.value.locale,
-        )
-        container.persistNow(SyncEntity.APPOINTMENTS)
-        container.fetchAndApplyBackendData(viewModelScope)
+        if (_booking.value) return
+        _booking.value = true
+        viewModelScope.launch {
+            val appt = Appointment(
+                id = "a${System.currentTimeMillis()}",
+                doctorId = doctor.id,
+                doctorName = doctor.name,
+                specialty = doctor.specialty,
+                kidName = kidName,
+                date = date,
+                time = time,
+            )
+            val result = api.upsertAppointment(
+                AppointmentDto(
+                    id = appt.id,
+                    profileId = auth.profileId.value,
+                    userId = auth.userId.value.ifBlank { auth.profileId.value },
+                    doctorName = appt.doctorName,
+                    doctorId = appt.doctorId.ifBlank { null },
+                    specialty = appt.specialty,
+                    kidName = appt.kidName,
+                    date = appt.date,
+                    time = appt.time,
+                )
+            )
+
+            result.fold(
+                onSuccess = {
+                    state.uiState.update { it.copy(appointments = it.appointments + appt) }
+                    NotificationScheduler.scheduleCheckupReminder(
+                        getApplication(), doctor.name, kidName, date, time, state.uiState.value.locale,
+                    )
+                    _lastBooking.value = BookingOutcome.Confirmed
+                    container.fetchAndApplyBackendData(viewModelScope)
+                },
+                onFailure = { e ->
+                    // A refusal is the server's own wording — "This slot is no
+                    // longer available" — and is worth showing verbatim. A
+                    // network fault is not the parent's fault and says so.
+                    val message = if (e is PermanentRejection) e.message
+                    else tr(S.bookingCouldNotReach, state.uiState.value.locale)
+                    _lastBooking.value = BookingOutcome.Refused(message)
+                },
+            )
+            _booking.value = false
+        }
     }
 
     fun cancelAppointment(appointmentId: String) {

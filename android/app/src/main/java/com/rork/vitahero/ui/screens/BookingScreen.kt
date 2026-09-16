@@ -45,6 +45,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,13 +94,19 @@ fun BookingScreen(
     bookingSlotsByDoctor: Map<String, List<BookingTimeSlot>>,
     onLoadSlots: (String) -> Unit,
     onConfirm: (Doctor, kidName: String, date: String, time: String) -> Unit,
-    onCancel: (String) -> Unit
+    onCancel: (String) -> Unit,
+    /** True while the booking is with the server and no answer has come back. */
+    booking: Boolean = false,
+    /** Set once the server has accepted or refused. Null before either. */
+    confirmed: Boolean = false,
+    refusedMessage: String? = null,
 ) {
     val context = LocalContext.current
+    // The doctor and slot are a selection two taps away; the child is a choice
+    // that is easy to get wrong silently, so that one is kept across a rotation.
     var selectedDoctor by remember { mutableStateOf<Doctor?>(null) }
-    var selectedKid by remember { mutableStateOf(kids.firstOrNull()?.name ?: "") }
+    var selectedKid by rememberSaveable { mutableStateOf(kids.firstOrNull()?.name ?: "") }
     var selectedSlot by remember { mutableStateOf<BookingSlot?>(null) }
-    var booked by remember { mutableStateOf(false) }
     var filterSpecialty by remember { mutableStateOf<String?>(null) }
     var showExisting by remember { mutableStateOf(true) }
     var viewMode by remember { mutableStateOf(BookingViewMode.BY_HOSPITAL) }
@@ -154,7 +161,7 @@ fun BookingScreen(
             )
         }
     ) { pad ->
-        if (booked) {
+        if (confirmed) {
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -484,14 +491,25 @@ fun BookingScreen(
                         }
                     }
                     Spacer(Modifier.height(24.dp))
+                    if (refusedMessage != null) {
+                        // The server's own wording — "This slot is no longer
+                        // available" — rather than a generic failure. Nothing
+                        // was booked, and the screen says so before the button.
+                        Text(
+                            refusedMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
                     PrimaryGradientButton(
-                        text = t(S.confirmBooking),
-                        enabled = selectedSlot != null,
+                        text = if (booking) t(S.bookingInProgress) else t(S.confirmBooking),
+                        enabled = selectedSlot != null && !booking,
                         onClick = {
                             val doc = selectedDoctor ?: return@PrimaryGradientButton
                             val slot = selectedSlot ?: return@PrimaryGradientButton
                             onConfirm(doc, selectedKid, slot.date, slot.time)
-                            booked = true
                         },
                         modifier = Modifier.fillMaxWidth()
                     )

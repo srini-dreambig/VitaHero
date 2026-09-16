@@ -523,6 +523,16 @@ class ApiRepository {
 
     fun newId(): String = UUID.randomUUID().toString().take(12)
 
+    /**
+     * A write, with the difference between "not now" and "not ever" preserved.
+     *
+     * This used to return a bare `Exception("Sync failed (409)")`, which the
+     * sync engine could only read as "the network is down". So a slot the
+     * server had already given to somebody else was retried forever, and the
+     * appointment stayed in the parent's app the whole time. The status is what
+     * tells those two apart, and the server's own message is written for
+     * guardians, so it is carried through rather than replaced.
+     */
     private suspend fun postResult(path: String, body: Any): Result<Unit> {
         return try {
             val resp = http.post("$base$path") {
@@ -532,6 +542,14 @@ class ApiRepository {
             }
             if (resp.observed()) {
                 Result.success(Unit)
+            } else if (isPermanentStatus(resp.status.value)) {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                Result.failure(
+                    PermanentRejection(
+                        resp.status.value,
+                        err?.error ?: "The server could not accept this (${resp.status.value})",
+                    )
+                )
             } else {
                 Result.failure(Exception("Sync failed (${resp.status.value})"))
             }

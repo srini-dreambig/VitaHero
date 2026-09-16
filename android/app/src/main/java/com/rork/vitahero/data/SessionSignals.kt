@@ -139,6 +139,36 @@ fun noteTransportFailure(e: Throwable) {
 }
 
 /**
+ * The server refused this write, and will refuse it again.
+ *
+ * Sync treated every failure as the network being down: it retried forever and
+ * kept the record on screen. But "this appointment slot has already gone" and
+ * "the train is in a tunnel" need opposite responses. Retrying the first one
+ * cannot ever succeed, and while it is retried the record sits in the parent's
+ * app looking real.
+ *
+ * Carries the server's own wording, which is written for guardians.
+ */
+class PermanentRejection(
+    val status: Int,
+    override val message: String,
+) : Exception(message)
+
+/**
+ * Should this failure be retried?
+ *
+ * Anything the server refused outright is permanent — with two exceptions that
+ * are explicitly "come back later": 408 and 429. A timeout, a dropped
+ * connection or a 5xx is the server's or the network's problem, not the
+ * request's, so those keep their retry.
+ */
+fun isRetryable(e: Throwable): Boolean = e !is PermanentRejection
+
+/** True for a status the server will keep refusing however often it is sent. */
+fun isPermanentStatus(status: Int): Boolean =
+    status in 400..499 && status != 408 && status != 429
+
+/**
  * What happened when the app tried to pick up a stored session on launch.
  *
  * Three outcomes, because the app has three different things to do about them:

@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -17,6 +18,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.rork.vitahero.data.BookingViewModel
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.PdfReportGenerator
 import com.rork.vitahero.data.ReportData
@@ -368,6 +370,11 @@ fun AppNavigation(
             val state by appViewModel.uiState.collectAsState()
             val bookingSlotsMap by bookingViewModel.bookingSlots.collectAsState()
             val ctx = LocalContext.current
+            val booking by bookingViewModel.booking.collectAsState()
+            val outcome by bookingViewModel.lastBooking.collectAsState()
+            // Leaving the screen clears the last result, so re-opening it does
+            // not greet the parent with a confirmation from ten minutes ago.
+            DisposableEffect(Unit) { onDispose { bookingViewModel.clearBookingOutcome() } }
             BookingScreen(
                 directory = state.bookingDirectory,
                 doctors = state.doctors,
@@ -383,7 +390,10 @@ fun AppNavigation(
                 onConfirm = { doctor, kidName, date, time ->
                     bookingViewModel.bookAppointment(doctor, kidName, date, time)
                 },
-                onCancel = { bookingViewModel.cancelAppointment(it) }
+                onCancel = { bookingViewModel.cancelAppointment(it) },
+                booking = booking,
+                confirmed = outcome is BookingViewModel.BookingOutcome.Confirmed,
+                refusedMessage = (outcome as? BookingViewModel.BookingOutcome.Refused)?.message,
             )
         }
 
