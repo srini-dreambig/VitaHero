@@ -25,8 +25,13 @@ class AppViewModel(
     private val auth get() = container.auth
     private val state get() = container.state
 
-    val uiState: StateFlow<AppUiState> get() = state.uiState.asStateFlow()
-    val syncMessage: StateFlow<String?> get() = state.syncMessage.asStateFlow()
+    // Built once, not on every read. asStateFlow() allocates a fresh read-only
+    // wrapper each time it is called, and both collectAsState and selectAsState
+    // key their collector on the flow's identity — so a `get()` here handed out
+    // a different object on every recomposition, tore down the collector and
+    // started a new one each frame, and made narrowing a read impossible.
+    val uiState: StateFlow<AppUiState> = state.uiState.asStateFlow()
+    val syncMessage: StateFlow<String?> = state.syncMessage.asStateFlow()
 
     val onboardingComplete: StateFlow<Boolean> get() = auth.onboardingComplete
     val isLoggedIn: StateFlow<Boolean> get() = auth.isLoggedIn
@@ -127,20 +132,20 @@ class AppViewModel(
     fun clearAuthLoading() = auth.clearAuthLoading()
 
     fun onBackendLogin(userId: String, email: String, phone: String, name: String) {
+        // Somebody has just signed in, and it may not be the person who was
+        // here before. Everything the previous session put in memory goes,
+        // through the one method that knows what a session owns — this used to
+        // clear seven fields and three caches by hand and had already drifted,
+        // leaving the last family's leaderboards and booking slots behind.
+        val previousName = state.uiState.value.parentName
+        state.resetSession()
         state.uiState.update {
             it.copy(
                 userId = auth.profileId.value.ifBlank { userId },
                 email = email,
                 phone = phone,
-                parentName = name.ifBlank { it.parentName },
+                parentName = name.ifBlank { previousName },
                 consentAccepted = true,
-                kids = emptyList(),
-                camps = emptyList(),
-                appointments = emptyList(),
-                notifications = emptyList(),
-                doctors = emptyList(),
-                wearableData = emptyMap(),
-                coParents = emptyList(),
                 authProvider = when {
                     email.isNotBlank() -> "EMAIL"
                     phone.isNotBlank() -> "PHONE"
@@ -148,9 +153,6 @@ class AppViewModel(
                 },
             )
         }
-        state.meals.value = emptyMap()
-        state.streaks.value = emptyMap()
-        state.aiContent.value = emptyMap()
         fetchAndApplyBackendData()
         container.persistNow(
             SyncEntity.PROFILE,

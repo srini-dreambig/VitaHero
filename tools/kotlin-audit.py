@@ -254,10 +254,13 @@ for f, src in SRC.items():
     if not pkg:
         continue
     for m in re.finditer(r"^(?:@\w+\s*)?(?:public |internal |private )?"
-                         r"(?:fun|class|object|interface|enum class|data class|val|const val) "
-                         r"(?:\w+\.)?(\w+)", src, re.M):
-        # An optional `Receiver.` prefix means an extension function; the name
-        # to record is what follows it, not the type it hangs off.
+                         r"(?:fun|class|object|interface|enum class|data class|val|const val)"
+                         # an optional type-parameter list: fun <T, R> ...
+                         r"(?:\s*<[^>\n]*(?:<[^>\n]*>[^>\n]*)*>)?"
+                         # an optional receiver, which may itself be generic:
+                         # StateFlow<T>. — the name to record is what follows
+                         # it, not the type it hangs off
+                         r"\s+(?:\w+(?:<[^>\n]*>)?\.)?(\w+)", src, re.M):
         declared.add(pkg.group(1) + "." + m.group(1))
 
 missing = set()
@@ -542,6 +545,51 @@ for x in sorted(set(bad_arity)):
 if not bad_arity:
     n = sum(len(v) for v in LAMBDA_PARAMS.values())
     print(f"  ok  lambda arity matches at every call site ({n} function parameters)")
+
+
+# ── 12. nobody collects the whole shared state again ────────
+#
+# AppUiState is one object with thirty fields. A scope that collects it whole
+# is invalidated by all thirty, however few it reads — the root of the app read
+# two and redrew on a logged meal. selectAsState narrows the read to the field
+# the scope actually uses, and this keeps it that way: a `uiState.collectAsState()`
+# put back anywhere in the UI fails here.
+wide = []
+for f, src in SRC.items():
+    path = str(f)
+    if "/ui/" not in path and not path.endswith("MainActivity.kt"):
+        continue
+    for i, line in enumerate(src.split("\n"), 1):
+        if "uiState.collectAsState()" in line:
+            wide.append(
+                f"{rel(f)}:{i} collects the whole AppUiState; read the fields it "
+                f"needs with selectAsState instead")
+for x in sorted(wide):
+    fail(x)
+if not wide:
+    narrow = sum(src.count(".selectAsState {") for src in SRC.values())
+    print(f"  ok  no screen collects the whole AppUiState ({narrow} narrowed reads)")
+
+
+# ── 13. an exposed flow is one object, not one per read ─────
+#
+# `val x: StateFlow<T> get() = y.asStateFlow()` allocates a new read-only
+# wrapper on every read. collectAsState and selectAsState both key their
+# collector on the flow's identity, so a getter like that tears the collector
+# down and starts another one every recomposition — and makes a narrowed read
+# impossible, because the remember() behind it never hits.
+perread = []
+for f, src in SRC.items():
+    for i, line in enumerate(src.split("\n"), 1):
+        if re.search(r"get\(\)\s*=.*\.(asStateFlow|stateIn|shareIn|map|combine|"
+                     r"filter|distinctUntilChanged)\s*\(", line):
+            perread.append(
+                f"{rel(f)}:{i} builds a new flow on every read; assign it once "
+                f"with `=` instead of `get() =`")
+for x in sorted(perread):
+    fail(x)
+if not perread:
+    print("  ok  no exposed flow is rebuilt on every read")
 
 
 # ── result ──────────────────────────────────────────────────

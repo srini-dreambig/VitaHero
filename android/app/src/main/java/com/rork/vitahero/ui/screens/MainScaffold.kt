@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppViewModel
 import com.rork.vitahero.data.S
+import com.rork.vitahero.ui.components.selectAsState
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.data.KidsViewModel
 import com.rork.vitahero.data.ProfileViewModel
@@ -97,8 +98,17 @@ fun MainScaffold(
     onLogout: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
-    val state by appViewModel.uiState.collectAsState()
-    val unread = state.notifications.count { it.unread }
+    // Eight fields of thirty. The rest — wearable readings, booking slots, the
+    // school directory — have no bearing on the scaffold and no longer redraw it.
+    val appointments by appViewModel.uiState.selectAsState { it.appointments }
+    val campRemindersEnabled by appViewModel.uiState.selectAsState { it.campRemindersEnabled }
+    val camps by appViewModel.uiState.selectAsState { it.camps }
+    val kids by appViewModel.uiState.selectAsState { it.kids }
+    val locale by appViewModel.uiState.selectAsState { it.locale }
+    val notifications by appViewModel.uiState.selectAsState { it.notifications }
+    val notificationsEnabled by appViewModel.uiState.selectAsState { it.notificationsEnabled }
+    val parentName by appViewModel.uiState.selectAsState { it.parentName }
+    val unread = notifications.count { it.unread }
     val unreachable by appViewModel.serverUnreachable.collectAsState()
 
     Box(
@@ -114,10 +124,10 @@ fun MainScaffold(
         ) { current ->
             when (current) {
                 Tab.HOME -> HomeScreen(
-                    parentName = state.parentName,
-                    kids = state.kids,
-                    camps = state.camps,
-                    appointments = state.appointments,
+                    parentName = parentName,
+                    kids = kids,
+                    camps = camps,
+                    appointments = appointments,
                     unreadCount = unread,
                     onOpenKid = onOpenKid,
                     onOpenNotifications = onOpenNotifications,
@@ -127,11 +137,11 @@ fun MainScaffold(
                     onBookAppointment = onOpenBooking
                 )
                 Tab.KIDS -> KidsScreen(
-                    kids = state.kids,
+                    kids = kids,
                     onOpenKid = onOpenKid,
                 )
                 Tab.CAMPS -> CampsScreen(
-                    camps = state.camps,
+                    camps = camps,
                     onBookFollowUp = onOpenBooking,
                     onOpenCamp = onOpenCamp,
                     onOpenSchools = onOpenSchools,
@@ -141,20 +151,20 @@ fun MainScaffold(
                 Tab.REWARDS -> {
                     val leaderboards by kidsViewModel.leaderboards.collectAsState()
                     RewardsScreen(
-                        kids = state.kids,
+                        kids = kids,
                         leaderboards = leaderboards,
                         onRefreshLeaderboard = { kidsViewModel.refreshLeaderboard(it) },
                         badgeData = { kidsViewModel.badgeProgressForKid(it) }
                     )
                 }
                 Tab.PROFILE -> ProfileScreen(
-                    parentName = state.parentName,
+                    parentName = parentName,
                     phone = phone,
-                    kids = state.kids,
+                    kids = kids,
                     darkTheme = darkTheme,
-                    currentLocale = state.locale,
-                    notificationsEnabled = state.notificationsEnabled,
-                    campRemindersEnabled = state.campRemindersEnabled,
+                    currentLocale = locale,
+                    notificationsEnabled = notificationsEnabled,
+                    campRemindersEnabled = campRemindersEnabled,
                     onToggleDarkTheme = { profileViewModel.toggleDarkTheme() },
                     onToggleNotifications = { profileViewModel.toggleNotificationsEnabled() },
                     onToggleCampReminders = { profileViewModel.toggleCampReminders() },

@@ -23,6 +23,7 @@ import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.PdfReportGenerator
 import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.data.rememberVitaHeroViewModels
+import com.rork.vitahero.ui.components.selectAsState
 import com.rork.vitahero.ui.screens.AuthScreen
 import com.rork.vitahero.ui.screens.BookingScreen
 import com.rork.vitahero.ui.screens.CampConsentScreen
@@ -112,7 +113,12 @@ fun AppNavigation(
     val profileViewModel = vms.profile
     val guardianViewModel = vms.guardian
 
-    val state by appViewModel.uiState.collectAsState()
+    // The whole navigation graph is built inside this scope, so what it reads is
+    // what re-runs the graph. Four fields, not thirty.
+    val darkTheme by appViewModel.uiState.selectAsState { it.darkTheme }
+    val kids by appViewModel.uiState.selectAsState { it.kids }
+    val profilePhone by appViewModel.uiState.selectAsState { it.phone }
+    val wearablesByKid by appViewModel.uiState.selectAsState { it.wearableData }
     val onboardingComplete by appViewModel.onboardingComplete.collectAsState()
     val isLoggedIn by appViewModel.isLoggedIn.collectAsState()
     val authLoading by appViewModel.authLoading.collectAsState()
@@ -144,9 +150,9 @@ fun AppNavigation(
         }
     }
 
-    LaunchedEffect(isLoggedIn, state.kids) {
+    LaunchedEffect(isLoggedIn, kids) {
         if (isLoggedIn) {
-            state.kids.forEach { kidsViewModel.refreshLeaderboard(it.id) }
+            kids.forEach { kidsViewModel.refreshLeaderboard(it.id) }
         }
     }
 
@@ -280,8 +286,8 @@ fun AppNavigation(
                 appViewModel = appViewModel,
                 profileViewModel = profileViewModel,
                 kidsViewModel = kidsViewModel,
-                phone = state.phone,
-                darkTheme = state.darkTheme,
+                phone = profilePhone,
+                darkTheme = darkTheme,
                 onOpenKid = { navController.navigate("kid/$it") },
                 onOpenDiet = { navController.navigate("diet/$it") },
                 onOpenBooking = { navController.navigate(Routes.BOOKING) },
@@ -318,7 +324,7 @@ fun AppNavigation(
                 val meals = kidsViewModel.mealsForKid(kid.id)
                 val streak = kidsViewModel.streakForKid(kid.id)
                 val badges = kidsViewModel.badgeProgressForKid(kid.id).badges
-                val wearableData = state.wearableData[kid.id]
+                val wearableData = wearablesByKid[kid.id]
                 val reportLocale = LocalAppLocale.current
                 KidDetailScreen(
                     kid = kid,
@@ -373,7 +379,12 @@ fun AppNavigation(
         }
 
         composable(Routes.BOOKING) {
-            val state by appViewModel.uiState.collectAsState()
+            val appointments by appViewModel.uiState.selectAsState { it.appointments }
+            val bookingCity by appViewModel.uiState.selectAsState { it.bookingCity }
+            val bookingDirectory by appViewModel.uiState.selectAsState { it.bookingDirectory }
+            val doctors by appViewModel.uiState.selectAsState { it.doctors }
+            val kids by appViewModel.uiState.selectAsState { it.kids }
+            val locationEnabled by appViewModel.uiState.selectAsState { it.locationEnabled }
             val bookingSlotsMap by bookingViewModel.bookingSlots.collectAsState()
             val ctx = LocalContext.current
             val booking by bookingViewModel.booking.collectAsState()
@@ -382,12 +393,12 @@ fun AppNavigation(
             // not greet the parent with a confirmation from ten minutes ago.
             DisposableEffect(Unit) { onDispose { bookingViewModel.clearBookingOutcome() } }
             BookingScreen(
-                directory = state.bookingDirectory,
-                doctors = state.doctors,
-                kids = state.kids,
-                appointments = state.appointments,
-                bookingCity = state.bookingCity,
-                locationEnabled = state.locationEnabled,
+                directory = bookingDirectory,
+                doctors = doctors,
+                kids = kids,
+                appointments = appointments,
+                bookingCity = bookingCity,
+                locationEnabled = locationEnabled,
                 onBack = { navController.popBackStack() },
                 onCityChange = { bookingViewModel.refreshBookingDirectory(it) },
                 onUseMyLocation = { bookingViewModel.fetchLocationAndRefresh(ctx) },
@@ -404,17 +415,19 @@ fun AppNavigation(
         }
 
         composable(Routes.HOSPITALS) {
-            val state by appViewModel.uiState.collectAsState()
+            val bookingCity by appViewModel.uiState.selectAsState { it.bookingCity }
+            val bookingDirectory by appViewModel.uiState.selectAsState { it.bookingDirectory }
+            val locationEnabled by appViewModel.uiState.selectAsState { it.locationEnabled }
             val ctx = LocalContext.current
             LaunchedEffect(Unit) {
-                if (state.bookingDirectory == null) {
+                if (bookingDirectory == null) {
                     bookingViewModel.refreshBookingDirectory()
                 }
             }
             HospitalsScreen(
-                directory = state.bookingDirectory,
-                bookingCity = state.bookingCity,
-                locationEnabled = state.locationEnabled,
+                directory = bookingDirectory,
+                bookingCity = bookingCity,
+                locationEnabled = locationEnabled,
                 onBack = { navController.popBackStack() },
                 onCityChange = { bookingViewModel.refreshBookingDirectory(it) },
                 onUseMyLocation = { bookingViewModel.fetchLocationAndRefresh(ctx) },
@@ -455,7 +468,7 @@ fun AppNavigation(
 
         composable(Routes.QUESTIONS) {
             QuestionsScreen(
-                kids = state.kids,
+                kids = kids,
                 guardianViewModel = guardianViewModel,
                 onBack = { navController.popBackStack() },
             )
@@ -470,7 +483,7 @@ fun AppNavigation(
 
         composable(Routes.RECORD) {
             PrivacyScreen(
-                kids = state.kids,
+                kids = kids,
                 guardianViewModel = guardianViewModel,
                 onBack = { navController.popBackStack() },
                 onErased = { kidsViewModel.forgetKidLocally(it) },
@@ -491,9 +504,9 @@ fun AppNavigation(
         }
 
         composable(Routes.NOTIFICATIONS) {
-            val state by appViewModel.uiState.collectAsState()
+            val notifications by appViewModel.uiState.selectAsState { it.notifications }
             NotificationsScreen(
-                notifications = state.notifications,
+                notifications = notifications,
                 onBack = {
                     profileViewModel.markAllNotificationsRead()
                     navController.popBackStack()
@@ -502,11 +515,13 @@ fun AppNavigation(
         }
 
         composable(Routes.SCHOOLS) {
-            val state by appViewModel.uiState.collectAsState()
+            val availableSchools by appViewModel.uiState.selectAsState { it.availableSchools }
+            val kids by appViewModel.uiState.selectAsState { it.kids }
+            val partnerSchools by appViewModel.uiState.selectAsState { it.partnerSchools }
             SchoolsScreen(
-                partnerSchools = state.partnerSchools,
-                availableSchools = state.availableSchools,
-                kids = state.kids,
+                partnerSchools = partnerSchools,
+                availableSchools = availableSchools,
+                kids = kids,
                 onBack = { navController.popBackStack() },
                 onEnroll = { code, kidId -> campsViewModel.enrollInSchool(code, kidId) },
                 busy = campsBusy,
@@ -519,11 +534,11 @@ fun AppNavigation(
         ) { backStack ->
             val campId = backStack.arguments?.getString("campId").orEmpty()
             val camp = campsViewModel.campById(campId)
-            val state by appViewModel.uiState.collectAsState()
+            val kids by appViewModel.uiState.selectAsState { it.kids }
             if (camp != null) {
                 CampDetailScreen(
                     camp = camp,
-                    kids = state.kids,
+                    kids = kids,
                     onBack = { navController.popBackStack() },
                     onRegister = { kidId ->
                         campsViewModel.registerForCamp(camp, kidId) {
@@ -554,16 +569,17 @@ fun AppNavigation(
         }
 
         composable(Routes.FAMILY_SHARING) {
-            val state by appViewModel.uiState.collectAsState()
+            val coParents by appViewModel.uiState.selectAsState { it.coParents }
+            val familyCode by appViewModel.uiState.selectAsState { it.familyCode }
             val familyBusy by profileViewModel.familyBusy.collectAsState()
             FamilySharingScreen(
-                familyCode = state.familyCode,
-                coParents = state.coParents,
+                familyCode = familyCode,
+                coParents = coParents,
                 onBack = { navController.popBackStack() },
                 onJoinFamily = { profileViewModel.joinFamily(it, kidsViewModel) },
                 onGenerateCode = { profileViewModel.generateFamilyCode() },
                 onShareCode = {
-                    val code = state.familyCode
+                    val code = familyCode
                     val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                         type = "text/plain"
                         putExtra(android.content.Intent.EXTRA_TEXT, "Join me on VitaHero! Use family code: $code")

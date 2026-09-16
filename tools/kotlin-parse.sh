@@ -55,7 +55,12 @@ java -cp "$CP" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler \
 
 # Everything the missing AndroidX classpath causes, dropped. What remains is
 # structural: the file does not parse, or a name is declared twice.
-REAL="$(grep -E "error: (syntax error|.*is already defined|conflicting overloads|redeclaration)" "$RAW" || true)"
+# `conflicting declarations` is what the compiler says for two locals of the
+# same name in one scope. It was missing from this list, which is how an
+# automated edit that introduced one could pass a run that prints "no
+# redeclarations". Both names sit in the same file, so the diagnostic does
+# not depend on the classpath that is missing here.
+REAL="$(grep -E "error: (syntax error|.*is already defined|conflicting (overloads|declarations)|redeclaration)" "$RAW" || true)"
 TOTAL="$(grep -c 'error:' "$RAW" || true)"
 UNRESOLVED="$(grep -c 'unresolved reference' "$RAW" || true)"
 

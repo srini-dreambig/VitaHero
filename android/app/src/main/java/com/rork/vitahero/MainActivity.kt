@@ -42,6 +42,7 @@ import com.rork.vitahero.data.KidsViewModel
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.NotificationScheduler
 import com.rork.vitahero.data.VitaHeroViewModelFactory
+import com.rork.vitahero.ui.components.selectAsState
 import com.rork.vitahero.ui.navigation.AppNavigation
 import com.rork.vitahero.ui.theme.AppTheme
 import kotlinx.coroutines.launch
@@ -88,7 +89,11 @@ class MainActivity : ComponentActivity() {
                 healthConnectPermissionLauncher.launch(HealthConnectPermissions.permissions)
             }
 
-            val state by appViewModel.uiState.collectAsState()
+            // The root of the app. It needs the language and the theme and nothing else,
+            // but it used to collect all thirty fields of AppUiState — so logging a meal
+            // or syncing a watch invalidated the scope that holds the entire app.
+            val darkTheme by appViewModel.uiState.selectAsState { it.darkTheme }
+            val locale by appViewModel.uiState.selectAsState { it.locale }
             val isLoggedIn by appViewModel.isLoggedIn.collectAsState()
             val syncMessage by appViewModel.syncMessage.collectAsState()
             val snackbarHostState = remember { SnackbarHostState() }
@@ -115,8 +120,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            CompositionLocalProvider(LocalAppLocale provides state.locale) {
-                AppTheme(darkTheme = state.darkTheme) {
+            CompositionLocalProvider(LocalAppLocale provides locale) {
+                AppTheme(darkTheme = darkTheme) {
                     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { _ ->
                         AppNavigation(
                             onGoogleSignInRequest = { launchGoogleSignIn() },
