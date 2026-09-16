@@ -53,6 +53,8 @@ fun CampDetailScreen(
     kids: List<Kid>,
     onBack: () -> Unit,
     onRegister: (kidId: String) -> Unit,
+    /** True while the registration is with the server. */
+    busy: Boolean = false,
     onBookFollowUp: () -> Unit,
     /** Open what a doctor released for one child at this camp. */
     onOpenResult: (campId: String, kidId: String) -> Unit = { _, _ -> },
@@ -207,7 +209,8 @@ fun CampDetailScreen(
                 if (kid != null && kid.id !in registered) {
                     Spacer(Modifier.height(8.dp))
                     PrimaryGradientButton(
-                        text = t(S.confirmRegistration),
+                        text = if (busy) t(S.pleaseWait) else t(S.confirmRegistration),
+                        enabled = !busy,
                         onClick = { onRegister(kid.id) },
                     )
                 }

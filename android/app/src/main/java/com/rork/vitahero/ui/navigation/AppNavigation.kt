@@ -157,6 +157,7 @@ fun AppNavigation(
         if (isLoggedIn) guardianViewModel.refreshAll()
     }
     val pendingConsents by guardianViewModel.pendingConsents.collectAsState()
+    val campsBusy by campsViewModel.busy.collectAsState()
 
     val startDest = when {
         isLoggedIn -> Routes.MAIN
@@ -513,6 +514,7 @@ fun AppNavigation(
                 kids = state.kids,
                 onBack = { navController.popBackStack() },
                 onEnroll = { code, kidId -> campsViewModel.enrollInSchool(code, kidId) },
+                busy = campsBusy,
             )
         }
 
@@ -537,6 +539,7 @@ fun AppNavigation(
                     onOpenResult = { campId, kidId ->
                         navController.navigate("campResult/$campId/$kidId")
                     },
+                    busy = campsBusy,
                 )
             }
         }

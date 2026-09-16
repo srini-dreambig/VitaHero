@@ -125,7 +125,19 @@ class KidsViewModel(
      * than one that says it does not know. A camp fills these in; the app does
      * not guess them, and neither does the parent.
      */
+    /**
+     * Add a child.
+     *
+     * Re-entrant guard rather than an in-flight flag: this writes to local
+     * state and returns at once, and the screen pops the moment it is called.
+     * Two taps inside that one frame used to make two children, each with its
+     * own millisecond id, and nothing afterwards would ever merge them.
+     */
+    private var adding = false
+
     fun addKid(name: String, age: Int, gender: String, school: String, grade: String) {
+        if (adding) return
+        adding = true
         val newKid = Kid(
             id = "k${System.currentTimeMillis()}",
             name = name, age = age, gender = gender, school = school, grade = grade,
@@ -142,6 +154,8 @@ class KidsViewModel(
         state.meals.update { it + (newKid.id to MealPlanGenerator.initialPlanFor(newKid)) }
         state.streaks.update { it + (newKid.id to StreakInfo()) }
         container.persistNow(SyncEntity.KIDS, SyncEntity.MEALS, SyncEntity.STREAKS)
+        // Released on the next frame, so returning to add a second child works.
+        viewModelScope.launch { adding = false }
     }
 
     /**

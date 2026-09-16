@@ -183,11 +183,22 @@ fun BookingScreen(
                 Spacer(Modifier.height(24.dp))
                 Text(t(S.apptConfirmed), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "${selectedDoctor?.name} · ${selectedSlot?.label}\nfor $selectedKid",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // The doctor and slot are a transient selection, so after a
+                // rotation on this screen they are gone while the confirmation
+                // itself — which lives in the view model — is not. Read the
+                // booking back from the appointment list rather than printing
+                // "null · null" at a parent who has just booked something.
+                val justBooked = appointments.lastOrNull { it.kidName == selectedKid }
+                val line = selectedDoctor?.let { doc ->
+                    "${doc.name} · ${selectedSlot?.label.orEmpty()}\nfor $selectedKid"
+                } ?: justBooked?.let { "${it.doctorName} · ${it.date} ${it.time}\nfor ${it.kidName}" }
+                if (line != null) {
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Spacer(Modifier.height(32.dp))
                 PrimaryGradientButton(text = t(S.done), onClick = onBack, modifier = Modifier.fillMaxWidth())
             }
