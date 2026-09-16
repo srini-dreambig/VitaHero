@@ -218,6 +218,100 @@ Looked at and left alone, with reasons:
   the critical path risks showing a returning parent the onboarding screen for
   a frame. Not worth the trade without a device to check it on.
 
+## The backend and the console, measured
+
+The app pass above stopped at the phone. This one starts at the worker.
+
+On Cloudflare every query is an outbound subrequest to Neon, so what a page
+costs is not how many queries it runs but **how many times it waits**. Reads
+issued together cost one network latency between them; reads issued one after
+another cost one each. A page doing seven independent aggregates sequentially
+pays seven round trips to a database that may be on another continent, and no
+amount of index tuning touches that.
+
+`functions/roundtrips.test.ts` measures it against a real school with 400
+children on the roll, and holds each page to a ceiling. Before and after:
+
+| Console page        | queries | waits before | waits after |
+|---------------------|---------|--------------|-------------|
+| Ops overview        | 6       | 6            | 1           |
+| Ops analytics       | 7       | 7            | 1           |
+| School roster (500) | 2       | 2            | 1           |
+| Camp participants   | 2       | 2            | 2           |
+| Camp pack (offline) | 3       | 3            | 2           |
+| Review queue        | 2       | 2            | 2           |
+| School report       | 6       | 6            | 3           |
+| Programme report    | 5       | 5            | 1           |
+| Referral dashboard  | 3       | 3            | 1           |
+
+Off the console but on the same sweep: a guardian's data-rights export read ten
+tables one after another and now waits twice — nine of the ten are keyed on the
+guardian alone, and only the three keyed on the children have to wait for the
+children's ids.
+
+The ceilings above 1 are deliberate, and the test says so:
+
+- **The access check stays sequential.** A caller who is not allowed near a
+  camp should not cause that camp's rows to be read at all. Saving a hop is not
+  worth reading a child's record first and deciding afterwards.
+- **The school report's three is a real chain.** The school row names the
+  academic year, the year selects the camps, the camps drive everything else.
+- **`nudgeReferrals` is left alone on purpose.** Its first statement expires
+  the overdue referrals and its second picks the ones still worth a nudge —
+  issuing them together would text families about referrals that had just
+  lapsed. There is a comment there saying so, because the sweep that found
+  everything else would otherwise "fix" it.
+
+A sweep of every function in `functions/` for a read that depends on nothing
+before it now returns exactly one hit: that one.
+
+### Payloads
+
+Measured on the same 400-child school:
+
+- Offline camp pack: **145 KiB**. This is the one a screener downloads on a
+  school's wifi before walking into a hall with no signal, so the test fails if
+  it passes 600 KiB.
+- Roster page of 400: **116 KiB**.
+
+Both are fine. The console shell is not: **259 KiB of HTML, 69 KiB gzipped**,
+and it was served `Cache-Control: no-cache` with no validator — so every single
+load transferred the whole thing again. `no-cache` means "check with me first",
+not "do not store"; it now carries an ETag, so an unchanged console costs an
+empty 304 and a deploy is still picked up on the very next load.
+
+### The console itself
+
+- **Typing the school name to confirm a deletion was impossible.** The field
+  called `render()` on every keystroke, `render()` rebuilds the whole tree, and
+  the rebuild threw away the element being typed into. The first character
+  landed and the rest went nowhere. The field now toggles the button directly
+  instead of re-rendering, and `render()` restores focus and caret to any
+  element carrying an id, so the next control that re-renders itself does not
+  reintroduce this.
+  The smoke suite missed it because `fill()` sets a value in one shot; it now
+  types the name a key at a time and checks the caret is still there. Reverting
+  the fix makes that test fail.
+- **The service worker cached whatever came back.** One 502 during a deploy
+  would have become the console every screener saw until they next had signal.
+  Only a good response replaces the shell now.
+- **Three screens asked for independent things one after another** — the
+  overview's counters, dashboard and school list; the school's administrators
+  and clinical staff; a contract and its invoices. All three now leave
+  together. The people tab in particular drew with half of itself missing and
+  then jumped.
+- **Tab data is already memoised.** Switching between a school's tabs and back
+  does not refetch, and there is no polling anywhere in the console. Left alone.
+
+### Test harness
+
+`pg`'s `Client` cannot carry two queries at once, so the moment production code
+started issuing reads concurrently the local suite began warning about
+overlapping queries — and from `pg@9` that becomes an error. `functions/pgserial.ts`
+queues them at the harness, so the tests keep exercising the real concurrent
+code path instead of the code being bent back into sequential awaits to suit
+the harness.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
