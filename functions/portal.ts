@@ -459,23 +459,105 @@ export const PORTAL_HTML = `<!doctype html>
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
 
   // ── state ──
-  var S = {
-    auth: null, view: "overview", busy: false, error: "", notice: "",
-    overview: null, schools: [], school: null, schoolTab: "roster",
-    classes: null, admins: null, staff: null, roster: null, batches: null,
-    camps: null, camp: null, campTab: "setup", participants: null, queue: null,
-    screenKid: null, screenForm: null, reviewKid: null, reviewData: null,
-    myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
-    referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
-    programme: null, rollover: null, refForm: null, refFilter: "",
-    pack: null, forceOffline: false, syncRejects: null, packInfo: null,
-    photos: null, photosKid: null, photoOpen: null,
-    hospitals: null, doctors: null, hosForm: null, docForm: null, hosQuery: "",
-    addChild: null,
-    invites: null, campPeople: null, peopleQuery: "",
-    threads: null, thread: null, billing: null, library: null, libForm: null,
-  };
+  //
+  // One object behind one long-lived page, so the only question that matters is
+  // what clears it. It used to be cleared in three places that had to agree and
+  // did not: signOut() named four keys, openSchool() named twenty and
+  // openCamp() five, and the forty or so nobody named — the roster, the
+  // participants, the review data, the photographs, the reports, the threads —
+  // simply stayed. Built from one shape now, so signing out cannot miss a field
+  // and adding a field cannot be forgotten.
+  function freshState() {
+    return {
+      auth: null, view: "overview", busy: false, error: "", notice: "",
+      overview: null, schools: [], school: null, schoolTab: "roster",
+      classes: null, admins: null, staff: null, roster: null, batches: null,
+      camps: null, camp: null, campTab: "setup", participants: null, queue: null,
+      screenKid: null, screenForm: null, reviewKid: null, reviewData: null,
+      myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
+      referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
+      programme: null, rollover: null, refForm: null, refFilter: "",
+      forceOffline: false, syncRejects: null,
+      photos: null, photosKid: null, photoOpen: null,
+      hospitals: null, doctors: null, hosForm: null, docForm: null, hosQuery: "",
+      addChild: null,
+      invites: null, campPeople: null, peopleQuery: "",
+      threads: null, thread: null, billing: null, library: null, libForm: null,
+      // Which form owns the slot above. Kept beside the form, not on it,
+      // because the form object is posted to the server as it stands.
+      formOwner: "",
+      analytics: null, analyticsError: false, danger: null, access: null, retention: null,
+      // These thirteen were never in the object at all — set() created them on
+      // first use, so nothing could clear what it did not know about. Several
+      // of them name a child: the access trail, the screening capture in
+      // progress, the reviewer's draft, the symptom history.
+      inFlight: 0, scope: 0,
+      accessDays: 30, oversightTab: "partners", partners: null, childTrail: null,
+      childQuery: "", screenData: null, reviewEdit: null, symptoms: null,
+      smsStatus: null, saved: null, search: "", showAll: false, dragOver: false,
+    };
+  }
+  var S = freshState();
+
+  /**
+   * Put one group of fields back to what they are before anything is loaded.
+   *
+   * Opening a school cleared nineteen fields by hand and opening a camp cleared
+   * five, both typed out at the call site. The camp list had already drifted:
+   * the review data, the photographs, the open photograph, the screening
+   * capture in progress and the reviewer's draft were not on it, so a physician
+   * who reviewed a child at one camp and opened another still had the first
+   * child's review and photograph in hand until the new fetch landed. Taking
+   * the values from freshState() means a field added to the state cannot be
+   * left behind here.
+   */
+  var SCHOOL_SCOPED = ["classes", "admins", "staff", "roster", "batches", "camps", "upload",
+    "form", "formOwner", "addChild", "referrals", "report", "corrections", "refKid",
+    "threads", "thread", "billing", "invites", "danger", "search", "showAll", "peopleQuery"];
+  var CAMP_SCOPED = ["participants", "queue", "screenKid", "screenForm", "screenData",
+    "reviewKid", "reviewData", "reviewEdit", "campPeople", "photos", "photosKid",
+    "photoOpen", "saved", "symptoms", "syncRejects", "refDetail"];
+
+  function clearScope(keys) {
+    var f = freshState();
+    for (var i = 0; i < keys.length; i++) S[keys[i]] = f[keys[i]];
+  }
+
+  /**
+   * Which school or camp the operator is actually waiting for.
+   *
+   * Every load is a separate request and nothing said which one still counted.
+   * Open school A on a slow connection, change your mind, open school B: if A's
+   * roster arrived second it was written into the state and drawn under B's
+   * name — five hundred children filed under the wrong school. The token is
+   * bumped when the operator moves, and an answer for an older one is dropped.
+   */
+  function newScope() { S.scope = (S.scope || 0) + 1; }
+  function inScope(fn) {
+    var token = S.scope || 0;
+    return function (d) { if (token === (S.scope || 0)) fn(d); };
+  }
   function set(p) { for (var k in p) S[k] = p[k]; render(); }
+
+  /**
+   * The one form slot, and whose it is.
+   *
+   * S.form was shared by seven different forms of four different shapes.
+   * Three checked a marker field before adopting whatever was there; four did
+   * not. So leaving the Classes tab with an unsaved form and opening "Add
+   * someone" handed the staff form an object of { year, grades, sections } —
+   * no kind on it at all. A select with nothing selected shows its first
+   * option, so the operator read "School administrator" while the branch behind
+   * the button took the other road and created a clinician with no role.
+   *
+   * The owner is kept beside the form rather than on it, because the form
+   * object is posted to the server as-is.
+   */
+  function form(owner, defaults) {
+    if (!S.form || S.formOwner !== owner) { S.form = defaults; S.formOwner = owner; }
+    return S.form;
+  }
+
 
   // Only checks a clinician has a screen to record on. Offering "Spine" when
   // the capture form is a bare Normal/Abnormal dropdown means the school
@@ -489,9 +571,60 @@ export const PORTAL_HTML = `<!doctype html>
   // ── auth storage ──
   function saveAuth(a) { try { localStorage.setItem("vh_console", JSON.stringify(a)); } catch (e) {} }
   function loadAuth() { try { var r = localStorage.getItem("vh_console"); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  /** Camps whose captures have not reached the server yet. */
+  function unsyncedCamps() {
+    var out = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(QUEUE_KEY) === 0) {
+          var n = queueLoad(k.slice(QUEUE_KEY.length)).length;
+          if (n) out.push({ campId: k.slice(QUEUE_KEY.length), count: n });
+        }
+      }
+    } catch (e) {}
+    return out;
+  }
+
   function signOut() {
-    try { localStorage.removeItem("vh_console"); } catch (e) {}
-    S.auth = null; S.view = "overview"; S.school = null; S.camp = null; render();
+    // A camp pack is a school's children — their names, their dates of birth,
+    // their guardians' names — sitting in plain localStorage on a machine four
+    // people share. It was written when the camp was packed and then never
+    // removed: not after a sync, not when the camp closed, not when the
+    // screener signed out. They accumulate at about 150 KiB a camp until the
+    // device runs out of room, which is why saving a capture already has a
+    // "this device has run out of storage" path to fall down.
+    //
+    // An unsynced queue is a different thing and is not ours to throw away:
+    // those are measurements nobody else has. So say what is unsent and let the
+    // screener decide. If they sign out anyway the queue stays, deliberately —
+    // losing a morning's screening is worse than leaving it on the device — and
+    // the next person to sign in can sync it.
+    var unsent = unsyncedCamps();
+    if (unsent.length) {
+      var n = 0;
+      for (var i = 0; i < unsent.length; i++) n += unsent[i].count;
+      if (!confirm(
+        n + (n === 1 ? " capture has" : " captures have") + " not reached the server yet."
+        + "\\n\\nThey stay on this device and can be sent when there is signal."
+        + " Sign out anyway?"
+      )) return;
+    }
+    try {
+      localStorage.removeItem("vh_console");
+      var packs = [];
+      for (var j = 0; j < localStorage.length; j++) {
+        var key = localStorage.key(j);
+        if (key && key.indexOf(PACK_KEY) === 0) packs.push(key);
+      }
+      for (var q = 0; q < packs.length; q++) localStorage.removeItem(packs[q]);
+    } catch (e) {}
+    S = freshState();
+    // Anything still in the air was asked for by the person who has just left.
+    // Without this its answer would land in the fresh state a moment later and
+    // put their school back in memory behind the sign-in screen.
+    newScope();
+    render();
   }
 
   // ── offline pack and queue ──
@@ -584,10 +717,22 @@ export const PORTAL_HTML = `<!doctype html>
         });
       });
   }
+  /**
+   * Run one thing the operator is waiting on, and count it.
+   *
+   * busy was a boolean set true here and false on the way out. Two of these
+   * overlap easily — a tab clicked while the last one is still loading, a
+   * reminder sent while a roster is on its way — and the first to finish
+   * cleared the flag for both, re-enabling a button whose request was still in
+   * the air. Counting means the buttons come back when the last one lands, not
+   * the first.
+   */
   function run(p, ok) {
+    S.inFlight = (S.inFlight || 0) + 1;
     set({ busy: true, error: "" });
-    p.then(function (d) { S.busy = false; if (ok) ok(d); render(); })
-     .catch(function (e) { set({ busy: false, error: e.message || "Something went wrong" }); });
+    function done() { S.inFlight = Math.max(0, S.inFlight - 1); S.busy = S.inFlight > 0; }
+    p.then(function (d) { done(); if (ok) ok(d); render(); })
+     .catch(function (e) { done(); set({ error: e.message || "Something went wrong" }); });
   }
 
   // ── role helpers ──
@@ -766,21 +911,22 @@ export const PORTAL_HTML = `<!doctype html>
   function loadMyCamps() { run(api("/api/admin/my-camps"), function (d) { S.myCamps = d.camps; S.view = "mycamps"; }); }
 
   function openSchool(id, tab) {
-    run(api("/api/admin/schools/" + encodeURIComponent(id)), function (d) {
+    newScope();
+    run(api("/api/admin/schools/" + encodeURIComponent(id)), inScope(function (d) {
       S.school = d.school; S.view = "school"; S.schoolTab = tab || "roster";
-      S.classes = null; S.admins = null; S.staff = null; S.roster = null; S.batches = null;
-      S.camps = null; S.upload = null; S.form = null; S.addChild = null;
-      S.referrals = null; S.report = null; S.corrections = null; S.refKid = null;
-      S.threads = null; S.thread = null; S.billing = null; S.invites = null;
-      S.danger = null;
+      // A different school means none of the last one's tabs, and none of the
+      // last one's camp either — the camp view reads the school around it.
+      clearScope(SCHOOL_SCOPED);
+      clearScope(CAMP_SCOPED);
+      S.camp = null;
       loadSchoolTab();
-    });
+    }));
   }
   function loadSchoolTab() {
     var id = S.school.id, t = S.schoolTab;
-    if (t === "roster" && !S.roster) run(api("/api/admin/schools/" + id + "/roster?limit=500"), function (d) { S.roster = d; });
-    else if (t === "camps" && !S.camps) run(api("/api/admin/schools/" + id + "/camps"), function (d) { S.camps = d.camps; });
-    else if (t === "classes" && !S.classes) run(api("/api/admin/schools/" + id + "/classes"), function (d) { S.classes = d; });
+    if (t === "roster" && !S.roster) run(api("/api/admin/schools/" + id + "/roster?limit=500"), inScope(function (d) { S.roster = d; }));
+    else if (t === "camps" && !S.camps) run(api("/api/admin/schools/" + id + "/camps"), inScope(function (d) { S.camps = d.camps; }));
+    else if (t === "classes" && !S.classes) run(api("/api/admin/schools/" + id + "/classes"), inScope(function (d) { S.classes = d; }));
     // The administrators and the clinical staff are two lists on one screen and
     // neither depends on the other. Asked for one after the other, the page
     // drew with half of itself missing and then jumped; asked together, it
@@ -789,40 +935,40 @@ export const PORTAL_HTML = `<!doctype html>
       run(Promise.all([
         api("/api/admin/schools/" + id + "/admins"),
         api("/api/admin/schools/" + id + "/staff")
-      ]), function (d) { S.admins = d[0].admins; S.staff = d[1].staff; });
+      ]), inScope(function (d) { S.admins = d[0].admins; S.staff = d[1].staff; }));
     }
     // The programme tab carries the archive/delete panel for ops, and that
     // panel has to know what is attached to the school before it can say
     // which of the two is possible.
     else if (t === "programme" && isOps() && !S.danger) {
-      run(api("/api/admin/schools/" + id + "/archive"), function (d) {
+      run(api("/api/admin/schools/" + id + "/archive"), inScope(function (d) {
         S.danger = { schoolId: id, footprint: d.footprint, canDelete: d.canDelete, reason: d.reason, confirm: "" };
-      });
+      }));
     }
-    else if (t === "history" && !S.batches) run(api("/api/admin/schools/" + id + "/roster/batches"), function (d) { S.batches = d.batches; });
-    else if (t === "referrals" && !S.referrals) run(api("/api/admin/schools/" + id + "/referrals"), function (d) { S.referrals = d; });
-    else if (t === "report" && !S.report) run(api("/api/admin/schools/" + id + "/report"), function (d) { S.report = d; });
-    else if (t === "requests" && !S.corrections) run(api("/api/admin/schools/" + id + "/corrections"), function (d) { S.corrections = d.corrections; });
-    else if (t === "questions" && !S.threads) run(api("/api/admin/questions?school_id=" + encodeURIComponent(id)), function (d) { S.threads = d; });
-    else if (t === "invites" && !S.invites) run(api("/api/admin/invites?school_id=" + encodeURIComponent(id)), function (d) { S.invites = d; });
+    else if (t === "history" && !S.batches) run(api("/api/admin/schools/" + id + "/roster/batches"), inScope(function (d) { S.batches = d.batches; }));
+    else if (t === "referrals" && !S.referrals) run(api("/api/admin/schools/" + id + "/referrals"), inScope(function (d) { S.referrals = d; }));
+    else if (t === "report" && !S.report) run(api("/api/admin/schools/" + id + "/report"), inScope(function (d) { S.report = d; }));
+    else if (t === "requests" && !S.corrections) run(api("/api/admin/schools/" + id + "/corrections"), inScope(function (d) { S.corrections = d.corrections; }));
+    else if (t === "questions" && !S.threads) run(api("/api/admin/questions?school_id=" + encodeURIComponent(id)), inScope(function (d) { S.threads = d; }));
+    else if (t === "invites" && !S.invites) run(api("/api/admin/invites?school_id=" + encodeURIComponent(id)), inScope(function (d) { S.invites = d; }));
     // The contract and its invoices are independent, so the invoices leave with
     // the contract rather than after it. The contract still paints first.
     else if (t === "billing" && !S.billing) {
       var invoices = api("/api/admin/billing/invoices?school_id=" + encodeURIComponent(id));
-      run(api("/api/admin/billing/contract?school_id=" + encodeURIComponent(id)), function (d) {
+      run(api("/api/admin/billing/contract?school_id=" + encodeURIComponent(id)), inScope(function (d) {
         S.billing = { contract: d.contract, invoices: null };
         invoices.then(function (r) { S.billing.invoices = r.invoices; render(); }).catch(function () {});
-      });
+      }));
     }
   }
 
   function openCamp(id, tab) {
-    run(api("/api/admin/camps/" + encodeURIComponent(id)), function (d) {
+    newScope();
+    run(api("/api/admin/camps/" + encodeURIComponent(id)), inScope(function (d) {
       S.camp = d; S.view = "camp"; S.campTab = tab || defaultCampTab(d);
-      S.participants = null; S.queue = null; S.screenKid = null; S.reviewKid = null;
-      S.campPeople = null;
+      clearScope(CAMP_SCOPED);
       loadCampTab();
-    });
+    }));
   }
   function defaultCampTab(d) {
     if (d.can.review && !d.can.schedule) return "review";
@@ -833,20 +979,25 @@ export const PORTAL_HTML = `<!doctype html>
     var id = S.camp.camp.id, t = S.campTab;
     if (t === "people" && !S.campPeople) {
       run(api("/api/admin/camp-people?camp_id=" + encodeURIComponent(id)
-        + "&school_id=" + encodeURIComponent(S.camp.camp.schoolId)), function (d) { S.campPeople = d; });
+        + "&school_id=" + encodeURIComponent(S.camp.camp.schoolId)), inScope(function (d) { S.campPeople = d; }));
     } else if ((t === "consent" || t === "campday") && !S.participants) {
-      run(api("/api/admin/camps/" + id + "/participants"), function (d) { S.participants = d.participants; });
+      run(api("/api/admin/camps/" + id + "/participants"), inScope(function (d) { S.participants = d.participants; }));
     } else if (t === "review" && !S.queue) {
-      run(api("/api/admin/camps/" + id + "/review"), function (d) { S.queue = d.queue; });
+      run(api("/api/admin/camps/" + id + "/review"), inScope(function (d) { S.queue = d.queue; }));
     }
   }
+  // Re-reads the camp that is already open, so it clears the three lists the
+  // server has just changed and deliberately not the rest: its callers manage
+  // the review pane around it, and a reviewer's unsaved draft is not the
+  // server's to discard. No newScope() for the same reason — this is not a move
+  // — but the answer is still dropped if the operator has left the camp.
   function refreshCamp(tab) {
     var id = S.camp.camp.id;
-    run(api("/api/admin/camps/" + id), function (d) {
+    run(api("/api/admin/camps/" + id), inScope(function (d) {
       S.camp = d; S.participants = null; S.queue = null; S.campPeople = null;
       if (tab) S.campTab = tab;
       loadCampTab();
-    });
+    }));
   }
 
   // ══════════════════════════════════════ overview
@@ -1198,7 +1349,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function viewNewSchool() {
-    var f = S.form || (S.form = { name: "", city: "Hyderabad", district: "", contactName: "", contactPhone: "",
+    var f = form("newSchool", { name: "", city: "Hyderabad", district: "", contactName: "", contactPhone: "",
       contactEmail: "", academicYear: "", campCadence: "ANNUAL", checksOffered: [], description: "" });
     function b(k) { return function (e) { f[k] = e.target.value; }; }
     function tog(c) { var i = f.checksOffered.indexOf(c); if (i >= 0) f.checksOffered.splice(i, 1); else f.checksOffered.push(c); render(); }
@@ -1267,7 +1418,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   function tabProgramme() {
     var s = S.school;
-    var f = S.form || (S.form = { name: s.name, city: s.city, district: s.district, contactName: s.contactName,
+    var f = form("editSchool", { name: s.name, city: s.city, district: s.district, contactName: s.contactName,
       contactPhone: s.contactPhone, contactEmail: s.contactEmail, academicYear: s.academicYear,
       campCadence: s.campCadence, checksOffered: s.checksOffered.slice(), description: s.description });
     function b(k) { return function (e) { f[k] = e.target.value; }; }
@@ -1402,7 +1553,7 @@ export const PORTAL_HTML = `<!doctype html>
   function tabClasses() {
     if (!S.classes) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var c = S.classes;
-    var g = S.form || (S.form = {
+    var g = form("classes", {
       year: c.academicYear,
       grades: c.classes.length ? uniq(c.classes.map(function (x) { return x.grade; })).join(", ") : "Class 1, Class 2, Class 3, Class 4, Class 5",
       sections: c.classes.length ? uniq(c.classes.map(function (x) { return x.section; }).filter(Boolean)).join(", ") : "A, B"
@@ -1496,7 +1647,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   function tabPeople() {
     if (!S.admins) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
-    var f = S.form || (S.form = { name: "", phone: "", email: "", kind: "SCHOOL_ADMIN" });
+    var f = form("staff", { name: "", phone: "", email: "", kind: "SCHOOL_ADMIN" });
     function addPerson() {
       if (f.kind === "SCHOOL_ADMIN") {
         run(api("/api/admin/schools/" + S.school.id + "/admins", { method: "POST", body: f }), function (d) {
