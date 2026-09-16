@@ -12,7 +12,7 @@ class AppContainer(application: Application) {
 
     val auth = AuthManager(application)
     val api = ApiRepositoryProvider.repository
-    val state = AppStateHolder()
+    val state = AppStateHolder(SessionStore.displayPreferences(application))
 
     private val app = application
     private val dataLoader = BackendDataLoader(app, auth, api, state)

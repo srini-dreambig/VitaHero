@@ -6,8 +6,15 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 /**
- * Encrypted persistence for session token and onboarding flag only.
- * All app data lives on Neon DB — not stored locally.
+ * Encrypted persistence for the session token, the onboarding flag and the two
+ * display preferences. All app data lives on Neon DB — not stored locally.
+ *
+ * The language and the theme are the exception, and deliberately so. They used
+ * to live only in the server profile, which meant the app opened in English
+ * every time and only became Telugu once the backend answered — and stayed
+ * English for the whole session if it never did. They are a property of this
+ * phone and the person holding it, so this phone remembers them; the server
+ * copy is what carries the choice to a second device, not what defines it.
  */
 object SessionStore {
 
@@ -15,6 +22,8 @@ object SessionStore {
     private const val KEY_TOKEN = "session_token"
     private const val KEY_ONBOARDING = "onboarding_complete"
     private const val KEY_RESCHEDULE = "needs_notification_reschedule"
+    private const val KEY_LOCALE = "locale_code"
+    private const val KEY_DARK_THEME = "dark_theme"
 
     /**
      * Built once, not on every call.
@@ -69,4 +78,27 @@ object SessionStore {
 
     fun needsNotificationReschedule(context: Context): Boolean =
         prefs(context).getBoolean(KEY_RESCHEDULE, false)
+
+    /** The language and theme this phone was last set to. */
+    fun displayPreferences(context: Context): DisplayPreferences {
+        val p = prefs(context)
+        val code = p.getString(KEY_LOCALE, null)
+        return DisplayPreferences(
+            locale = AppLocale.entries.firstOrNull { it.code == code } ?: AppLocale.ENGLISH,
+            darkTheme = p.getBoolean(KEY_DARK_THEME, false),
+        )
+    }
+
+    fun saveDisplayPreferences(context: Context, locale: AppLocale, darkTheme: Boolean) {
+        prefs(context).edit()
+            .putString(KEY_LOCALE, locale.code)
+            .putBoolean(KEY_DARK_THEME, darkTheme)
+            .apply()
+    }
 }
+
+/** What the app looks like before it has spoken to anything. */
+data class DisplayPreferences(
+    val locale: AppLocale = AppLocale.ENGLISH,
+    val darkTheme: Boolean = false,
+)

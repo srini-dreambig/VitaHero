@@ -46,12 +46,27 @@ class ProfileViewModel(
 
     fun toggleDarkTheme() {
         state.uiState.update { it.copy(darkTheme = !it.darkTheme) }
+        rememberDisplayPreferences()
         container.persist(SyncEntity.PROFILE)
     }
 
     fun setLocale(locale: AppLocale) {
         state.uiState.update { it.copy(locale = locale) }
+        rememberDisplayPreferences()
         container.persist(SyncEntity.PROFILE)
+    }
+
+    /**
+     * Write the choice to the phone as well as queueing it for the server.
+     *
+     * The sync queue can be hours behind on a bad connection and the server may
+     * never be reached at all, but the parent expects the app to still be in
+     * their language the next time they open it. The server copy is what
+     * carries the choice to a second device; it is not what remembers it here.
+     */
+    private fun rememberDisplayPreferences() {
+        val now = state.uiState.value
+        SessionStore.saveDisplayPreferences(getApplication(), now.locale, now.darkTheme)
     }
 
     fun markAllNotificationsRead() {

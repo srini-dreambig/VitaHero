@@ -45,9 +45,16 @@ data class AIDietContent(
     val isGenerating: Boolean = false,
 )
 
-/** Shared in-memory app state — single source of truth for all feature ViewModels. */
-class AppStateHolder {
-    val uiState = MutableStateFlow(AppUiState())
+/** Shared in-memory app state — single source of truth for all feature ViewModels.
+ *
+ * [display] is what this phone was last set to, read from local storage before
+ * anything is on screen, so the first frame is already in the parent's own
+ * language and theme rather than English until the backend answers.
+ */
+class AppStateHolder(display: DisplayPreferences = DisplayPreferences()) {
+    val uiState = MutableStateFlow(
+        AppUiState(locale = display.locale, darkTheme = display.darkTheme)
+    )
     val meals = MutableStateFlow<Map<String, List<MealItem>>>(emptyMap())
     val streaks = MutableStateFlow<Map<String, StreakInfo>>(emptyMap())
     val aiContent = MutableStateFlow<Map<String, AIDietContent>>(emptyMap())
@@ -55,12 +62,22 @@ class AppStateHolder {
     val bookingSlots = MutableStateFlow<Map<String, List<BookingTimeSlot>>>(emptyMap())
     val syncMessage = MutableStateFlow<String?>(null)
 
+    /**
+     * Forget the session, not the phone.
+     *
+     * The language and the theme are the parent's choice about this device and
+     * survive a sign-out — reverting them used to drop a Telugu-speaking parent
+     * onto an English sign-in screen. The sync message goes, because a failure
+     * from the session that just ended has nothing to say to the next one.
+     */
     fun resetSession() {
-        uiState.value = AppUiState()
+        val now = uiState.value
+        uiState.value = AppUiState(locale = now.locale, darkTheme = now.darkTheme)
         meals.value = emptyMap()
         streaks.value = emptyMap()
         aiContent.value = emptyMap()
         leaderboards.value = emptyMap()
         bookingSlots.value = emptyMap()
+        syncMessage.value = null
     }
 }

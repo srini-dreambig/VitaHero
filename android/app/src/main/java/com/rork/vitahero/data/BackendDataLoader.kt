@@ -210,6 +210,15 @@ class BackendDataLoader(
                     state.aiContent.value = state.aiContent.value + aiFromBackend
                 }
                 profile?.onboardingComplete?.let { if (it) auth.setOnboardingComplete(true) }
+                // The server's copy is how a choice made on another phone gets
+                // here. Once it has, this phone remembers it too, so the next
+                // launch is already in the right language before anything is
+                // asked of the network.
+                if (profile != null) {
+                    SessionStore.saveDisplayPreferences(
+                        app, restoredLocale, profile.darkTheme,
+                    )
+                }
             }
 
             onKidIdsLoaded(state.uiState.value.kids.map { it.id })
