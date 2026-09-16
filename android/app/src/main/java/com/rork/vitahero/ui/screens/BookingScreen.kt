@@ -102,17 +102,24 @@ fun BookingScreen(
     refusedMessage: String? = null,
 ) {
     val context = LocalContext.current
-    // The doctor and slot are a selection two taps away; the child is a choice
-    // that is easy to get wrong silently, so that one is kept across a rotation.
-    var selectedDoctor by remember { mutableStateOf<Doctor?>(null) }
+    // An earlier pass left the doctor and the slot transient, on the grounds
+    // that they are "a selection two taps away". They are not. Getting to a
+    // slot means filtering by specialty, expanding a hospital, choosing a
+    // doctor and then waiting for that doctor's slots to come back over the
+    // network — and a rotation at the confirm step threw all of it away and
+    // did not ask for the slots again. What is saved is the id and the label,
+    // which restore without needing either type to be Parcelable.
+    var selectedDoctorId by rememberSaveable { mutableStateOf<String?>(null) }
     var selectedKid by rememberSaveable { mutableStateOf(kids.firstOrNull()?.name ?: "") }
-    var selectedSlot by remember { mutableStateOf<BookingSlot?>(null) }
+    var selectedSlotLabel by rememberSaveable { mutableStateOf<String?>(null) }
     var filterSpecialty by rememberSaveable { mutableStateOf<String?>(null) }
     var showExisting by rememberSaveable { mutableStateOf(true) }
     var viewMode by rememberSaveable { mutableStateOf(BookingViewMode.BY_HOSPITAL) }
     var expandedHospitalId by remember { mutableStateOf<String?>(null) }
 
     val hospitals = directory?.hospitals.orEmpty()
+    val allDoctors = remember(hospitals, doctors) { hospitals.flatMap { it.doctors } + doctors }
+    val selectedDoctor = selectedDoctorId?.let { id -> allDoctors.firstOrNull { it.id == id } }
     val allSpecialties = directory?.specialties?.ifEmpty {
         doctors.map { it.specialty }.distinct()
     } ?: doctors.map { it.specialty }.distinct()
@@ -136,16 +143,25 @@ fun BookingScreen(
         }
     }
 
-    LaunchedEffect(selectedDoctor?.id) {
-        selectedDoctor?.id?.let {
-            onLoadSlots(it)
-            selectedSlot = null
-        }
+    // Asks again after a rotation, which is the point: the slots are a network
+    // read and the restored doctor needs them back. It no longer clears the
+    // chosen slot — a fresh composition re-runs this effect with the same
+    // doctor, and clearing here would undo the very thing being restored.
+    LaunchedEffect(selectedDoctorId) {
+        selectedDoctorId?.let { onLoadSlots(it) }
     }
 
-    val slots = selectedDoctor?.id?.let { doctorId ->
-        bookingSlotsByDoctor[doctorId].orEmpty().map { BookingSlot(it.label, it.date, it.time) }
-    }.orEmpty()
+    val slots = remember(selectedDoctorId, bookingSlotsByDoctor) {
+        selectedDoctorId?.let { doctorId ->
+            bookingSlotsByDoctor[doctorId].orEmpty().map { BookingSlot(it.label, it.date, it.time) }
+        }.orEmpty()
+    }
+
+    // Derived, not stored, so it cannot outlive its meaning: a slot counts only
+    // while the doctor on screen still offers it. Switching doctors used to
+    // leave the previous doctor's time selected on one of the three paths into
+    // the list, which is how a booking gets confirmed at an hour nobody offered.
+    val selectedSlot = selectedSlotLabel?.let { label -> slots.firstOrNull { it.label == label } }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -336,11 +352,11 @@ fun BookingScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ViewModeChip(t(S.viewByHospital), viewMode == BookingViewMode.BY_HOSPITAL) {
                         viewMode = BookingViewMode.BY_HOSPITAL
-                        selectedDoctor = null
+                        selectedDoctorId = null
                     }
                     ViewModeChip(t(S.viewBySpecialty), viewMode == BookingViewMode.BY_SPECIALTY) {
                         viewMode = BookingViewMode.BY_SPECIALTY
-                        selectedDoctor = null
+                        selectedDoctorId = null
                         expandedHospitalId = null
                     }
                 }
@@ -402,8 +418,8 @@ fun BookingScreen(
                             expandedHospitalId = if (expandedHospitalId == hospital.id) null else hospital.id
                         },
                         onDoctorSelect = { doc ->
-                            selectedDoctor = doc
-                            selectedSlot = null
+                            selectedDoctorId = doc.id
+                            selectedSlotLabel = null
                         }
                     )
                     Spacer(Modifier.height(10.dp))
@@ -419,8 +435,8 @@ fun BookingScreen(
                         Spacer(Modifier.height(8.dp))
                         docs.forEach { doctor ->
                             DoctorDirectoryCard(doctor, selectedDoctor?.id == doctor.id) {
-                                selectedDoctor = doctor
-                                selectedSlot = null
+                                selectedDoctorId = doctor.id
+                                selectedSlotLabel = null
                             }
                             Spacer(Modifier.height(10.dp))
                         }
@@ -428,7 +444,7 @@ fun BookingScreen(
                 }
             } else {
                 items(fallbackDoctors, key = { it.id }) { doctor ->
-                    DoctorDirectoryCard(doctor, selectedDoctor?.id == doctor.id) { selectedDoctor = doctor }
+                    DoctorDirectoryCard(doctor, selectedDoctor?.id == doctor.id) { selectedDoctorId = doctor.id; selectedSlotLabel = null }
                     Spacer(Modifier.height(10.dp))
                 }
             }
@@ -484,7 +500,7 @@ fun BookingScreen(
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(14.dp))
                                                 .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
-                                                .clickable { selectedSlot = slot }
+                                                .clickable { selectedSlotLabel = slot.label }
                                                 .padding(vertical = 14.dp),
                                             contentAlignment = Alignment.Center
                                         ) {

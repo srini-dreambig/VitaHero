@@ -135,48 +135,57 @@ class BookingViewModel(
         if (_booking.value) return
         _booking.value = true
         viewModelScope.launch {
-            val appt = Appointment(
-                id = "a${System.currentTimeMillis()}",
-                doctorId = doctor.id,
-                doctorName = doctor.name,
-                specialty = doctor.specialty,
-                kidName = kidName,
-                date = date,
-                time = time,
-            )
-            val result = api.upsertAppointment(
-                AppointmentDto(
-                    id = appt.id,
-                    profileId = auth.profileId.value,
-                    userId = auth.userId.value.ifBlank { auth.profileId.value },
-                    doctorName = appt.doctorName,
-                    doctorId = appt.doctorId.ifBlank { null },
-                    specialty = appt.specialty,
-                    kidName = appt.kidName,
-                    date = appt.date,
-                    time = appt.time,
+            // Released in a finally. It used to be cleared on the last line
+            // of the block, which never ran if anything in it threw — and
+            // scheduling the reminder can, on a phone that has refused the
+            // exact-alarm permission. A parent who hit that could not book
+            // again for the rest of the session, and was told nothing about
+            // why the button had stopped working.
+            try {
+                val appt = Appointment(
+                    id = "a${System.currentTimeMillis()}",
+                    doctorId = doctor.id,
+                    doctorName = doctor.name,
+                    specialty = doctor.specialty,
+                    kidName = kidName,
+                    date = date,
+                    time = time,
                 )
-            )
-
-            result.fold(
-                onSuccess = {
-                    state.uiState.update { it.copy(appointments = it.appointments + appt) }
-                    NotificationScheduler.scheduleCheckupReminder(
-                        getApplication(), doctor.name, kidName, date, time, state.uiState.value.locale,
+                val result = api.upsertAppointment(
+                    AppointmentDto(
+                        id = appt.id,
+                        profileId = auth.profileId.value,
+                        userId = auth.userId.value.ifBlank { auth.profileId.value },
+                        doctorName = appt.doctorName,
+                        doctorId = appt.doctorId.ifBlank { null },
+                        specialty = appt.specialty,
+                        kidName = appt.kidName,
+                        date = appt.date,
+                        time = appt.time,
                     )
-                    _lastBooking.value = BookingOutcome.Confirmed
-                    container.fetchAndApplyBackendData(viewModelScope)
-                },
-                onFailure = { e ->
-                    // A refusal is the server's own wording — "This slot is no
-                    // longer available" — and is worth showing verbatim. A
-                    // network fault is not the parent's fault and says so.
-                    val message = if (e is PermanentRejection) e.message
-                    else tr(S.bookingCouldNotReach, state.uiState.value.locale)
-                    _lastBooking.value = BookingOutcome.Refused(message)
-                },
-            )
-            _booking.value = false
+                )
+
+                result.fold(
+                    onSuccess = {
+                        state.uiState.update { it.copy(appointments = it.appointments + appt) }
+                        NotificationScheduler.scheduleCheckupReminder(
+                            getApplication(), doctor.name, kidName, date, time, state.uiState.value.locale,
+                        )
+                        _lastBooking.value = BookingOutcome.Confirmed
+                        container.fetchAndApplyBackendData(viewModelScope)
+                    },
+                    onFailure = { e ->
+                        // A refusal is the server's own wording — "This slot is no
+                        // longer available" — and is worth showing verbatim. A
+                        // network fault is not the parent's fault and says so.
+                        val message = if (e is PermanentRejection) e.message
+                        else tr(S.bookingCouldNotReach, state.uiState.value.locale)
+                        _lastBooking.value = BookingOutcome.Refused(message)
+                    },
+                )
+            } finally {
+                _booking.value = false
+            }
         }
     }
 

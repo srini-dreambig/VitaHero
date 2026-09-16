@@ -4,8 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -78,28 +82,117 @@ class GuardianViewModel(
     private val _dataRights = MutableStateFlow<List<DataRightDto>>(emptyList())
     val dataRights: StateFlow<List<DataRightDto>> = _dataRights.asStateFlow()
 
-    private val _busy = MutableStateFlow(false)
-    val busy: StateFlow<Boolean> = _busy.asStateFlow()
+    private val _inFlight = MutableStateFlow(0)
+    val busy: StateFlow<Boolean> = _inFlight
+        .map { it > 0 }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     private fun say(message: String) { state.syncMessage.value = message }
+
+    /**
+     * Load a screen's data the first time it asks, and not on every rotation.
+     *
+     * A screen asks for what it shows when it appears, and Compose makes it
+     * appear again on every configuration change — so turning the phone
+     * re-fetched the referral list, the reading list and the question threads.
+     * What a screen shows is this ViewModel's to own, not the composition's.
+     *
+     * A failed load does not count as loaded, so the next visit tries again,
+     * and anything that genuinely needs fresh data passes `force`. The set is
+     * touched only from viewModelScope, which is the main dispatcher, so it
+     * needs no locking of its own.
+     */
+    private val loaded = mutableSetOf<String>()
+
+    private fun once(key: String, force: Boolean = false, block: suspend () -> Unit) {
+        if (force) loaded.remove(key)
+        if (!loaded.add(key)) return
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (e: Throwable) {
+                loaded.remove(key)
+                throw e
+            }
+        }
+    }
+
+    /**
+     * Nothing from one family's session may outlive it.
+     *
+     * These flows are not part of AppStateHolder, so resetSession() never
+     * reached them: signing out left the previous parent's referrals, threads
+     * and consent requests sitting in memory. A reload used to paper over it;
+     * now that a load happens once, it would not have.
+     */
+    private fun forgetSession() {
+        loaded.clear()
+        _pendingConsents.value = emptyList()
+        _result.value = null
+        _photos.value = emptyList()
+        _openPhoto.value = null
+        _questionPolicy.value = QuestionPolicyDto()
+        _threads.value = emptyList()
+        _openThread.value = null
+        _library.value = LibraryDto()
+        _openArticle.value = null
+        _referrals.value = emptyList()
+        _symptomLog.value = SymptomLogDto()
+        _symptomAdvice.value = ""
+        _entitlements.value = EntitlementsDto()
+        _dataRights.value = emptyList()
+    }
+
+    init {
+        viewModelScope.launch {
+            container.auth.isLoggedIn.collect { if (!it) forgetSession() }
+        }
+    }
+
+
+    /**
+     * Run one thing the parent is waiting on, and count it.
+     *
+     * `busy` was a boolean set true at the top of each action and false at the
+     * bottom. Two of these overlap easily — a question posted from one screen
+     * while a data-rights erasure is still running from another — and the first
+     * to finish cleared the flag for both, re-enabling a button whose request
+     * was still in the air. That is how the same withdrawal gets sent twice.
+     *
+     * The count is released in a finally, so an action that throws on its way
+     * out releases it too. Before, it did not, and the screen stayed busy for
+     * the rest of the session.
+     */
+    private fun busyLaunch(block: suspend () -> Unit) {
+        viewModelScope.launch {
+            _inFlight.update { it + 1 }
+            try {
+                block()
+            } finally {
+                _inFlight.update { it - 1 }
+            }
+        }
+    }
 
     /**
      * Everything the home screen needs to know there is something waiting: a
      * consent to answer, a referral to act on, a question that was answered.
      */
-    fun refreshAll() {
-        viewModelScope.launch {
-            _pendingConsents.value = repo.pendingConsents()
-            _referrals.value = repo.referrals()
-            _threads.value = repo.threads()
-            _entitlements.value = repo.entitlements()
-        }
+    fun refreshAll(force: Boolean = false) {
+        // Four independent reads, and not forced by default: its one caller
+        // fires on sign-in, and a fresh composition — every rotation — fires it
+        // again. A sign-out clears what counts as loaded, so the next parent
+        // gets their own. `force` is here for a pull-to-refresh that means it.
+        loadPendingConsents(force)
+        loadReferrals(force = force)
+        loadQuestions(force)
+        loadEntitlements(force)
     }
 
     // ─── Consent ────────────────────────────────────────────
 
-    fun loadPendingConsents() {
-        viewModelScope.launch { _pendingConsents.value = repo.pendingConsents() }
+    fun loadPendingConsents(force: Boolean = false) = once("consents", force) {
+        _pendingConsents.value = repo.pendingConsents()
     }
 
     /**
@@ -116,8 +209,7 @@ class GuardianViewModel(
         photos: Boolean,
         onDone: () -> Unit = {},
     ) {
-        viewModelScope.launch {
-            _busy.value = true
+        busyLaunch {
             repo.recordConsent(campId, kidId, granted, checks, photos).fold(
                 onSuccess = {
                     _pendingConsents.value = repo.pendingConsents()
@@ -126,7 +218,6 @@ class GuardianViewModel(
                 },
                 onFailure = { e -> say(e.message ?: tr(S.consentFailed, locale)) },
             )
-            _busy.value = false
         }
     }
 
@@ -140,10 +231,8 @@ class GuardianViewModel(
     }
 
     fun openPhoto(photoId: String) {
-        viewModelScope.launch {
-            _busy.value = true
+        busyLaunch {
             _openPhoto.value = repo.photo(photoId)
-            _busy.value = false
         }
     }
 
@@ -151,11 +240,9 @@ class GuardianViewModel(
 
     // ─── Questions ──────────────────────────────────────────
 
-    fun loadQuestions() {
-        viewModelScope.launch {
-            _questionPolicy.value = repo.questionPolicy()
-            _threads.value = repo.threads()
-        }
+    fun loadQuestions(force: Boolean = false) = once("questions", force) {
+        _questionPolicy.value = repo.questionPolicy()
+        _threads.value = repo.threads()
     }
 
     fun loadThread(threadId: String) {
@@ -178,8 +265,7 @@ class GuardianViewModel(
         notUrgentAcknowledged: Boolean,
         onDone: () -> Unit = {},
     ) {
-        viewModelScope.launch {
-            _busy.value = true
+        busyLaunch {
             repo.ask(schoolId, kidId, body, notUrgentAcknowledged).fold(
                 onSuccess = { asked ->
                     _threads.value = repo.threads()
@@ -188,14 +274,15 @@ class GuardianViewModel(
                 },
                 onFailure = { e -> say(e.message ?: tr(S.questionFailed, locale)) },
             )
-            _busy.value = false
         }
     }
 
     // ─── Reading ────────────────────────────────────────────
 
-    fun loadLibrary() {
-        viewModelScope.launch { _library.value = repo.library(locale.code) }
+    // Keyed by language: switching to Telugu is a different library, not a
+    // stale one, so it loads again.
+    fun loadLibrary(force: Boolean = false) = once("library:${locale.code}", force) {
+        _library.value = repo.library(locale.code)
     }
 
     fun openArticle(slug: String) {
@@ -206,9 +293,10 @@ class GuardianViewModel(
 
     // ─── Referrals ──────────────────────────────────────────
 
-    fun loadReferrals(includeClosed: Boolean = false) {
-        viewModelScope.launch { _referrals.value = repo.referrals(includeClosed) }
-    }
+    fun loadReferrals(includeClosed: Boolean = false, force: Boolean = false) =
+        once("referrals:$includeClosed", force) {
+            _referrals.value = repo.referrals(includeClosed)
+        }
 
     fun markReferralBooked(referralId: String) {
         viewModelScope.launch {
@@ -254,8 +342,7 @@ class GuardianViewModel(
         missedSchool: Boolean,
         onDone: () -> Unit = {},
     ) {
-        viewModelScope.launch {
-            _busy.value = true
+        busyLaunch {
             repo.recordSymptom(
                 SymptomBody(
                     kidId = kidId, symptom = symptom, severity = severity,
@@ -273,7 +360,6 @@ class GuardianViewModel(
                 },
                 onFailure = { e -> say(e.message ?: tr(S.symptomFailed, locale)) },
             )
-            _busy.value = false
         }
     }
 
@@ -290,20 +376,17 @@ class GuardianViewModel(
 
     // ─── Plan and rights ────────────────────────────────────
 
-    fun loadEntitlements() {
-        viewModelScope.launch { _entitlements.value = repo.entitlements() }
+    fun loadEntitlements(force: Boolean = false) = once("entitlements", force) {
+        _entitlements.value = repo.entitlements()
     }
 
-    fun loadDataRights() {
-        viewModelScope.launch {
-            _dataRights.value = repo.dataRights()
-            _entitlements.value = repo.entitlements()
-        }
+    fun loadDataRights(force: Boolean = false) = once("dataRights", force) {
+        _dataRights.value = repo.dataRights()
+        _entitlements.value = repo.entitlements()
     }
 
     fun requestCorrection(kidId: String, field: String, value: String, note: String) {
-        viewModelScope.launch {
-            _busy.value = true
+        busyLaunch {
             repo.requestCorrection(kidId, field, value, note).fold(
                 onSuccess = {
                     _dataRights.value = repo.dataRights()
@@ -311,14 +394,12 @@ class GuardianViewModel(
                 },
                 onFailure = { e -> say(e.message ?: tr(S.correctionFailed, locale)) },
             )
-            _busy.value = false
         }
     }
 
     /** The erasure right. Reachable only from the record screen. */
     fun eraseChild(kidId: String, onDone: () -> Unit = {}) {
-        viewModelScope.launch {
-            _busy.value = true
+        busyLaunch {
             repo.eraseChild(kidId).fold(
                 onSuccess = {
                     _dataRights.value = repo.dataRights()
@@ -327,13 +408,11 @@ class GuardianViewModel(
                 },
                 onFailure = { e -> say(e.message ?: tr(S.childEraseFailed, locale)) },
             )
-            _busy.value = false
         }
     }
 
     fun withdrawConsent(reason: String, onDone: () -> Unit = {}) {
-        viewModelScope.launch {
-            _busy.value = true
+        busyLaunch {
             repo.withdrawConsent(reason).fold(
                 onSuccess = {
                     _dataRights.value = repo.dataRights()
@@ -342,7 +421,6 @@ class GuardianViewModel(
                 },
                 onFailure = { e -> say(e.message ?: tr(S.consentWithdrawFailed, locale)) },
             )
-            _busy.value = false
         }
     }
 }
