@@ -76,6 +76,26 @@ describe("the portal", () => {
   test("does not require a sign-in to load the page itself", async () => {
     expect((await call("/admin/")).status).toBe(200);
   });
+
+  test("a console that has not changed costs a 304, not a quarter megabyte", async () => {
+    const first = await call("/admin");
+    const etag = first.headers.get("ETag");
+    expect(etag).toBeTruthy();
+    const body = await first.text();
+    // Worth knowing if this ever balloons: it is sent on every cold load.
+    expect(body.length).toBeGreaterThan(50_000);
+
+    const again = await call("/admin", { headers: { "If-None-Match": etag as string } });
+    expect(again.status).toBe(304);
+    expect(again.headers.get("ETag")).toBe(etag);
+    expect(await again.text()).toBe("");
+  });
+
+  test("a stale validator still gets the current console", async () => {
+    const r = await call("/admin", { headers: { "If-None-Match": '"not-this-one"' } });
+    expect(r.status).toBe(200);
+    expect((await r.text()).length).toBeGreaterThan(50_000);
+  });
 });
 
 // ── authorisation ──

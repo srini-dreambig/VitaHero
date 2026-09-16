@@ -182,7 +182,7 @@ import {
 } from "./directory";
 import { migrate, SCHEMA_VERSION } from "./migrate";
 import { servePrivacyPage, serveDataDeletionPage } from "./pages";
-import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
+import { PORTAL_HTML, SERVICE_WORKER_JS, portalShellEtag } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
 const APP_ORIGIN = "https://kidhero.rork.app";
@@ -1831,13 +1831,20 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       }
 
       if (path === "/admin" || path === "/admin/") {
-        return cors(new Response(PORTAL_HTML, {
-          status: 200,
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "no-cache",
-          },
-        }));
+        // no-cache means "check with me first", not "do not store". Paired with
+        // a validator, a console that has not changed since the last visit is
+        // answered with an empty 304 instead of 259 KiB of HTML, and a deploy
+        // is still picked up on the very next load.
+        const etag = portalShellEtag();
+        const shellHeaders = {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache",
+          ETag: etag,
+        };
+        if (request.headers.get("If-None-Match") === etag) {
+          return cors(new Response(null, { status: 304, headers: shellHeaders }));
+        }
+        return cors(new Response(PORTAL_HTML, { status: 200, headers: shellHeaders }));
       }
 
       // ── Admin: referrals, corrections, lifecycle, reports ──

@@ -141,6 +141,20 @@ async function open(screened) {
   check("a near miss does not arm it",
     await p.getByRole("button", { name: /Delete this school/ }).first().isDisabled());
 
+  // Typed one key at a time, the way an operator types it. The field used to
+  // re-render the whole console on every keystroke, which threw away the
+  // element being typed into: the first character landed and the rest went
+  // nowhere. fill() sets the value in one shot and never saw it.
+  const confirm = p.locator('input[placeholder^="Type Silver Oaks"]').first();
+  await confirm.fill("");
+  await confirm.click();
+  await confirm.pressSequentially("Silver Oaks", { delay: 15 });
+  await p.waitForTimeout(250);
+  check("the name can be typed a character at a time",
+    (await confirm.inputValue()) === "Silver Oaks");
+  check("the field still has the caret after typing",
+    await confirm.evaluate((n) => n === document.activeElement));
+
   await p.locator('input[placeholder^="Type Silver Oaks"]').first().fill("Silver Oaks");
   await p.waitForTimeout(250);
   check("the exact name arms it",

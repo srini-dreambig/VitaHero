@@ -742,16 +742,20 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ loaders
   function boot() {
     if (isClinical()) { S.view = "mycamps"; loadMyCamps(); return; }
+    // All three are independent, so all three leave now rather than the second
+    // two waiting on the first. The counters still paint first because they are
+    // the smallest answer; the dashboard and the school list fill in behind
+    // them as they land, each handling its own failure so a slow analytics
+    // query cannot blank the page.
+    var analytics = api("/api/admin/analytics");
+    var schools = api("/api/admin/schools");
     run(api("/api/admin/overview"), function (d) {
       S.overview = d; S.view = "overview";
-      // The dashboard and the school list fill in behind the counters rather
-      // than holding the first paint. Each failure is handled on its own, so a
-      // slow analytics query cannot blank the page.
-      api("/api/admin/analytics").then(
+      analytics.then(
         function (r) { S.analytics = r; },
         function () { S.analyticsError = true; }
       ).then(render);
-      api("/api/admin/schools").then(function (r) {
+      schools.then(function (r) {
         S.schools = r.schools;
         if (isSchoolAdmin() && r.schools.length === 1) S.school = r.schools[0];
         render();
@@ -777,11 +781,15 @@ export const PORTAL_HTML = `<!doctype html>
     if (t === "roster" && !S.roster) run(api("/api/admin/schools/" + id + "/roster?limit=500"), function (d) { S.roster = d; });
     else if (t === "camps" && !S.camps) run(api("/api/admin/schools/" + id + "/camps"), function (d) { S.camps = d.camps; });
     else if (t === "classes" && !S.classes) run(api("/api/admin/schools/" + id + "/classes"), function (d) { S.classes = d; });
+    // The administrators and the clinical staff are two lists on one screen and
+    // neither depends on the other. Asked for one after the other, the page
+    // drew with half of itself missing and then jumped; asked together, it
+    // arrives once.
     else if (t === "people" && !S.admins) {
-      run(api("/api/admin/schools/" + id + "/admins"), function (d) {
-        S.admins = d.admins;
-        api("/api/admin/schools/" + id + "/staff").then(function (r) { S.staff = r.staff; render(); }).catch(function () {});
-      });
+      run(Promise.all([
+        api("/api/admin/schools/" + id + "/admins"),
+        api("/api/admin/schools/" + id + "/staff")
+      ]), function (d) { S.admins = d[0].admins; S.staff = d[1].staff; });
     }
     // The programme tab carries the archive/delete panel for ops, and that
     // panel has to know what is attached to the school before it can say
@@ -797,11 +805,13 @@ export const PORTAL_HTML = `<!doctype html>
     else if (t === "requests" && !S.corrections) run(api("/api/admin/schools/" + id + "/corrections"), function (d) { S.corrections = d.corrections; });
     else if (t === "questions" && !S.threads) run(api("/api/admin/questions?school_id=" + encodeURIComponent(id)), function (d) { S.threads = d; });
     else if (t === "invites" && !S.invites) run(api("/api/admin/invites?school_id=" + encodeURIComponent(id)), function (d) { S.invites = d; });
+    // The contract and its invoices are independent, so the invoices leave with
+    // the contract rather than after it. The contract still paints first.
     else if (t === "billing" && !S.billing) {
+      var invoices = api("/api/admin/billing/invoices?school_id=" + encodeURIComponent(id));
       run(api("/api/admin/billing/contract?school_id=" + encodeURIComponent(id)), function (d) {
         S.billing = { contract: d.contract, invoices: null };
-        api("/api/admin/billing/invoices?school_id=" + encodeURIComponent(id))
-          .then(function (r) { S.billing.invoices = r.invoices; render(); }).catch(function () {});
+        invoices.then(function (r) { S.billing.invoices = r.invoices; render(); }).catch(function () {});
       });
     }
   }
@@ -1368,12 +1378,25 @@ export const PORTAL_HTML = `<!doctype html>
             ? el("div", null,
                 el("p", { class: "muted", style: "font-size:13px;margin:0 0 8px" },
                   "No child has been screened here, so there is nothing clinical to lose. This removes the school, its classes, its roster batches and its draft camps. Students keep their own records and stop belonging to a school."),
-                el("input", { type: "text", value: d.confirm, placeholder: "Type " + s.name + " to confirm",
-                  oninput: function (e) { d.confirm = e.target.value; render(); } }),
-                el("button", { class: "dang", style: "margin-top:10px",
-                  disabled: S.busy || trim(d.confirm).toLowerCase() !== trim(s.name).toLowerCase(),
-                  onclick: destroy }, S.busy ? "Deleting\\u2026" : "Delete this school"))
+                deleteConfirmField(d, s.name, destroy))
             : el("div", { class: "msg err", style: "margin:0" }, d.reason))));
+  }
+
+  // Typing a school's name to confirm its deletion must not rebuild the
+  // console on every keystroke: that is a whole page of DOM per character, and
+  // it used to take the caret with it. The button is toggled directly instead,
+  // so the only thing that changes while typing is one disabled attribute.
+  function deleteConfirmField(d, name, destroy) {
+    var btn = el("button", { class: "dang", style: "margin-top:10px",
+      disabled: S.busy || trim(d.confirm).toLowerCase() !== trim(name).toLowerCase(),
+      onclick: destroy }, S.busy ? "Deleting\u2026" : "Delete this school");
+    var box = el("input", { type: "text", id: "school-delete-confirm", value: d.confirm,
+      placeholder: "Type " + name + " to confirm",
+      oninput: function (e) {
+        d.confirm = e.target.value;
+        btn.disabled = S.busy || trim(d.confirm).toLowerCase() !== trim(name).toLowerCase();
+      } });
+    return el("div", null, box, btn);
   }
 
   function tabClasses() {
@@ -1533,7 +1556,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("div", { class: "fld" }, el("label", null, "Mobile number"),
               el("input", { type: "tel", value: f.phone, oninput: function (e) { f.phone = e.target.value; } })),
             el("div", { class: "fld" }, el("label", null, "Role"),
-              el("select", { onchange: function (e) { f.kind = e.target.value; render(); } },
+              el("select", { id: "staff-kind", onchange: function (e) { f.kind = e.target.value; render(); } },
                 el("option", { value: "SCHOOL_ADMIN", selected: f.kind === "SCHOOL_ADMIN" }, "Administrator"),
                 el("option", { value: "SCREENER", selected: f.kind === "SCREENER" }, "Screening team"),
                 el("option", { value: "PHYSICIAN", selected: f.kind === "PHYSICIAN" }, "Supervising physician")))),
@@ -3321,7 +3344,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("select", { onchange: bind("rightAcuity") }, el("option", { value: "" }, "\\u2014"),
               ACUITY.map(function (a) { return el("option", { value: a, selected: d.rightAcuity === a }, a); })))),
           el("label", { class: "chip" + (d.squint ? " on" : "") },
-            el("input", { type: "checkbox", checked: !!d.squint, onchange: function (e) { d.squint = e.target.checked; render(); } }), "Squint noted"));
+            el("input", { type: "checkbox", id: "vision-squint", checked: !!d.squint, onchange: function (e) { d.squint = e.target.checked; render(); } }), "Squint noted"));
       }
       if (ct === "Dental") {
         return el("div", null, el("div", { class: "g2" },
@@ -3332,7 +3355,7 @@ export const PORTAL_HTML = `<!doctype html>
               ["healthy","bleeding","swollen"].map(function (g) {
                 return el("option", { value: g, selected: d.gums === g }, g.charAt(0).toUpperCase() + g.slice(1)); })))),
           el("label", { class: "chip" + (d.pain ? " on" : "") },
-            el("input", { type: "checkbox", checked: !!d.pain, onchange: function (e) { d.pain = e.target.checked; render(); } }), "Reports pain"));
+            el("input", { type: "checkbox", id: "dental-pain", checked: !!d.pain, onchange: function (e) { d.pain = e.target.checked; render(); } }), "Reports pain"));
       }
       if (ct === "Haemoglobin") {
         return el("div", { class: "fld", style: "max-width:220px" }, el("label", null, "Haemoglobin (g/dL)"),
@@ -4216,6 +4239,18 @@ export const PORTAL_HTML = `<!doctype html>
 
   function render() {
     var root = document.getElementById("root");
+
+    // render() rebuilds the whole tree, which throws away the element the user
+    // was typing in: the field loses focus after one character and the next
+    // keystroke goes nowhere. Anything that re-renders while it has focus
+    // carries an id, and gets its focus and caret put back below.
+    var was = document.activeElement;
+    var wasId = was && was.id ? was.id : "";
+    var caret = null;
+    if (wasId) {
+      try { caret = [was.selectionStart, was.selectionEnd]; } catch (e) { caret = null; }
+    }
+
     clear(root);
     if (!S.auth) { add(root, viewSignIn()); return; }
 
@@ -4276,6 +4311,16 @@ export const PORTAL_HTML = `<!doctype html>
       tb.parentNode.insertBefore(box, tb);
       box.appendChild(tb);
     }
+
+    if (wasId) {
+      var again = document.getElementById(wasId);
+      if (again && again !== document.activeElement) {
+        again.focus();
+        if (caret && typeof again.setSelectionRange === "function") {
+          try { again.setSelectionRange(caret[0], caret[1]); } catch (e) {}
+        }
+      }
+    }
   }
 
   // ── boot ──
@@ -4332,8 +4377,13 @@ self.addEventListener("fetch", function (e) {
   if (url.pathname !== "/admin" && url.pathname !== "/admin/") return;
   e.respondWith(
     fetch(e.request).then(function (res) {
-      var copy = res.clone();
-      caches.open(CACHE).then(function (c) { c.put(SHELL, copy); });
+      // Only a good response replaces the cached shell. Caching whatever came
+      // back would let one 502 during a deploy become the console every
+      // screener sees until they next have signal.
+      if (res && res.ok) {
+        var copy = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(SHELL, copy); });
+      }
       return res;
     }).catch(function () {
       return caches.match(SHELL);
@@ -4341,3 +4391,28 @@ self.addEventListener("fetch", function (e) {
   );
 });
 `;
+
+/**
+ * A validator for the console shell.
+ *
+ * The shell is a quarter of a megabyte of HTML, and it is served no-cache so a
+ * deploy is picked up the moment it lands. Without a validator that means the
+ * whole quarter megabyte again on every single load — including from a phone on
+ * a school's wifi, which is where the console is used. With one, an unchanged
+ * console costs a 304 and no body at all.
+ *
+ * FNV-1a, not a cryptographic hash: it only has to change when the shell does.
+ * Computed once per isolate, on the first request that needs it.
+ */
+let shellEtag = "";
+export function portalShellEtag(): string {
+  if (!shellEtag) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < PORTAL_HTML.length; i++) {
+      h ^= PORTAL_HTML.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    shellEtag = `"${(h >>> 0).toString(36)}-${PORTAL_HTML.length.toString(36)}"`;
+  }
+  return shellEtag;
+}
