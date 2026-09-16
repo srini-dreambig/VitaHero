@@ -312,6 +312,124 @@ queues them at the harness, so the tests keep exercising the real concurrent
 code path instead of the code being bent back into sequential awaits to suit
 the harness.
 
+## State management in the app
+
+Same question as the backend pass, asked of the phone: not how much work the
+app does, but how much of it is work nobody asked for.
+
+### One object, thirty fields
+
+`AppUiState` is a single data class holding the kids, the camps, the
+appointments, the notifications, the wearable readings, the booking directory,
+the language and the theme. Nine scopes collected it whole, and a scope that
+collects it whole is invalidated by all thirty fields however few it reads:
+
+| Scope | fields it reads |
+|---|---|
+| `MainActivity` — the root of the app | 2 of 30 |
+| `AppNavigation` — the whole nav graph | 4 of 30 |
+| `MainScaffold` | 8 of 30 |
+| Notifications destination | 1 of 30 |
+| Kid detail destination | 1 of 30 |
+| Family sharing destination | 2 of 30 |
+
+The root of the app needs the language and the theme. It was being invalidated
+every time a meal was logged or a watch synced a step count.
+
+`selectAsState` maps the flow down to the one value a scope uses and drops
+repeats, so the scope wakes only when that value really changes. All nine sites
+are converted — thirty narrowed reads — and a new audit rule fails the build if
+a `uiState.collectAsState()` goes back in.
+
+**The trap underneath it.** `val uiState get() = state.uiState.asStateFlow()`
+allocates a *new* read-only wrapper on every read. Both `collectAsState` and
+`selectAsState` key their collector on the flow's identity, so that getter was
+tearing down the collector and starting another one every recomposition — and
+would have defeated the narrowing entirely, silently. Assigned once now, with a
+second audit rule to keep it that way.
+
+### State that outlived its session, and state that did not survive one
+
+- **The language and the theme lived only on the server.** So the app opened in
+  English every launch and only became Telugu once the backend answered; stayed
+  English for the whole session if it never did; and signing out dropped a
+  Telugu-speaking parent onto an English sign-in screen. They are a property of
+  this phone, so this phone remembers them now. The server copy is what carries
+  the choice to a second device, not what defines it.
+- **`resetSession()` left the sync message behind**, so a failure from the
+  session that just ended could surface in the next one.
+- **`onBackendLogin` cleared seven fields and three caches by hand** and had
+  already drifted from `resetSession` — it left the previous family's
+  leaderboards and booking slots in memory. Both go through one method now.
+- **`GuardianViewModel`'s flows were never cleared at all.** They are not part
+  of `AppStateHolder`, so `resetSession()` never reached them: the previous
+  parent's referrals, question threads and consent requests stayed in memory
+  after sign-out. A reload on the next screen visit papered over it — and the
+  caching change below would have stopped papering.
+
+### In-flight flags
+
+- **Seven different actions shared one `busy` boolean** in `GuardianViewModel`,
+  with no re-entrancy guard. A question posted from one screen while a
+  data-rights erasure ran from another: the first to finish re-enabled the
+  other's button while its request was still in the air. It is a count now,
+  released in a `finally` — which also fixes the case where an action threw on
+  its way out and left the screen busy for the rest of the session.
+- **`bookAppointment` cleared its flag on the last line of the block**, not in a
+  `finally`. Scheduling the reminder can throw on a phone that has refused the
+  exact-alarm permission — the permission this app asks for at sign-in — and a
+  parent who hit that could not book an appointment again for the rest of the
+  session, with nothing on screen to say why.
+- The other three flags (`CampsViewModel`, `ProfileViewModel`, `AuthManager`)
+  have re-entrancy guards or `finally` blocks already. Left alone.
+
+### Loads owned by the composition
+
+`LaunchedEffect(Unit)` re-fires whenever the screen re-enters composition, and a
+rotation does exactly that. Five guardian screens loaded their data that way, on
+top of a `refreshAll()` fired from the nav host on sign-in — which also re-fires
+on rotation.
+
+A rotation on the questions screen cost **seven HTTP requests**. It now costs
+none: what a screen shows is the ViewModel's to own, the first ask loads it,
+later asks are free, a failed load does not count as loaded, and a sign-out
+forgets everything so the next parent gets their own.
+
+### The booking selection
+
+The doctor and the slot were deliberately left transient by an earlier pass, on
+the grounds that they are "a selection two taps away". They are not: reaching a
+slot means filtering by specialty, expanding a hospital, choosing a doctor and
+waiting for that doctor's slots over the network. A rotation at the confirm step
+threw all of it away and did not ask for the slots again.
+
+The id and the label are saved instead, which restores without needing either
+type to be Parcelable. The selected slot is now *derived* from the slots the
+current doctor offers rather than stored — which also fixes a real one: one of
+the three paths into the doctor list changed the doctor without clearing the
+slot, so a booking could be confirmed at an hour that doctor never offered.
+
+### The safety net had a hole in it
+
+`kotlin-parse.sh` prints "no syntax errors, no redeclarations". It was matching
+the compiler's `conflicting overloads` but not `conflicting declarations` —
+which is what the compiler says for two locals of the same name in one scope,
+and exactly what a nine-site automated rename can introduce. It said "no
+redeclarations" over a file with one in it. Fixed, and checked in both
+directions: the collision now fails the run, and the real tree passes it.
+
+### Looked at and left alone
+
+- **`AppStateHolder` exposes its `MutableStateFlow`s.** Every writer is in
+  `data/` — no screen writes app state — so this is a deliberate shared holder,
+  not an accident. Sealing it would be churn without a defect behind it.
+- **`collectAsState` rather than `collectAsStateWithLifecycle`,** still. These
+  are `StateFlow`s with no upstream to keep warm, and Compose pauses
+  recomposition when the window is not visible.
+- **The food-recognition result is transient by design.** Restoring "analysing…"
+  across process death would show a spinner with no work behind it, and half a
+  result is worse than re-photographing the plate.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
