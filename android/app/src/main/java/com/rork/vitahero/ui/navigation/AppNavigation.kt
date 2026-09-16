@@ -23,7 +23,6 @@ import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.PdfReportGenerator
 import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.data.rememberVitaHeroViewModels
-import com.rork.vitahero.ui.screens.AddKidScreen
 import com.rork.vitahero.ui.screens.AuthScreen
 import com.rork.vitahero.ui.screens.BookingScreen
 import com.rork.vitahero.ui.screens.CampConsentScreen
@@ -60,7 +59,6 @@ object Routes {
     const val DIET = "diet/{kidId}"
     const val BOOKING = "booking"
     const val NOTIFICATIONS = "notifications"
-    const val ADD_KID = "addKid"
     const val FAMILY_SHARING = "familySharing"
     const val FOOD_RECOGNITION = "foodRecognition/{kidId}/{kidName}"
     const val SCHOOLS = "schools"
@@ -286,7 +284,6 @@ fun AppNavigation(
                 onOpenDiet = { navController.navigate("diet/$it") },
                 onOpenBooking = { navController.navigate(Routes.BOOKING) },
                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
-                onAddKid = { navController.navigate(Routes.ADD_KID) },
                 onOpenFamilySharing = { navController.navigate(Routes.FAMILY_SHARING) },
                 onOpenSchools = { navController.navigate(Routes.SCHOOLS) },
                 onOpenHospitals = { navController.navigate(Routes.HOSPITALS) },
@@ -491,16 +488,6 @@ fun AppNavigation(
                 notifications = state.notifications,
                 onBack = {
                     profileViewModel.markAllNotificationsRead()
-                    navController.popBackStack()
-                }
-            )
-        }
-
-        composable(Routes.ADD_KID) {
-            AddKidScreen(
-                onBack = { navController.popBackStack() },
-                onSave = { name, age, gender, school, grade ->
-                    kidsViewModel.addKid(name, age, gender, school, grade)
                     navController.popBackStack()
                 }
             )

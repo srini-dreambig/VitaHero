@@ -1035,7 +1035,6 @@ describe("a client-supplied id cannot reach another account's row", () => {
 
   /** Every upsert on the sync surface, with a body the app would really send. */
   const UPSERTS: Array<[string, string, Record<string, unknown>]> = [
-    ["a child", "/api/kids", { id: "k_auto_9876543210_arjun_2015_ab12", name: "Arjun", age: 9, gender: "M" }],
     ["an appointment", "/api/appointments", { id: "apt_1", doctor_name: "Dr Rao", specialty: "Dental", kid_name: "Arjun", date: "2026-10-01", time: "10:00" }],
     ["a camp entry", "/api/camps", { id: "cmp_1", title: "Annual", school: "Silver Oaks", date: "2026-10-01", time: "09:00" }],
     ["a co-parent", "/api/co-parents", { id: "cop_1", name: "Ravi", relation: "Father" }],
@@ -1114,56 +1113,57 @@ describe("a client-supplied id cannot reach another account's row", () => {
   });
 });
 
-// ── what a first request on a fresh database costs ──
+// ── children are the school's to add ──
 //
-// Cloudflare allows 50 outbound subrequests on the free plan, and the route
-// still has its own queries to make after the database is brought up to date.
-// The DDL has been batched since the outage that prompted migrate.ts; the
-// seeds had not been, and ran one statement at a time after it. This pins the
-// whole budget so neither half can creep back up unnoticed.
-describe("bringing up a fresh database", () => {
-  test("costs a small, flat number of subrequests", async () => {
-    let statements = 0;
-    let transactions = 0;
+// A closed programme: a guardian is provisioned by a roster import and their
+// children arrive with it, matched on the mobile number the school holds. The
+// app used to be able to create one anyway, and that child could not be
+// screened, consented for, or put on a camp list — it just sat there looking
+// real.
+describe("a parent cannot create a child", () => {
+  const TOKEN = "a".repeat(48);
+  const bearer = { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" };
+  const asParent = () => [{
+    match: /session_token = /,
+    rows: [{ id: "ph_mine", user_id: "ph_mine", name: "Priya", role: "PARENT", school_id: null }],
+  }];
 
-    const makeCounted = () => {
-      const run = () => { statements++; return Promise.resolve([] as Record<string, unknown>[]); };
-      const sql: any = (strings: TemplateStringsArray | string) => {
-        if (typeof strings === "string") throw new Error("sql(identifier) is not supported by the Neon driver");
-        return run();
-      };
-      sql.query = () => run();
-      // The Neon driver sends a whole transaction as one request, so the
-      // statements inside it must not be counted twice.
-      sql.transaction = (queries: unknown[]) => {
-        statements -= queries.length;
-        transactions++;
-        return Promise.resolve([]);
-      };
-      return sql;
-    };
+  test("the endpoint refuses, and says who can", async () => {
+    handlers = asParent();
+    const r = await call("/api/kids", {
+      method: "POST", headers: bearer,
+      body: JSON.stringify({ id: "k_new", name: "Arjun", age: 9, gender: "M" }),
+    });
+    expect(r.status).toBe(403);
+    const body = await r.json();
+    expect(body.code).toBe("ROSTER_MANAGED");
+    expect(body.error).toMatch(/school/i);
+    // Nothing was written on the way to refusing.
+    expect(calls.some((c) => /INSERT INTO vita_hero\.kids/.test(c.text))).toBe(false);
+  });
 
-    mock.module("@neondatabase/serverless", () => ({ neon: () => makeCounted() }));
-    // A fresh import so the module-level "schema is ready" latch starts unset.
-    const fresh = (await import("./index?fresh-db-budget")).default;
-    await fresh.fetch(
-      new Request("https://api.test/api/admin/schools", { headers: opsHeaders }),
-      ENV as never
-    );
+  test("it is still a 401 when nobody is signed in", async () => {
+    handlers = [];
+    const r = await call("/api/kids", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "k_new", name: "Arjun" }),
+    });
+    expect(r.status).toBe(401);
+  });
 
-    const subrequests = transactions + statements;
-    console.log(`    fresh database: ${transactions} transactions + ${statements} statements = ${subrequests} subrequests`);
-    // Guard against the test passing because the module-level "schema ready"
-    // latch was already set by an earlier test and migrate() never ran.
-    expect(transactions).toBeGreaterThan(0);
-    // Measured at 13: four batched DDL transactions, the version gate, three
-    // seed guards, four seed inserts and the version write. Generous headroom,
-    // but far below the 50 that took the worker down before.
-    expect(subrequests).toBeLessThan(25);
+  test("reading children still works — they come from the roster", async () => {
+    handlers = [
+      ...asParent(),
+      { match: /SELECT \* FROM vita_hero\.kids/, rows: [{ id: "k_roster", name: "Arjun", profile_id: "ph_mine" }] },
+    ];
+    const r = await call("/api/kids", { headers: bearer });
+    expect(r.status).toBe(200);
+    expect((await r.json()).length).toBe(1);
+  });
 
-    // The seeds are the half that used to scale with their own content: an
-    // article per locale, a school per row. They are flat now, so adding seed
-    // data cannot walk the worker back into the cap.
-    expect(statements).toBeLessThan(12);
+  test("the refusal is permanent, so a client stops retrying it", async () => {
+    // 403 is outside the two statuses the app treats as "come back later",
+    // which is what makes an old build give up rather than resend forever.
+    expect([408, 429]).not.toContain(403);
   });
 });

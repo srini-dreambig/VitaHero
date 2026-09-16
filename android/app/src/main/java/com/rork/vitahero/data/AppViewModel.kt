@@ -154,7 +154,6 @@ class AppViewModel(
         fetchAndApplyBackendData()
         container.persistNow(
             SyncEntity.PROFILE,
-            SyncEntity.KIDS,
             SyncEntity.CAMPS,
             SyncEntity.MEALS,
             SyncEntity.STREAKS,

@@ -3,7 +3,6 @@ package com.rork.vitahero.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -18,7 +17,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
-import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.School
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -49,7 +48,6 @@ import com.rork.vitahero.ui.theme.AppTheme
 fun KidsScreen(
     kids: List<Kid>,
     onOpenKid: (String) -> Unit,
-    onAddKid: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier
@@ -79,12 +77,15 @@ fun KidsScreen(
 
         if (kids.isEmpty()) {
             item {
+                // No button here on purpose. A parent cannot add a child to a
+                // closed programme — the school's roster does, matched on the
+                // mobile number they hold. An empty list means that number has
+                // not been matched, and the only useful thing the app can do is
+                // say so and point at the school office.
                 EmptyState(
-                    icon = Icons.Outlined.Add,
+                    icon = Icons.Outlined.School,
                     title = t(S.noKidsYet),
                     subtitle = t(S.noKidsSub),
-                    actionLabel = t(S.addChild),
-                    onAction = onAddKid
                 )
             }
         } else {
@@ -93,9 +94,11 @@ fun KidsScreen(
             }
         }
 
-        item {
-            Spacer(Modifier.height(8.dp))
-            AddKidCard(Modifier.padding(horizontal = 20.dp), onAddKid)
+        if (kids.isNotEmpty()) {
+            item {
+                Spacer(Modifier.height(8.dp))
+                RosterNote(Modifier.padding(horizontal = 20.dp))
+            }
         }
     }
 }
@@ -155,29 +158,28 @@ private fun Metric(label: String, value: String, modifier: Modifier = Modifier) 
 }
 
 @Composable
-private fun AddKidCard(modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun RosterNote(modifier: Modifier = Modifier) {
     HeroCard(
-        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
-        background = MaterialTheme.colorScheme.primaryContainer,
+        modifier = modifier.fillMaxWidth(),
+        background = MaterialTheme.colorScheme.surfaceVariant,
         border = false
     ) {
         Row(
             Modifier.padding(18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(
-                Modifier
-                    .size(48.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Outlined.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary)
-            }
+            Icon(
+                Icons.Outlined.School,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(22.dp),
+            )
             Spacer(Modifier.width(14.dp))
-            Column {
-                Text(t(S.addAnotherChild), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text(t(S.trackAllKids), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f))
-            }
+            Text(
+                t(S.childrenFromSchool),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -190,7 +192,6 @@ private fun KidsScreenPreview() {
             KidsScreen(
                 kids = emptyList(),
                 onOpenKid = {},
-                onAddKid = {}
             )
         }
     }

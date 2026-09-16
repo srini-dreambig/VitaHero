@@ -18,7 +18,7 @@ difference. Several findings below are of that shape.
 | Onboarding | static | Four slides; images are remote URLs. |
 | Auth / OTP | `/api/auth/*` | Real. Phone OTP via Twilio. |
 | Home | `/api/kids`, `/api/camps`, `/api/appointments` | **Fixed:** showed an unscreened child a health score of 80% and "doing well". Now a dash and "Not screened yet". |
-| Kids | `/api/kids` | **Fixed:** height and weight rendered as "0 cm" / "0 kg" for an unmeasured child; now a dash. Labels were English-only. |
+| Kids | `/api/kids` (read only) | **Fixed:** height and weight rendered as "0 cm" / "0 kg" for an unmeasured child; now a dash. Labels were English-only. **Removed:** adding a child — see below. |
 | Kid detail | `/api/kids` + camp results | **Removed:** the growth entry form. Height and weight are the camp's. |
 | Growth charts | WHO/IAP tables + the child's measurement | **Fixed:** fed a zero height into the tables, which returns below the 3rd percentile, and plotted a severe stunting result for a child nobody had measured. Now says there are no measurements. |
 | Diet | `/api/meals`, `/api/ai-diet-tip` | Falls back to on-device generic advice, labelled as such. **Fixed:** read NOT_MEASURED as "needs extra care" in one line and "keep up the great balance" in the next. |
@@ -113,6 +113,31 @@ phone rotates, or the server says no.
 Checked and found sound, so recorded rather than changed: no `!!`, no unguarded
 indexing, ownership scoping on every guardian read, and icons that sit beside a
 text label correctly leave `contentDescription` null.
+
+## Children are the school's to add
+
+The app had an Add child screen, reachable twice from the Kids tab, and the
+empty state invited a parent to use it. That contradicts what this programme
+is: a guardian is provisioned by a roster import and their children arrive with
+it, matched on the mobile number the school holds. A child created in the app
+had no student reference and no school, so it could not be put on a camp list,
+consented for, or screened. It sat there looking real.
+
+Removed: the screen, its route, both entry points, the view-model call, and the
+kids half of the sync payload — nothing in the app writes a child now, so
+`SyncEntity.KIDS` is gone rather than left dangling. Family sharing still
+merges a co-parent's children for display, but no longer pushes them back as
+its own; the server would refuse that anyway now, since the roster says whose
+child is whose.
+
+`POST /api/kids` answers 403 `ROSTER_MANAGED` rather than being deleted, so an
+older build in the field is told why instead of getting a bare 404 — and a 403
+is permanent, so it stops resending. Reading children is untouched, as is a
+guardian's right to erase one.
+
+The empty state no longer offers a button. It says the school adds children
+using the mobile number they hold, and to ask the office if one is missing —
+which is the only thing that can actually help.
 
 ## Still open
 

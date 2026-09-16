@@ -11,7 +11,6 @@ import kotlinx.coroutines.launch
  */
 enum class SyncEntity {
     PROFILE,
-    KIDS,
     GROWTH,
     CAMPS,
     MEALS,

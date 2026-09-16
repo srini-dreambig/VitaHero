@@ -214,9 +214,7 @@ class ApiRepository {
         if (resp.observed()) resp.body<List<KidDto>>() else emptyList()
     }
 
-    suspend fun upsertKid(dto: KidDto): Result<Unit> = onIo {
-        postResult("/api/kids", dto)
-    }
+
 
 
     // ─── Camps ─────────────────────────────────────────────────

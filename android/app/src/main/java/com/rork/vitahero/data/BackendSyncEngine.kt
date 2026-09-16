@@ -38,31 +38,6 @@ object BackendSyncEngine {
             null
         }
 
-        val kidDtos = if (SyncEntity.KIDS in entities) {
-            state.kids.map { kid ->
-                KidDto(
-                    id = kid.id,
-                    profileId = profileId,
-                    userId = userId,
-                    name = kid.name,
-                    age = kid.age,
-                    gender = kid.gender,
-                    school = kid.school,
-                    grade = kid.grade,
-                    heightCm = kid.heightCm.toDouble(),
-                    weightKg = kid.weightKg.toDouble(),
-                    avatarColor = kid.avatarColor,
-                    overallScore = kid.overallScore,
-                    dental = kid.dental.name,
-                    eyesight = kid.eyesight.name,
-                    nutrition = kid.nutrition.name,
-                    lastCheckup = kid.lastCheckup,
-                )
-            }
-        } else {
-            emptyList()
-        }
-
         val growthDtos = if (SyncEntity.GROWTH in entities) {
             state.kids.flatMap { kid ->
                 kid.growth.map { gp ->
@@ -156,7 +131,6 @@ object BackendSyncEngine {
         return SyncBatch(
             entityNames = entities.map { it.name },
             profile = profile,
-            kids = kidDtos,
             growthPoints = growthDtos,
             appointments = appointmentDtos,
             meals = mealDtos,
@@ -229,9 +203,6 @@ object BackendSyncEngine {
 
         if (SyncEntity.PROFILE in entities && batch.profile != null) {
             attempt(SyncEntity.PROFILE, batch.profile.id) { api.upsertProfile(batch.profile) }
-        }
-        if (SyncEntity.KIDS in entities) {
-            for (k in batch.kids) attempt(SyncEntity.KIDS, k.id) { api.upsertKid(k) }
         }
         if (SyncEntity.GROWTH in entities) {
             for (g in batch.growthPoints) attempt(SyncEntity.GROWTH, g.id) { api.upsertGrowthPoint(g) }

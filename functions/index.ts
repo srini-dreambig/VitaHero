@@ -3016,57 +3016,28 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         return json(rows);
       }
 
+      // Children come from the school, not from the app.
+      //
+      // This is a closed programme: a guardian is provisioned by a roster
+      // import and their children arrive with it, matched on the mobile number
+      // the school holds. There is no parent-created child, and there never
+      // should have been — a child the school has not enrolled cannot be
+      // screened, cannot be consented for, and cannot appear on a camp list,
+      // so one created here would sit in the app looking real and do nothing.
+      //
+      // A correction to a child the school did enrol goes through
+      // /api/me/correction, which the school office reviews. That is the
+      // pathway, and it is deliberately not this one.
       if (path === "/api/kids" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
-        const body: Record<string, unknown> = await request.json();
-        const row = await sql`
-          INSERT INTO vita_hero.kids
-            (id, profile_id, user_id, name, age, gender, school, grade,
-             height_cm, weight_kg, avatar_color, overall_score, dental,
-             eyesight, nutrition, last_checkup)
-          VALUES (
-            ${body.id as string}, ${session.profileId},
-            ${session.userId || null}, ${body.name as string},
-            ${body.age as number}, ${body.gender as string},
-            ${(body.school as string) || ""}, ${(body.grade as string) || ""},
-            ${(body.height_cm as number) || 0}, ${(body.weight_kg as number) || 0},
-            ${(body.avatar_color as number) || 0}, ${(body.overall_score as number) || 80},
-            ${(body.dental as string) || "GOOD"}, ${(body.eyesight as string) || "GOOD"},
-            ${(body.nutrition as string) || "GOOD"}, ${(body.last_checkup as string) || "Not yet"}
-          )
-          ON CONFLICT (id) DO UPDATE SET
-            user_id = EXCLUDED.user_id,
-            name = EXCLUDED.name, age = EXCLUDED.age, gender = EXCLUDED.gender,
-            school = EXCLUDED.school, grade = EXCLUDED.grade,
-            avatar_color = EXCLUDED.avatar_color,
-            height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg,
-            dental = COALESCE(
-              (SELECT ckr.dental FROM vita_hero.camp_kid_results ckr
-               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
-              EXCLUDED.dental),
-            eyesight = COALESCE(
-              (SELECT ckr.eyesight FROM vita_hero.camp_kid_results ckr
-               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
-              EXCLUDED.eyesight),
-            nutrition = COALESCE(
-              (SELECT ckr.nutrition FROM vita_hero.camp_kid_results ckr
-               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
-              EXCLUDED.nutrition),
-            last_checkup = COALESCE(
-              (SELECT sc.date FROM vita_hero.camp_kid_results ckr
-               JOIN vita_hero.school_camps sc ON sc.id = ckr.school_camp_id
-               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
-              EXCLUDED.last_checkup),
-            overall_score = CASE
-              WHEN EXISTS (
-                SELECT 1 FROM vita_hero.camp_kid_results ckr WHERE ckr.kid_id = EXCLUDED.id
-              ) THEN vita_hero.kids.overall_score
-              ELSE EXCLUDED.overall_score END
-          WHERE vita_hero.kids.profile_id = ${session.profileId}
-          RETURNING *
-        `;
-        if (row.length === 0) return json(NOT_YOURS, 409);
-        return json(row[0], 201);
+        return json(
+          {
+            error: "Children are added by your school, not from the app. " +
+              "If a child is missing, ask the school office to check the mobile number they hold for you.",
+            code: "ROSTER_MANAGED",
+          },
+          403
+        );
       }
 
       if (path.startsWith("/api/kids/") && request.method === "DELETE") {

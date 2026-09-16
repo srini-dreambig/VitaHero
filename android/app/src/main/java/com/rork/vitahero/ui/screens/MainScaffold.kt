@@ -81,7 +81,6 @@ fun MainScaffold(
     onOpenDiet: (String) -> Unit,
     onOpenBooking: () -> Unit,
     onOpenNotifications: () -> Unit,
-    onAddKid: () -> Unit,
     onOpenFamilySharing: () -> Unit,
     onOpenSchools: () -> Unit = {},
     onOpenHospitals: () -> Unit = {},
@@ -130,7 +129,6 @@ fun MainScaffold(
                 Tab.KIDS -> KidsScreen(
                     kids = state.kids,
                     onOpenKid = onOpenKid,
-                    onAddKid = onAddKid
                 )
                 Tab.CAMPS -> CampsScreen(
                     camps = state.camps,
