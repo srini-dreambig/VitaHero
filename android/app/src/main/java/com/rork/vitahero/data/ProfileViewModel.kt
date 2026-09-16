@@ -3,6 +3,9 @@ package com.rork.vitahero.data
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -68,6 +71,17 @@ class ProfileViewModel(
         container.persist(SyncEntity.PROFILE)
     }
 
+    /**
+     * Whether a family-sharing write is with the server.
+     *
+     * Joining a family validates a code and then joins — two round trips — and
+     * the screen used to hide the form and clear the field the instant the
+     * button was tapped, before either had answered. A parent whose code was
+     * wrong saw the form disappear and a message arrive with nothing to correct.
+     */
+    private val _familyBusy = MutableStateFlow(false)
+    val familyBusy: StateFlow<Boolean> = _familyBusy.asStateFlow()
+
     /** Used during consent flow before profile VM may be wired in UI. */
     fun generateFamilyCodeIfNeeded(): String {
         val current = state.uiState.value.familyCode
@@ -78,35 +92,41 @@ class ProfileViewModel(
     }
 
     fun joinFamily(code: String, kidsViewModel: KidsViewModel) {
+        if (_familyBusy.value) return
+        _familyBusy.value = true
         viewModelScope.launch {
-            val token = auth.sessionToken.value ?: return@launch
-            val locale = state.uiState.value.locale
-            FamilySharingService.validateCode(code, token).fold(
-                onSuccess = { validation ->
-                    if (!validation.valid) {
-                        state.syncMessage.value = validation.error ?: tr(S.familyInvalid, locale)
-                        return@launch
-                    }
-                    FamilySharingService.joinFamily(
-                        code = code,
-                        coParentName = state.uiState.value.parentName,
-                        relation = tr(S.coParentRelation, locale),
-                        accessToken = token,
-                    ).onSuccess { resp ->
-                        if (resp.success) {
-                            container.fetchAndApplyBackendData(viewModelScope)
-                            fetchSharedKids(kidsViewModel)
-                        } else {
-                            state.syncMessage.value = resp.error ?: tr(S.familyInvalid, locale)
+            try {
+                val token = auth.sessionToken.value ?: return@launch
+                val locale = state.uiState.value.locale
+                FamilySharingService.validateCode(code, token).fold(
+                    onSuccess = { validation ->
+                        if (!validation.valid) {
+                            state.syncMessage.value = validation.error ?: tr(S.familyInvalid, locale)
+                            return@launch
                         }
-                    }.onFailure { e ->
+                        FamilySharingService.joinFamily(
+                            code = code,
+                            coParentName = state.uiState.value.parentName,
+                            relation = tr(S.coParentRelation, locale),
+                            accessToken = token,
+                        ).onSuccess { resp ->
+                            if (resp.success) {
+                                container.fetchAndApplyBackendData(viewModelScope)
+                                fetchSharedKids(kidsViewModel)
+                            } else {
+                                state.syncMessage.value = resp.error ?: tr(S.familyInvalid, locale)
+                            }
+                        }.onFailure { e ->
+                            state.syncMessage.value = e.message ?: tr(S.syncFailed, locale)
+                        }
+                    },
+                    onFailure = { e ->
                         state.syncMessage.value = e.message ?: tr(S.syncFailed, locale)
-                    }
-                },
-                onFailure = { e ->
-                    state.syncMessage.value = e.message ?: tr(S.syncFailed, locale)
-                },
-            )
+                    },
+                )
+            } finally {
+                _familyBusy.value = false
+            }
         }
     }
 

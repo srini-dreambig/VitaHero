@@ -71,6 +71,8 @@ fun FamilySharingScreen(
     coParents: List<CoParent>,
     onBack: () -> Unit,
     onJoinFamily: (String) -> Unit,
+    /** True while a family-sharing write is with the server. */
+    busy: Boolean = false,
     onGenerateCode: () -> Unit,
     onShareCode: () -> Unit
 ) {
@@ -129,7 +131,8 @@ fun FamilySharingScreen(
                             )
                             Spacer(Modifier.height(12.dp))
                             PrimaryGradientButton(
-                                text = t(S.generateFamilyCode),
+                                text = if (busy) t(S.pleaseWait) else t(S.generateFamilyCode),
+                                enabled = !busy,
                                 onClick = onGenerateCode,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -279,13 +282,15 @@ fun FamilySharingScreen(
                             )
                             Spacer(Modifier.height(14.dp))
                             PrimaryGradientButton(
-                                text = t(S.joinFamily),
-                                enabled = joinCode.length >= 4,
-                                onClick = {
-                                    onJoinFamily(joinCode)
-                                    showJoin = false
-                                    joinCode = ""
-                                },
+                                text = if (busy) t(S.pleaseWait) else t(S.joinFamily),
+                                enabled = joinCode.length >= 4 && !busy,
+                                // The form used to close and clear itself the
+                                // instant this was tapped, before the code had
+                                // been validated. A parent who mistyped saw the
+                                // form vanish and a complaint arrive with
+                                // nothing left to correct. It stays until the
+                                // shared children actually appear.
+                                onClick = { onJoinFamily(joinCode) },
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }

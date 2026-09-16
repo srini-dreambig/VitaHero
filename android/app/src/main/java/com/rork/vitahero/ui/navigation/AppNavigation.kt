@@ -547,6 +547,7 @@ fun AppNavigation(
 
         composable(Routes.FAMILY_SHARING) {
             val state by appViewModel.uiState.collectAsState()
+            val familyBusy by profileViewModel.familyBusy.collectAsState()
             FamilySharingScreen(
                 familyCode = state.familyCode,
                 coParents = state.coParents,
@@ -561,7 +562,8 @@ fun AppNavigation(
                         putExtra(android.content.Intent.EXTRA_SUBJECT, "VitaHero Family Sharing")
                     }
                     navController.context.startActivity(android.content.Intent.createChooser(intent, "Share family code"))
-                }
+                },
+                busy = familyBusy,
             )
         }
 

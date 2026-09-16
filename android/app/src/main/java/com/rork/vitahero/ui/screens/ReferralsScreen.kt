@@ -55,6 +55,7 @@ fun ReferralsScreen(
     onBack: () -> Unit,
 ) {
     val referrals by guardianViewModel.referrals.collectAsState()
+    val busy by guardianViewModel.busy.collectAsState()
 
     LaunchedEffect(Unit) { guardianViewModel.loadReferrals() }
 
@@ -98,6 +99,7 @@ fun ReferralsScreen(
                 onBooked = { guardianViewModel.markReferralBooked(r.id) },
                 onAttended = { guardianViewModel.markReferralAttended(r.id, "") },
                 onDecline = { guardianViewModel.declineReferral(r.id, "") },
+                busy = busy,
             )
             Spacer(Modifier.height(12.dp))
         }
@@ -110,6 +112,7 @@ private fun ReferralCard(
     onBooked: () -> Unit,
     onAttended: () -> Unit,
     onDecline: () -> Unit,
+    busy: Boolean,
 ) {
     HeroCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp)) {
@@ -149,7 +152,8 @@ private fun ReferralCard(
             when (r.status) {
                 "OPEN" -> {
                     PrimaryGradientButton(
-                        text = t(S.referralBooked),
+                        text = if (busy) t(S.pleaseWait) else t(S.referralBooked),
+                        enabled = !busy,
                         onClick = onBooked,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -164,7 +168,8 @@ private fun ReferralCard(
                 }
                 "BOOKED" -> {
                     PrimaryGradientButton(
-                        text = t(S.referralAttended),
+                        text = if (busy) t(S.pleaseWait) else t(S.referralAttended),
+                        enabled = !busy,
                         onClick = onAttended,
                         modifier = Modifier.fillMaxWidth(),
                     )
