@@ -28,6 +28,8 @@ import { Sql } from "./common";
  * shape, so the check in migrate.test.ts asserts this file changes whenever
  * the DDL does.
  */
+// 7 — indexes for the hot paths. Every one of these queries was a sequential
+//     scan, including the authentication lookup that runs on every request.
 // 6 — adds vita_hero.sessions. A session was a single column on the profile,
 //     so signing in anywhere invalidated every other device without telling
 //     it. One row per device, with an expiry that slides on use.
@@ -40,7 +42,7 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;
