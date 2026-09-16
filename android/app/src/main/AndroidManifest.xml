@@ -34,10 +34,25 @@
         android:supportsRtl="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.RorkApp">
+        <!-- Portrait only.
+
+             Every screen in this app is laid out for a portrait phone, and
+             landscape has never been designed or tested. Rotation was enabled,
+             so a parent who turned the phone got a layout nobody had ever
+             looked at. Locking is the honest state of things rather than a
+             claim to support something we do not.
+
+             Android 12L and later ignore this on large screens, so tablets and
+             unfolded foldables still rotate — which is why the screens keep
+             their state across a configuration change regardless.
+
+             Delete the screenOrientation line to re-enable rotation once the
+             screens have been through a landscape pass. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.RorkApp"
+            android:screenOrientation="portrait"
             android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

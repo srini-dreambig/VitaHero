@@ -167,8 +167,22 @@ the user's font-size setting, and dark mode.
   the button read as half a sentence. It has a minimum height now and the label
   wraps.
 
-Not changed, and worth knowing: the app is portrait-only in practice and has
-not been looked at in landscape or on a tablet.
+Landscape was the gap in that pass, and it was a real one. `MainActivity` had
+no `screenOrientation`, so the app rotated into layouts nobody had designed.
+Onboarding was the worst of them: its slide image is `fillMaxWidth()
+.aspectRatio(0.78f)`, which derives height from width, so on an 800dp-wide
+landscape screen it asked for 1025dp of height and ran off the bottom. It now
+matches the height constraint first, which fits either way round. Onboarding
+was also the one screen still guessing the status bar with a flat 36dp — the
+other eighteen use the real inset — so its logo and Skip button sat under a
+cutout.
+
+The app is locked to portrait now. That is a product decision as much as a
+technical one and it reverses in one line, which the manifest says: every
+screen is laid out for a portrait phone and landscape has never been designed,
+so claiming to support it was worse than not. Android 12L and later ignore the
+lock on large screens, so foldables and tablets still rotate — which is why the
+saved screen state matters regardless.
 
 ## Still open
 
