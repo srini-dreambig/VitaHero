@@ -78,6 +78,42 @@ Everything else about a child's health is measured by someone trained and
 approved by a physician. A parent who thinks a measurement is wrong asks for a
 correction, which the school checks.
 
+## Second pass — behaviour, not just data
+
+The first pass asked where each screen's numbers came from. This one asked
+what happens when a parent touches the screen and the network is slow, or the
+phone rotates, or the server says no.
+
+- **A booking was confirmed before the server agreed to it.** The appointment
+  went on screen and the reminder alarm was set the instant the parent tapped;
+  the write went off unwatched. A slot somebody else had taken came back 409 and
+  that refusal went nowhere, so the parent kept an appointment that did not
+  exist, was reminded of it three hours beforehand, and turned up for it.
+- **Sync could not tell "not now" from "not ever."** Every failure was one
+  undifferentiated exception, so a permanent refusal was retried forever, and
+  `push` abandoned the rest of the batch at the first one — losing that batch's
+  children, meals and growth points quietly, since the next local change
+  overwrote the queue. Failures are now classified, every entity is attempted
+  independently, and a refused record is named so it can be taken back off
+  screen.
+- **Typed input did not survive a rotation.** Nine screens, including the OTP
+  code — which you have to leave the app to read. Twenty-nine pieces of state
+  across thirteen screens are now `rememberSaveable`. Transient things (an
+  expanded card, a request in flight) are deliberately still not.
+- **Thirteen of seventeen primary actions had no in-flight state.** Nothing
+  changed between the tap and the answer, so parents tap again — two children,
+  two registrations. The four that were fine were the four backed by the one
+  view model that had a busy flag.
+- **Back buttons.** Five announced nothing to a screen reader; eight said
+  "Back" in English to a parent reading Telugu. All thirteen localised.
+- **The medical disclaimer was English-only**, on the consent screen a parent
+  accepts before signing up. It is the one sentence that most needs to be
+  understood.
+
+Checked and found sound, so recorded rather than changed: no `!!`, no unguarded
+indexing, ownership scoping on every guardian read, and icons that sit beside a
+text label correctly leave `contentDescription` null.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
