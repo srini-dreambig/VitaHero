@@ -29,6 +29,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +58,7 @@ fun CampDetailScreen(
     /** Open what a doctor released for one child at this camp. */
     onOpenResult: (campId: String, kidId: String) -> Unit = { _, _ -> },
 ) {
-    var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
+    var selectedKidId by rememberSaveable { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
     val upcoming = camp.status.isUpcoming
     val accent = if (upcoming) HeroBlue else HeroOrange
     val registered = camp.registeredKidIds

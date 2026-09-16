@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -83,7 +84,7 @@ fun KidDetailScreen(
     onOpenGrowthCharts: () -> Unit = {},
     growthAssessment: GrowthAssessment? = null,
 ) {
-    var tab by remember { mutableStateOf(DetailTab.GROWTH) }
+    var tab by rememberSaveable { mutableStateOf(DetailTab.GROWTH) }
     var isGeneratingReport by remember { mutableStateOf(false) }
     val context = LocalContext.current
 

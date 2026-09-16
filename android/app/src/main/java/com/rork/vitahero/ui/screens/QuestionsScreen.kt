@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,8 +81,8 @@ fun QuestionsScreen(
         return
     }
 
-    var body by remember { mutableStateOf("") }
-    var acknowledged by remember { mutableStateOf(false) }
+    var body by rememberSaveable { mutableStateOf("") }
+    var acknowledged by rememberSaveable { mutableStateOf(false) }
     var kidId by remember(kids) { mutableStateOf(kids.firstOrNull()?.id) }
 
     LazyColumn(

@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +58,7 @@ fun GrowthChartsScreen(
     assessment: GrowthAssessment?,
     onBack: () -> Unit,
 ) {
-    var metric by remember { mutableStateOf(ChartMetric.HEIGHT) }
+    var metric by rememberSaveable { mutableStateOf(ChartMetric.HEIGHT) }
     val growthMetric = when (metric) {
         ChartMetric.HEIGHT -> GrowthStandards.Metric.HEIGHT
         ChartMetric.WEIGHT -> GrowthStandards.Metric.WEIGHT

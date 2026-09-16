@@ -29,6 +29,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,7 +62,7 @@ fun RewardsScreen(
     onRefreshLeaderboard: (String) -> Unit,
     badgeData: (String) -> BadgeProgress,
 ) {
-    var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
+    var selectedKidId by rememberSaveable { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
     LaunchedEffect(selectedKidId) {
         if (selectedKidId.isNotBlank()) onRefreshLeaderboard(selectedKidId)
     }

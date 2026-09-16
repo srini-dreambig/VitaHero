@@ -32,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -58,11 +59,11 @@ fun AddKidScreen(
     onBack: () -> Unit,
     onSave: (name: String, age: Int, gender: String, school: String, grade: String) -> Unit
 ) {
-    var name by remember { mutableStateOf("") }
-    var age by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf("Boy") }
-    var school by remember { mutableStateOf("") }
-    var grade by remember { mutableStateOf("") }
+    var name by rememberSaveable { mutableStateOf("") }
+    var age by rememberSaveable { mutableStateOf("") }
+    var gender by rememberSaveable { mutableStateOf("Boy") }
+    var school by rememberSaveable { mutableStateOf("") }
+    var grade by rememberSaveable { mutableStateOf("") }
 
     val canSave = name.isNotBlank() && age.isNotBlank()
 

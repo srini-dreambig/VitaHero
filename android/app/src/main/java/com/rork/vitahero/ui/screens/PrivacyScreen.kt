@@ -29,6 +29,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,8 +68,8 @@ fun PrivacyScreen(
 
     LaunchedEffect(Unit) { guardianViewModel.loadDataRights() }
 
-    var withdrawing by remember { mutableStateOf(false) }
-    var reason by remember { mutableStateOf("") }
+    var withdrawing by rememberSaveable { mutableStateOf(false) }
+    var reason by rememberSaveable { mutableStateOf("") }
     var erasing by remember { mutableStateOf<String?>(null) }
 
     LazyColumn(

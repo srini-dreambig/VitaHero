@@ -107,9 +107,9 @@ fun BookingScreen(
     var selectedDoctor by remember { mutableStateOf<Doctor?>(null) }
     var selectedKid by rememberSaveable { mutableStateOf(kids.firstOrNull()?.name ?: "") }
     var selectedSlot by remember { mutableStateOf<BookingSlot?>(null) }
-    var filterSpecialty by remember { mutableStateOf<String?>(null) }
-    var showExisting by remember { mutableStateOf(true) }
-    var viewMode by remember { mutableStateOf(BookingViewMode.BY_HOSPITAL) }
+    var filterSpecialty by rememberSaveable { mutableStateOf<String?>(null) }
+    var showExisting by rememberSaveable { mutableStateOf(true) }
+    var viewMode by rememberSaveable { mutableStateOf(BookingViewMode.BY_HOSPITAL) }
     var expandedHospitalId by remember { mutableStateOf<String?>(null) }
 
     val hospitals = directory?.hospitals.orEmpty()

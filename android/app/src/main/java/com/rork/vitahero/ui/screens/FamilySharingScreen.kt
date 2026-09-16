@@ -41,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,8 +76,8 @@ fun FamilySharingScreen(
     onShareCode: () -> Unit
 ) {
     val context = LocalContext.current
-    var joinCode by remember { mutableStateOf("") }
-    var showJoin by remember { mutableStateOf(false) }
+    var joinCode by rememberSaveable { mutableStateOf("") }
+    var showJoin by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
