@@ -430,6 +430,95 @@ directions: the collision now fails the run, and the real tree passes it.
   across process death would show a spinner with no work behind it, and half a
   result is worse than re-photographing the plate.
 
+## State management in the console
+
+The console is one long-lived page behind one state object, `S`. So the only
+question that really matters is what clears it, and it was being answered in
+three places that had to agree and did not.
+
+### Four keys out of fifty
+
+`signOut()` cleared `auth`, `view`, `school` and `camp`. `openSchool()` cleared
+nineteen more by hand, `openCamp()` five. Everything else — and **thirteen
+fields that were never in the state object at all**, because `set()` creates a
+key on first use and nothing can clear what it does not know about — simply
+stayed. Among the thirteen: the access trail for a named child, the screening
+capture in progress, the reviewer's draft, a child's symptom history.
+
+`openCamp()`'s list had already drifted furthest. It did not clear the review
+data, the photographs, the open photograph, the screening capture or the
+reviewer's draft — so a physician who reviewed a child at one camp and opened
+another still had the first child's review and photograph in hand until the new
+fetch landed.
+
+There is one shape now, `freshState()`, and one list per scope taken from it.
+Signing out rebuilds the object rather than naming fields, so it cannot miss
+one, and `functions/portal-state.test.ts` fails the build if a field used as
+`S.<name>` is not in the shape or if `signOut` goes back to naming fields.
+
+### A school's children, left on the device
+
+The offline camp pack is written to `localStorage` when a screener packs a camp
+for a hall with no signal. `packStore(id, null)` — the call that removes one —
+**was never made anywhere**: not after a sync, not when the camp closed, not
+when the screener signed out.
+
+That is about 150 KiB per camp of named children with their dates of birth and
+their guardians' names, in plain text, accumulating on a tablet that a school
+shares, with no way to get rid of it but clearing the browser. It is also why
+saving a capture already had a "this device has run out of storage" path to fall
+down: abandoned packs from finished camps fill the origin quota.
+
+Signing out clears the packs now. The unsynced queue is deliberately treated
+differently — those are measurements nobody else has, and losing a morning's
+screening is worse than leaving it on the device — so sign-out says how many are
+unsent and lets the screener decide, and keeps them if they go ahead.
+
+### Five hundred children under the wrong school's name
+
+Nothing said which request still counted. Open a school on a slow line, change
+your mind, open another: the first school's roster could arrive second, be
+written into the state, and be drawn under the second school's heading.
+
+Every load now carries the navigation it was asked for, and an answer for a
+school or camp nobody is on is dropped. Signing out bumps it too, so a request
+made by the person who just left cannot land in the fresh state behind the
+sign-in screen. `state.mjs` drives the race with a deliberately slow school and
+fails without the guard.
+
+### One form slot, seven forms
+
+`S.form` was shared by seven forms of four different shapes. Three checked a
+marker field before adopting whatever was there; four did not, and switching
+tabs never cleared it.
+
+So: open a school's **Classes** tab, leave without saving, open **Staff → Add
+someone**. The staff form adopted `{ year, grades, sections }` — no `kind` on
+it. A `<select>` with nothing selected shows its first option, so the operator
+read "School administrator" while the branch behind the button took the other
+road and created a clinician **with no role**. The smoke test drives exactly
+that and checks the role the form shows is the role the console sends.
+
+Each form owns its slot now, with the owner kept beside the form rather than on
+it — the form object is posted to the server as it stands.
+
+### One busy flag for every action
+
+Same shape as the app's, and fixed the same way: `busy` was a boolean set true
+on the way in and false on the way out, so two overlapping requests meant the
+first to finish re-enabled the button for the second while its request was still
+in the air. It is a count now.
+
+### Looked at and left alone
+
+- **Tab data is memoised** and there is no polling anywhere in the console.
+  Already right.
+- **`refreshCamp()` keeps its narrow clear list.** It re-reads the camp that is
+  already open rather than moving to another one, and its callers manage the
+  review pane around it — a reviewer's unsaved draft is not the server's to
+  discard. It is scoped like the rest, so a refresh landing after the operator
+  has left is still dropped.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
