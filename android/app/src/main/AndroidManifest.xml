@@ -6,14 +6,28 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- BootReceiver registers for BOOT_COMPLETED, and Android does not deliver
+         that broadcast without this permission. It was missing, so the receiver
+         never ran and reminders were not rescheduled after a restart. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
 
+    <!-- Package visibility. From Android 11 an app cannot see another package
+         unless it says so, and HealthConnectClient.getSdkStatus() answers
+         SDK_UNAVAILABLE when it cannot see Health Connect — so the wearable
+         card reported "not installed" on every modern phone that had it. -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+
     <application
         android:name=".VitaHeroApplication"
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="VitaHero"

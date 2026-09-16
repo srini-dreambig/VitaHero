@@ -41,10 +41,34 @@ android {
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${buildConfigProp("GOOGLE_WEB_CLIENT_ID", "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID")}\"")
     }
 
+    // Release signing.
+    //
+    // This used to be `signingConfig = signingConfigs.getByName("debug")`,
+    // which produces a build Google Play refuses outright — "You uploaded an
+    // APK that was signed in debug mode" — and which anyone can re-sign,
+    // because the debug keystore ships with the Android SDK and its password
+    // is public.
+    //
+    // Supply the four values as environment variables or in local.properties
+    // (which is not committed). With none of them set the release build is
+    // simply unsigned, which fails loudly at upload time instead of quietly
+    // producing something that looks signed and is not.
+    signingConfigs {
+        val storePath = buildConfigProp("VITAHERO_KEYSTORE")
+        if (storePath.isNotEmpty() && file(storePath).exists()) {
+            create("release") {
+                storeFile = file(storePath)
+                storePassword = buildConfigProp("VITAHERO_KEYSTORE_PASSWORD")
+                keyAlias = buildConfigProp("VITAHERO_KEY_ALIAS")
+                keyPassword = buildConfigProp("VITAHERO_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
