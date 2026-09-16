@@ -106,7 +106,7 @@ fun OtpScreen(
             .padding(horizontal = 24.dp)
     ) {
         IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
         }
         Spacer(Modifier.height(12.dp))
         Box(

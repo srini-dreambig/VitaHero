@@ -154,7 +154,7 @@ fun BookingScreen(
                 title = { Text(t(S.bookAppt), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -238,7 +238,7 @@ fun BookingScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(listOf("Hyderabad")) { city ->
+                    items(listOf("Hyderabad"), key = { it }) { city ->
                         val selected = bookingCity.equals(city, ignoreCase = true)
                         Box(
                             Modifier
@@ -360,7 +360,7 @@ fun BookingScreen(
                 }
                 Spacer(Modifier.height(10.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(allSpecialties) { spec ->
+                    items(allSpecialties, key = { it }) { spec ->
                         val active = filterSpecialty == spec
                         Box(
                             Modifier

@@ -117,7 +117,7 @@ fun KidDetailScreen(
                                 .clickable(onClick = onBack),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
                         }
                         Spacer(Modifier.weight(1f))
                         // Share report button
@@ -136,7 +136,7 @@ fun KidDetailScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (isGeneratingReport) {
-                                    Text("Generating…", style = MaterialTheme.typography.labelSmall, color = HeroOrange)
+                                    Text(t(S.generatingReport), style = MaterialTheme.typography.labelSmall, color = HeroOrange)
                                 } else {
                                     Icon(Icons.Outlined.Share, contentDescription = "Share report", tint = HeroOrange, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))
