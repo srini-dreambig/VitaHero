@@ -169,7 +169,8 @@ class BookingViewModel(
                     onSuccess = {
                         state.uiState.update { it.copy(appointments = it.appointments + appt) }
                         NotificationScheduler.scheduleCheckupReminder(
-                            getApplication(), doctor.name, kidName, date, time, state.uiState.value.locale,
+                            getApplication(), appt.id, doctor.name, kidName, date, time,
+                            state.uiState.value.locale,
                         )
                         _lastBooking.value = BookingOutcome.Confirmed
                         container.fetchAndApplyBackendData(viewModelScope)

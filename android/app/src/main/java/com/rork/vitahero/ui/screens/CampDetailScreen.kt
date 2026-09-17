@@ -42,6 +42,7 @@ import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.campWhen
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroOrange
@@ -113,7 +114,7 @@ fun CampDetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Schedule, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("${camp.date} · ${camp.time}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(campWhen(camp.date, camp.time), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
                     if (camp.description.isNotBlank()) {
                         Spacer(Modifier.height(14.dp))

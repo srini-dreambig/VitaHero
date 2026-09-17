@@ -26,6 +26,23 @@ object NotificationScheduler {
     private val dateFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.US)
     private val timeFormatter = DateTimeFormatter.ofPattern("hh:mm a", Locale.US)
 
+    /**
+     * Reminders live in one request-code space, so the key has to say which
+     * kind it is as well as which record.
+     *
+     * A camp used to be keyed on its title, so two schools both running an
+     * "Annual Camp" had one reminder between them and the second silently
+     * replaced the first. An appointment was keyed on the doctor and the day,
+     * so two children seen by the same doctor on the same morning had one
+     * reminder between them. And nothing kept a camp's hash out of a child's:
+     * three kinds shared one space and a collision replaced rather than added.
+     */
+    private const val KIND_CAMP = "camp"
+    private const val KIND_CHECKUP = "checkup"
+    private const val KIND_DIET = "diet"
+
+    private fun reminderId(kind: String, key: String): Int = (kind + "|" + key).hashCode()
+
     fun createChannels(context: Context) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         listOf(
@@ -48,36 +65,55 @@ object NotificationScheduler {
         return LocaleStrings.get(locale, key, fallback)
     }
 
+    /**
+     * A date in either of the two shapes this product actually uses.
+     *
+     * Appointment slots come from the booking directory as "01 Nov 2026". A
+     * camp's date comes from the school's own record, where the server refuses
+     * anything that is not YYYY-MM-DD. Only the first was understood, and the
+     * failure was a null swallowed by a catch — so camp reminders never fired,
+     * on any device, ever, while the toggle for them sat in the settings screen
+     * and the channel was created at every launch.
+     */
+    fun parseReminderDate(date: String): LocalDate? {
+        val clean = date.trim()
+        if (clean.isEmpty()) return null
+        return runCatching { LocalDate.parse(clean) }.getOrNull()
+            ?: runCatching { LocalDate.parse(clean, dateFormatter) }.getOrNull()
+    }
+
     /** Parse date + time into epoch millis. Returns null if format is invalid. */
     fun parseAppointmentTime(date: String, time: String): Long? {
         return try {
             val cleanTime = time.split(Regex("[–\\-]")).firstOrNull()?.trim() ?: time.trim()
-            val cleanDate = date.trim()
-            val dt = LocalDateTime.of(
-                LocalDate.parse(cleanDate, dateFormatter),
-                LocalTime.parse(cleanTime, timeFormatter)
-            )
+            val day = parseReminderDate(date) ?: return null
+            val dt = LocalDateTime.of(day, LocalTime.parse(cleanTime, timeFormatter))
             dt.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
         } catch (_: Exception) {
             null
         }
     }
 
+    /**
+     * Two mornings before the camp, at nine.
+     *
+     * The camp's own time is not needed and is no longer asked for: this used
+     * to parse it only to overwrite the hour and minute a line later, so a camp
+     * whose school had not filled the time in — which is most of them, the
+     * column defaults to empty — got no reminder at all.
+     */
     fun scheduleCampReminder(
         context: Context,
+        campId: String,
         campTitle: String,
         campDate: String,
-        campTime: String,
         locale: AppLocale = AppLocale.ENGLISH,
     ) {
-        val cleanTime = campTime.split(Regex("[–\\-]")).firstOrNull()?.trim() ?: campTime.trim()
-        val eventMs = parseAppointmentTime(campDate, cleanTime) ?: return
+        val day = parseReminderDate(campDate) ?: return
         val calendar = Calendar.getInstance().apply {
-            timeInMillis = eventMs
+            set(day.year, day.monthValue - 1, day.dayOfMonth, 9, 0, 0)
+            set(Calendar.MILLISECOND, 0)
             add(Calendar.DAY_OF_YEAR, -2)
-            set(Calendar.HOUR_OF_DAY, 9)
-            set(Calendar.MINUTE, 0)
-            set(Calendar.SECOND, 0)
         }
         if (calendar.timeInMillis <= System.currentTimeMillis()) return
 
@@ -85,11 +121,16 @@ object NotificationScheduler {
         val body = resolveLocale(locale, "notif_camp_body", "$campTitle is in 2 days. Get the kids ready!")
             .replace("{camp}", campTitle)
 
-        scheduleAlarm(context, campTitle.hashCode(), title, body, CHANNEL_CAMP, calendar.timeInMillis)
+        scheduleAlarm(context, campReminderId(campId), title, body, CHANNEL_CAMP, calendar.timeInMillis)
     }
+
+    fun campReminderId(campId: String): Int = reminderId(KIND_CAMP, campId)
+    fun checkupReminderId(appointmentId: String): Int = reminderId(KIND_CHECKUP, appointmentId)
+    fun dietReminderId(kidId: String): Int = reminderId(KIND_DIET, kidId)
 
     fun scheduleCheckupReminder(
         context: Context,
+        appointmentId: String,
         doctorName: String,
         kidName: String,
         date: String,
@@ -107,7 +148,7 @@ object NotificationScheduler {
         val body = resolveLocale(locale, "notif_checkup_body", "$kidName has a checkup with $doctorName today at $time")
             .replace("{kid}", kidName).replace("{doctor}", doctorName).replace("{time}", time)
 
-        scheduleAlarm(context, (doctorName + date).hashCode(), title, body, CHANNEL_CHECKUP, calendar.timeInMillis)
+        scheduleAlarm(context, checkupReminderId(appointmentId), title, body, CHANNEL_CHECKUP, calendar.timeInMillis)
     }
 
     /**
@@ -117,14 +158,11 @@ object NotificationScheduler {
      * had agreed to anything. When the server then refused the slot, the alarm
      * stayed set and would have reminded them, on the day, of an appointment
      * that never existed. Same request code as [scheduleCheckupReminder], which
-     * is what identifies the alarm to cancel.
+     * is what identifies the alarm to cancel — the appointment's own id, so
+     * cancelling one child's booking cannot take a sibling's with it.
      */
-    fun cancelCheckupReminder(
-        context: Context,
-        doctorName: String,
-        date: String,
-    ) {
-        val requestCode = (doctorName + date).hashCode()
+    fun cancelCheckupReminder(context: Context, appointmentId: String) {
+        val requestCode = checkupReminderId(appointmentId)
         val intent = Intent(context, NotificationReceiver::class.java)
         val pending = PendingIntent.getBroadcast(
             context, requestCode, intent,
@@ -156,10 +194,17 @@ object NotificationScheduler {
             putExtra("title", title)
             putExtra("body", body)
             putExtra("channelId", CHANNEL_DIET)
-            putExtra("notifId", kidId.hashCode())
+            putExtra("notifId", dietReminderId(kidId))
+            // Carried so the alarm can set tomorrow's when it fires. This is a
+            // daily reminder that was scheduled exactly once: after it went off
+            // there was nothing to set the next one, so a parent who did not
+            // reopen the app got one reminder and then silence.
+            putExtra("dietKidId", kidId)
+            putExtra("dietKidName", kidName)
+            putExtra("localeCode", locale.code)
         }
         val pending = PendingIntent.getBroadcast(
-            context, kidId.hashCode(), intent,
+            context, dietReminderId(kidId), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val alarm = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
@@ -232,6 +277,19 @@ class NotificationReceiver : BroadcastReceiver() {
         val title = intent.getStringExtra("title") ?: "VitaHero"
         val body = intent.getStringExtra("body") ?: ""
         val channel = intent.getStringExtra("channelId") ?: NotificationScheduler.CHANNEL_CAMP
-        NotificationScheduler.sendImmediateNotification(context, title, body, channel)
+        // The id the alarm was scheduled with, so a reminder that is delivered
+        // twice replaces itself in the shade rather than stacking.
+        val notifId = intent.getIntExtra("notifId", System.currentTimeMillis().toInt())
+        NotificationScheduler.showImmediateNotification(context, channel, title, body, notifId)
+
+        // A daily reminder sets the next one as it goes off. Without this the
+        // only thing that ever re-armed it was the app being opened.
+        val kidId = intent.getStringExtra("dietKidId")
+        val kidName = intent.getStringExtra("dietKidName")
+        if (channel == NotificationScheduler.CHANNEL_DIET && !kidId.isNullOrBlank() && kidName != null) {
+            val code = intent.getStringExtra("localeCode")
+            val locale = AppLocale.entries.firstOrNull { it.code == code } ?: AppLocale.ENGLISH
+            NotificationScheduler.scheduleDietReminder(context, kidName, kidId, locale)
+        }
     }
 }

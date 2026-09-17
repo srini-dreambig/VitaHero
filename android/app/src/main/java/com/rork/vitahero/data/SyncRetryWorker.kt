@@ -41,13 +41,7 @@ class SyncRetryWorker(
                 // it set outlives the process, so that has to go now.
                 pushed.rejections
                     .filter { it.entity == SyncEntity.APPOINTMENTS }
-                    .forEach { rejection ->
-                        batch.appointments.firstOrNull { it.id == rejection.id }?.let { appt ->
-                            NotificationScheduler.cancelCheckupReminder(
-                                applicationContext, appt.doctorName, appt.date,
-                            )
-                        }
-                    }
+                    .forEach { NotificationScheduler.cancelCheckupReminder(applicationContext, it.id) }
                 // Something may still be waiting: a refusal and a network
                 // fault can arrive together.
                 if (pushed.transient != null) Result.retry() else Result.success()

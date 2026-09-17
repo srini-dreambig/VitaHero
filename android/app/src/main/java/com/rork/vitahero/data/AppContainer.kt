@@ -120,11 +120,10 @@ class AppContainer(application: Application) {
     private fun rollBack(rejection: BackendSyncEngine.Rejection) {
         when (rejection.entity) {
             SyncEntity.APPOINTMENTS -> {
-                val appt = state.uiState.value.appointments.firstOrNull { it.id == rejection.id }
                 state.uiState.update { ui ->
                     ui.copy(appointments = ui.appointments.filterNot { it.id == rejection.id })
                 }
-                appt?.let { NotificationScheduler.cancelCheckupReminder(app, it.doctorName, it.date) }
+                NotificationScheduler.cancelCheckupReminder(app, rejection.id)
             }
             // Everything else is a record the parent can see and correct from
             // the screen it belongs to; the message tells them what happened.

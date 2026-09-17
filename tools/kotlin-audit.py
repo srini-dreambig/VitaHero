@@ -592,6 +592,33 @@ if not perread:
     print("  ok  no exposed flow is rebuilt on every read")
 
 
+# ── 14. an alarm's request code says which reminder it is ───
+#
+# Every reminder shares one request-code space, and a PendingIntent with a code
+# that is already taken replaces what was there. A camp keyed on its title meant
+# two schools running an "Annual Camp" had one reminder between them; an
+# appointment keyed on the doctor and the day meant two children seen by the
+# same doctor on one morning had one between them. The ids come from
+# NotificationScheduler's own helpers now, which put the kind in the key, and a
+# bare hashCode() going back in fails here.
+codes = []
+for f, src in SRC.items():
+    if "Notification" not in str(f):
+        continue
+    for i, line in enumerate(src.split("\n"), 1):
+        if "reminderId(" in line or "private fun reminderId" in line:
+            continue
+        if re.search(r"(getBroadcast|cancelAlarm)\([^)]*\w+\.hashCode\(\)", line) or \
+           re.search(r"scheduleAlarm\([^)]*\w+\.hashCode\(\)", line):
+            codes.append(
+                f"{rel(f)}:{i} keys an alarm on a bare hashCode(); use the "
+                f"campReminderId / checkupReminderId / dietReminderId helpers")
+for x in sorted(codes):
+    fail(x)
+if not codes:
+    print("  ok  every reminder's request code names its kind")
+
+
 # ── result ──────────────────────────────────────────────────
 print("\n" + "=" * 60)
 if failures:

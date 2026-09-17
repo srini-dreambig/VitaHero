@@ -166,6 +166,11 @@ class AppViewModel(
     }
 
     fun logout() {
+        // Before the state goes, not after: the state is the only record of
+        // what was scheduled, and an alarm outlives the session that set it.
+        // Without this the next person to pick the phone up would be reminded
+        // about another family's camp, by name, on their lock screen.
+        NotificationCoordinator.cancelAll(getApplication(), state.uiState.value)
         auth.logout()
         state.resetSession()
     }
