@@ -519,6 +519,98 @@ in the air. It is a count now.
   discard. It is scoped like the rest, so a refresh landing after the operator
   has left is still dropped.
 
+## Offline sync and the queue
+
+A screener works in a school hall with no signal. Captures go into a local
+queue; when signal returns the whole queue is posted in one request. That
+request is the most important write in the product — it is a morning's
+screening for a whole school — and it is the one nobody had measured.
+
+### A camp day could not be synced at all
+
+`saveScreeningBulk` looped over the entries and, for each child, called the
+same functions the online one-child form calls. Each of those re-checked the
+caller's access to the camp, re-read the participant, and wrote one statement
+per finding.
+
+**200 children cost 2,338 statements.** Cloudflare allows 1,000 outbound
+subrequests on the paid plan and 50 on the free one, so the request was cut off
+partway through: some children were written, the console was told the sync had
+failed, and pressing the button again produced the same result forever. A demo
+with six children went through fine.
+
+The rules a camp day is judged by are now a pure function — consent, what the
+camp offers, the flag the measurement proposes, a screener's override of it —
+shared by the one-child form and the queue so the two cannot drift. What
+survives that is written together: one insert for the findings, at most three
+updates for attendance, one for status, one for the camp.
+
+**200 children now cost 13 statements**, and `functions/sync.test.ts` fails if
+that passes 60. It also checks that sending the same queue twice changes
+nothing, because a sync that times out after the server applied it is retried
+by hand.
+
+### Three ways a measurement could disappear
+
+- **Recorded while the sync was in the air.** `syncQueue` read the queue, posted
+  it, and on the way back wrote `queue = whatever the server refused`. A
+  screener does not stop working during those seconds — the sync fires the
+  moment signal returns, with children still in the line — and every capture
+  taken in the meantime was in the queue that got written over. A morning's
+  measurements, gone, under a green "synced" message. The queue is re-read when
+  the answer comes back now, and a child is only removed if the entry still
+  there is the one that was sent, unchanged.
+- **A device with no room left.** `queuePush` answered with the length the queue
+  already had when the write failed, which the caller read as success: the
+  console said "Saved on this device", cleared the form, and the child's
+  measurements were gone — the form it had just thrown away was the only copy.
+  It answers −1 now, the form stays open, and the screener is told.
+- **An entry that said nothing.** An entry with no findings and no attendance
+  was neither applied nor rejected by the server, and the console keeps only
+  what was refused — so it was deleted from the queue having never been written
+  anywhere. It is refused explicitly now.
+
+Two more from the same read: the `online` event can fire more than once and the
+sync button is still there, so two syncs of the same queue could each write the
+other's result away — there is a guard now. And a refusal is named to the
+screener with the child's name rather than counted, because those entries do
+come off the queue for good: every refusal the server can return here is a
+decision about the record — no consent, already released, not on this camp —
+and the same bytes will be refused forever. A capture that cannot be saved is
+something a person has to deal with, not a badge that never clears.
+
+### The app's queue held one batch, and a save replaced it
+
+`SyncQueueStore` kept exactly one `SyncBatch`. A batch that failed to send was
+therefore dropped by the next unrelated change: meals that failed to reach the
+server were replaced in the store by a profile-only batch, were not in it to be
+retried, and were then overwritten in memory by the server's copy, which never
+had them. A parent's logging, gone, with nothing on screen to say so.
+
+The comment in `BackendSyncEngine.push` already described this — "the next
+local change overwrote the batch, so they were not retried either. They were
+simply lost, quietly" — as something that *had been* fixed. The abandonment
+inside a batch was fixed. The overwrite one level up was still there. A batch is
+now folded into what is waiting rather than put in its place.
+
+And a refusal cleared the whole queue. A batch where one record was refused and
+another merely failed to reach the server lost both — and the retry it then
+scheduled found nothing left to send, which the code's own comment said was
+"still worth another try". `push` now reports which entities are finished with
+(taken, or refused for good) and only those come off the queue.
+
+### Looked at and left alone
+
+- **Replays are safe.** Every write the sync makes is an upsert keyed on the
+  camp, the child and the check, so a retry after a timeout is a no-op. There
+  is a test for it.
+- **A failed sync does not retry itself in the console.** The queue is kept, the
+  count is on screen and the button is there. Silent retries against a server
+  that is refusing would be worse than a screener deciding.
+- **An unsynced queue survives sign-out on purpose.** Those are measurements
+  nobody else has; losing a morning's screening is worse than leaving it on the
+  device. Sign-out says how many are unsent and lets the screener decide.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
