@@ -611,6 +611,109 @@ scheduled found nothing left to send, which the code's own comment said was
   nobody else has; losing a morning's screening is worse than leaving it on the
   device. Sign-out says how many are unsent and lets the screener decide.
 
+## Notifications and reminders
+
+### Camp reminders had never fired
+
+`parseAppointmentTime` accepted one date format: `01 Nov 2026`, the shape the
+booking directory builds for appointment slots. A camp's date is the school's
+own record, and `createCamp` **refuses anything that is not YYYY-MM-DD**. The
+two ends had never agreed.
+
+The parse failure was a `null` swallowed by `catch (_: Exception)`, and
+`scheduleCampReminder` returns quietly on null — so nothing threw, nothing
+logged, and no camp reminder was ever set on any device. The toggle for them sat
+in the settings screen, the channel was created at every launch, and
+`cancelCampReminders` carefully took back alarms that did not exist.
+
+A second reason the same feature could not work: the function parsed the camp's
+*time* and then overwrote the hour and minute a line later, because the reminder
+is two mornings before at nine. The time column is optional and usually blank,
+so even a correctly-formatted date got no reminder unless the school had filled
+in a field the reminder does not use. It is not asked for now.
+
+`functions/reminders.test.ts` pins both formats from the side that can be run,
+and fails if the parser stops accepting either.
+
+### Three kinds of reminder in one request-code space
+
+A `PendingIntent` whose request code is already taken replaces what was there.
+The codes were:
+
+- camp: `campTitle.hashCode()` — two schools both running an "Annual Camp" had
+  one reminder between them.
+- appointment: `(doctorName + date).hashCode()` — two children seen by the same
+  doctor on the same morning had one reminder between them, and cancelling one
+  sibling's booking took the other's with it.
+- diet: `kidId.hashCode()` — and nothing kept a camp's hash out of a child's.
+
+Each kind names itself in the key now, and the record is identified by its own
+id rather than by text a person typed. A new audit rule fails the build if a
+bare `hashCode()` goes back in as a request code.
+
+### Reminders outlived the session that set them
+
+Signing out did not cancel anything. `cancelAll` existed but was only wired to
+the notifications toggle — so the next person to pick up that phone would have
+been reminded about another family's camp, naming their child, on a lock screen.
+It runs on sign-out now, and before the state is cleared, because the state is
+the only record of what was scheduled.
+
+### A daily reminder that fired once
+
+`scheduleDietReminder` set a single alarm for 19:00 and nothing re-armed it.
+The only thing that ever set the next one was the app being opened — so a
+parent who did not open the app got one reminder and then silence, from a
+feature whose whole purpose is the days they do not open it. The alarm sets
+tomorrow's as it goes off.
+
+### On screen: `2026-09-18 · `
+
+Both camp screens printed `"${camp.date} · ${camp.time}"` straight out of the
+record — an ISO date a parent does not read, and a separator hanging off the end
+with nothing after it, because the time is usually blank.
+
+### Texts that were never sent, counted as sent
+
+Every sender in this codebase returns `{ ok, reason }`. The consent reminder and
+the referral nudge both tested it with `if (ok)` — an object, always truthy. So:
+
+- a school whose texts were all failing was told it had reminded everybody;
+- each family's three nudges were spent without one of them arriving.
+
+There is a test for it now, and it fails if the truthiness check comes back.
+
+### One text at a time, and one write each
+
+Every reminder was a `for` loop with an `await` inside it. Texting a school's
+two hundred waiting guardians was two hundred sequential round trips to the
+provider, plus a database write per person — in a worker with a budget for
+neither, and the same shape as the camp-day sync that could not finish.
+
+Sends now go out in small groups and the bookkeeping is one statement, so the
+statement count no longer grows with the size of the school. The group is
+deliberately small: every send is an outbound subrequest and the platform counts
+them, so what this buys is wall time, not volume.
+
+### Nobody remembered having asked
+
+`nudgeReferrals` had the restraint — a seven-day gap, three nudges, both
+recorded per referral. `remindConsent` had none: nothing recorded that a
+guardian had been asked, so an operator clicking "remind everyone" twice texted
+the whole school twice, immediately. It now keeps the same kind of record, with
+a two-day gap and a cap of three. Reminding one named guardian still goes
+straight out — that is a deliberate act by someone who has just spoken to them.
+
+### Looked at and left alone
+
+- **Reboot does not restore alarms**, and cannot: what was scheduled lives in
+  the session, which is in memory. `BootReceiver` recreates the channels and
+  marks that a reschedule is owed, and the next launch does it. The class says
+  so in its own documentation.
+- **A pending reminder keeps the language it was scheduled in.** Changing the
+  app's language reschedules everything on the next `scheduleAll`, which is the
+  same launch, so the window is small.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
