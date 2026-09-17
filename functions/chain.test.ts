@@ -679,7 +679,7 @@ suite("end to end", () => {
       });
     }
     const releaseSms: string[] = [];
-    const rel = await releaseCamp(sql, physician, camp2, async (to) => { releaseSms.push(to); return true; });
+    const rel = await releaseCamp(sql, physician, camp2, async (to: string) => { releaseSms.push(to); return { ok: true, reason: "" }; });
     expect(rel.released).toBeGreaterThan(0);
     expect(releaseSms.length).toBe(0);
   });
@@ -804,11 +804,30 @@ suite("end to end", () => {
 
   test("nudging chases open referrals and reports who is stuck", async () => {
     const sent: string[] = [];
-    const r = await nudgeReferrals(sql, admin, schoolId, async (to) => { sent.push(to); return true; });
+    const r = await nudgeReferrals(sql, admin, schoolId, async (to: string) => { sent.push(to); return { ok: true, reason: "" }; });
     expect(r.nudged).toBe(sent.length);
     const rows = await client.query(
       "SELECT nudge_count FROM vita_hero.referrals WHERE school_id=$1 AND status='OPEN'", [schoolId]);
     if (rows.rowCount) expect(rows.rows.every((x) => x.nudge_count >= 1)).toBe(true);
+  });
+
+  test("a text that did not go out is not counted, and does not burn a nudge", async () => {
+    // Every sender in this codebase returns { ok, reason }, and the nudge loop
+    // tested it with `if (ok)` — an object, always truthy. So a school whose
+    // texts were all failing was told it had reminded everybody, and each
+    // family's three nudges were spent without one of them arriving.
+    await client.query(
+      "UPDATE vita_hero.referrals SET last_nudge_at = NULL WHERE school_id=$1", [schoolId]);
+    const before = await client.query(
+      "SELECT COALESCE(SUM(nudge_count),0)::int n FROM vita_hero.referrals WHERE school_id=$1", [schoolId]);
+
+    const r = await nudgeReferrals(sql, admin, schoolId,
+      async () => ({ ok: false, reason: "No SMS provider configured" }));
+
+    expect(r.nudged).toBe(0);
+    const after = await client.query(
+      "SELECT COALESCE(SUM(nudge_count),0)::int n FROM vita_hero.referrals WHERE school_id=$1", [schoolId]);
+    expect(after.rows[0].n).toBe(before.rows[0].n);
   });
 
   test("per-child referral history is guarded by ownership", async () => {

@@ -15,7 +15,7 @@
 // programme could not previously produce for a single child.
 
 import { Sql, chunk, isOpsRole, slugify } from "./common";
-import { SmsSender } from "./messaging";
+import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { assertCampAccess } from "./camps";
 import { Flag, Urgency } from "./clinical";
@@ -529,22 +529,27 @@ export async function nudgeReferrals(
       AND r.nudge_count < 3
   `;
 
-  let sent = 0;
-  for (const r of due) {
-    const ok = await sendSms(
-      r.phone as string,
-      "VitaHero: " + (r.kid_name as string) + " still needs a " +
-        String(r.specialty || "doctor").toLowerCase() + " check-up from the school health camp. " +
-        "Open the VitaHero app to book, or tell us if you have already been."
-    );
-    if (ok) {
-      sent++;
-      await sql`
-        UPDATE vita_hero.referrals
-        SET nudge_count = nudge_count + 1, last_nudge_at = NOW()
-        WHERE id = ${r.id as string}
-      `;
+  const byId = new Map(due.map((r) => [r.id as string, r]));
+  const outcome = await sendToMany(
+    sendSms,
+    due.map((r) => ({ id: r.id as string, phone: r.phone as string })),
+    (r) => {
+      const row = byId.get(r.id)!;
+      return "VitaHero: " + (row.kid_name as string) + " still needs a " +
+        String(row.specialty || "doctor").toLowerCase() + " check-up from the school health camp. " +
+        "Open the VitaHero app to book, or tell us if you have already been.";
     }
+  );
+  const sent = outcome.sent.length;
+  // One statement for everyone who was reached. The interval and the cap were
+  // already right here; what was not was a write per referral on top of a send
+  // per referral, both waited on one at a time.
+  if (outcome.sent.length > 0) {
+    await sql`
+      UPDATE vita_hero.referrals
+      SET nudge_count = nudge_count + 1, last_nudge_at = NOW()
+      WHERE id = ANY(${outcome.sent})
+    `;
   }
 
   // Anyone nudged three times without acting is now the school's problem, not

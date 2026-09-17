@@ -19,7 +19,7 @@ import {
   slugify,
   tidyName,
 } from "./common";
-import { SmsSender } from "./messaging";
+import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { openReferralsForCamp } from "./referrals";
 import { logRecordAccess } from "./oversight";
@@ -111,6 +111,10 @@ export async function ensureCampSchema(sql: Sql): Promise<void> {
   // lives here, with the rest of the participant row, so recordConsent can
   // always write it; media.ts is what actually reads it.
   await sql`ALTER TABLE vita_hero.camp_participants ADD COLUMN IF NOT EXISTS consent_photos BOOLEAN DEFAULT false`;
+  // What has already been asked of this guardian about this camp, so a second
+  // click on "remind everyone" does not text the school again.
+  await sql`ALTER TABLE vita_hero.camp_participants ADD COLUMN IF NOT EXISTS consent_reminded_at TIMESTAMPTZ`;
+  await sql`ALTER TABLE vita_hero.camp_participants ADD COLUMN IF NOT EXISTS consent_reminder_count INT DEFAULT 0`;
   await sql`CREATE INDEX IF NOT EXISTS camp_participants_camp ON vita_hero.camp_participants(camp_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS camp_participants_kid ON vita_hero.camp_participants(kid_id)`;
   await sql`CREATE INDEX IF NOT EXISTS camp_participants_profile ON vita_hero.camp_participants(profile_id, consent_status)`;
@@ -670,6 +674,12 @@ export async function requestConsent(
     JOIN vita_hero.profiles pr ON pr.id = p.profile_id
     WHERE p.camp_id = ${campId} AND p.consent_status = 'PENDING' AND COALESCE(pr.phone,'') <> ''
       AND (${picked.length === 0} OR p.profile_id = ANY(${picked}))
+      -- Reminding everyone is throttled; reminding one named guardian is a
+      -- deliberate act by someone who has just spoken to them, and is not.
+      AND (${picked.length > 0}
+           OR ((p.consent_reminded_at IS NULL
+                OR p.consent_reminded_at < NOW() - INTERVAL '2 days')
+               AND COALESCE(p.consent_reminder_count, 0) < 3))
   `;
 
   const checks: string[] = Array.isArray(camp.checks)
@@ -683,10 +693,25 @@ export async function requestConsent(
     (deadline ? ` Please respond by ${deadline}.` : "") +
     ` Open the VitaHero app to give or decline permission. ${appOrigin}/i/consent`;
 
-  let sent = 0;
-  for (const r of rows) {
-    const ok = await sendSms(r.phone as string, message);
-    if (ok) sent++;
+  const outcome = await sendToMany(
+    sendSms,
+    rows.map((r) => ({ id: r.profile_id as string, phone: r.phone as string })),
+    () => message
+  );
+  const sent = outcome.sent.length;
+
+  // One statement for everyone reached. It also gives this the restraint the
+  // referral nudge already had and this did not: nothing recorded that a
+  // guardian had been reminded, so an operator clicking the button twice
+  // texted a whole school's waiting families twice, immediately, with no cap
+  // and no interval.
+  if (outcome.sent.length > 0) {
+    await sql`
+      UPDATE vita_hero.camp_participants
+      SET consent_reminded_at = NOW(),
+          consent_reminder_count = COALESCE(consent_reminder_count, 0) + 1
+      WHERE camp_id = ${campId} AND profile_id = ANY(${outcome.sent})
+    `;
   }
 
   await sql`
