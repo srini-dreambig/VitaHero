@@ -317,6 +317,31 @@ export async function deleteChild(sql: Sql, profileId: string, kidId: string, ac
   await sql`DELETE FROM vita_hero.streaks WHERE kid_id = ${kidId}`;
   await sql`DELETE FROM vita_hero.ai_diet_tips WHERE kid_id = ${kidId}`;
   await sql`DELETE FROM vita_hero.school_enrollments WHERE kid_id = ${kidId}`;
+
+  // The photographs of this child's findings. They were not on this list, so
+  // an erasure request took the findings and left the pictures — the bytes
+  // themselves, in finding_photos.data — attached to a child who no longer
+  // exists. The table is created by media.ts, which a given deployment may not
+  // have run, hence the same defensive shape as sessions below.
+  try {
+    await sql`DELETE FROM vita_hero.finding_photos WHERE kid_id = ${kidId}`;
+  } catch { /* deployment without the media schema */ }
+
+  // Everything the guardian asked the school about this child, and the
+  // school's answers. The messages hang off the thread, so they go first.
+  try {
+    await sql`
+      DELETE FROM vita_hero.question_messages
+      WHERE thread_id IN (SELECT id FROM vita_hero.question_threads WHERE kid_id = ${kidId})
+    `;
+    await sql`DELETE FROM vita_hero.question_threads WHERE kid_id = ${kidId}`;
+  } catch { /* deployment without the messages schema */ }
+
+  // record_access is deliberately not touched. It is the log of who looked at
+  // this child's record, which is the evidence that the looking was accounted
+  // for; erasing it would destroy the trail rather than the data. It names no
+  // child beyond the id that is about to stop resolving.
+
   await sql`DELETE FROM vita_hero.kids WHERE id = ${kidId}`;
 
   await logRight(sql, profileId, "CHILD_DELETED", String(owns[0].name), actorId);
@@ -334,6 +359,19 @@ export async function deleteAccount(sql: Sql, profileId: string) {
   await sql`DELETE FROM vita_hero.consent_log WHERE profile_id = ${profileId}`;
   await sql`DELETE FROM vita_hero.correction_requests WHERE profile_id = ${profileId}`;
   await sql`DELETE FROM vita_hero.referrals WHERE profile_id = ${profileId}`;
+  // A guardian is not normally staff, but the row is keyed on the profile and
+  // this is the function that makes the profile stop existing. Left behind it
+  // is a camp listing somebody who cannot be looked up.
+  try {
+    await sql`DELETE FROM vita_hero.camp_staff WHERE profile_id = ${profileId}`;
+  } catch { /* deployment without the camp schema */ }
+  try {
+    await sql`
+      DELETE FROM vita_hero.question_messages
+      WHERE thread_id IN (SELECT id FROM vita_hero.question_threads WHERE profile_id = ${profileId})
+    `;
+    await sql`DELETE FROM vita_hero.question_threads WHERE profile_id = ${profileId}`;
+  } catch { /* deployment without the messages schema */ }
 
   // Every device, not just the one that asked. An erased account whose tablet
   // still held a live session would keep answering requests for a profile row
@@ -539,12 +577,27 @@ export async function changeGuardianPhone(
     "kids", "appointments", "co_parents", "meal_items", "school_enrollments",
     "camp_participants", "camp_registrations", "camp_kid_results", "referrals",
     "consent_log", "correction_requests", "ai_diet_tips",
+    // These two were left off. The threads meant a guardian who changed their
+    // number lost the questions they had asked. camp_staff is worse: this
+    // function copies the role across, so a screener or physician can come
+    // through it, and their camp assignments staying behind is not an
+    // inconvenience — an assignment to a running camp is what lets clinical
+    // staff sign in at all, so changing their mobile number locked them out.
+    "question_threads",
+    "camp_staff",
   ];
+  // A table a given deployment has not created yet must not take the move down
+  // with it: the old profile row is deleted at the end of this, so a throw
+  // half way leaves a guardian whose records point at an identity that is
+  // about to stop existing. Everything else here that touches an optional
+  // table is defensive in the same way.
   for (const t of TABLES_WITH_PROFILE_ID) {
-    await sql.query(
-      `UPDATE vita_hero."${t}" SET profile_id = $1 WHERE profile_id = $2`,
-      [newId, oldId]
-    );
+    try {
+      await sql.query(
+        `UPDATE vita_hero."${t}" SET profile_id = $1 WHERE profile_id = $2`,
+        [newId, oldId]
+      );
+    } catch { /* this deployment does not have that table */ }
   }
   await sql`UPDATE vita_hero.kids SET user_id = ${newId} WHERE user_id = ${oldId}`;
   await sql`DELETE FROM vita_hero.profiles WHERE id = ${oldId}`;
