@@ -13,6 +13,7 @@ import {
   Sql,
   chunk,
   currentAcademicYear,
+  insertRows,
   isOpsRole,
   normalizePhone,
   slugify,
@@ -857,26 +858,40 @@ export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, k
  * cannot be screened, and a child with partial consent cannot be screened for
  * a check their guardian declined.
  */
-export async function saveScreening(
-  sql: Sql,
-  actor: Actor,
+/** One finding, decided but not yet written. */
+interface EvaluatedFinding {
+  id: string;
+  checkType: string;
+  detail: Record<string, unknown>;
+  valueNum: number | null;
+  valueText: string;
+  autoFlag: Flag;
+  flag: Flag;
+  rationale: string;
+  urgency: string;
+  note: string;
+}
+
+/**
+ * Everything that decides what a child's findings become, with no database in
+ * it: consent, what the camp offers, the flag the measurement proposes, and a
+ * screener's override of it.
+ *
+ * Shared by the one-child form and the offline queue, because the rules a camp
+ * day is judged by must not depend on whether there was signal in the hall.
+ * They used to be written once and called in a loop, which was the same rules
+ * but 2338 statements for a 200-child camp — more than the platform allows, so
+ * a full school's screening could not be synced at all.
+ */
+function evaluateChild(
   campId: string,
   kidId: string,
-  body: Record<string, unknown>
-) {
-  const access = await assertCampAccess(sql, actor, campId);
-  assertCan(access.canScreen, "screen children at this camp");
-
-  const pRows = await sql`
-    SELECT p.*, k.age, k.gender, k.name, k.date_of_birth
-    FROM vita_hero.camp_participants p
-    JOIN vita_hero.kids k ON k.id = p.kid_id
-    WHERE p.camp_id = ${campId} AND p.kid_id = ${kidId} LIMIT 1
-  `;
-  if (pRows.length === 0) throw new ApiError(404, "That child is not on this camp's list", "NOT_ON_CAMP");
-  const p = pRows[0];
-
-  const consent = (p.consent_status as string) || "PENDING";
+  participant: Record<string, unknown>,
+  campChecks: string[],
+  incoming: Record<string, unknown>[],
+  actorId: string
+): EvaluatedFinding[] {
+  const consent = (participant.consent_status as string) || "PENDING";
   if (consent !== "GRANTED" && consent !== "PAPER") {
     throw new ApiError(
       403,
@@ -886,28 +901,23 @@ export async function saveScreening(
       "NO_CONSENT"
     );
   }
-  if ((p.status as string) === "RELEASED") {
+  if ((participant.status as string) === "RELEASED") {
     throw new ApiError(409, "This child's results have already been released", "RELEASED");
   }
 
-  const campChecks: string[] = Array.isArray(access.camp.checks)
-    ? (access.camp.checks as string[])
-    : JSON.parse(String(access.camp.checks || "[]"));
-  const consentChecks: string[] = Array.isArray(p.consent_checks)
-    ? (p.consent_checks as string[])
-    : JSON.parse(String(p.consent_checks || "[]"));
-  const allowed = consentChecks.length > 0 ? campChecks.filter((c) => consentChecks.includes(c)) : campChecks;
-
-  const incoming = Array.isArray(body.findings) ? (body.findings as Record<string, unknown>[]) : [];
-  if (incoming.length === 0) throw new ApiError(400, "No findings submitted", "NO_FINDINGS");
+  const consentChecks: string[] = Array.isArray(participant.consent_checks)
+    ? (participant.consent_checks as string[])
+    : JSON.parse(String(participant.consent_checks || "[]"));
+  const allowed = consentChecks.length > 0
+    ? campChecks.filter((c) => consentChecks.includes(c))
+    : campChecks;
 
   const ctx = {
-    ageYears: Number(p.age) || 0,
-    gender: String(p.gender || ""),
+    ageYears: Number(participant.age) || 0,
+    gender: String(participant.gender || ""),
   };
 
-  const saved: Array<{ checkType: string; flag: Flag; rationale: string }> = [];
-
+  const out: EvaluatedFinding[] = [];
   for (const raw of incoming) {
     const checkType = String(raw.checkType || "");
     if (!isCheckType(checkType)) {
@@ -941,44 +951,145 @@ export async function saveScreening(
       flag = override as Flag;
     }
 
-    const id = `cf_${campId.slice(-10)}_${slugify(kidId).slice(0, 16)}_${slugify(checkType)}`;
+    out.push({
+      id: `cf_${campId.slice(-10)}_${slugify(kidId).slice(0, 16)}_${slugify(checkType)}`,
+      checkType,
+      detail,
+      valueNum: proposal.valueNum,
+      valueText: proposal.valueText,
+      autoFlag: proposal.flag,
+      flag,
+      rationale: proposal.rationale,
+      urgency: proposal.urgency,
+      note,
+    });
+  }
+  return out;
+}
+
+/** One child's captures, already judged, waiting to be written. */
+interface PreparedChild {
+  kidId: string;
+  findings: EvaluatedFinding[];
+  attendance: string;
+}
+
+/**
+ * Write a whole camp day at once.
+ *
+ * The cost is a handful of statements per hundred children rather than eleven
+ * per child, which is the difference between a school's morning syncing and
+ * being cut off by the platform partway through.
+ */
+async function writeScreenings(
+  sql: Sql,
+  actor: Actor,
+  campId: string,
+  children: PreparedChild[]
+): Promise<void> {
+  const rows = children.flatMap((c) =>
+    c.findings.map((f) => [
+      f.id, campId, c.kidId, f.checkType, JSON.stringify(f.detail),
+      f.valueNum, f.valueText, f.autoFlag, f.flag, f.rationale, f.urgency,
+      f.note, actor.profileId,
+    ])
+  );
+  await insertRows(
+    sql,
+    `INSERT INTO vita_hero.camp_findings
+       (id, camp_id, kid_id, check_type, detail, value_num, value_text,
+        auto_flag, flag, rationale, urgency, screener_note, recorded_by, recorded_at)
+     SELECT v.id, v.camp_id, v.kid_id, v.check_type, v.detail::jsonb,
+            v.value_num::double precision, v.value_text, v.auto_flag, v.flag,
+            v.rationale, v.urgency, v.screener_note, v.recorded_by, NOW()
+     FROM (VALUES %VALUES%) AS v(id, camp_id, kid_id, check_type, detail, value_num,
+            value_text, auto_flag, flag, rationale, urgency, screener_note, recorded_by)
+     ON CONFLICT (camp_id, kid_id, check_type) DO UPDATE SET
+       detail = EXCLUDED.detail,
+       value_num = EXCLUDED.value_num,
+       value_text = EXCLUDED.value_text,
+       auto_flag = EXCLUDED.auto_flag,
+       flag = EXCLUDED.flag,
+       rationale = EXCLUDED.rationale,
+       urgency = EXCLUDED.urgency,
+       screener_note = EXCLUDED.screener_note,
+       recorded_by = EXCLUDED.recorded_by,
+       recorded_at = NOW()`,
+    rows
+  );
+
+  // Attendance, grouped by what it was set to: three statements at most,
+  // whatever the size of the camp.
+  for (const value of ATTENDANCE) {
+    const ids = children.filter((c) => c.attendance === value).map((c) => c.kidId);
+    if (ids.length === 0) continue;
     await sql`
-      INSERT INTO vita_hero.camp_findings
-        (id, camp_id, kid_id, check_type, detail, value_num, value_text,
-         auto_flag, flag, rationale, urgency, screener_note, recorded_by, recorded_at)
-      VALUES
-        (${id}, ${campId}, ${kidId}, ${checkType}, ${JSON.stringify(detail)}::jsonb,
-         ${proposal.valueNum}, ${proposal.valueText}, ${proposal.flag}, ${flag},
-         ${proposal.rationale}, ${proposal.urgency}, ${note}, ${actor.profileId}, NOW())
-      ON CONFLICT (camp_id, kid_id, check_type) DO UPDATE SET
-        detail = EXCLUDED.detail,
-        value_num = EXCLUDED.value_num,
-        value_text = EXCLUDED.value_text,
-        auto_flag = EXCLUDED.auto_flag,
-        flag = EXCLUDED.flag,
-        rationale = EXCLUDED.rationale,
-        urgency = EXCLUDED.urgency,
-        screener_note = EXCLUDED.screener_note,
-        recorded_by = EXCLUDED.recorded_by,
-        recorded_at = NOW()
+      UPDATE vita_hero.camp_participants SET attendance = ${value}
+      WHERE camp_id = ${campId} AND kid_id = ANY(${ids})
     `;
-    saved.push({ checkType, flag, rationale: proposal.rationale });
   }
 
-  await sql`
-    UPDATE vita_hero.camp_participants
-    SET status = CASE WHEN status IN ('APPROVED','RELEASED') THEN status ELSE 'SCREENED' END,
-        attendance = CASE WHEN attendance = 'UNKNOWN' THEN 'PRESENT' ELSE attendance END,
-        screened_at = NOW(),
-        screened_by = ${actor.profileId}
-    WHERE camp_id = ${campId} AND kid_id = ${kidId}
-  `;
+  const screened = children.filter((c) => c.findings.length > 0).map((c) => c.kidId);
+  if (screened.length > 0) {
+    await sql`
+      UPDATE vita_hero.camp_participants
+      SET status = CASE WHEN status IN ('APPROVED','RELEASED') THEN status ELSE 'SCREENED' END,
+          attendance = CASE WHEN attendance = 'UNKNOWN' THEN 'PRESENT' ELSE attendance END,
+          screened_at = NOW(),
+          screened_by = ${actor.profileId}
+      WHERE camp_id = ${campId} AND kid_id = ANY(${screened})
+    `;
+  }
+
   await sql`
     UPDATE vita_hero.school_camps SET status = 'IN_PROGRESS'
     WHERE id = ${campId} AND status IN ('DRAFT','SCHEDULED')
   `;
+}
 
-  return { kidId, saved };
+/** The camp's participants, keyed by child, for the children in one batch. */
+async function participantsFor(sql: Sql, campId: string, kidIds: string[]) {
+  const rows = await sql`
+    SELECT p.*, k.age, k.gender, k.name, k.date_of_birth
+    FROM vita_hero.camp_participants p
+    JOIN vita_hero.kids k ON k.id = p.kid_id
+    WHERE p.camp_id = ${campId} AND p.kid_id = ANY(${kidIds})
+  `;
+  const byKid = new Map<string, Record<string, unknown>>();
+  for (const r of rows) byKid.set(r.kid_id as string, r);
+  return byKid;
+}
+
+function campCheckList(camp: Record<string, unknown>): string[] {
+  return Array.isArray(camp.checks)
+    ? (camp.checks as string[])
+    : JSON.parse(String(camp.checks || "[]"));
+}
+
+export async function saveScreening(
+  sql: Sql,
+  actor: Actor,
+  campId: string,
+  kidId: string,
+  body: Record<string, unknown>
+) {
+  const access = await assertCampAccess(sql, actor, campId);
+  assertCan(access.canScreen, "screen children at this camp");
+
+  const incoming = Array.isArray(body.findings) ? (body.findings as Record<string, unknown>[]) : [];
+  if (incoming.length === 0) throw new ApiError(400, "No findings submitted", "NO_FINDINGS");
+
+  const byKid = await participantsFor(sql, campId, [kidId]);
+  const p = byKid.get(kidId);
+  if (!p) throw new ApiError(404, "That child is not on this camp's list", "NOT_ON_CAMP");
+
+  const findings = evaluateChild(campId, kidId, p, campCheckList(access.camp), incoming, actor.profileId);
+  await writeScreenings(sql, actor, campId, [{ kidId, findings, attendance: "" }]);
+
+  return {
+    kidId,
+    saved: findings.map((f) => ({ checkType: f.checkType, flag: f.flag, rationale: f.rationale })),
+  };
 }
 
 /**
@@ -1077,6 +1188,13 @@ export async function campPack(sql: Sql, actor: Actor, campId: string) {
  * authoritative on consent, so a queued finding for a child who has since
  * declined is rejected rather than written.
  */
+/**
+ * A whole offline queue, applied in one go.
+ *
+ * Every child is judged on its own so one refusal — a guardian who withdrew
+ * consent while the screener was in the hall — does not take the morning's
+ * other captures with it. What survives that is written together.
+ */
 export async function saveScreeningBulk(
   sql: Sql,
   actor: Actor,
@@ -1088,21 +1206,42 @@ export async function saveScreeningBulk(
 
   const applied: Array<{ kidId: string; saved: number }> = [];
   const rejected: Array<{ kidId: string; reason: string; code: string }> = [];
+  const prepared: PreparedChild[] = [];
+
+  const wanted = entries.map((e) => String(e.kidId || "")).filter(Boolean);
+  const byKid = await participantsFor(sql, campId, wanted);
+  const campChecks = campCheckList(access.camp);
 
   for (const entry of entries) {
     const kidId = String(entry.kidId || "");
     if (!kidId) continue;
     try {
+      const p = byKid.get(kidId);
+      if (!p) throw new ApiError(404, "That child is not on this camp's list", "NOT_ON_CAMP");
+
+      let attendance = "";
       if (entry.attendance) {
-        await setAttendance(sql, actor, campId, kidId, String(entry.attendance));
+        attendance = String(entry.attendance).toUpperCase();
+        if (!ATTENDANCE.includes(attendance as (typeof ATTENDANCE)[number])) {
+          throw new ApiError(400, "Attendance must be PRESENT, ABSENT or REFUSED", "BAD_ATTENDANCE");
+        }
       }
-      const findings = Array.isArray(entry.findings) ? (entry.findings as Record<string, unknown>[]) : [];
-      if (findings.length > 0) {
-        const r = await saveScreening(sql, actor, campId, kidId, { findings });
-        applied.push({ kidId, saved: r.saved.length });
-      } else if (entry.attendance) {
-        applied.push({ kidId, saved: 0 });
+
+      const incoming = Array.isArray(entry.findings) ? (entry.findings as Record<string, unknown>[]) : [];
+      const findings = incoming.length > 0
+        ? evaluateChild(campId, kidId, p, campChecks, incoming, actor.profileId)
+        : [];
+
+      // An entry that says nothing is not a capture. It used to be dropped
+      // here without being applied or rejected — and the console keeps only
+      // what was refused, so it was deleted from the queue having never been
+      // written anywhere.
+      if (findings.length === 0 && !attendance) {
+        throw new ApiError(400, "Nothing recorded for this child", "NO_FINDINGS");
       }
+
+      prepared.push({ kidId, findings, attendance });
+      applied.push({ kidId, saved: findings.length });
     } catch (e) {
       const err = e as ApiError;
       rejected.push({
@@ -1112,6 +1251,8 @@ export async function saveScreeningBulk(
       });
     }
   }
+
+  if (prepared.length > 0) await writeScreenings(sql, actor, campId, prepared);
 
   return { applied: applied.length, rejected, appliedDetail: applied };
 }
