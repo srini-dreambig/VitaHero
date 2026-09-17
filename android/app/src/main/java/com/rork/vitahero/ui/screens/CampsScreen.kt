@@ -39,7 +39,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Camp
-import com.rork.vitahero.data.CampStatus
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.EmptyState
@@ -47,6 +46,7 @@ import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.bottomBarClearance
+import com.rork.vitahero.ui.components.campWhen
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.AppTheme
 import com.rork.vitahero.ui.theme.HeroBlue
@@ -63,8 +63,8 @@ fun CampsScreen(
     pendingConsents: Int = 0,
     onOpenConsent: () -> Unit = {},
 ) {
-    val upcoming = camps.filter { it.status == CampStatus.UPCOMING }
-    val past = camps.filter { it.status == CampStatus.COMPLETED }
+    val upcoming = camps.filter { it.status.isUpcoming }
+    val past = camps.filter { it.status.isPast }
 
     LazyColumn(
         modifier = Modifier
@@ -169,7 +169,7 @@ fun CampsScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit, onOpenCamp: (String) -> Unit) {
-    val upcoming = camp.status == CampStatus.UPCOMING
+    val upcoming = camp.status.isUpcoming
     val accent = if (upcoming) HeroBlue else HeroOrange
     HeroCard(
         Modifier
@@ -223,7 +223,7 @@ private fun CampCard(camp: Camp, onBookFollowUp: () -> Unit, onOpenCamp: (String
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Outlined.Schedule, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("${camp.date} · ${camp.time}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                Text(campWhen(camp.date, camp.time), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
             }
             Spacer(Modifier.height(12.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

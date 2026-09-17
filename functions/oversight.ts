@@ -93,44 +93,47 @@ export async function recordAccessLog(
   const kidId = opts.kidId || "";
   const actorId = opts.actorId || "";
 
-  const rows = await sql`
-    SELECT r.id, r.kid_id, r.camp_id, r.actor_id, r.actor_name, r.actor_role,
-           r.surface, r.viewed_at, k.name AS kid_name, s.name AS school_name
-    FROM vita_hero.record_access r
-    LEFT JOIN vita_hero.kids k ON k.id = r.kid_id
-    LEFT JOIN vita_hero.schools s ON s.id = r.school_id
-    WHERE r.viewed_at >= NOW() - (${days} || ' days')::interval
-      AND (${!kidId} OR r.kid_id = ${kidId})
-      AND (${!actorId} OR r.actor_id = ${actorId})
+  // The log page and the summary above it are independent; one wait.
+  const [rows, summary] = await Promise.all([
+    sql`
+      SELECT r.id, r.kid_id, r.camp_id, r.actor_id, r.actor_name, r.actor_role,
+             r.surface, r.viewed_at, k.name AS kid_name, s.name AS school_name
+      FROM vita_hero.record_access r
+      LEFT JOIN vita_hero.kids k ON k.id = r.kid_id
+      LEFT JOIN vita_hero.schools s ON s.id = r.school_id
+      WHERE r.viewed_at >= NOW() - (${days} || ' days')::interval
+        AND (${!kidId} OR r.kid_id = ${kidId})
+        AND (${!actorId} OR r.actor_id = ${actorId})
 
-    UNION ALL
+      UNION ALL
 
-    SELECT l.id, p.kid_id, p.camp_id, l.actor_id,
-           COALESCE(pr.name, '') AS actor_name, l.actor_role,
-           'PHOTOGRAPH' AS surface, l.viewed_at, k.name AS kid_name, s.name AS school_name
-    FROM vita_hero.photo_access_log l
-    JOIN vita_hero.finding_photos p ON p.id = l.photo_id
-    LEFT JOIN vita_hero.kids k ON k.id = p.kid_id
-    LEFT JOIN vita_hero.profiles pr ON pr.id = l.actor_id
-    LEFT JOIN vita_hero.schools s ON s.id = k.school_id
-    WHERE l.viewed_at >= NOW() - (${days} || ' days')::interval
-      AND (${!kidId} OR p.kid_id = ${kidId})
-      AND (${!actorId} OR l.actor_id = ${actorId})
+      SELECT l.id, p.kid_id, p.camp_id, l.actor_id,
+             COALESCE(pr.name, '') AS actor_name, l.actor_role,
+             'PHOTOGRAPH' AS surface, l.viewed_at, k.name AS kid_name, s.name AS school_name
+      FROM vita_hero.photo_access_log l
+      JOIN vita_hero.finding_photos p ON p.id = l.photo_id
+      LEFT JOIN vita_hero.kids k ON k.id = p.kid_id
+      LEFT JOIN vita_hero.profiles pr ON pr.id = l.actor_id
+      LEFT JOIN vita_hero.schools s ON s.id = k.school_id
+      WHERE l.viewed_at >= NOW() - (${days} || ' days')::interval
+        AND (${!kidId} OR p.kid_id = ${kidId})
+        AND (${!actorId} OR l.actor_id = ${actorId})
 
-    ORDER BY viewed_at DESC
-    LIMIT ${limit}
-  `;
+      ORDER BY viewed_at DESC
+      LIMIT ${limit}
+    `,
 
-  const summary = await sql`
-    SELECT actor_id, MAX(actor_name) AS actor_name, MAX(actor_role) AS actor_role,
-           COUNT(*)::int AS reads, COUNT(DISTINCT kid_id)::int AS children,
-           MAX(viewed_at) AS last_at
-    FROM vita_hero.record_access
-    WHERE viewed_at >= NOW() - (${days} || ' days')::interval
-    GROUP BY actor_id
-    ORDER BY COUNT(*) DESC
-    LIMIT 50
-  `;
+    sql`
+      SELECT actor_id, MAX(actor_name) AS actor_name, MAX(actor_role) AS actor_role,
+             COUNT(*)::int AS reads, COUNT(DISTINCT kid_id)::int AS children,
+             MAX(viewed_at) AS last_at
+      FROM vita_hero.record_access
+      WHERE viewed_at >= NOW() - (${days} || ' days')::interval
+      GROUP BY actor_id
+      ORDER BY COUNT(*) DESC
+      LIMIT 50
+    `,
+  ]);
 
   return {
     days,
@@ -177,37 +180,40 @@ export async function hospitalPerformance(
   const schoolId = opts.schoolId || "";
   const all = !schoolId;
 
-  const rows = await sql`
-    SELECT h.id, h.name, h.city, h.district, h.is_camp_partner, h.rating,
-      COUNT(r.id)::int AS sent,
-      COUNT(r.id) FILTER (WHERE r.attended_at IS NOT NULL)::int AS seen,
-      COUNT(r.id) FILTER (WHERE r.status = 'CLOSED')::int AS closed,
-      COUNT(r.id) FILTER (WHERE r.status IN ('OPEN','BOOKED'))::int AS outstanding,
-      COUNT(r.id) FILTER (WHERE r.status = 'EXPIRED')::int AS expired,
-      AVG(EXTRACT(EPOCH FROM (r.closed_at - r.created_at)) / 86400.0)
-        FILTER (WHERE r.closed_at IS NOT NULL) AS avg_days
-    FROM vita_hero.hospitals h
-    LEFT JOIN vita_hero.doctors d ON d.hospital_id = h.id
-    LEFT JOIN vita_hero.appointments ap ON ap.doctor_id = d.id
-    LEFT JOIN vita_hero.referrals r ON r.appointment_id = ap.id
-      AND (${all} OR r.school_id = ${schoolId})
-    WHERE h.active = true
-    GROUP BY h.id, h.name, h.city, h.district, h.is_camp_partner, h.rating
-    ORDER BY COUNT(r.id) DESC, h.name
-  `;
+  // The partner table and the not-booked tally are independent; one hop.
+  const [rows, unrouted] = await Promise.all([
+    sql`
+      SELECT h.id, h.name, h.city, h.district, h.is_camp_partner, h.rating,
+        COUNT(r.id)::int AS sent,
+        COUNT(r.id) FILTER (WHERE r.attended_at IS NOT NULL)::int AS seen,
+        COUNT(r.id) FILTER (WHERE r.status = 'CLOSED')::int AS closed,
+        COUNT(r.id) FILTER (WHERE r.status IN ('OPEN','BOOKED'))::int AS outstanding,
+        COUNT(r.id) FILTER (WHERE r.status = 'EXPIRED')::int AS expired,
+        AVG(EXTRACT(EPOCH FROM (r.closed_at - r.created_at)) / 86400.0)
+          FILTER (WHERE r.closed_at IS NOT NULL) AS avg_days
+      FROM vita_hero.hospitals h
+      LEFT JOIN vita_hero.doctors d ON d.hospital_id = h.id
+      LEFT JOIN vita_hero.appointments ap ON ap.doctor_id = d.id
+      LEFT JOIN vita_hero.referrals r ON r.appointment_id = ap.id
+        AND (${all} OR r.school_id = ${schoolId})
+      WHERE h.active = true
+      GROUP BY h.id, h.name, h.city, h.district, h.is_camp_partner, h.rating
+      ORDER BY COUNT(r.id) DESC, h.name
+    `,
 
-  // The referrals that never reached a partner at all. This is the line that
-  // says whether the referral loop is working, so it is reported next to the
-  // partners rather than left out of the picture.
-  const unrouted = await sql`
-    SELECT
-      COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed,
-      COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED'))::int AS outstanding,
-      COUNT(*) FILTER (WHERE status = 'DECLINED')::int AS declined
-    FROM vita_hero.referrals
-    WHERE appointment_id IS NULL AND (${all} OR school_id = ${schoolId})
-  `;
+    // The referrals that never reached a partner at all. This is the line that
+    // says whether the referral loop is working, so it is reported next to the
+    // partners rather than left out of the picture.
+    sql`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed,
+        COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED'))::int AS outstanding,
+        COUNT(*) FILTER (WHERE status = 'DECLINED')::int AS declined
+      FROM vita_hero.referrals
+      WHERE appointment_id IS NULL AND (${all} OR school_id = ${schoolId})
+    `,
+  ]);
 
   const u = unrouted[0] || {};
   return {

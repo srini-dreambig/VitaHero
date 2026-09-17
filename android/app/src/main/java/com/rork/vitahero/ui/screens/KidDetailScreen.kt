@@ -33,6 +33,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import com.rork.vitahero.data.GrowthAssessment
 import com.rork.vitahero.data.GrowthPoint
 import com.rork.vitahero.data.HealthConnectService
@@ -77,14 +80,15 @@ fun KidDetailScreen(
     wearableData: HealthConnectService.WearableData? = null,
     onBack: () -> Unit,
     onOpenDiet: () -> Unit,
-    onShareReport: (Context) -> Unit,
+    onShareReport: suspend (Context) -> Unit,
     onRefreshWearable: () -> Unit = {},
     onLogSymptom: () -> Unit = {},
     onOpenGrowthCharts: () -> Unit = {},
     growthAssessment: GrowthAssessment? = null,
 ) {
-    var tab by remember { mutableStateOf(DetailTab.GROWTH) }
+    var tab by rememberSaveable { mutableStateOf(DetailTab.GROWTH) }
     var isGeneratingReport by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
     LazyColumn(
@@ -116,7 +120,7 @@ fun KidDetailScreen(
                                 .clickable(onClick = onBack),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
                         }
                         Spacer(Modifier.weight(1f))
                         // Share report button
@@ -124,18 +128,28 @@ fun KidDetailScreen(
                             Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(MaterialTheme.colorScheme.surface)
-                                .clickable {
+                                // The indicator used to be theatre: it showed
+                                // for a fixed 800ms while nothing happened,
+                                // hid itself, and only then ran the work — on
+                                // the main thread, so the UI froze right after
+                                // the progress text disappeared. It now tracks
+                                // the actual job, which runs off the main
+                                // thread.
+                                .clickable(enabled = !isGeneratingReport) {
                                     isGeneratingReport = true
-                                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                        isGeneratingReport = false
-                                        onShareReport(context)
-                                    }, 800)
+                                    scope.launch {
+                                        try {
+                                            onShareReport(context)
+                                        } finally {
+                                            isGeneratingReport = false
+                                        }
+                                    }
                                 }
                                 .padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (isGeneratingReport) {
-                                    Text("Generating…", style = MaterialTheme.typography.labelSmall, color = HeroOrange)
+                                    Text(t(S.generatingReport), style = MaterialTheme.typography.labelSmall, color = HeroOrange)
                                 } else {
                                     Icon(Icons.Outlined.Share, contentDescription = "Share report", tint = HeroOrange, modifier = Modifier.size(18.dp))
                                     Spacer(Modifier.width(6.dp))

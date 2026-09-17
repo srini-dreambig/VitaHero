@@ -279,7 +279,7 @@ fun ProfileScreen(
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                "VitaHero v1.0 · For informational purposes only.\nAlways consult a doctor for medical advice.",
+                "VitaHero v1.0\n" + t(S.medicalDisclaimer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),

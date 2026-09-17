@@ -77,8 +77,10 @@ object FamilySharingService {
                 contentType(ContentType.Application.Json)
                 setBody(body.toString())
             }
+            resp.observed()
             Result.success(resp.body<ValidateCodeResponse>())
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -106,8 +108,10 @@ object FamilySharingService {
                 contentType(ContentType.Application.Json)
                 setBody(body.toString())
             }
+            resp.observed()
             Result.success(resp.body<JoinFamilyResponse>())
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }
@@ -126,8 +130,10 @@ object FamilySharingService {
                 headers.forEach { (k, v) -> header(k, v) }
                 url { parameters.append("familyCode", familyCode) }
             }
+            resp.observed()
             Result.success(resp.body<SharedKidsResponse>())
         } catch (e: Exception) {
+            noteTransportFailure(e)
             Result.failure(e)
         }
     }

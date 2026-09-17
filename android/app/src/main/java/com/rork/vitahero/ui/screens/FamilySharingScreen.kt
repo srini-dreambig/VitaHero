@@ -40,7 +40,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -71,12 +71,14 @@ fun FamilySharingScreen(
     coParents: List<CoParent>,
     onBack: () -> Unit,
     onJoinFamily: (String) -> Unit,
+    /** True while a family-sharing write is with the server. */
+    busy: Boolean = false,
     onGenerateCode: () -> Unit,
     onShareCode: () -> Unit
 ) {
     val context = LocalContext.current
-    var joinCode by remember { mutableStateOf("") }
-    var showJoin by remember { mutableStateOf(false) }
+    var joinCode by rememberSaveable { mutableStateOf("") }
+    var showJoin by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -85,7 +87,7 @@ fun FamilySharingScreen(
                 title = { Text(t(S.familyTitle), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -129,7 +131,8 @@ fun FamilySharingScreen(
                             )
                             Spacer(Modifier.height(12.dp))
                             PrimaryGradientButton(
-                                text = t(S.generateFamilyCode),
+                                text = if (busy) t(S.pleaseWait) else t(S.generateFamilyCode),
+                                enabled = !busy,
                                 onClick = onGenerateCode,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -177,7 +180,18 @@ fun FamilySharingScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(Icons.Outlined.Share, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
-                                Text(t(S.shareYourCode).take(25) + "…", color = HeroOrange, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                                // Was .take(25) + "…", which cut every language
+                                // mid-word — Telugu inside a consonant cluster.
+                                // One line, ellipsised by the text layout, which
+                                // knows where the characters actually end.
+                                Text(
+                                    t(S.shareYourCode),
+                                    color = HeroOrange,
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
                             }
                         }
                         }
@@ -247,7 +261,14 @@ fun FamilySharingScreen(
                             OutlinedTextField(
                                 value = joinCode,
                                 onValueChange = { joinCode = it.take(6) },
-                                placeholder = { Text(t(S.familyCodePlaceholder).take(10) + "…", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                                placeholder = {
+                                    Text(
+                                        t(S.familyCodePlaceholder),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                },
                                 singleLine = true,
                                 shape = RoundedCornerShape(14.dp),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
@@ -261,13 +282,15 @@ fun FamilySharingScreen(
                             )
                             Spacer(Modifier.height(14.dp))
                             PrimaryGradientButton(
-                                text = t(S.joinFamily),
-                                enabled = joinCode.length >= 4,
-                                onClick = {
-                                    onJoinFamily(joinCode)
-                                    showJoin = false
-                                    joinCode = ""
-                                },
+                                text = if (busy) t(S.pleaseWait) else t(S.joinFamily),
+                                enabled = joinCode.length >= 4 && !busy,
+                                // The form used to close and clear itself the
+                                // instant this was tapped, before the code had
+                                // been validated. A parent who mistyped saw the
+                                // form vanish and a complaint arrive with
+                                // nothing left to correct. It stays until the
+                                // shared children actually appear.
+                                onClick = { onJoinFamily(joinCode) },
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }

@@ -459,23 +459,105 @@ export const PORTAL_HTML = `<!doctype html>
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
 
   // ── state ──
-  var S = {
-    auth: null, view: "overview", busy: false, error: "", notice: "",
-    overview: null, schools: [], school: null, schoolTab: "roster",
-    classes: null, admins: null, staff: null, roster: null, batches: null,
-    camps: null, camp: null, campTab: "setup", participants: null, queue: null,
-    screenKid: null, screenForm: null, reviewKid: null, reviewData: null,
-    myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
-    referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
-    programme: null, rollover: null, refForm: null, refFilter: "",
-    pack: null, forceOffline: false, syncRejects: null, packInfo: null,
-    photos: null, photosKid: null, photoOpen: null,
-    hospitals: null, doctors: null, hosForm: null, docForm: null, hosQuery: "",
-    addChild: null,
-    invites: null, campPeople: null, peopleQuery: "",
-    threads: null, thread: null, billing: null, library: null, libForm: null,
-  };
+  //
+  // One object behind one long-lived page, so the only question that matters is
+  // what clears it. It used to be cleared in three places that had to agree and
+  // did not: signOut() named four keys, openSchool() named twenty and
+  // openCamp() five, and the forty or so nobody named — the roster, the
+  // participants, the review data, the photographs, the reports, the threads —
+  // simply stayed. Built from one shape now, so signing out cannot miss a field
+  // and adding a field cannot be forgotten.
+  function freshState() {
+    return {
+      auth: null, view: "overview", busy: false, error: "", notice: "",
+      overview: null, schools: [], school: null, schoolTab: "roster",
+      classes: null, admins: null, staff: null, roster: null, batches: null,
+      camps: null, camp: null, campTab: "setup", participants: null, queue: null,
+      screenKid: null, screenForm: null, reviewKid: null, reviewData: null,
+      myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
+      referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
+      programme: null, rollover: null, refForm: null, refFilter: "",
+      forceOffline: false, syncRejects: null,
+      photos: null, photosKid: null, photoOpen: null,
+      hospitals: null, doctors: null, hosForm: null, docForm: null, hosQuery: "",
+      addChild: null,
+      invites: null, campPeople: null, peopleQuery: "",
+      threads: null, thread: null, billing: null, library: null, libForm: null,
+      // Which form owns the slot above. Kept beside the form, not on it,
+      // because the form object is posted to the server as it stands.
+      formOwner: "",
+      analytics: null, analyticsError: false, danger: null, access: null, retention: null,
+      // These thirteen were never in the object at all — set() created them on
+      // first use, so nothing could clear what it did not know about. Several
+      // of them name a child: the access trail, the screening capture in
+      // progress, the reviewer's draft, the symptom history.
+      inFlight: 0, scope: 0, syncing: false,
+      accessDays: 30, oversightTab: "partners", partners: null, childTrail: null,
+      childQuery: "", screenData: null, reviewEdit: null, symptoms: null,
+      smsStatus: null, saved: null, search: "", showAll: false, dragOver: false,
+    };
+  }
+  var S = freshState();
+
+  /**
+   * Put one group of fields back to what they are before anything is loaded.
+   *
+   * Opening a school cleared nineteen fields by hand and opening a camp cleared
+   * five, both typed out at the call site. The camp list had already drifted:
+   * the review data, the photographs, the open photograph, the screening
+   * capture in progress and the reviewer's draft were not on it, so a physician
+   * who reviewed a child at one camp and opened another still had the first
+   * child's review and photograph in hand until the new fetch landed. Taking
+   * the values from freshState() means a field added to the state cannot be
+   * left behind here.
+   */
+  var SCHOOL_SCOPED = ["classes", "admins", "staff", "roster", "batches", "camps", "upload",
+    "form", "formOwner", "addChild", "referrals", "report", "corrections", "refKid",
+    "threads", "thread", "billing", "invites", "danger", "search", "showAll", "peopleQuery"];
+  var CAMP_SCOPED = ["participants", "queue", "screenKid", "screenForm", "screenData",
+    "reviewKid", "reviewData", "reviewEdit", "campPeople", "photos", "photosKid",
+    "photoOpen", "saved", "symptoms", "syncRejects", "refDetail"];
+
+  function clearScope(keys) {
+    var f = freshState();
+    for (var i = 0; i < keys.length; i++) S[keys[i]] = f[keys[i]];
+  }
+
+  /**
+   * Which school or camp the operator is actually waiting for.
+   *
+   * Every load is a separate request and nothing said which one still counted.
+   * Open school A on a slow connection, change your mind, open school B: if A's
+   * roster arrived second it was written into the state and drawn under B's
+   * name — five hundred children filed under the wrong school. The token is
+   * bumped when the operator moves, and an answer for an older one is dropped.
+   */
+  function newScope() { S.scope = (S.scope || 0) + 1; }
+  function inScope(fn) {
+    var token = S.scope || 0;
+    return function (d) { if (token === (S.scope || 0)) fn(d); };
+  }
   function set(p) { for (var k in p) S[k] = p[k]; render(); }
+
+  /**
+   * The one form slot, and whose it is.
+   *
+   * S.form was shared by seven different forms of four different shapes.
+   * Three checked a marker field before adopting whatever was there; four did
+   * not. So leaving the Classes tab with an unsaved form and opening "Add
+   * someone" handed the staff form an object of { year, grades, sections } —
+   * no kind on it at all. A select with nothing selected shows its first
+   * option, so the operator read "School administrator" while the branch behind
+   * the button took the other road and created a clinician with no role.
+   *
+   * The owner is kept beside the form rather than on it, because the form
+   * object is posted to the server as-is.
+   */
+  function form(owner, defaults) {
+    if (!S.form || S.formOwner !== owner) { S.form = defaults; S.formOwner = owner; }
+    return S.form;
+  }
+
 
   // Only checks a clinician has a screen to record on. Offering "Spine" when
   // the capture form is a bare Normal/Abnormal dropdown means the school
@@ -489,9 +571,60 @@ export const PORTAL_HTML = `<!doctype html>
   // ── auth storage ──
   function saveAuth(a) { try { localStorage.setItem("vh_console", JSON.stringify(a)); } catch (e) {} }
   function loadAuth() { try { var r = localStorage.getItem("vh_console"); return r ? JSON.parse(r) : null; } catch (e) { return null; } }
+  /** Camps whose captures have not reached the server yet. */
+  function unsyncedCamps() {
+    var out = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(QUEUE_KEY) === 0) {
+          var n = queueLoad(k.slice(QUEUE_KEY.length)).length;
+          if (n) out.push({ campId: k.slice(QUEUE_KEY.length), count: n });
+        }
+      }
+    } catch (e) {}
+    return out;
+  }
+
   function signOut() {
-    try { localStorage.removeItem("vh_console"); } catch (e) {}
-    S.auth = null; S.view = "overview"; S.school = null; S.camp = null; render();
+    // A camp pack is a school's children — their names, their dates of birth,
+    // their guardians' names — sitting in plain localStorage on a machine four
+    // people share. It was written when the camp was packed and then never
+    // removed: not after a sync, not when the camp closed, not when the
+    // screener signed out. They accumulate at about 150 KiB a camp until the
+    // device runs out of room, which is why saving a capture already has a
+    // "this device has run out of storage" path to fall down.
+    //
+    // An unsynced queue is a different thing and is not ours to throw away:
+    // those are measurements nobody else has. So say what is unsent and let the
+    // screener decide. If they sign out anyway the queue stays, deliberately —
+    // losing a morning's screening is worse than leaving it on the device — and
+    // the next person to sign in can sync it.
+    var unsent = unsyncedCamps();
+    if (unsent.length) {
+      var n = 0;
+      for (var i = 0; i < unsent.length; i++) n += unsent[i].count;
+      if (!confirm(
+        n + (n === 1 ? " capture has" : " captures have") + " not reached the server yet."
+        + "\\n\\nThey stay on this device and can be sent when there is signal."
+        + " Sign out anyway?"
+      )) return;
+    }
+    try {
+      localStorage.removeItem("vh_console");
+      var packs = [];
+      for (var j = 0; j < localStorage.length; j++) {
+        var key = localStorage.key(j);
+        if (key && key.indexOf(PACK_KEY) === 0) packs.push(key);
+      }
+      for (var q = 0; q < packs.length; q++) localStorage.removeItem(packs[q]);
+    } catch (e) {}
+    S = freshState();
+    // Anything still in the air was asked for by the person who has just left.
+    // Without this its answer would land in the fresh state a moment later and
+    // put their school back in memory behind the sign-in screen.
+    newScope();
+    render();
   }
 
   // ── offline pack and queue ──
@@ -537,7 +670,12 @@ export const PORTAL_HTML = `<!doctype html>
       entry.at = new Date().toISOString();
       q.push(entry);
     }
-    return queueSave(campId, q) ? q.length : queueLoad(campId).length;
+    // -1 when the device would not take it. It used to answer with the length
+    // the queue already had, which the caller read as success: the console then
+    // said "Saved on this device", cleared the form, and the child's
+    // measurements were gone — the one copy of them was the form it had just
+    // thrown away.
+    return queueSave(campId, q) ? q.length : -1;
   }
   function queueCount() {
     return S.camp ? queueLoad(S.camp.camp.id).length : 0;
@@ -545,27 +683,65 @@ export const PORTAL_HTML = `<!doctype html>
 
   function isOffline() { return S.forceOffline || !navigator.onLine; }
 
+  /**
+   * Send the queue, and put back only what the send did not cover.
+   *
+   * The old version read the queue, posted it, and on the way back wrote
+   * "queue = what the server refused". A screener does not stop working while a
+   * sync is in the air — it fires the moment signal returns, in a hall, with
+   * children still in the line — and every capture recorded during those
+   * seconds was in the queue this wrote over. It was a morning's measurements,
+   * gone, with a green "synced" message on the screen.
+   *
+   * So the queue is re-read when the answer comes back, and a child is only
+   * removed if the entry still there is the one that was sent, unchanged. What
+   * the server refused goes too: those refusals are all decisions about the
+   * record — no consent, already released, not on this camp — and the same
+   * bytes will be refused forever. They are named to the screener instead,
+   * because a capture that cannot be saved is something a person has to deal
+   * with, not a badge that never clears.
+   */
   function syncQueue(campId, done) {
     var q = queueLoad(campId);
     if (q.length === 0) { if (done) done({ applied: 0, rejected: [] }); return; }
+    // The online event can fire more than once and the button is still there.
+    // Two syncs of the same queue would each write the other's result away.
+    if (S.syncing) return;
+    S.syncing = true;
+
+    var sentAt = {};
+    q.forEach(function (e) { sentAt[e.kidId] = e.at || ""; });
+
+    S.inFlight = (S.inFlight || 0) + 1;
     set({ busy: true, error: "" });
+    function settled() {
+      S.syncing = false;
+      S.inFlight = Math.max(0, S.inFlight - 1);
+      S.busy = S.inFlight > 0;
+    }
+
     api("/api/admin/camps/" + campId + "/screening-bulk", { method: "POST", body: { entries: q } })
       .then(function (r) {
-        S.busy = false;
-        // Keep only what the server refused, so nothing is silently lost.
-        var bad = {};
-        (r.rejected || []).forEach(function (x) { bad[x.kidId] = x; });
-        var left = q.filter(function (e) { return bad[e.kidId]; });
+        settled();
+        var left = queueLoad(campId).filter(function (e) {
+          // Recorded, or corrected, since this request left. Not ours to drop.
+          return !(e.kidId in sentAt) || (e.at || "") !== sentAt[e.kidId];
+        });
         queueSave(campId, left);
         S.syncRejects = r.rejected || [];
         S.notice = r.applied + " children synced"
-          + (left.length ? ", " + left.length + " could not be saved" : "") + ".";
+          + (S.syncRejects.length ? ", " + S.syncRejects.length + " refused" : "")
+          + (left.length ? ", " + left.length + " recorded since and still to send" : "") + ".";
         S.participants = null; S.screenData = null;
         if (done) done(r);
         refreshCamp();
       })
       .catch(function (e) {
-        set({ busy: false, error: "Could not sync: " + (e.message || "network error") });
+        // The queue is untouched, deliberately: nobody knows how far the server
+        // got, and sending it again is safe — every write it makes is an upsert
+        // keyed on the camp, the child and the check.
+        settled();
+        set({ error: "Could not sync: " + (e.message || "network error") });
       });
   }
 
@@ -584,10 +760,22 @@ export const PORTAL_HTML = `<!doctype html>
         });
       });
   }
+  /**
+   * Run one thing the operator is waiting on, and count it.
+   *
+   * busy was a boolean set true here and false on the way out. Two of these
+   * overlap easily — a tab clicked while the last one is still loading, a
+   * reminder sent while a roster is on its way — and the first to finish
+   * cleared the flag for both, re-enabling a button whose request was still in
+   * the air. Counting means the buttons come back when the last one lands, not
+   * the first.
+   */
   function run(p, ok) {
+    S.inFlight = (S.inFlight || 0) + 1;
     set({ busy: true, error: "" });
-    p.then(function (d) { S.busy = false; if (ok) ok(d); render(); })
-     .catch(function (e) { set({ busy: false, error: e.message || "Something went wrong" }); });
+    function done() { S.inFlight = Math.max(0, S.inFlight - 1); S.busy = S.inFlight > 0; }
+    p.then(function (d) { done(); if (ok) ok(d); render(); })
+     .catch(function (e) { done(); set({ error: e.message || "Something went wrong" }); });
   }
 
   // ── role helpers ──
@@ -663,7 +851,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
   function statusPill(s) {
     var m = { DRAFT: "mute", SCHEDULED: "info", IN_PROGRESS: "warn", SCREENED: "warn",
-      RELEASED: "ok", CANCELLED: "mute", NOT_SCREENED: "mute", APPROVED: "ok",
+      RELEASED: "ok", CANCELLED: "mute", ARCHIVED: "mute", NOT_SCREENED: "mute", APPROVED: "ok",
       PENDING: "mute", GRANTED: "ok", DECLINED: "err", PAPER: "ok",
       PRESENT: "ok", ABSENT: "mute", REFUSED: "err", UNKNOWN: "mute" };
     var t = { IN_PROGRESS: "In progress", NOT_SCREENED: "Not screened", PAPER: "Paper consent" };
@@ -742,16 +930,20 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ loaders
   function boot() {
     if (isClinical()) { S.view = "mycamps"; loadMyCamps(); return; }
+    // All three are independent, so all three leave now rather than the second
+    // two waiting on the first. The counters still paint first because they are
+    // the smallest answer; the dashboard and the school list fill in behind
+    // them as they land, each handling its own failure so a slow analytics
+    // query cannot blank the page.
+    var analytics = api("/api/admin/analytics");
+    var schools = api("/api/admin/schools");
     run(api("/api/admin/overview"), function (d) {
       S.overview = d; S.view = "overview";
-      // The dashboard and the school list fill in behind the counters rather
-      // than holding the first paint. Each failure is handled on its own, so a
-      // slow analytics query cannot blank the page.
-      api("/api/admin/analytics").then(
+      analytics.then(
         function (r) { S.analytics = r; },
         function () { S.analyticsError = true; }
       ).then(render);
-      api("/api/admin/schools").then(function (r) {
+      schools.then(function (r) {
         S.schools = r.schools;
         if (isSchoolAdmin() && r.schools.length === 1) S.school = r.schools[0];
         render();
@@ -762,48 +954,64 @@ export const PORTAL_HTML = `<!doctype html>
   function loadMyCamps() { run(api("/api/admin/my-camps"), function (d) { S.myCamps = d.camps; S.view = "mycamps"; }); }
 
   function openSchool(id, tab) {
-    run(api("/api/admin/schools/" + encodeURIComponent(id)), function (d) {
+    newScope();
+    run(api("/api/admin/schools/" + encodeURIComponent(id)), inScope(function (d) {
       S.school = d.school; S.view = "school"; S.schoolTab = tab || "roster";
-      S.classes = null; S.admins = null; S.staff = null; S.roster = null; S.batches = null;
-      S.camps = null; S.upload = null; S.form = null; S.addChild = null;
-      S.referrals = null; S.report = null; S.corrections = null; S.refKid = null;
-      S.threads = null; S.thread = null; S.billing = null; S.invites = null;
+      // A different school means none of the last one's tabs, and none of the
+      // last one's camp either — the camp view reads the school around it.
+      clearScope(SCHOOL_SCOPED);
+      clearScope(CAMP_SCOPED);
+      S.camp = null;
       loadSchoolTab();
-    });
+    }));
   }
   function loadSchoolTab() {
     var id = S.school.id, t = S.schoolTab;
-    if (t === "roster" && !S.roster) run(api("/api/admin/schools/" + id + "/roster?limit=500"), function (d) { S.roster = d; });
-    else if (t === "camps" && !S.camps) run(api("/api/admin/schools/" + id + "/camps"), function (d) { S.camps = d.camps; });
-    else if (t === "classes" && !S.classes) run(api("/api/admin/schools/" + id + "/classes"), function (d) { S.classes = d; });
+    if (t === "roster" && !S.roster) run(api("/api/admin/schools/" + id + "/roster?limit=500"), inScope(function (d) { S.roster = d; }));
+    else if (t === "camps" && !S.camps) run(api("/api/admin/schools/" + id + "/camps"), inScope(function (d) { S.camps = d.camps; }));
+    else if (t === "classes" && !S.classes) run(api("/api/admin/schools/" + id + "/classes"), inScope(function (d) { S.classes = d; }));
+    // The administrators and the clinical staff are two lists on one screen and
+    // neither depends on the other. Asked for one after the other, the page
+    // drew with half of itself missing and then jumped; asked together, it
+    // arrives once.
     else if (t === "people" && !S.admins) {
-      run(api("/api/admin/schools/" + id + "/admins"), function (d) {
-        S.admins = d.admins;
-        api("/api/admin/schools/" + id + "/staff").then(function (r) { S.staff = r.staff; render(); }).catch(function () {});
-      });
+      run(Promise.all([
+        api("/api/admin/schools/" + id + "/admins"),
+        api("/api/admin/schools/" + id + "/staff")
+      ]), inScope(function (d) { S.admins = d[0].admins; S.staff = d[1].staff; }));
     }
-    else if (t === "history" && !S.batches) run(api("/api/admin/schools/" + id + "/roster/batches"), function (d) { S.batches = d.batches; });
-    else if (t === "referrals" && !S.referrals) run(api("/api/admin/schools/" + id + "/referrals"), function (d) { S.referrals = d; });
-    else if (t === "report" && !S.report) run(api("/api/admin/schools/" + id + "/report"), function (d) { S.report = d; });
-    else if (t === "requests" && !S.corrections) run(api("/api/admin/schools/" + id + "/corrections"), function (d) { S.corrections = d.corrections; });
-    else if (t === "questions" && !S.threads) run(api("/api/admin/questions?school_id=" + encodeURIComponent(id)), function (d) { S.threads = d; });
-    else if (t === "invites" && !S.invites) run(api("/api/admin/invites?school_id=" + encodeURIComponent(id)), function (d) { S.invites = d; });
+    // The programme tab carries the archive/delete panel for ops, and that
+    // panel has to know what is attached to the school before it can say
+    // which of the two is possible.
+    else if (t === "programme" && isOps() && !S.danger) {
+      run(api("/api/admin/schools/" + id + "/archive"), inScope(function (d) {
+        S.danger = { schoolId: id, footprint: d.footprint, canDelete: d.canDelete, reason: d.reason, confirm: "" };
+      }));
+    }
+    else if (t === "history" && !S.batches) run(api("/api/admin/schools/" + id + "/roster/batches"), inScope(function (d) { S.batches = d.batches; }));
+    else if (t === "referrals" && !S.referrals) run(api("/api/admin/schools/" + id + "/referrals"), inScope(function (d) { S.referrals = d; }));
+    else if (t === "report" && !S.report) run(api("/api/admin/schools/" + id + "/report"), inScope(function (d) { S.report = d; }));
+    else if (t === "requests" && !S.corrections) run(api("/api/admin/schools/" + id + "/corrections"), inScope(function (d) { S.corrections = d.corrections; }));
+    else if (t === "questions" && !S.threads) run(api("/api/admin/questions?school_id=" + encodeURIComponent(id)), inScope(function (d) { S.threads = d; }));
+    else if (t === "invites" && !S.invites) run(api("/api/admin/invites?school_id=" + encodeURIComponent(id)), inScope(function (d) { S.invites = d; }));
+    // The contract and its invoices are independent, so the invoices leave with
+    // the contract rather than after it. The contract still paints first.
     else if (t === "billing" && !S.billing) {
-      run(api("/api/admin/billing/contract?school_id=" + encodeURIComponent(id)), function (d) {
+      var invoices = api("/api/admin/billing/invoices?school_id=" + encodeURIComponent(id));
+      run(api("/api/admin/billing/contract?school_id=" + encodeURIComponent(id)), inScope(function (d) {
         S.billing = { contract: d.contract, invoices: null };
-        api("/api/admin/billing/invoices?school_id=" + encodeURIComponent(id))
-          .then(function (r) { S.billing.invoices = r.invoices; render(); }).catch(function () {});
-      });
+        invoices.then(function (r) { S.billing.invoices = r.invoices; render(); }).catch(function () {});
+      }));
     }
   }
 
   function openCamp(id, tab) {
-    run(api("/api/admin/camps/" + encodeURIComponent(id)), function (d) {
+    newScope();
+    run(api("/api/admin/camps/" + encodeURIComponent(id)), inScope(function (d) {
       S.camp = d; S.view = "camp"; S.campTab = tab || defaultCampTab(d);
-      S.participants = null; S.queue = null; S.screenKid = null; S.reviewKid = null;
-      S.campPeople = null;
+      clearScope(CAMP_SCOPED);
       loadCampTab();
-    });
+    }));
   }
   function defaultCampTab(d) {
     if (d.can.review && !d.can.schedule) return "review";
@@ -814,20 +1022,25 @@ export const PORTAL_HTML = `<!doctype html>
     var id = S.camp.camp.id, t = S.campTab;
     if (t === "people" && !S.campPeople) {
       run(api("/api/admin/camp-people?camp_id=" + encodeURIComponent(id)
-        + "&school_id=" + encodeURIComponent(S.camp.camp.schoolId)), function (d) { S.campPeople = d; });
+        + "&school_id=" + encodeURIComponent(S.camp.camp.schoolId)), inScope(function (d) { S.campPeople = d; }));
     } else if ((t === "consent" || t === "campday") && !S.participants) {
-      run(api("/api/admin/camps/" + id + "/participants"), function (d) { S.participants = d.participants; });
+      run(api("/api/admin/camps/" + id + "/participants"), inScope(function (d) { S.participants = d.participants; }));
     } else if (t === "review" && !S.queue) {
-      run(api("/api/admin/camps/" + id + "/review"), function (d) { S.queue = d.queue; });
+      run(api("/api/admin/camps/" + id + "/review"), inScope(function (d) { S.queue = d.queue; }));
     }
   }
+  // Re-reads the camp that is already open, so it clears the three lists the
+  // server has just changed and deliberately not the rest: its callers manage
+  // the review pane around it, and a reviewer's unsaved draft is not the
+  // server's to discard. No newScope() for the same reason — this is not a move
+  // — but the answer is still dropped if the operator has left the camp.
   function refreshCamp(tab) {
     var id = S.camp.camp.id;
-    run(api("/api/admin/camps/" + id), function (d) {
+    run(api("/api/admin/camps/" + id), inScope(function (d) {
       S.camp = d; S.participants = null; S.queue = null; S.campPeople = null;
       if (tab) S.campTab = tab;
       loadCampTab();
-    });
+    }));
   }
 
   // ══════════════════════════════════════ overview
@@ -1179,7 +1392,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function viewNewSchool() {
-    var f = S.form || (S.form = { name: "", city: "Hyderabad", district: "", contactName: "", contactPhone: "",
+    var f = form("newSchool", { name: "", city: "Hyderabad", district: "", contactName: "", contactPhone: "",
       contactEmail: "", academicYear: "", campCadence: "ANNUAL", checksOffered: [], description: "" });
     function b(k) { return function (e) { f[k] = e.target.value; }; }
     function tog(c) { var i = f.checksOffered.indexOf(c); if (i >= 0) f.checksOffered.splice(i, 1); else f.checksOffered.push(c); render(); }
@@ -1248,7 +1461,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   function tabProgramme() {
     var s = S.school;
-    var f = S.form || (S.form = { name: s.name, city: s.city, district: s.district, contactName: s.contactName,
+    var f = form("editSchool", { name: s.name, city: s.city, district: s.district, contactName: s.contactName,
       contactPhone: s.contactPhone, contactEmail: s.contactEmail, academicYear: s.academicYear,
       campCadence: s.campCadence, checksOffered: s.checksOffered.slice(), description: s.description });
     function b(k) { return function (e) { f[k] = e.target.value; }; }
@@ -1286,13 +1499,104 @@ export const PORTAL_HTML = `<!doctype html>
               return el("label", { class: "chip" + (on ? " on" : "") },
                 el("input", { type: "checkbox", checked: on, onchange: function () { tog(c); } }), c); }))),
           el("div", { class: "fld" }, el("label", null, "Notes"), el("textarea", { oninput: b("description") }, f.description)))),
-      el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save changes"));
+      el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save changes"),
+      isOps() ? dangerZone(s) : null);
+  }
+
+  // ══════════════════════════════════════ closing a school down
+  //
+  // Ops could create schools and never get rid of one, so the list filled with
+  // duplicates and demo rows. Two separate acts live here, deliberately not
+  // behind one button: archiving stops a school running and keeps every
+  // record; deleting removes the row and is refused outright once any child
+  // has been screened. The panel loads the school's actual footprint first, so
+  // it can say which of the two applies instead of finding out on submit.
+  function dangerZone(s) {
+    var d = S.danger;
+    if (!d || d.schoolId !== s.id) {
+      return el("div", { class: "card", style: "margin-top:24px" },
+        el("div", { class: "card-b" }, el("span", { class: "muted" }, "Checking what is attached to this school\\u2026")));
+    }
+
+    var fp = d.footprint;
+    var archived = s.active === false || s.status === "ARCHIVED";
+
+    function setArchived(next) {
+      var verb = next ? "Archive" : "Reopen";
+      var warn = next
+        ? "Archive " + s.name + "?\\n\\nIt stops running: parents no longer see it, no camp can be scheduled, and its staff are signed out. Every record is kept and you can reopen it."
+        : "Reopen " + s.name + "? Staff will need a new sign-in code.";
+      if (!confirm(warn)) return;
+      run(api("/api/admin/schools/" + s.id + "/archive", { method: "POST", body: { archived: next } }), function (r) {
+        S.school = r.school; S.danger = null; S.notice = verb + "d " + r.school.name + ".";
+      });
+    }
+
+    function destroy() {
+      run(api("/api/admin/schools/" + s.id, { method: "DELETE", body: { confirmName: d.confirm } }), function (r) {
+        S.danger = null; S.school = null; S.schools = null;
+        S.notice = "Deleted " + r.name + ".";
+        loadSchools();
+      });
+    }
+
+    function stat(n, label) {
+      return el("div", { class: "row", style: "gap:6px" },
+        el("b", null, String(n)), el("span", { class: "muted", style: "font-size:13px" }, label));
+    }
+
+    return el("div", { class: "card", style: "margin-top:24px;border-color:#f0c9c9" },
+      el("div", { class: "card-h" }, el("h2", null, "Closing this school down"),
+        archived ? el("span", { class: "pill mute" }, "Archived") : null),
+      el("div", { class: "card-b" },
+        el("div", { class: "row", style: "gap:18px;flex-wrap:wrap;margin-bottom:14px" },
+          stat(fp.students, "students"),
+          stat(fp.camps, "camps"),
+          stat(fp.findings, "findings recorded"),
+          stat(fp.referrals, "referrals"),
+          stat(fp.staff, "staff")),
+
+        el("div", { class: "fld" },
+          el("label", null, archived ? "Reopen" : "Archive"),
+          el("p", { class: "muted", style: "font-size:13px;margin:0 0 8px" },
+            archived
+              ? "This school is closed. Reopening lets its staff sign in and camps be scheduled again."
+              : "Stops the school running and signs its staff out. Nothing recorded about a child is touched, and this can be undone."),
+          el("button", { class: archived ? "pri" : "dang", disabled: S.busy,
+            onclick: function () { setArchived(!archived); } },
+            archived ? "Reopen school" : "Archive school")),
+
+        el("div", { class: "fld", style: "margin-top:18px;padding-top:18px;border-top:1px solid #eee" },
+          el("label", null, "Delete permanently"),
+          d.canDelete
+            ? el("div", null,
+                el("p", { class: "muted", style: "font-size:13px;margin:0 0 8px" },
+                  "No child has been screened here, so there is nothing clinical to lose. This removes the school, its classes, its roster batches and its draft camps. Students keep their own records and stop belonging to a school."),
+                deleteConfirmField(d, s.name, destroy))
+            : el("div", { class: "msg err", style: "margin:0" }, d.reason))));
+  }
+
+  // Typing a school's name to confirm its deletion must not rebuild the
+  // console on every keystroke: that is a whole page of DOM per character, and
+  // it used to take the caret with it. The button is toggled directly instead,
+  // so the only thing that changes while typing is one disabled attribute.
+  function deleteConfirmField(d, name, destroy) {
+    var btn = el("button", { class: "dang", style: "margin-top:10px",
+      disabled: S.busy || trim(d.confirm).toLowerCase() !== trim(name).toLowerCase(),
+      onclick: destroy }, S.busy ? "Deleting\u2026" : "Delete this school");
+    var box = el("input", { type: "text", id: "school-delete-confirm", value: d.confirm,
+      placeholder: "Type " + name + " to confirm",
+      oninput: function (e) {
+        d.confirm = e.target.value;
+        btn.disabled = S.busy || trim(d.confirm).toLowerCase() !== trim(name).toLowerCase();
+      } });
+    return el("div", null, box, btn);
   }
 
   function tabClasses() {
     if (!S.classes) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var c = S.classes;
-    var g = S.form || (S.form = {
+    var g = form("classes", {
       year: c.academicYear,
       grades: c.classes.length ? uniq(c.classes.map(function (x) { return x.grade; })).join(", ") : "Class 1, Class 2, Class 3, Class 4, Class 5",
       sections: c.classes.length ? uniq(c.classes.map(function (x) { return x.section; }).filter(Boolean)).join(", ") : "A, B"
@@ -1386,7 +1690,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   function tabPeople() {
     if (!S.admins) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
-    var f = S.form || (S.form = { name: "", phone: "", email: "", kind: "SCHOOL_ADMIN" });
+    var f = form("staff", { name: "", phone: "", email: "", kind: "SCHOOL_ADMIN" });
     function addPerson() {
       if (f.kind === "SCHOOL_ADMIN") {
         run(api("/api/admin/schools/" + S.school.id + "/admins", { method: "POST", body: f }), function (d) {
@@ -1419,6 +1723,18 @@ export const PORTAL_HTML = `<!doctype html>
         S.notice = a.name + " no longer has access.";
       });
     }
+
+    // A screener or physician could be added here and never taken away, so a
+    // doctor who left the school kept a working sign-in. Removing revokes the
+    // sign-in and their camp assignments; the profile itself stays, because
+    // "who screened this child" has to keep answering.
+    function removeStaff(a) {
+      if (!confirm("Remove " + a.name + "?\\n\\nThey are signed out and taken off every camp at this school. Results they already recorded are kept.")) return;
+      run(api("/api/admin/schools/" + S.school.id + "/staff/" + encodeURIComponent(a.profileId), { method: "DELETE" }), function () {
+        S.staff = (S.staff || []).filter(function (x) { return x.profileId !== a.profileId; });
+        S.notice = a.name + " no longer has access.";
+      });
+    }
     var people = (S.admins || []).map(function (a) { return { p: a, role: "SCHOOL_ADMIN" }; })
       .concat((S.staff || []).map(function (a) { return { p: a, role: a.role }; }));
     var roleName = { SCHOOL_ADMIN: "Administrator", SCREENER: "Screening team", PHYSICIAN: "Physician" };
@@ -1434,7 +1750,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("div", { class: "fld" }, el("label", null, "Mobile number"),
               el("input", { type: "tel", value: f.phone, oninput: function (e) { f.phone = e.target.value; } })),
             el("div", { class: "fld" }, el("label", null, "Role"),
-              el("select", { onchange: function (e) { f.kind = e.target.value; render(); } },
+              el("select", { id: "staff-kind", onchange: function (e) { f.kind = e.target.value; render(); } },
                 el("option", { value: "SCHOOL_ADMIN", selected: f.kind === "SCHOOL_ADMIN" }, "Administrator"),
                 el("option", { value: "SCREENER", selected: f.kind === "SCREENER" }, "Screening team"),
                 el("option", { value: "PHYSICIAN", selected: f.kind === "PHYSICIAN" }, "Supervising physician")))),
@@ -1460,9 +1776,9 @@ export const PORTAL_HTML = `<!doctype html>
                   // someone who already administers this school.
                   el("button", { class: "sm", onclick: function () { signinCode(x.p); } },
                     icon("phone", 13), " Sign-in code"),
-                  x.role === "SCHOOL_ADMIN"
-                    ? el("button", { class: "sm dang", onclick: function () { removeAdmin(x.p); } }, "Remove")
-                    : null)));
+                  el("button", { class: "sm dang", onclick: function () {
+                    if (x.role === "SCHOOL_ADMIN") removeAdmin(x.p); else removeStaff(x.p);
+                  } }, "Remove"))));
             }))))
         : el("div", { class: "card" }, el("div", { class: "empty" }, "Nobody added yet.")));
   }
@@ -2882,11 +3198,22 @@ export const PORTAL_HTML = `<!doctype html>
     var selected = S.screenKid;
     return el("div", null,
       campDayBar(pack, queued, offline),
+      // Named, not counted. These captures are off the queue for good — the
+      // server will refuse the same bytes every time — so "2 could not be
+      // saved" left a screener with no way to know which two children to go
+      // back to, or to write the measurement down on paper instead.
       S.syncRejects && S.syncRejects.length
         ? el("div", { class: "msg err" },
-            el("b", null, S.syncRejects.length + " could not be saved: "),
-            S.syncRejects.map(function (r) { return r.reason; })
-              .filter(function (v, i, a) { return a.indexOf(v) === i; }).join("; "))
+            el("b", null, S.syncRejects.length === 1
+              ? "One child could not be saved: "
+              : S.syncRejects.length + " children could not be saved: "),
+            S.syncRejects.map(function (r) {
+              var who = null;
+              for (var i = 0; i < source.length; i++) {
+                if (source[i].kidId === r.kidId) { who = source[i]; break; }
+              }
+              return (who ? who.name : r.kidId) + " \u2014 " + r.reason;
+            }).join("; "))
         : null,
       el("div", { class: "split" },
         el("div", null,
@@ -3038,7 +3365,11 @@ export const PORTAL_HTML = `<!doctype html>
 
     function mark(v) {
       if (isOffline()) {
-        queuePush(S.camp.camp.id, { kidId: ch.kidId, attendance: v });
+        if (queuePush(S.camp.camp.id, { kidId: ch.kidId, attendance: v }) < 0) {
+          // queueSave has already said what is wrong. Do not claim otherwise.
+          render();
+          return;
+        }
         d.attendance = v;
         S.notice = ch.name + " marked " + v.toLowerCase() + ". Saved on this device.";
         render();
@@ -3057,6 +3388,13 @@ export const PORTAL_HTML = `<!doctype html>
       if (findings.length === 0) { set({ error: "Record at least one measurement before saving." }); return; }
       if (isOffline()) {
         var n = queuePush(S.camp.camp.id, { kidId: ch.kidId, findings: findings, attendance: d.attendance });
+        if (n < 0) {
+          // The device is full and this capture is not on it. Keep the form
+          // open: what is on screen is the only copy of these measurements, and
+          // the screener can sync and save again, or write them down.
+          render();
+          return;
+        }
         // No flags to show: the clinical rules run on the server, and guessing
         // them here would risk the device and the record disagreeing.
         S.saved = null;
@@ -3222,7 +3560,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("select", { onchange: bind("rightAcuity") }, el("option", { value: "" }, "\\u2014"),
               ACUITY.map(function (a) { return el("option", { value: a, selected: d.rightAcuity === a }, a); })))),
           el("label", { class: "chip" + (d.squint ? " on" : "") },
-            el("input", { type: "checkbox", checked: !!d.squint, onchange: function (e) { d.squint = e.target.checked; render(); } }), "Squint noted"));
+            el("input", { type: "checkbox", id: "vision-squint", checked: !!d.squint, onchange: function (e) { d.squint = e.target.checked; render(); } }), "Squint noted"));
       }
       if (ct === "Dental") {
         return el("div", null, el("div", { class: "g2" },
@@ -3233,7 +3571,7 @@ export const PORTAL_HTML = `<!doctype html>
               ["healthy","bleeding","swollen"].map(function (g) {
                 return el("option", { value: g, selected: d.gums === g }, g.charAt(0).toUpperCase() + g.slice(1)); })))),
           el("label", { class: "chip" + (d.pain ? " on" : "") },
-            el("input", { type: "checkbox", checked: !!d.pain, onchange: function (e) { d.pain = e.target.checked; render(); } }), "Reports pain"));
+            el("input", { type: "checkbox", id: "dental-pain", checked: !!d.pain, onchange: function (e) { d.pain = e.target.checked; render(); } }), "Reports pain"));
       }
       if (ct === "Haemoglobin") {
         return el("div", { class: "fld", style: "max-width:220px" }, el("label", null, "Haemoglobin (g/dL)"),
@@ -4117,6 +4455,18 @@ export const PORTAL_HTML = `<!doctype html>
 
   function render() {
     var root = document.getElementById("root");
+
+    // render() rebuilds the whole tree, which throws away the element the user
+    // was typing in: the field loses focus after one character and the next
+    // keystroke goes nowhere. Anything that re-renders while it has focus
+    // carries an id, and gets its focus and caret put back below.
+    var was = document.activeElement;
+    var wasId = was && was.id ? was.id : "";
+    var caret = null;
+    if (wasId) {
+      try { caret = [was.selectionStart, was.selectionEnd]; } catch (e) { caret = null; }
+    }
+
     clear(root);
     if (!S.auth) { add(root, viewSignIn()); return; }
 
@@ -4177,6 +4527,16 @@ export const PORTAL_HTML = `<!doctype html>
       tb.parentNode.insertBefore(box, tb);
       box.appendChild(tb);
     }
+
+    if (wasId) {
+      var again = document.getElementById(wasId);
+      if (again && again !== document.activeElement) {
+        again.focus();
+        if (caret && typeof again.setSelectionRange === "function") {
+          try { again.setSelectionRange(caret[0], caret[1]); } catch (e) {}
+        }
+      }
+    }
   }
 
   // ── boot ──
@@ -4233,8 +4593,13 @@ self.addEventListener("fetch", function (e) {
   if (url.pathname !== "/admin" && url.pathname !== "/admin/") return;
   e.respondWith(
     fetch(e.request).then(function (res) {
-      var copy = res.clone();
-      caches.open(CACHE).then(function (c) { c.put(SHELL, copy); });
+      // Only a good response replaces the cached shell. Caching whatever came
+      // back would let one 502 during a deploy become the console every
+      // screener sees until they next have signal.
+      if (res && res.ok) {
+        var copy = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(SHELL, copy); });
+      }
       return res;
     }).catch(function () {
       return caches.match(SHELL);
@@ -4242,3 +4607,28 @@ self.addEventListener("fetch", function (e) {
   );
 });
 `;
+
+/**
+ * A validator for the console shell.
+ *
+ * The shell is a quarter of a megabyte of HTML, and it is served no-cache so a
+ * deploy is picked up the moment it lands. Without a validator that means the
+ * whole quarter megabyte again on every single load — including from a phone on
+ * a school's wifi, which is where the console is used. With one, an unchanged
+ * console costs a 304 and no body at all.
+ *
+ * FNV-1a, not a cryptographic hash: it only has to change when the shell does.
+ * Computed once per isolate, on the first request that needs it.
+ */
+let shellEtag = "";
+export function portalShellEtag(): string {
+  if (!shellEtag) {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < PORTAL_HTML.length; i++) {
+      h ^= PORTAL_HTML.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    shellEtag = `"${(h >>> 0).toString(36)}-${PORTAL_HTML.length.toString(36)}"`;
+  }
+  return shellEtag;
+}

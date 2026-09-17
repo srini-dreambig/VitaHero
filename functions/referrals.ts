@@ -14,8 +14,14 @@
 // partner and a funder actually care about, and it is the one number the
 // programme could not previously produce for a single child.
 
-import { Sql, isOpsRole, slugify } from "./common";
-import { SmsSender } from "./messaging";
+import {
+  Sql,
+  chunk,
+  isOpsRole,
+  programmeToday,
+  slugify,
+} from "./common";
+import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { assertCampAccess } from "./camps";
 import { Flag, Urgency } from "./clinical";
@@ -89,47 +95,75 @@ export async function ensureReferralSchema(sql: Sql): Promise<void> {
 
 function dueDate(urgency: string, from = new Date()): string {
   const days = EXPIRY_DAYS[urgency] ?? 120;
-  const d = new Date(from.getTime() + days * 86400000);
-  return d.toISOString().slice(0, 10);
+  // Counted from the programme's calendar day, not UTC's. A referral raised
+  // just after midnight in Hyderabad was being dated from the day before.
+  const [y, m, d] = programmeToday(from).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
+
 /**
- * G1 — open a referral for every finding a physician flagged.
+ * G1 — turn every flag a physician confirmed into a tracked referral, for a
+ * whole camp, in one statement per batch.
  *
- * Called from releaseCamp, inside the same pass that publishes results, so a
- * guardian never sees "see a doctor" without a matching tracked referral.
- * Idempotent on (camp, kid, check) so re-releasing does not duplicate.
+ * A guardian is never told "see a doctor" without something following it up.
+ * This used to be a round trip per flagged finding, called once per child. A camp where a hundred children each had two flags
+ * was two hundred sequential queries on top of everything else release was
+ * already doing per child — see the note on `releaseCamp`.
+ *
+ * Same idempotency: the unique index on (camp, kid, check, generation) is what
+ * makes a re-release add nothing, and DO NOTHING plus RETURNING tells us how
+ * many were genuinely new.
  */
-export async function openReferralsForChild(
+export async function openReferralsForCamp(
   sql: Sql,
-  opts: {
-    campId: string;
+  campId: string,
+  schoolId: string,
+  createdBy: string,
+  children: Array<{
     kidId: string;
     profileId: string;
-    schoolId: string;
-    createdBy: string;
     urgency: Urgency;
     findings: Array<{ checkType: string; flag: Flag; rationale: string }>;
-  }
+  }>
 ): Promise<number> {
-  const needing = opts.findings.filter((f) => f.flag === "WATCH" || f.flag === "ALERT");
+  type Row = [string, string, string, string, string, string, string, string, string, string, string, string, string];
+  const rows: Row[] = [];
+
+  for (const c of children) {
+    for (const f of c.findings) {
+      if (f.flag !== "WATCH" && f.flag !== "ALERT") continue;
+      const id = `ref_${campId.slice(-8)}_${slugify(c.kidId).slice(0, 16)}_${slugify(f.checkType)}`;
+      // A WATCH is routine unless the physician marked the whole child urgent.
+      const urgency = f.flag === "ALERT" ? (c.urgency === "NONE" ? "SOON" : c.urgency) : "ROUTINE";
+      rows.push([
+        id, campId, c.kidId, c.profileId, schoolId, f.checkType,
+        SPECIALTY[f.checkType] || "Paediatrics", f.flag, urgency,
+        f.rationale, "OPEN", createdBy, dueDate(urgency),
+      ]);
+    }
+  }
+  if (rows.length === 0) return 0;
+
   let opened = 0;
-  for (const f of needing) {
-    const id = `ref_${opts.campId.slice(-8)}_${slugify(opts.kidId).slice(0, 16)}_${slugify(f.checkType)}`;
-    // A WATCH is routine unless the physician marked the whole child urgent.
-    const urgency = f.flag === "ALERT" ? opts.urgency === "NONE" ? "SOON" : opts.urgency : "ROUTINE";
-    const rows = await sql`
-      INSERT INTO vita_hero.referrals
-        (id, camp_id, kid_id, profile_id, school_id, check_type, specialty, flag,
-         urgency, reason, status, created_by, due_by)
-      VALUES
-        (${id}, ${opts.campId}, ${opts.kidId}, ${opts.profileId}, ${opts.schoolId},
-         ${f.checkType}, ${SPECIALTY[f.checkType] || "Paediatrics"}, ${f.flag},
-         ${urgency}, ${f.rationale}, 'OPEN', ${opts.createdBy}, ${dueDate(urgency)})
-      ON CONFLICT (camp_id, kid_id, check_type, generation) DO NOTHING
-      RETURNING id
-    `;
-    if (rows.length > 0) opened++;
+  for (const group of chunk(rows, 100)) {
+    const values: string[] = [];
+    const params: unknown[] = [];
+    group.forEach((r, i) => {
+      const b = i * 13;
+      values.push(`(${r.map((_, k) => "$" + (b + k + 1)).join(", ")})`);
+      params.push(...r);
+    });
+    const res = await sql.query(
+      `INSERT INTO vita_hero.referrals
+         (id, camp_id, kid_id, profile_id, school_id, check_type, specialty, flag,
+          urgency, reason, status, created_by, due_by)
+       VALUES ${values.join(", ")}
+       ON CONFLICT (camp_id, kid_id, check_type, generation) DO NOTHING
+       RETURNING id`,
+      params
+    );
+    opened += (res as unknown[]).length;
   }
   return opened;
 }
@@ -341,46 +375,50 @@ export async function referralDashboard(
 ) {
   assertSchoolAccess(actor, schoolId);
 
-  const totals = await sql`
-    SELECT
-      COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE status = 'OPEN')::int AS open,
-      COUNT(*) FILTER (WHERE status = 'BOOKED')::int AS booked,
-      COUNT(*) FILTER (WHERE status = 'ATTENDED')::int AS attended,
-      COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed,
-      COUNT(*) FILTER (WHERE status = 'DECLINED')::int AS declined,
-      COUNT(*) FILTER (WHERE status = 'EXPIRED')::int AS expired,
-      COUNT(*) FILTER (WHERE urgency = 'URGENT' AND status IN ('OPEN','BOOKED'))::int AS urgent_open,
-      COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED') AND due_by <> '' AND due_by < ${new Date().toISOString().slice(0, 10)})::int AS overdue
-    FROM vita_hero.referrals
-    WHERE school_id = ${schoolId} AND (${!opts.campId} OR camp_id = ${opts.campId || ""})
-  `;
+  // Three independent reads over the same filter. Sent together they cost one
+  // network hop instead of three.
+  const [totals, bySpecialty, rows] = await Promise.all([
+    sql`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'OPEN')::int AS open,
+        COUNT(*) FILTER (WHERE status = 'BOOKED')::int AS booked,
+        COUNT(*) FILTER (WHERE status = 'ATTENDED')::int AS attended,
+        COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed,
+        COUNT(*) FILTER (WHERE status = 'DECLINED')::int AS declined,
+        COUNT(*) FILTER (WHERE status = 'EXPIRED')::int AS expired,
+        COUNT(*) FILTER (WHERE urgency = 'URGENT' AND status IN ('OPEN','BOOKED'))::int AS urgent_open,
+        COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED') AND due_by <> '' AND due_by < ${programmeToday()})::int AS overdue
+      FROM vita_hero.referrals
+      WHERE school_id = ${schoolId} AND (${!opts.campId} OR camp_id = ${opts.campId || ""})
+    `,
 
-  const bySpecialty = await sql`
-    SELECT specialty,
-      COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed
-    FROM vita_hero.referrals
-    WHERE school_id = ${schoolId} AND (${!opts.campId} OR camp_id = ${opts.campId || ""})
-    GROUP BY specialty ORDER BY total DESC
-  `;
+    sql`
+      SELECT specialty,
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed
+      FROM vita_hero.referrals
+      WHERE school_id = ${schoolId} AND (${!opts.campId} OR camp_id = ${opts.campId || ""})
+      GROUP BY specialty ORDER BY total DESC
+    `,
 
-  const rows = await sql`
-    SELECT r.*, k.name AS kid_name, k.grade, k.section, p.phone AS guardian_phone,
-           k.guardian_name, sc.title AS camp_title
-    FROM vita_hero.referrals r
-    JOIN vita_hero.kids k ON k.id = r.kid_id
-    LEFT JOIN vita_hero.profiles p ON p.id = r.profile_id
-    LEFT JOIN vita_hero.school_camps sc ON sc.id = r.camp_id
-    WHERE r.school_id = ${schoolId}
-      AND (${!opts.status} OR r.status = ${opts.status || ""})
-      AND (${!opts.campId} OR r.camp_id = ${opts.campId || ""})
-    ORDER BY
-      CASE r.status WHEN 'OPEN' THEN 0 WHEN 'BOOKED' THEN 1 WHEN 'ATTENDED' THEN 2 ELSE 3 END,
-      CASE r.urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END,
-      r.created_at DESC
-    LIMIT 500
-  `;
+    sql`
+      SELECT r.*, k.name AS kid_name, k.grade, k.section, p.phone AS guardian_phone,
+             k.guardian_name, sc.title AS camp_title
+      FROM vita_hero.referrals r
+      JOIN vita_hero.kids k ON k.id = r.kid_id
+      LEFT JOIN vita_hero.profiles p ON p.id = r.profile_id
+      LEFT JOIN vita_hero.school_camps sc ON sc.id = r.camp_id
+      WHERE r.school_id = ${schoolId}
+        AND (${!opts.status} OR r.status = ${opts.status || ""})
+        AND (${!opts.campId} OR r.camp_id = ${opts.campId || ""})
+      ORDER BY
+        CASE r.status WHEN 'OPEN' THEN 0 WHEN 'BOOKED' THEN 1 WHEN 'ATTENDED' THEN 2 ELSE 3 END,
+        CASE r.urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END,
+        r.created_at DESC
+      LIMIT 500
+    `,
+  ]);
 
   const t = totals[0] as Record<string, number>;
   // Declined counts as resolved for the purpose of "did we chase everyone" —
@@ -474,7 +512,7 @@ export async function nudgeReferrals(
   sendSms: SmsSender
 ) {
   assertSchoolAccess(actor, schoolId);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = programmeToday();
 
   const expired = await sql`
     UPDATE vita_hero.referrals
@@ -484,6 +522,10 @@ export async function nudgeReferrals(
     RETURNING id
   `;
 
+  // Deliberately after the expiry above, not alongside it: expiring the
+  // overdue referrals is what decides which ones are still worth a nudge.
+  // Issuing these two together would text families about referrals that had
+  // just lapsed.
   const due = await sql`
     SELECT r.id, r.urgency, r.specialty, k.name AS kid_name, p.phone
     FROM vita_hero.referrals r
@@ -495,22 +537,27 @@ export async function nudgeReferrals(
       AND r.nudge_count < 3
   `;
 
-  let sent = 0;
-  for (const r of due) {
-    const ok = await sendSms(
-      r.phone as string,
-      "VitaHero: " + (r.kid_name as string) + " still needs a " +
-        String(r.specialty || "doctor").toLowerCase() + " check-up from the school health camp. " +
-        "Open the VitaHero app to book, or tell us if you have already been."
-    );
-    if (ok) {
-      sent++;
-      await sql`
-        UPDATE vita_hero.referrals
-        SET nudge_count = nudge_count + 1, last_nudge_at = NOW()
-        WHERE id = ${r.id as string}
-      `;
+  const byId = new Map(due.map((r) => [r.id as string, r]));
+  const outcome = await sendToMany(
+    sendSms,
+    due.map((r) => ({ id: r.id as string, phone: r.phone as string })),
+    (r) => {
+      const row = byId.get(r.id)!;
+      return "VitaHero: " + (row.kid_name as string) + " still needs a " +
+        String(row.specialty || "doctor").toLowerCase() + " check-up from the school health camp. " +
+        "Open the VitaHero app to book, or tell us if you have already been.";
     }
+  );
+  const sent = outcome.sent.length;
+  // One statement for everyone who was reached. The interval and the cap were
+  // already right here; what was not was a write per referral on top of a send
+  // per referral, both waited on one at a time.
+  if (outcome.sent.length > 0) {
+    await sql`
+      UPDATE vita_hero.referrals
+      SET nudge_count = nudge_count + 1, last_nudge_at = NOW()
+      WHERE id = ANY(${outcome.sent})
+    `;
   }
 
   // Anyone nudged three times without acting is now the school's problem, not

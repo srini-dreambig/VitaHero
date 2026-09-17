@@ -31,6 +31,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,13 +80,13 @@ fun SymptomScreen(
     val today = remember { LocalDate.now() }
     val fmt = remember { DateTimeFormatter.ISO_LOCAL_DATE }
 
-    var symptom by remember(kidId) { mutableStateOf("") }
-    var severity by remember(kidId) { mutableStateOf("MILD") }
-    var daysAgo by remember(kidId) { mutableStateOf(0) }
-    var stillGoing by remember(kidId) { mutableStateOf(true) }
-    var note by remember(kidId) { mutableStateOf("") }
-    var sawDoctor by remember(kidId) { mutableStateOf(false) }
-    var missedSchool by remember(kidId) { mutableStateOf(false) }
+    var symptom by rememberSaveable(kidId) { mutableStateOf("") }
+    var severity by rememberSaveable(kidId) { mutableStateOf("MILD") }
+    var daysAgo by rememberSaveable(kidId) { mutableStateOf(0) }
+    var stillGoing by rememberSaveable(kidId) { mutableStateOf(true) }
+    var note by rememberSaveable(kidId) { mutableStateOf("") }
+    var sawDoctor by rememberSaveable(kidId) { mutableStateOf(false) }
+    var missedSchool by rememberSaveable(kidId) { mutableStateOf(false) }
 
     LazyColumn(
         modifier = Modifier

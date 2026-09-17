@@ -6,24 +6,53 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- BootReceiver registers for BOOT_COMPLETED, and Android does not deliver
+         that broadcast without this permission. It was missing, so the receiver
+         never ran and reminders were not rescheduled after a restart. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED" />
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
 
+    <!-- Package visibility. From Android 11 an app cannot see another package
+         unless it says so, and HealthConnectClient.getSdkStatus() answers
+         SDK_UNAVAILABLE when it cannot see Health Connect — so the wearable
+         card reported "not installed" on every modern phone that had it. -->
+    <queries>
+        <package android:name="com.google.android.apps.healthdata" />
+    </queries>
+
     <application
         android:name=".VitaHeroApplication"
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:label="VitaHero"
         android:supportsRtl="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.RorkApp">
+        <!-- Portrait only.
+
+             Every screen in this app is laid out for a portrait phone, and
+             landscape has never been designed or tested. Rotation was enabled,
+             so a parent who turned the phone got a layout nobody had ever
+             looked at. Locking is the honest state of things rather than a
+             claim to support something we do not.
+
+             Android 12L and later ignore this on large screens, so tablets and
+             unfolded foldables still rotate — which is why the screens keep
+             their state across a configuration change regardless.
+
+             Delete the screenOrientation line to re-enable rotation once the
+             screens have been through a landscape pass. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.RorkApp"
+            android:screenOrientation="portrait"
             android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

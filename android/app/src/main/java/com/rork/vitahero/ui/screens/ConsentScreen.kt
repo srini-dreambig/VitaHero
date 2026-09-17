@@ -104,7 +104,7 @@ fun ConsentScreen(
 
         Spacer(Modifier.height(10.dp))
         Text(
-            "For informational purposes only. Always consult a doctor for medical decisions.",
+            t(S.medicalDisclaimer),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,

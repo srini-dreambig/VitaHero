@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AppLocale
 import com.rork.vitahero.data.Appointment
 import com.rork.vitahero.data.Camp
-import com.rork.vitahero.data.CampStatus
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.HealthFlag
 import com.rork.vitahero.data.LocalAppLocale
@@ -76,7 +75,7 @@ fun HomeScreen(
     onOpenRewards: () -> Unit,
     onBookAppointment: () -> Unit
 ) {
-    val nextCamp = camps.firstOrNull { it.status == CampStatus.UPCOMING }
+    val nextCamp = camps.firstOrNull { it.status.isUpcoming }
 
     LazyColumn(
         modifier = Modifier

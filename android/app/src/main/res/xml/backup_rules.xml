@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 11 and below.
+
+  The session token lives in EncryptedSharedPreferences, whose key is held in
+  the Android Keystore — and the Keystore is not backed up. Restoring the
+  prefs file onto a new device therefore hands the library ciphertext it has
+  no key for, and it throws on the first read. Excluding it means the parent
+  signs in again on a new phone, which is the correct outcome anyway for a
+  credential.
+
+  The sync queue is excluded for the same reason it is not worth keeping: it
+  holds a snapshot of a child's records on their way to the server, and the
+  server is where they belong, not Google Drive.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="vitahero_session.xml" />
+    <exclude domain="sharedpref" path="vitahero_sync_queue.xml" />
+</full-backup-content>

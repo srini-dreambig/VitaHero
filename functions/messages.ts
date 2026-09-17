@@ -291,30 +291,34 @@ export async function replyToThread(
  */
 export async function schoolThreads(sql: Sql, actor: Actor, schoolId: string, status: string) {
   assertSchoolAccess(actor, schoolId);
-  const rows = await sql`
-    SELECT t.*, p.name AS guardian_name, p.phone, k.name AS kid_name,
-      EXTRACT(EPOCH FROM (NOW() - t.last_message_at)) / 86400 AS waiting_days,
-      (SELECT body FROM vita_hero.question_messages m
-        WHERE m.thread_id = t.id ORDER BY m.created_at DESC LIMIT 1) AS last_body
-    FROM vita_hero.question_threads t
-    LEFT JOIN vita_hero.profiles p ON p.id = t.profile_id
-    LEFT JOIN vita_hero.kids k ON k.id = t.kid_id
-    WHERE t.school_id = ${schoolId}
-      AND (${!status} OR t.status = ${status || ""})
-    ORDER BY
-      CASE t.awaiting WHEN 'SCHOOL' THEN 0 ELSE 1 END,
-      t.last_message_at
-    LIMIT 200
-  `;
-  const counts = await sql`
-    SELECT
-      COUNT(*) FILTER (WHERE awaiting = 'SCHOOL')::int AS waiting_on_us,
-      COUNT(*) FILTER (WHERE awaiting = 'SCHOOL'
-        AND last_message_at < NOW() - (${RESPONSE_WINDOW_DAYS} || ' days')::interval)::int AS overdue,
-      COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed
-    FROM vita_hero.question_threads WHERE school_id = ${schoolId}
-  `;
-  const schoolRow = await sql`SELECT questions_enabled FROM vita_hero.schools WHERE id = ${schoolId} LIMIT 1`;
+  // The threads, their unread counts and the school's questions setting are
+  // independent; one wait instead of three.
+  const [rows, counts, schoolRow] = await Promise.all([
+    sql`
+      SELECT t.*, p.name AS guardian_name, p.phone, k.name AS kid_name,
+        EXTRACT(EPOCH FROM (NOW() - t.last_message_at)) / 86400 AS waiting_days,
+        (SELECT body FROM vita_hero.question_messages m
+          WHERE m.thread_id = t.id ORDER BY m.created_at DESC LIMIT 1) AS last_body
+      FROM vita_hero.question_threads t
+      LEFT JOIN vita_hero.profiles p ON p.id = t.profile_id
+      LEFT JOIN vita_hero.kids k ON k.id = t.kid_id
+      WHERE t.school_id = ${schoolId}
+        AND (${!status} OR t.status = ${status || ""})
+      ORDER BY
+        CASE t.awaiting WHEN 'SCHOOL' THEN 0 ELSE 1 END,
+        t.last_message_at
+      LIMIT 200
+    `,
+    sql`
+      SELECT
+        COUNT(*) FILTER (WHERE awaiting = 'SCHOOL')::int AS waiting_on_us,
+        COUNT(*) FILTER (WHERE awaiting = 'SCHOOL'
+          AND last_message_at < NOW() - (${RESPONSE_WINDOW_DAYS} || ' days')::interval)::int AS overdue,
+        COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed
+      FROM vita_hero.question_threads WHERE school_id = ${schoolId}
+    `,
+    sql`SELECT questions_enabled FROM vita_hero.schools WHERE id = ${schoolId} LIMIT 1`,
+  ]);
 
   return {
     enabled: schoolRow[0]?.questions_enabled !== false,

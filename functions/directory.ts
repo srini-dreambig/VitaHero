@@ -7,7 +7,7 @@
 // nowhere to do it. This is that surface.
 
 import { Sql, isOpsRole, normalizePhone } from "./common";
-import { SmsSender } from "./messaging";
+import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 
 function opsOnly(actor: Actor, what: string) {
@@ -218,20 +218,25 @@ export async function inviteGuardians(
   const only = opts.onlyNotJoined !== false;
   const picked = Array.isArray(opts.profileIds) ? opts.profileIds.filter(Boolean) : [];
 
-  const rows = await sql`
-    SELECT DISTINCT p.id, p.name, p.phone
-    FROM vita_hero.school_enrollments e
-    JOIN vita_hero.profiles p ON p.id = e.profile_id
-    WHERE e.school_id = ${schoolId} AND e.status = 'ACTIVE' AND p.role = 'PARENT'
-      AND (${!only} OR p.is_logged_in IS NOT TRUE)
-      AND (${picked.length === 0} OR p.id = ANY(${picked}))
-  `;
+  // The guardians to text and the school's name for the text itself are
+  // independent; one wait before any SMS goes out.
+  const [rows, school] = await Promise.all([
+    sql`
+      SELECT DISTINCT p.id, p.name, p.phone
+      FROM vita_hero.school_enrollments e
+      JOIN vita_hero.profiles p ON p.id = e.profile_id
+      WHERE e.school_id = ${schoolId} AND e.status = 'ACTIVE' AND p.role = 'PARENT'
+        AND (${!only} OR p.is_logged_in IS NOT TRUE)
+        AND (${picked.length === 0} OR p.id = ANY(${picked}))
+    `,
 
-  const school = await sql`SELECT name FROM vita_hero.schools WHERE id = ${schoolId} LIMIT 1`;
+    sql`SELECT name FROM vita_hero.schools WHERE id = ${schoolId} LIMIT 1`,
+  ]);
   const schoolName = (school[0]?.name as string) || "your school";
 
-  let sent = 0;
   const failed: Array<{ name: string; reason: string }> = [];
+  const byId = new Map<string, { name: string; last10: string }>();
+  const toText: Array<{ id: string; phone: string }> = [];
   for (const r of rows) {
     const who = (r.name as string) || (r.phone as string) || "unknown";
     const norm = normalizePhone(String(r.phone || ""));
@@ -239,20 +244,31 @@ export async function inviteGuardians(
       failed.push({ name: who, reason: "That is not a usable mobile number." });
       continue;
     }
-    const res = await sendSms(
-      norm.e164,
-      `${schoolName} uses VitaHero for your child's school health check-up. ` +
-        `Open your child's results here: ${buildLink(norm.last10)}`
-    );
-    if (res.ok) {
-      sent++;
-      await sql`UPDATE vita_hero.profiles SET invited_at = NOW() WHERE id = ${r.id as string}`;
-    } else {
-      // The reason travels to the screen. "Could not reach" on its own sent an
-      // operator hunting through mobile numbers for what was a missing secret.
-      failed.push({ name: (r.name as string) || norm.e164, reason: res.reason });
-    }
+    byId.set(r.id as string, { name: (r.name as string) || norm.e164, last10: norm.last10 });
+    toText.push({ id: r.id as string, phone: norm.e164 });
   }
+
+  const outcome = await sendToMany(sendSms, toText, (r) =>
+    `${schoolName} uses VitaHero for your child's school health check-up. ` +
+    `Open your child's results here: ${buildLink(byId.get(r.id)!.last10)}`
+  );
+  const sent = outcome.sent.length;
+  for (const f of outcome.failed) {
+    // The reason travels to the screen. "Could not reach" on its own sent an
+    // operator hunting through mobile numbers for what was a missing secret.
+    failed.push({ name: byId.get(f.id)?.name || f.id, reason: f.reason });
+  }
+  // One statement for everyone who was reached, rather than one each. Two
+  // hundred guardians used to be two hundred writes on top of two hundred
+  // sends, in a worker with a budget for neither.
+  if (outcome.sent.length > 0) {
+    await sql`
+      UPDATE vita_hero.profiles
+      SET invited_at = NOW(), invite_count = COALESCE(invite_count, 0) + 1
+      WHERE id = ANY(${outcome.sent})
+    `;
+  }
+
   // One line the console can show above the list, because when nothing is
   // configured every row fails for the same reason and repeating it per row
   // buries it.

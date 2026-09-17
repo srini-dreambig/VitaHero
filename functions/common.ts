@@ -237,14 +237,74 @@ export function generatePartnerCode(name: string): string {
   return `${prefix}${suffix}`;
 }
 
+/**
+ * The programme's own calendar day.
+ *
+ * Everything that means "today" to a person — which day a meal belongs to,
+ * whether a referral is overdue, which academic year it is — was computed in
+ * UTC, because that is what toISOString() gives you. The schools are in India,
+ * so the day was turning over at half past five in the morning local time.
+ *
+ * The visible consequence was in meals. The app stamps its streak with the
+ * device's own LocalDate, and the server filed the meal under UTC's: a parent
+ * logging something after midnight had the streak move to the new day while
+ * the meal went into the old one, and then vanished from today's plan at
+ * 05:30. The two ends were keeping different calendars.
+ *
+ * One place, named, and overridable — a programme that runs somewhere else
+ * sets PROGRAMME_TZ rather than discovering this the same way.
+ */
+export const PROGRAMME_TZ = "Asia/Kolkata";
+
+export function programmeToday(now = new Date(), tz = PROGRAMME_TZ): string {
+  // en-CA renders as YYYY-MM-DD, which is the shape every date column here uses.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+}
+
 /** Current academic year in Indian convention (June start), e.g. "2026-27". */
 export function currentAcademicYear(now = new Date()): string {
-  const y = now.getUTCFullYear();
-  const startYear = now.getUTCMonth() >= 5 ? y : y - 1; // June (5) onward
+  // The programme's calendar, not UTC's: the year turns over on 1 June where
+  // the schools are, not five and a half hours later.
+  const [y, m] = programmeToday(now).split("-").map(Number);
+  const startYear = m >= 6 ? y : y - 1;
   return `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
 }
 
 /** Split an array into fixed-size chunks for batched SQL statements. */
+/**
+ * Send many rows as one statement.
+ *
+ * `template` carries the marker `%VALUES%` where the row tuples belong, and
+ * every row must have the same width. Batched at a hundred rows, because a
+ * single statement with thousands of parameters is its own problem.
+ *
+ * This exists because "one round trip per row" is the failure this codebase
+ * keeps rediscovering: it took the schema migration down, it made releasing a
+ * camp's results impossible at any real school size, and on Cloudflare — where
+ * every statement is an outbound subrequest against a hard cap — it is never
+ * merely slow.
+ */
+export async function insertRows(
+  sql: Sql,
+  template: string,
+  rows: unknown[][]
+): Promise<void> {
+  if (rows.length === 0) return;
+  const width = rows[0].length;
+  for (const group of chunk(rows, 100)) {
+    const values = group
+      .map((_, i) => `(${Array.from({ length: width }, (_, k) => "$" + (i * width + k + 1)).join(", ")})`)
+      .join(", ");
+    // The function form of replace, so a `$` sequence in the generated tuples
+    // is never read as a capture-group reference. Today they are only `$1`,
+    // `$2`, … which survive intact, but `$&` would not, and a helper that is
+    // safe only by accident is one edit away from producing broken SQL.
+    await sql.query(template.replace("%VALUES%", () => values), group.flat());
+  }
+}
+
 export function chunk<T>(items: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));

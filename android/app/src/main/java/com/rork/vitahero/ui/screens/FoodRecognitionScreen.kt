@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -131,7 +132,7 @@ fun FoodRecognitionScreen(
                 title = { Text(t(S.foodRecognition), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
@@ -198,7 +199,7 @@ fun FoodRecognitionScreen(
                     Text(t(S.detectedFoodTitle), style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(12.dp))
                 }
-                items(detectedItems) { item ->
+                itemsIndexed(detectedItems, key = { i, it -> "$i-${it.label}" }) { _, item ->
                     val logged = item.name in loggedItems
                     HeroCard(
                         Modifier

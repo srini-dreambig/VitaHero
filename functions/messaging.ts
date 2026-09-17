@@ -253,3 +253,40 @@ export function makeSender(env: SmsEnv): SmsSender {
       : sendTwilio(env, to, body);
   };
 }
+
+/**
+ * Text a list of people, a few at a time.
+ *
+ * Every reminder in this codebase was a `for` loop with an `await sendSms`
+ * inside it, so texting a school's two hundred waiting guardians was two
+ * hundred sequential round trips to the provider — minutes of wall time inside
+ * one worker invocation, and a request that gets cut off long before it
+ * finishes. They do not depend on each other, so they go out in groups.
+ *
+ * The group is small on purpose: every send is an outbound subrequest and the
+ * platform counts them, so the point here is wall time, not volume. What bounds
+ * the volume is the caller deciding who genuinely needs texting.
+ */
+export async function sendToMany(
+  sendSms: SmsSender,
+  recipients: Array<{ id: string; phone: string }>,
+  body: (r: { id: string; phone: string }) => string,
+  groupSize = 10
+): Promise<{ sent: string[]; failed: Array<{ id: string; reason: string }> }> {
+  const sent: string[] = [];
+  const failed: Array<{ id: string; reason: string }> = [];
+  for (let i = 0; i < recipients.length; i += groupSize) {
+    const group = recipients.slice(i, i + groupSize);
+    const results = await Promise.all(
+      group.map((r) => sendSms(r.phone, body(r)).catch((e) => ({
+        ok: false,
+        reason: (e as Error).message || "Could not send",
+      })))
+    );
+    results.forEach((res, k) => {
+      if (res.ok) sent.push(group[k].id);
+      else failed.push({ id: group[k].id, reason: res.reason });
+    });
+  }
+  return { sent, failed };
+}

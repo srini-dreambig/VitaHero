@@ -29,7 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,9 +55,11 @@ fun SchoolsScreen(
     kids: List<Kid>,
     onBack: () -> Unit,
     onEnroll: (partnerCode: String, kidId: String?) -> Unit,
+    /** True while the link is with the server. */
+    busy: Boolean = false,
 ) {
-    var code by remember { mutableStateOf("") }
-    var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id) }
+    var code by rememberSaveable { mutableStateOf("") }
+    var selectedKidId by rememberSaveable { mutableStateOf(kids.firstOrNull()?.id) }
 
     LazyColumn(
         modifier = Modifier
@@ -75,7 +77,7 @@ fun SchoolsScreen(
                         .clickable(onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null)
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
@@ -143,8 +145,8 @@ fun SchoolsScreen(
                     }
                     Spacer(Modifier.height(16.dp))
                     PrimaryGradientButton(
-                        text = t(S.linkSchool),
-                        enabled = code.length >= 4,
+                        text = if (busy) t(S.pleaseWait) else t(S.linkSchool),
+                        enabled = code.length >= 4 && !busy,
                         onClick = { onEnroll(code.trim(), selectedKidId) },
                     )
                 }

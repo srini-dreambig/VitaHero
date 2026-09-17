@@ -45,6 +45,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,19 +94,32 @@ fun BookingScreen(
     bookingSlotsByDoctor: Map<String, List<BookingTimeSlot>>,
     onLoadSlots: (String) -> Unit,
     onConfirm: (Doctor, kidName: String, date: String, time: String) -> Unit,
-    onCancel: (String) -> Unit
+    onCancel: (String) -> Unit,
+    /** True while the booking is with the server and no answer has come back. */
+    booking: Boolean = false,
+    /** Set once the server has accepted or refused. Null before either. */
+    confirmed: Boolean = false,
+    refusedMessage: String? = null,
 ) {
     val context = LocalContext.current
-    var selectedDoctor by remember { mutableStateOf<Doctor?>(null) }
-    var selectedKid by remember { mutableStateOf(kids.firstOrNull()?.name ?: "") }
-    var selectedSlot by remember { mutableStateOf<BookingSlot?>(null) }
-    var booked by remember { mutableStateOf(false) }
-    var filterSpecialty by remember { mutableStateOf<String?>(null) }
-    var showExisting by remember { mutableStateOf(true) }
-    var viewMode by remember { mutableStateOf(BookingViewMode.BY_HOSPITAL) }
+    // An earlier pass left the doctor and the slot transient, on the grounds
+    // that they are "a selection two taps away". They are not. Getting to a
+    // slot means filtering by specialty, expanding a hospital, choosing a
+    // doctor and then waiting for that doctor's slots to come back over the
+    // network — and a rotation at the confirm step threw all of it away and
+    // did not ask for the slots again. What is saved is the id and the label,
+    // which restore without needing either type to be Parcelable.
+    var selectedDoctorId by rememberSaveable { mutableStateOf<String?>(null) }
+    var selectedKid by rememberSaveable { mutableStateOf(kids.firstOrNull()?.name ?: "") }
+    var selectedSlotLabel by rememberSaveable { mutableStateOf<String?>(null) }
+    var filterSpecialty by rememberSaveable { mutableStateOf<String?>(null) }
+    var showExisting by rememberSaveable { mutableStateOf(true) }
+    var viewMode by rememberSaveable { mutableStateOf(BookingViewMode.BY_HOSPITAL) }
     var expandedHospitalId by remember { mutableStateOf<String?>(null) }
 
     val hospitals = directory?.hospitals.orEmpty()
+    val allDoctors = remember(hospitals, doctors) { hospitals.flatMap { it.doctors } + doctors }
+    val selectedDoctor = selectedDoctorId?.let { id -> allDoctors.firstOrNull { it.id == id } }
     val allSpecialties = directory?.specialties?.ifEmpty {
         doctors.map { it.specialty }.distinct()
     } ?: doctors.map { it.specialty }.distinct()
@@ -129,16 +143,25 @@ fun BookingScreen(
         }
     }
 
-    LaunchedEffect(selectedDoctor?.id) {
-        selectedDoctor?.id?.let {
-            onLoadSlots(it)
-            selectedSlot = null
-        }
+    // Asks again after a rotation, which is the point: the slots are a network
+    // read and the restored doctor needs them back. It no longer clears the
+    // chosen slot — a fresh composition re-runs this effect with the same
+    // doctor, and clearing here would undo the very thing being restored.
+    LaunchedEffect(selectedDoctorId) {
+        selectedDoctorId?.let { onLoadSlots(it) }
     }
 
-    val slots = selectedDoctor?.id?.let { doctorId ->
-        bookingSlotsByDoctor[doctorId].orEmpty().map { BookingSlot(it.label, it.date, it.time) }
-    }.orEmpty()
+    val slots = remember(selectedDoctorId, bookingSlotsByDoctor) {
+        selectedDoctorId?.let { doctorId ->
+            bookingSlotsByDoctor[doctorId].orEmpty().map { BookingSlot(it.label, it.date, it.time) }
+        }.orEmpty()
+    }
+
+    // Derived, not stored, so it cannot outlive its meaning: a slot counts only
+    // while the doctor on screen still offers it. Switching doctors used to
+    // leave the previous doctor's time selected on one of the three paths into
+    // the list, which is how a booking gets confirmed at an hour nobody offered.
+    val selectedSlot = selectedSlotLabel?.let { label -> slots.firstOrNull { it.label == label } }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -147,14 +170,14 @@ fun BookingScreen(
                 title = { Text(t(S.bookAppt), style = MaterialTheme.typography.titleLarge) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
             )
         }
     ) { pad ->
-        if (booked) {
+        if (confirmed) {
             Column(
                 Modifier
                     .fillMaxWidth()
@@ -176,11 +199,22 @@ fun BookingScreen(
                 Spacer(Modifier.height(24.dp))
                 Text(t(S.apptConfirmed), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "${selectedDoctor?.name} · ${selectedSlot?.label}\nfor $selectedKid",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                // The doctor and slot are a transient selection, so after a
+                // rotation on this screen they are gone while the confirmation
+                // itself — which lives in the view model — is not. Read the
+                // booking back from the appointment list rather than printing
+                // "null · null" at a parent who has just booked something.
+                val justBooked = appointments.lastOrNull { it.kidName == selectedKid }
+                val line = selectedDoctor?.let { doc ->
+                    "${doc.name} · ${selectedSlot?.label.orEmpty()}\nfor $selectedKid"
+                } ?: justBooked?.let { "${it.doctorName} · ${it.date} ${it.time}\nfor ${it.kidName}" }
+                if (line != null) {
+                    Text(
+                        line,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 Spacer(Modifier.height(32.dp))
                 PrimaryGradientButton(text = t(S.done), onClick = onBack, modifier = Modifier.fillMaxWidth())
             }
@@ -231,7 +265,7 @@ fun BookingScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(listOf("Hyderabad")) { city ->
+                    items(listOf("Hyderabad"), key = { it }) { city ->
                         val selected = bookingCity.equals(city, ignoreCase = true)
                         Box(
                             Modifier
@@ -318,11 +352,11 @@ fun BookingScreen(
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ViewModeChip(t(S.viewByHospital), viewMode == BookingViewMode.BY_HOSPITAL) {
                         viewMode = BookingViewMode.BY_HOSPITAL
-                        selectedDoctor = null
+                        selectedDoctorId = null
                     }
                     ViewModeChip(t(S.viewBySpecialty), viewMode == BookingViewMode.BY_SPECIALTY) {
                         viewMode = BookingViewMode.BY_SPECIALTY
-                        selectedDoctor = null
+                        selectedDoctorId = null
                         expandedHospitalId = null
                     }
                 }
@@ -353,7 +387,7 @@ fun BookingScreen(
                 }
                 Spacer(Modifier.height(10.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(allSpecialties) { spec ->
+                    items(allSpecialties, key = { it }) { spec ->
                         val active = filterSpecialty == spec
                         Box(
                             Modifier
@@ -384,8 +418,8 @@ fun BookingScreen(
                             expandedHospitalId = if (expandedHospitalId == hospital.id) null else hospital.id
                         },
                         onDoctorSelect = { doc ->
-                            selectedDoctor = doc
-                            selectedSlot = null
+                            selectedDoctorId = doc.id
+                            selectedSlotLabel = null
                         }
                     )
                     Spacer(Modifier.height(10.dp))
@@ -401,8 +435,8 @@ fun BookingScreen(
                         Spacer(Modifier.height(8.dp))
                         docs.forEach { doctor ->
                             DoctorDirectoryCard(doctor, selectedDoctor?.id == doctor.id) {
-                                selectedDoctor = doctor
-                                selectedSlot = null
+                                selectedDoctorId = doctor.id
+                                selectedSlotLabel = null
                             }
                             Spacer(Modifier.height(10.dp))
                         }
@@ -410,7 +444,7 @@ fun BookingScreen(
                 }
             } else {
                 items(fallbackDoctors, key = { it.id }) { doctor ->
-                    DoctorDirectoryCard(doctor, selectedDoctor?.id == doctor.id) { selectedDoctor = doctor }
+                    DoctorDirectoryCard(doctor, selectedDoctor?.id == doctor.id) { selectedDoctorId = doctor.id; selectedSlotLabel = null }
                     Spacer(Modifier.height(10.dp))
                 }
             }
@@ -466,7 +500,7 @@ fun BookingScreen(
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(14.dp))
                                                 .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
-                                                .clickable { selectedSlot = slot }
+                                                .clickable { selectedSlotLabel = slot.label }
                                                 .padding(vertical = 14.dp),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -484,14 +518,25 @@ fun BookingScreen(
                         }
                     }
                     Spacer(Modifier.height(24.dp))
+                    if (refusedMessage != null) {
+                        // The server's own wording — "This slot is no longer
+                        // available" — rather than a generic failure. Nothing
+                        // was booked, and the screen says so before the button.
+                        Text(
+                            refusedMessage,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(12.dp))
+                    }
                     PrimaryGradientButton(
-                        text = t(S.confirmBooking),
-                        enabled = selectedSlot != null,
+                        text = if (booking) t(S.bookingInProgress) else t(S.confirmBooking),
+                        enabled = selectedSlot != null && !booking,
                         onClick = {
                             val doc = selectedDoctor ?: return@PrimaryGradientButton
                             val slot = selectedSlot ?: return@PrimaryGradientButton
                             onConfirm(doc, selectedKid, slot.date, slot.time)
-                            booked = true
                         },
                         modifier = Modifier.fillMaxWidth()
                     )

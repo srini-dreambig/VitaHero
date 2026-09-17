@@ -41,12 +41,28 @@ export async function kidHealthHistory(sql: Sql, profileId: string, kidId: strin
     ORDER BY sc.date DESC
   `;
 
+  // Every camp's findings in one read rather than one read per camp. A child
+  // who has been in the programme since Class 1 has a row here for each year,
+  // and this is the screen their guardian opens to see the history.
+  const campIds = rows.map((r) => r.camp_id as string);
+  const findings = campIds.length
+    ? await sql`
+        SELECT camp_id, check_type, flag, value_text, rationale, detail
+        FROM vita_hero.camp_findings
+        WHERE kid_id = ${kidId} AND camp_id = ANY(${campIds})
+      `
+    : [];
+  const byCamp = new Map<string, Record<string, unknown>[]>();
+  for (const f of findings) {
+    const id = f.camp_id as string;
+    const list = byCamp.get(id) || [];
+    list.push(f);
+    byCamp.set(id, list);
+  }
+
   const camps = [];
   for (const r of rows) {
-    const f = await sql`
-      SELECT check_type, flag, value_text, rationale, detail FROM vita_hero.camp_findings
-      WHERE camp_id = ${r.camp_id as string} AND kid_id = ${kidId}
-    `;
+    const f = byCamp.get(r.camp_id as string) || [];
     camps.push({
       campId: r.camp_id as string,
       title: r.title as string,
@@ -149,64 +165,69 @@ export async function schoolReport(
     };
   }
 
-  // Coverage: of the children on the roll, how many were actually screened.
-  const coverage = await sql`
-    SELECT
-      COUNT(DISTINCT p.kid_id)::int AS rostered,
-      COUNT(DISTINCT p.kid_id) FILTER (WHERE p.consent_status IN ('GRANTED','PAPER'))::int AS consented,
-      COUNT(DISTINCT p.kid_id) FILTER (WHERE p.status IN ('SCREENED','APPROVED','RELEASED'))::int AS screened,
-      COUNT(DISTINCT p.kid_id) FILTER (WHERE p.status = 'RELEASED')::int AS released,
-      COUNT(DISTINCT p.kid_id) FILTER (WHERE p.attendance = 'ABSENT')::int AS absent
-    FROM vita_hero.camp_participants p WHERE p.camp_id = ANY(${campIds})
-  `;
+  // Four independent aggregates over the same camp set. Each is a separate
+  // network hop to Neon, and none of them needs the others, so they go out
+  // together: one round trip instead of four.
+  const [coverage, prevalence, referrals, improvement] = await Promise.all([
+    // Coverage: of the children on the roll, how many were actually screened.
+    sql`
+      SELECT
+        COUNT(DISTINCT p.kid_id)::int AS rostered,
+        COUNT(DISTINCT p.kid_id) FILTER (WHERE p.consent_status IN ('GRANTED','PAPER'))::int AS consented,
+        COUNT(DISTINCT p.kid_id) FILTER (WHERE p.status IN ('SCREENED','APPROVED','RELEASED'))::int AS screened,
+        COUNT(DISTINCT p.kid_id) FILTER (WHERE p.status = 'RELEASED')::int AS released,
+        COUNT(DISTINCT p.kid_id) FILTER (WHERE p.attendance = 'ABSENT')::int AS absent
+      FROM vita_hero.camp_participants p WHERE p.camp_id = ANY(${campIds})
+    `,
 
-  // Prevalence per check, over released results only.
-  const prevalence = await sql`
-    SELECT f.check_type,
-      COUNT(*) FILTER (WHERE f.flag <> 'NOT_MEASURED')::int AS measured,
-      COUNT(*) FILTER (WHERE f.flag = 'GOOD')::int AS good,
-      COUNT(*) FILTER (WHERE f.flag = 'WATCH')::int AS watch,
-      COUNT(*) FILTER (WHERE f.flag = 'ALERT')::int AS alert
-    FROM vita_hero.camp_findings f
-    JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
-    WHERE f.camp_id = ANY(${campIds}) AND p.status = 'RELEASED'
-    GROUP BY f.check_type
-  `;
-
-  const referrals = await sql`
-    SELECT
-      COUNT(*)::int AS total,
-      COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed,
-      COUNT(*) FILTER (WHERE status = 'DECLINED')::int AS declined,
-      COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED'))::int AS outstanding,
-      COUNT(*) FILTER (WHERE status = 'EXPIRED')::int AS expired,
-      COUNT(*) FILTER (WHERE outcome = 'RESOLVED')::int AS resolved,
-      COUNT(*) FILTER (WHERE outcome = 'ONGOING')::int AS ongoing
-    FROM vita_hero.referrals WHERE camp_id = ANY(${campIds})
-  `;
-
-  // Improvement: children screened at two or more camps in this set, and
-  // whether their worst flag moved.
-  const improvement = await sql`
-    WITH ranked AS (
-      SELECT f.kid_id, f.camp_id, sc.date,
-        MAX(CASE f.flag WHEN 'ALERT' THEN 2 WHEN 'WATCH' THEN 1 ELSE 0 END) AS severity,
-        ROW_NUMBER() OVER (PARTITION BY f.kid_id ORDER BY sc.date DESC) AS rn
+    // Prevalence per check, over released results only.
+    sql`
+      SELECT f.check_type,
+        COUNT(*) FILTER (WHERE f.flag <> 'NOT_MEASURED')::int AS measured,
+        COUNT(*) FILTER (WHERE f.flag = 'GOOD')::int AS good,
+        COUNT(*) FILTER (WHERE f.flag = 'WATCH')::int AS watch,
+        COUNT(*) FILTER (WHERE f.flag = 'ALERT')::int AS alert
       FROM vita_hero.camp_findings f
-      JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
       JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
-      WHERE f.camp_id = ANY(${campIds}) AND p.status = 'RELEASED' AND f.flag <> 'NOT_MEASURED'
-      GROUP BY f.kid_id, f.camp_id, sc.date
-    )
-    SELECT
-      COUNT(*)::int AS compared,
-      COUNT(*) FILTER (WHERE latest.severity < prev.severity)::int AS improved,
-      COUNT(*) FILTER (WHERE latest.severity = prev.severity)::int AS unchanged,
-      COUNT(*) FILTER (WHERE latest.severity > prev.severity)::int AS worse
-    FROM ranked latest
-    JOIN ranked prev ON prev.kid_id = latest.kid_id AND prev.rn = 2
-    WHERE latest.rn = 1
-  `;
+      WHERE f.camp_id = ANY(${campIds}) AND p.status = 'RELEASED'
+      GROUP BY f.check_type
+    `,
+
+    sql`
+      SELECT
+        COUNT(*)::int AS total,
+        COUNT(*) FILTER (WHERE status = 'CLOSED')::int AS closed,
+        COUNT(*) FILTER (WHERE status = 'DECLINED')::int AS declined,
+        COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED'))::int AS outstanding,
+        COUNT(*) FILTER (WHERE status = 'EXPIRED')::int AS expired,
+        COUNT(*) FILTER (WHERE outcome = 'RESOLVED')::int AS resolved,
+        COUNT(*) FILTER (WHERE outcome = 'ONGOING')::int AS ongoing
+      FROM vita_hero.referrals WHERE camp_id = ANY(${campIds})
+    `,
+
+    // Improvement: children screened at two or more camps in this set, and
+    // whether their worst flag moved.
+    sql`
+      WITH ranked AS (
+        SELECT f.kid_id, f.camp_id, sc.date,
+          MAX(CASE f.flag WHEN 'ALERT' THEN 2 WHEN 'WATCH' THEN 1 ELSE 0 END) AS severity,
+          ROW_NUMBER() OVER (PARTITION BY f.kid_id ORDER BY sc.date DESC) AS rn
+        FROM vita_hero.camp_findings f
+        JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
+        JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
+        WHERE f.camp_id = ANY(${campIds}) AND p.status = 'RELEASED' AND f.flag <> 'NOT_MEASURED'
+        GROUP BY f.kid_id, f.camp_id, sc.date
+      )
+      SELECT
+        COUNT(*)::int AS compared,
+        COUNT(*) FILTER (WHERE latest.severity < prev.severity)::int AS improved,
+        COUNT(*) FILTER (WHERE latest.severity = prev.severity)::int AS unchanged,
+        COUNT(*) FILTER (WHERE latest.severity > prev.severity)::int AS worse
+      FROM ranked latest
+      JOIN ranked prev ON prev.kid_id = latest.kid_id AND prev.rn = 2
+      WHERE latest.rn = 1
+    `,
+  ]);
 
   const cov = coverage[0] as Record<string, number>;
   const ref = referrals[0] as Record<string, number>;
@@ -260,7 +281,11 @@ export async function programmeReport(sql: Sql, actor: Actor) {
     throw new ApiError(403, "This is an operations view", "OPS_REQUIRED");
   }
 
-  const schools = await sql`
+  // Five independent aggregates over the whole programme. Ops opens this to
+  // answer one question and used to wait for five sequential round trips to a
+  // database that may be an ocean away from the worker.
+  const [schools, prevalence, byDistrict, totals, partners] = await Promise.all([
+    sql`
     SELECT s.id, s.name, s.city, s.district, s.status,
       (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.school_id = s.id
         AND COALESCE(k.status,'ACTIVE') = 'ACTIVE') AS students,
@@ -274,9 +299,8 @@ export async function programmeReport(sql: Sql, actor: Actor) {
     FROM vita_hero.schools s
     WHERE s.active = true
     ORDER BY s.name
-  `;
-
-  const prevalence = await sql`
+  `,
+    sql`
     SELECT f.check_type,
       COUNT(*) FILTER (WHERE f.flag <> 'NOT_MEASURED')::int AS measured,
       COUNT(*) FILTER (WHERE f.flag IN ('WATCH','ALERT'))::int AS flagged
@@ -284,9 +308,8 @@ export async function programmeReport(sql: Sql, actor: Actor) {
     JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
     WHERE p.status = 'RELEASED'
     GROUP BY f.check_type
-  `;
-
-  const byDistrict = await sql`
+  `,
+    sql`
     SELECT COALESCE(NULLIF(s.district,''), s.city) AS area,
       COUNT(DISTINCT s.id)::int AS schools,
       COUNT(DISTINCT p.kid_id) FILTER (WHERE p.status = 'RELEASED')::int AS children_screened
@@ -295,9 +318,8 @@ export async function programmeReport(sql: Sql, actor: Actor) {
     LEFT JOIN vita_hero.camp_participants p ON p.camp_id = sc.id
     WHERE s.active = true
     GROUP BY area ORDER BY children_screened DESC
-  `;
-
-  const totals = await sql`
+  `,
+    sql`
     SELECT
       (SELECT COUNT(*)::int FROM vita_hero.schools WHERE active = true) AS schools,
       (SELECT COUNT(*)::int FROM vita_hero.kids WHERE source = 'ADMIN'
@@ -305,24 +327,25 @@ export async function programmeReport(sql: Sql, actor: Actor) {
       (SELECT COUNT(DISTINCT kid_id)::int FROM vita_hero.camp_participants WHERE status = 'RELEASED') AS screened,
       (SELECT COUNT(*)::int FROM vita_hero.referrals) AS referrals,
       (SELECT COUNT(*)::int FROM vita_hero.referrals WHERE status = 'CLOSED') AS referrals_closed
-  `;
-
-  const t = totals[0] as Record<string, number>;
+  `,
   // K4 — which partners actually close the referrals sent to them. A partner
   // hospital that receives referrals and never reports an outcome is a
   // partnership on paper only.
-  const partners = await sql`
-    SELECT COALESCE(NULLIF(r.specialty,''), 'Other') AS specialty,
-      COALESCE(NULLIF(r.clinician_name,''), 'Not recorded') AS clinician,
-      COUNT(*)::int AS seen,
-      COUNT(*) FILTER (WHERE r.outcome = 'RESOLVED')::int AS resolved,
-      COUNT(*) FILTER (WHERE r.outcome = 'ONGOING')::int AS ongoing,
-      COUNT(*) FILTER (WHERE r.outcome = 'REFERRED_ON')::int AS referred_on
-    FROM vita_hero.referrals r
-    WHERE r.status = 'CLOSED'
-    GROUP BY specialty, clinician
-    ORDER BY seen DESC LIMIT 50
-  `;
+    sql`
+      SELECT COALESCE(NULLIF(r.specialty,''), 'Other') AS specialty,
+        COALESCE(NULLIF(r.clinician_name,''), 'Not recorded') AS clinician,
+        COUNT(*)::int AS seen,
+        COUNT(*) FILTER (WHERE r.outcome = 'RESOLVED')::int AS resolved,
+        COUNT(*) FILTER (WHERE r.outcome = 'ONGOING')::int AS ongoing,
+        COUNT(*) FILTER (WHERE r.outcome = 'REFERRED_ON')::int AS referred_on
+      FROM vita_hero.referrals r
+      WHERE r.status = 'CLOSED'
+      GROUP BY specialty, clinician
+      ORDER BY seen DESC LIMIT 50
+    `,
+  ]);
+
+  const t = totals[0] as Record<string, number>;
 
   return {
     totals: {
@@ -387,17 +410,50 @@ export async function guardianNudges(sql: Sql, profileId: string) {
     WHERE profile_id = ${profileId} AND COALESCE(status,'ACTIVE') = 'ACTIVE'
   `;
   const nudges: Array<{ kidId: string; kidName: string; kind: string; priority: number; text: string }> = [];
+  const kidIds = kids.map((k) => k.id as string);
+
+  // Two reads for the whole family rather than two per child. This is the
+  // home screen, so it ran on every open, and it grew with the number of
+  // children on the account.
+  const [openRows, trendRows] = kidIds.length
+    ? await Promise.all([
+        // Anything outstanding beats anything else we might say; DISTINCT ON
+        // keeps the most urgent one per child, which is what the loop's
+        // ORDER BY ... LIMIT 1 was doing one child at a time.
+        sql`
+          SELECT DISTINCT ON (kid_id) kid_id, specialty, urgency, due_by
+          FROM vita_hero.referrals
+          WHERE kid_id = ANY(${kidIds}) AND status IN ('OPEN','BOOKED')
+          ORDER BY kid_id, CASE urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END
+        `,
+        // I3 — recognise a child who got better. This is what earns retention.
+        sql`
+          WITH ranked AS (
+            SELECT f.kid_id, sc.date,
+              MAX(CASE f.flag WHEN 'ALERT' THEN 2 WHEN 'WATCH' THEN 1 ELSE 0 END) AS severity,
+              ROW_NUMBER() OVER (PARTITION BY f.kid_id ORDER BY sc.date DESC) AS rn
+            FROM vita_hero.camp_findings f
+            JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
+            JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
+            WHERE f.kid_id = ANY(${kidIds}) AND p.status = 'RELEASED' AND f.flag <> 'NOT_MEASURED'
+            GROUP BY f.kid_id, sc.date
+          )
+          SELECT kid_id,
+                 MAX(severity) FILTER (WHERE rn = 1) AS latest,
+                 MAX(severity) FILTER (WHERE rn = 2) AS previous
+          FROM ranked GROUP BY kid_id
+        `,
+      ])
+    : [[], []];
+
+  const openByKid = new Map(openRows.map((r) => [r.kid_id as string, r]));
+  const trendByKid = new Map(trendRows.map((r) => [r.kid_id as string, r]));
 
   for (const k of kids) {
     const kidId = k.id as string;
     const name = k.name as string;
 
-    // Anything outstanding beats anything else we might say.
-    const open = await sql`
-      SELECT specialty, urgency, due_by FROM vita_hero.referrals
-      WHERE kid_id = ${kidId} AND status IN ('OPEN','BOOKED')
-      ORDER BY CASE urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END LIMIT 1
-    `;
+    const open = openByKid.has(kidId) ? [openByKid.get(kidId)!] : [];
     if (open.length > 0) {
       const u = (open[0].urgency as string) || "ROUTINE";
       nudges.push({
@@ -409,21 +465,7 @@ export async function guardianNudges(sql: Sql, profileId: string) {
       continue;
     }
 
-    // I3 — recognise a child who got better. This is what earns retention.
-    const trend = await sql`
-      WITH ranked AS (
-        SELECT sc.date,
-          MAX(CASE f.flag WHEN 'ALERT' THEN 2 WHEN 'WATCH' THEN 1 ELSE 0 END) AS severity,
-          ROW_NUMBER() OVER (ORDER BY sc.date DESC) AS rn
-        FROM vita_hero.camp_findings f
-        JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
-        JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
-        WHERE f.kid_id = ${kidId} AND p.status = 'RELEASED' AND f.flag <> 'NOT_MEASURED'
-        GROUP BY sc.date
-      )
-      SELECT (SELECT severity FROM ranked WHERE rn = 1) AS latest,
-             (SELECT severity FROM ranked WHERE rn = 2) AS previous
-    `;
+    const trend = trendByKid.has(kidId) ? [trendByKid.get(kidId)!] : [];
     const latest = trend[0]?.latest as number | null;
     const previous = trend[0]?.previous as number | null;
     if (latest !== null && previous !== null && latest < previous) {

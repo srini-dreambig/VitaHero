@@ -87,13 +87,25 @@ const WEIGHT_GIRLS: Ref[] = [
 const HEIGHT_SPREAD = 0.045;
 const WEIGHT_SPREAD = 0.14;
 
-function isBoy(gender: string): boolean {
-  const g = (gender || "").toLowerCase();
-  return g.startsWith("b") || g === "male" || g === "m";
+/**
+ * Which reference table applies, or null when the record does not say.
+ *
+ * A percentile only means anything against a reference for the child's sex.
+ * This used to be a boolean — boy, or else — so a child whose sex was not
+ * recorded, or recorded as neither, was measured against the girls' table and
+ * told a percentile as though it were the right one. At fourteen the two
+ * medians are four centimetres and two and a half kilograms apart, which is
+ * the difference between a flag and no flag.
+ */
+export function referenceSex(gender: string): "M" | "F" | null {
+  const g = (gender || "").trim().toLowerCase();
+  if (g.startsWith("b") || g === "male" || g === "m") return "M";
+  if (g.startsWith("g") || g === "female" || g === "f") return "F";
+  return null;
 }
 
-function medianAtAge(ageYears: number, gender: string, metric: "HEIGHT" | "WEIGHT"): number {
-  const boy = isBoy(gender);
+function medianFor(ageYears: number, sex: "M" | "F", metric: "HEIGHT" | "WEIGHT"): number {
+  const boy = sex === "M";
   const table =
     metric === "HEIGHT" ? (boy ? HEIGHT_BOYS : HEIGHT_GIRLS) : boy ? WEIGHT_BOYS : WEIGHT_GIRLS;
   const age = Math.min(Math.max(Math.round(ageYears), 2), 18);
@@ -108,8 +120,27 @@ export function estimatePercentile(
   gender: string,
   metric: "HEIGHT" | "WEIGHT"
 ): number {
+  const sex = referenceSex(gender);
+  if (sex === null) {
+    // Nothing here can say which reference is right, so take the one that
+    // reads lower. Guessing wrong in the other direction means telling a
+    // family a child is fine when the other table would have flagged them.
+    return Math.min(
+      percentileAgainst(value, ageYears, "M", metric),
+      percentileAgainst(value, ageYears, "F", metric)
+    );
+  }
+  return percentileAgainst(value, ageYears, sex, metric);
+}
+
+function percentileAgainst(
+  value: number,
+  ageYears: number,
+  sex: "M" | "F",
+  metric: "HEIGHT" | "WEIGHT"
+): number {
   const spread = metric === "HEIGHT" ? HEIGHT_SPREAD : WEIGHT_SPREAD;
-  const p50 = medianAtAge(ageYears, gender, metric);
+  const p50 = medianFor(ageYears, sex, metric);
   if (p50 <= 0 || !Number.isFinite(value) || value <= 0) return 50;
   const zScore = (value / p50 - 1) / spread;
   let pct: number;
@@ -184,6 +215,11 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       const b = bmi(h, w);
       let flag: Flag = "GOOD";
       let why = `Height ${hPct}th percentile, weight ${wPct}th, BMI ${b}`;
+      if (referenceSex(ctx.gender) === null) {
+        // The physician reviewing this needs to know the percentile is the
+        // cautious one of two, not a reading against this child's own chart.
+        why += " (sex not recorded — measured against the lower of the two references)";
+      }
       if (hPct < 3 || wPct < 3) {
         flag = "ALERT";
         why += " — below the 3rd percentile";

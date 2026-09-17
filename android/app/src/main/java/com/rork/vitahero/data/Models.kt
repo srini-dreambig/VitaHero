@@ -52,7 +52,36 @@ data class Kid(
     val source: String = "PARENT", // ADMIN = provisioned from a school camp (medical data is read-only)
 )
 
-enum class CampStatus { UPCOMING, COMPLETED }
+/**
+ * The state of a camp, as the server actually reports it.
+ *
+ * This used to be UPCOMING and COMPLETED only — neither of which the school
+ * camp lifecycle produces. `CampStatus.valueOf` therefore threw on every
+ * partner camp and fell back to UPCOMING, so the "past camps" list was always
+ * empty, a camp whose results had been released still read as upcoming, and
+ * the reminder scheduler kept nudging families about camps that had already
+ * happened.
+ *
+ * UPCOMING and COMPLETED remain because a guardian's own camp entries, in the
+ * older personal camps table, still use them.
+ */
+enum class CampStatus {
+    SCHEDULED,
+    IN_PROGRESS,
+    SCREENED,
+    RELEASED,
+    CANCELLED,
+    UPCOMING,
+    COMPLETED;
+
+    /** Still to happen, or happening — worth a reminder and a consent chase. */
+    val isUpcoming: Boolean
+        get() = this == SCHEDULED || this == IN_PROGRESS || this == UPCOMING
+
+    /** Done. Results may or may not have been released yet. */
+    val isPast: Boolean
+        get() = this == SCREENED || this == RELEASED || this == COMPLETED
+}
 
 data class Camp(
     val id: String,
@@ -61,6 +90,10 @@ data class Camp(
     val date: String,
     val time: String,
     val status: CampStatus,
+    /** Where the camp is. Empty when the school has not said. */
+    val venue: String = "",
+    /** The date guardians are asked to reply by; empty when none was set. */
+    val consentDeadline: String = "",
     val checks: List<String>,
     val resultSummary: String?,
     val isPartnerCamp: Boolean = false,

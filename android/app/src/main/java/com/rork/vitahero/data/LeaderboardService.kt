@@ -47,6 +47,7 @@ object LeaderboardService {
                 setBody("""{"current_kid_id":"$currentKidId"}""")
             }
 
+            resp.observed()
             val json = Json { ignoreUnknownKeys = true; isLenient = true }
             val raw = resp.body<List<LeaderboardRow>>()
 

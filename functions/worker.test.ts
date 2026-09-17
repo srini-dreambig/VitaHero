@@ -7,14 +7,23 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test";
 
 // ── stub the Neon driver before the worker imports it ──
-interface Handler { match: RegExp; rows: Record<string, unknown>[] }
+interface Handler {
+  match: RegExp;
+  rows?: Record<string, unknown>[];
+  /** Fail the way the database fails, so the error path can be tested. */
+  throws?: Error;
+}
 
 let handlers: Handler[] = [];
 let calls: { text: string; params: unknown[] }[] = [];
 
 function run(text: string, params: unknown[]) {
   calls.push({ text, params });
-  for (const h of handlers) if (h.match.test(text)) return Promise.resolve(h.rows);
+  for (const h of handlers) {
+    if (!h.match.test(text)) continue;
+    if (h.throws) return Promise.reject(h.throws);
+    return Promise.resolve(h.rows || []);
+  }
   return Promise.resolve([] as Record<string, unknown>[]);
 }
 
@@ -75,6 +84,26 @@ describe("the portal", () => {
 
   test("does not require a sign-in to load the page itself", async () => {
     expect((await call("/admin/")).status).toBe(200);
+  });
+
+  test("a console that has not changed costs a 304, not a quarter megabyte", async () => {
+    const first = await call("/admin");
+    const etag = first.headers.get("ETag");
+    expect(etag).toBeTruthy();
+    const body = await first.text();
+    // Worth knowing if this ever balloons: it is sent on every cold load.
+    expect(body.length).toBeGreaterThan(50_000);
+
+    const again = await call("/admin", { headers: { "If-None-Match": etag as string } });
+    expect(again.status).toBe(304);
+    expect(again.headers.get("ETag")).toBe(etag);
+    expect(await again.text()).toBe("");
+  });
+
+  test("a stale validator still gets the current console", async () => {
+    const r = await call("/admin", { headers: { "If-None-Match": '"not-this-one"' } });
+    expect(r.status).toBe(200);
+    expect((await r.text()).length).toBeGreaterThan(50_000);
   });
 });
 
@@ -439,8 +468,94 @@ describe("classes", () => {
       method: "POST", headers: opsHeaders,
       body: JSON.stringify({ academicYear: "2026-27", grades: ["Class 1", "Class 2"], sections: ["A", "B"] }),
     });
+    // Two grades by two sections is four classes. That is the assertion; how
+    // many statements carry them is not — this used to send one INSERT each,
+    // which is two statements a class on an ordinary save, and pinning the
+    // count here is what made batching them look like a regression.
     const inserts = calls.filter((c) => /INSERT INTO vita_hero\.school_classes/.test(c.text));
-    expect(inserts.length).toBe(4);
+    const rows = inserts.flatMap((c) => c.params || []).filter(
+      (p) => typeof p === "string" && /^cls_/.test(p as string));
+    expect(rows.sort()).toEqual([
+      "cls_sch-oak_2026-27_class-1_a",
+      "cls_sch-oak_2026-27_class-1_b",
+      "cls_sch-oak_2026-27_class-2_a",
+      "cls_sch-oak_2026-27_class-2_b",
+    ]);
+  });
+
+  test("inviting a list of parents does not cost four statements a number", async () => {
+    // A roster import for a school of two hundred families used to send four
+    // subrequests per number — read the cooldown, send, log, mark — which is
+    // eight hundred, past what the platform allows. The import reported
+    // success and the invites stopped partway through.
+    handlers = [
+      { match: /SELECT id FROM vita_hero\.profiles/, rows: [
+        { id: "ph_9800000001" }, { id: "ph_9800000002" }, { id: "ph_9800000003" },
+        { id: "ph_9800000004" }, { id: "ph_9800000005" },
+      ] },
+    ];
+    const r = await call("/api/admin/invite", {
+      method: "POST", headers: opsHeaders,
+      body: JSON.stringify({ phones: [
+        "9800000001", "9800000002", "9800000003", "9800000004", "9800000005",
+      ] }),
+    });
+    expect(r.status).toBe(200);
+    // Whatever the statements are, there must not be one per number: the
+    // ceiling is deliberately loose and still far below five times anything.
+    const touching = calls.filter((c) => /profiles|sms_log/.test(c.text));
+    expect(touching.length).toBeLessThan(5);
+  });
+
+  test("an invite that could not be sent does not start the cooldown", async () => {
+    // Marking a number invited when nothing went out puts it behind the resend
+    // cooldown, so a school whose provider is misconfigured has its whole
+    // roster silently locked out of ever being invited.
+    handlers = [
+      { match: /SELECT id FROM vita_hero\.profiles/, rows: [{ id: "ph_9800000009" }] },
+    ];
+    // No Twilio credentials in ENV, so every send fails.
+    await call("/api/admin/invite", {
+      method: "POST", headers: opsHeaders,
+      body: JSON.stringify({ phones: ["9800000009"] }),
+    });
+    const marked = calls.filter((c) => /UPDATE vita_hero\.profiles[\s\S]*invited_at/.test(c.text));
+    expect(marked).toEqual([]);
+  });
+
+  test("a request that would cost a thousand texts is refused, not truncated", async () => {
+    // Truncating would be worse: a sync would come back reporting success
+    // having written half a camp, and an invite run would silently miss
+    // families. Nothing capped these, and each entry is a statement or a text.
+    const r = await call("/api/admin/invite", {
+      method: "POST", headers: opsHeaders,
+      body: JSON.stringify({ phones: Array.from({ length: 1001 }, (_, i) => "98" + String(i).padStart(8, "0")) }),
+    });
+    expect(r.status).toBe(413);
+    expect((await r.json()).code).toBe("TOO_MANY");
+  });
+
+  test("a 500 does not hand the caller the database's own words", async () => {
+    // A Postgres error names the table, the column and the constraint, and
+    // often echoes the value that tripped it. That used to go straight back to
+    // whoever asked.
+    handlers = [{
+      match: /SELECT/,
+      throws: new Error(
+        'relation "vita_hero.camp_findings" does not exist; column kid_id at row 3'),
+    }];
+    const original = console.error;
+    console.error = () => {};
+    try {
+      const r = await call("/api/admin/schools", { headers: opsHeaders });
+      const body = await r.text();
+      expect(r.status).toBe(500);
+      expect(body).not.toContain("vita_hero.camp_findings");
+      expect(body).not.toContain("does not exist");
+      expect(JSON.parse(body).code).toBe("SERVER_ERROR");
+    } finally {
+      console.error = original;
+    }
   });
 
   test("requires a body it can understand", async () => {
@@ -746,28 +861,52 @@ describe("the console offers only what can actually be recorded", () => {
 // and reminders kept firing for camps that had already happened. The venue and
 // the consent deadline were asked for on every camp and sent to nobody. And a
 // camp the school was still drafting was shown to parents.
-describe("the server side of the camp contract", () => {
+describe("the app and the server agree about camps", () => {
+  const kotlin = async (rel: string) => {
+    const { readFileSync } = await import("node:fs");
+    return readFileSync("../android/app/src/main/java/com/rork/vitahero/" + rel, "utf8");
+  };
+
+  test("every status the server can send is a value the app can parse", async () => {
+    const { CAMP_STATUSES } = await import("./camps");
+    const src = await kotlin("data/Models.kt");
+    const body = src.slice(src.indexOf("enum class CampStatus"));
+    const members = body.slice(0, body.indexOf(";")).match(/\b[A-Z_]{3,}\b/g) || [];
+    for (const st of CAMP_STATUSES) {
+      // DRAFT is filtered out before a parent ever sees it; everything else
+      // must be nameable, or valueOf throws and the camp silently mis-renders.
+      if (st === "DRAFT") continue;
+      expect(members).toContain(st);
+    }
+  });
+
+  test("a released camp is past, not upcoming", async () => {
+    const src = await kotlin("data/Models.kt");
+    const up = src.slice(src.indexOf("val isUpcoming"), src.indexOf("val isPast"));
+    const past = src.slice(src.indexOf("val isPast"));
+    expect(past).toContain("RELEASED");
+    expect(past).toContain("SCREENED");
+    expect(up).not.toContain("RELEASED");
+  });
+
   test("a camp still being drafted is not sent to a parent", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync("index.ts", "utf8");
     const at = src.indexOf('path === "/api/camps"');
-    expect(src.slice(at, at + 3000)).toContain("NOT IN ('DRAFT', 'CANCELLED')");
+    const block = src.slice(at, at + 3000);
+    expect(block).toContain("NOT IN ('DRAFT', 'CANCELLED')");
   });
 
-  test("the venue and the consent deadline are sent", async () => {
+  test("the venue and the consent deadline reach the app", async () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync("index.ts", "utf8");
     const at = src.indexOf('path === "/api/camps"');
     expect(src.slice(at, at + 3000)).toContain("venue: sc.venue");
+    const dto = await kotlin("data/Dtos.kt");
+    const camp = dto.slice(dto.indexOf("data class CampDto"));
+    expect(camp.slice(0, camp.indexOf("\n)"))).toContain("val venue");
   });
 });
-
-// HELD BACK ON PURPOSE — see the sibling repo.
-//
-// Three further tests upstream read android/ and assert the app can parse what
-// the server sends. They would fail here, correctly: this repo carries the
-// admin-panel half of that change and not the Android half.
-// Re-apply this split after any sync that pulls functions/ from upstream.
 
 // A clinician has to be able to see what the family reported.
 describe("the family's illness history reaches the person examining the child", () => {
@@ -874,5 +1013,272 @@ describe("sms configuration is legible before and after a send", () => {
     const { readFileSync } = await import("node:fs");
     // The US number that was hard-coded into every message.
     expect(readFileSync("index.ts", "utf8")).not.toContain("+12562828337");
+  });
+});
+
+// ── sessions ──
+//
+// A session used to be a single `session_token` column on the profile. Signing
+// in overwrote it, so the phone that was still holding the previous token was
+// silently logged out — and because the app read the resulting 401 as "no
+// data", it drew an empty screen rather than asking anyone to sign in again.
+// That is the report these tests exist to keep fixed: "I sign in again after a
+// long time and it loads with fallback options, not real data."
+describe("sessions", () => {
+  const TOKEN = "a".repeat(48);
+  const OTHER = "b".repeat(48);
+  const bearer = (t: string) => ({ Authorization: "Bearer " + t, "Content-Type": "application/json" });
+
+  /** A token that exists in vita_hero.sessions, unrevoked and unexpired. */
+  const liveSession = (role = "ADMIN") => ({
+    match: /vita_hero\.sessions[\s\S]*JOIN/,
+    rows: [{ id: "ph_1", user_id: "ph_1", name: "Ops", role, school_id: null }],
+  });
+
+  test("a token in the sessions table authenticates", async () => {
+    handlers = [liveSession()];
+    expect((await call("/api/admin/schools", { headers: bearer(TOKEN) })).status).toBe(200);
+  });
+
+  test("the lookup refuses a revoked or expired row", async () => {
+    // No handler matches, so the join returns nothing — which is what a
+    // revoked_at or a past expires_at produces in the real query.
+    handlers = [];
+    expect((await call("/api/admin/schools", { headers: bearer(TOKEN) })).status).toBe(401);
+  });
+
+  test("the query itself excludes revoked and expired sessions", async () => {
+    handlers = [liveSession()];
+    await call("/api/admin/schools", { headers: bearer(TOKEN) });
+    const join = calls.find((c) => /vita_hero\.sessions[\s\S]*JOIN/.test(c.text));
+    expect(join).toBeDefined();
+    expect(join!.text).toContain("revoked_at IS NULL");
+    expect(join!.text).toContain("expires_at >");
+  });
+
+  test("a token issued before the table existed still works", async () => {
+    // The sessions join finds nothing; the old column is the fallback, so
+    // shipping this does not sign out everyone already holding a token.
+    handlers = [{
+      match: /session_token = /,
+      rows: [{ id: "ph_1", user_id: "ph_1", name: "Ops", role: "ADMIN", school_id: null }],
+    }];
+    expect((await call("/api/admin/schools", { headers: bearer(TOKEN) })).status).toBe(200);
+  });
+
+  test("using a session slides its expiry out", async () => {
+    handlers = [liveSession()];
+    await call("/api/admin/schools", { headers: bearer(TOKEN) });
+    expect(calls.some((c) => /UPDATE vita_hero\.sessions[\s\S]*last_seen_at/.test(c.text))).toBe(true);
+  });
+
+  test("signing out revokes that one token, not the whole profile", async () => {
+    handlers = [liveSession("PARENT")];
+    const r = await call("/api/auth/logout", { method: "POST", headers: bearer(TOKEN) });
+    expect(r.status).toBe(200);
+
+    const revoke = calls.find((c) => /UPDATE vita_hero\.sessions[\s\S]*revoked_at = NOW\(\)/.test(c.text));
+    expect(revoke).toBeDefined();
+    // Scoped to the presented token. A logout that matched on profile_id would
+    // take the family's other device down with it.
+    expect(revoke!.params).toContain(TOKEN);
+    expect(revoke!.text).toContain("WHERE token =");
+    expect(revoke!.params).not.toContain(OTHER);
+  });
+
+  test("signing in records a new session instead of replacing the only one", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.phone_otps/, rows: [
+        { phone: "+919876543210", otp: "123456", attempts: 0,
+          expires_at: new Date(Date.now() + 600_000).toISOString() },
+      ] },
+      { match: /SELECT id, provisioned/, rows: [
+        { id: "ph_9876543210", provisioned: true, name: "Priya", role: "PARENT", school_id: null },
+      ] },
+    ];
+    const r = await call("/api/auth/phone/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "+919876543210", otp: "123456" }),
+    });
+    expect(r.status).toBe(200);
+
+    const insert = calls.find((c) => /INSERT INTO vita_hero\.sessions/.test(c.text));
+    expect(insert).toBeDefined();
+    // The token handed back is the one that was recorded, and it carries an
+    // expiry — a session with no end is how the old column behaved.
+    const token = (await r.json()).token as string;
+    expect(insert!.params).toContain(token);
+    expect(insert!.text).toContain("expires_at");
+  });
+
+  test("an unregistered number never leaves a session behind", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.phone_otps/, rows: [
+        { phone: "+919876543210", otp: "123456", attempts: 0,
+          expires_at: new Date(Date.now() + 600_000).toISOString() },
+      ] },
+      { match: /SELECT id, provisioned/, rows: [] },
+    ];
+    const r = await call("/api/auth/phone/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "+919876543210", otp: "123456" }),
+    });
+    expect(r.status).toBe(403);
+    expect(calls.some((c) => /INSERT INTO vita_hero\.sessions/.test(c.text))).toBe(false);
+  });
+});
+
+// ── ownership on the sync endpoints ──
+//
+// These routes take the primary key from the request body, because the app
+// mints ids while offline. The other half of that bargain was missing: the
+// upserts said `ON CONFLICT (id) DO UPDATE SET profile_id =
+// EXCLUDED.profile_id` and nothing checked who owned the row. Posting a child
+// id that was not yours moved that child — and every finding, referral and
+// photograph hanging off them — onto your account. Kid ids are built from the
+// guardian's number, the child's name and four random characters, so they were
+// not much of a secret either.
+describe("a client-supplied id cannot reach another account's row", () => {
+  const TOKEN = "a".repeat(48);
+  const bearer = { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" };
+  const asParent = () => [{
+    match: /session_token = /,
+    rows: [{ id: "ph_mine", user_id: "ph_mine", name: "Priya", role: "PARENT", school_id: null }],
+  }];
+
+  /** Every upsert on the sync surface, with a body the app would really send. */
+  const UPSERTS: Array<[string, string, Record<string, unknown>]> = [
+    ["an appointment", "/api/appointments", { id: "apt_1", doctor_name: "Dr Rao", specialty: "Dental", kid_name: "Arjun", date: "2026-10-01", time: "10:00" }],
+    ["a camp entry", "/api/camps", { id: "cmp_1", title: "Annual", school: "Silver Oaks", date: "2026-10-01", time: "09:00" }],
+    ["a co-parent", "/api/co-parents", { id: "cop_1", name: "Ravi", relation: "Father" }],
+  ];
+
+  for (const [what, path, body] of UPSERTS) {
+    test(`${what}: the update is scoped to the caller`, async () => {
+      handlers = asParent();
+      await call(path, { method: "POST", headers: bearer, body: JSON.stringify(body) });
+      const upsert = calls.find((c) => /ON CONFLICT \(id\) DO UPDATE/.test(c.text));
+      expect(upsert).toBeDefined();
+      // The predicate is what makes a conflict on someone else's row do nothing.
+      expect(upsert!.text).toMatch(/DO UPDATE[\s\S]*WHERE[\s\S]*profile_id = /);
+      expect(upsert!.params).toContain("ph_mine");
+      // And the row can no longer be handed to whoever posted last.
+      expect(upsert!.text).not.toContain("profile_id = EXCLUDED.profile_id");
+    });
+
+    test(`${what}: a row that belongs to someone else is refused, not silently returned`, async () => {
+      // The upsert matched nothing, which is exactly what the owner predicate
+      // produces for another account's id.
+      handlers = asParent();
+      const r = await call(path, { method: "POST", headers: bearer, body: JSON.stringify(body) });
+      expect(r.status).toBe(409);
+      expect((await r.json()).code).toBe("NOT_YOURS");
+    });
+  }
+
+  test("a growth point can only land on a child the caller owns", async () => {
+    handlers = [
+      ...asParent(),
+      { match: /FROM vita_hero\.kids\s+WHERE id = /, rows: [{ id: "k_mine" }] },
+    ];
+    await call("/api/growth-points", {
+      method: "POST", headers: bearer,
+      body: JSON.stringify({ id: "gp_k_theirs_2026-09-01", kid_id: "k_mine", label: "Camp", height: 130, weight: 28 }),
+    });
+    const upsert = calls.find((c) => /INSERT INTO vita_hero\.growth_points/.test(c.text));
+    expect(upsert).toBeDefined();
+    // Tied to the kid that was just ownership-checked, so a point id belonging
+    // to another child updates nothing. The kid_id itself is no longer
+    // rewritable, which is what let a row be moved between children.
+    expect(upsert!.text).toMatch(/DO UPDATE[\s\S]*WHERE[\s\S]*kid_id = /);
+    expect(upsert!.text).not.toContain("kid_id = EXCLUDED.kid_id");
+  });
+
+  test("meals are refused for a child the caller does not own", async () => {
+    handlers = [
+      ...asParent(),
+      // The ownership lookup comes back with fewer kids than were asked for.
+      { match: /SELECT id FROM vita_hero\.kids\s+WHERE id = ANY/, rows: [] },
+    ];
+    const r = await call("/api/meals", {
+      method: "POST", headers: bearer,
+      body: JSON.stringify([{ id: "ml_1", kid_id: "k_theirs", time_slot: "Breakfast", name: "Idli" }]),
+    });
+    expect(r.status).toBe(404);
+    expect(calls.some((c) => /INSERT INTO vita_hero\.meal_items/.test(c.text))).toBe(false);
+  });
+
+  test("a whole day's plan is one statement, not one per meal", async () => {
+    handlers = [
+      ...asParent(),
+      { match: /SELECT id FROM vita_hero\.kids\s+WHERE id = ANY/, rows: [{ id: "k_mine" }] },
+    ];
+    const plan = ["Breakfast", "Lunch", "Snack", "Dinner"].map((slot, i) => ({
+      id: `ml_${i}`, kid_id: "k_mine", time_slot: slot, name: "Idli", detail: "", kcal: 200, eaten: false,
+    }));
+    const r = await call("/api/meals", {
+      method: "POST", headers: bearer, body: JSON.stringify(plan),
+    });
+    expect(r.status).toBe(201);
+    const inserts = calls.filter((c) => /INSERT INTO vita_hero\.meal_items/.test(c.text));
+    expect(inserts.length).toBe(1);
+    expect(inserts[0].text).toMatch(/DO UPDATE[\s\S]*WHERE[\s\S]*profile_id = /);
+  });
+});
+
+// ── children are the school's to add ──
+//
+// A closed programme: a guardian is provisioned by a roster import and their
+// children arrive with it, matched on the mobile number the school holds. The
+// app used to be able to create one anyway, and that child could not be
+// screened, consented for, or put on a camp list — it just sat there looking
+// real.
+describe("a parent cannot create a child", () => {
+  const TOKEN = "a".repeat(48);
+  const bearer = { Authorization: "Bearer " + TOKEN, "Content-Type": "application/json" };
+  const asParent = () => [{
+    match: /session_token = /,
+    rows: [{ id: "ph_mine", user_id: "ph_mine", name: "Priya", role: "PARENT", school_id: null }],
+  }];
+
+  test("the endpoint refuses, and says who can", async () => {
+    handlers = asParent();
+    const r = await call("/api/kids", {
+      method: "POST", headers: bearer,
+      body: JSON.stringify({ id: "k_new", name: "Arjun", age: 9, gender: "M" }),
+    });
+    expect(r.status).toBe(403);
+    const body = await r.json();
+    expect(body.code).toBe("ROSTER_MANAGED");
+    expect(body.error).toMatch(/school/i);
+    // Nothing was written on the way to refusing.
+    expect(calls.some((c) => /INSERT INTO vita_hero\.kids/.test(c.text))).toBe(false);
+  });
+
+  test("it is still a 401 when nobody is signed in", async () => {
+    handlers = [];
+    const r = await call("/api/kids", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "k_new", name: "Arjun" }),
+    });
+    expect(r.status).toBe(401);
+  });
+
+  test("reading children still works — they come from the roster", async () => {
+    handlers = [
+      ...asParent(),
+      { match: /SELECT \* FROM vita_hero\.kids/, rows: [{ id: "k_roster", name: "Arjun", profile_id: "ph_mine" }] },
+    ];
+    const r = await call("/api/kids", { headers: bearer });
+    expect(r.status).toBe(200);
+    expect((await r.json()).length).toBe(1);
+  });
+
+  test("the refusal is permanent, so a client stops retrying it", async () => {
+    // 403 is outside the two statuses the app treats as "come back later",
+    // which is what makes an old build give up rather than resend forever.
+    expect([408, 429]).not.toContain(403);
   });
 });

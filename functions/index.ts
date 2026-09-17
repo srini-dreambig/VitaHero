@@ -6,15 +6,17 @@
 
 import { neon } from "@neondatabase/serverless";
 import {
-  Sql,
   DEFAULT_COUNTRY_CODE,
-  normalizePhone,
-  profileIdForPhone,
-  slugify,
+  Sql,
   buildStudentRef,
-  parseNum,
   deriveAge,
+  insertRows,
+  normalizePhone,
+  parseNum,
+  profileIdForPhone,
+  programmeToday,
   rowField,
+  slugify,
 } from "./common";
 import {
   Actor,
@@ -29,6 +31,10 @@ import {
   addSchoolAdmin,
   listSchoolAdmins,
   removeSchoolAdmin,
+  removeStaffMember,
+  setSchoolArchived,
+  schoolDeletionPreview,
+  deleteSchool,
   grantOpsRole,
 } from "./schools";
 import {
@@ -73,7 +79,7 @@ import {
   setCampStaffActive,
 } from "./camps";
 import { adminAnalytics } from "./analytics";
-import { makeSender, smsProvider, textbeeDevice } from "./messaging";
+import { makeSender, sendToMany, smsProvider, textbeeDevice } from "./messaging";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import {
   ensureReferralSchema,
@@ -177,7 +183,7 @@ import {
 } from "./directory";
 import { migrate, SCHEMA_VERSION } from "./migrate";
 import { servePrivacyPage, serveDataDeletionPage } from "./pages";
-import { PORTAL_HTML, SERVICE_WORKER_JS } from "./portal";
+import { PORTAL_HTML, SERVICE_WORKER_JS, portalShellEtag } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
 const APP_ORIGIN = "https://kidhero.rork.app";
@@ -244,6 +250,24 @@ function json(data: unknown, status = 200): Response {
     headers: { "Content-Type": "application/json" },
   }));
 }
+
+/**
+ * The answer when a request carries an id that belongs to somebody else.
+ *
+ * These endpoints take the primary key from the request body — they are a sync
+ * API, and the app mints ids offline. What was missing was the other half of
+ * that bargain: the upserts said `ON CONFLICT (id) DO UPDATE SET profile_id =
+ * EXCLUDED.profile_id` with nothing checking who owned the row first. Posting
+ * a child id that was not yours moved that child, and every finding, referral
+ * and photograph hanging off them, onto your account. Kid ids are built from
+ * the guardian's number, the child's name and four random characters, so they
+ * were not much of a secret either.
+ *
+ * Every one of those statements now carries an owner predicate, which makes a
+ * conflict on someone else's row update nothing and return nothing. This is
+ * what the route says when that happens.
+ */
+const NOT_YOURS = { error: "That record belongs to another account", code: "NOT_YOURS" };
 
 function extractToken(request: Request): string {
   return (request.headers.get("Authorization") || "").replace("Bearer ", "");
@@ -314,6 +338,25 @@ async function ensureSchema(sql: Sql): Promise<void> {
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invited_at TIMESTAMPTZ`;
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invite_count INT DEFAULT 0`;
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS school_id TEXT`;
+
+  // One row per signed-in device.
+  //
+  // A session used to be a single column on the profile, which made signing in
+  // an act that silently destroyed every other sign-in for that person. See
+  // `authenticateSession` for what that did to the app.
+  await sql`
+    CREATE TABLE IF NOT EXISTS vita_hero.sessions (
+      token TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      issued_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expires_at TIMESTAMPTZ NOT NULL,
+      revoked_at TIMESTAMPTZ,
+      device TEXT DEFAULT ''
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS sessions_profile ON vita_hero.sessions(profile_id, revoked_at)`;
+  await sql`CREATE INDEX IF NOT EXISTS sessions_expiry ON vita_hero.sessions(expires_at)`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS vita_hero.phone_otps (
@@ -403,6 +446,20 @@ async function ensureSchema(sql: Sql): Promise<void> {
       eaten BOOLEAN DEFAULT false
     )
   `;
+  // Which day a meal belongs to.
+  //
+  // There was no such column, and nothing ever deleted a row, so a meal plan
+  // only grew: every custom snack a parent added stayed in the set for good
+  // and came back as part of today's plan, still ticked. The read had no
+  // filter and no limit either, so a family two years in was downloading
+  // thousands of rows on every launch and uploading them again on every sync.
+  await sql`ALTER TABLE vita_hero.meal_items ADD COLUMN IF NOT EXISTS day TEXT DEFAULT ''`;
+  // What is already there is somebody's plan as it stands, so it becomes
+  // today's rather than vanishing. Runs once: after this nothing is blank.
+  await sql`
+    UPDATE vita_hero.meal_items SET day = ${programmeToday()} WHERE COALESCE(day, '') = ''
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS meal_items_profile_day ON vita_hero.meal_items(profile_id, day)`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS vita_hero.streaks (
@@ -556,8 +613,57 @@ async function ensureSchema(sql: Sql): Promise<void> {
   `;
 
   await ensureHospitalPartnerships(sql);
-  await seedPartnerSchools(sql);
-  await linkCampHospitals(sql);
+  await ensureHotPathIndexes(sql);
+}
+
+/**
+ * Indexes for the queries this app actually runs.
+ *
+ * Measured against a district-sized database — 40,000 guardians, 60,000
+ * children, 240,000 meal rows — every one of these was a sequential scan:
+ *
+ *   authenticating a request          4.9 ms  ->  0.1 ms
+ *   a parent's children on launch     5.9 ms  ->  0.1 ms
+ *   a parent's meals on launch       16.5 ms  ->  0.1 ms
+ *   one child's growth points        10.9 ms  ->  0.1 ms
+ *   a school's children for a camp    8.7 ms  ->  0.0 ms
+ *
+ * The first of those runs on every single authenticated request, and a
+ * sequential scan is linear: at four times the size it is four times the cost,
+ * on a serverless database billed for the compute. Opening the app makes about
+ * eight of these calls.
+ *
+ * Deliberately not one index per column. Every index is maintained on write,
+ * and a camp day is write-heavy: measured, carrying these costs about 8µs per
+ * inserted row, which is nothing against a 16ms scan on every read, but the
+ * same reasoning stops at the leading column of queries that are actually hot.
+ * Secondary filters like `status` and `active` are left to the heap.
+ */
+async function ensureHotPathIndexes(sql: Sql): Promise<void> {
+  // Authentication, on every request. Partial, because most rows have no
+  // token: it is the most-used index in the system and one of the smallest.
+  await sql`CREATE INDEX IF NOT EXISTS profiles_session_token
+            ON vita_hero.profiles(session_token) WHERE session_token IS NOT NULL`;
+
+  // Opening the app: the parent's children, and everything hanging off them.
+  await sql`CREATE INDEX IF NOT EXISTS kids_profile ON vita_hero.kids(profile_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS meal_items_profile ON vita_hero.meal_items(profile_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS meal_items_kid ON vita_hero.meal_items(kid_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS growth_points_kid ON vita_hero.growth_points(kid_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS appointments_profile ON vita_hero.appointments(profile_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS co_parents_profile ON vita_hero.co_parents(profile_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS camps_profile ON vita_hero.camps(profile_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS camp_kid_results_kid ON vita_hero.camp_kid_results(kid_id)`;
+
+  // Booking: the clash check that runs before every appointment is written.
+  await sql`CREATE INDEX IF NOT EXISTS appointments_slot
+            ON vita_hero.appointments(doctor_id, date, time)`;
+
+  // The school side. Grade is the second column because building a camp roster
+  // filters a school's children by class; school_id alone uses the same index.
+  await sql`CREATE INDEX IF NOT EXISTS kids_school_grade ON vita_hero.kids(school_id, grade)`;
+  await sql`CREATE INDEX IF NOT EXISTS school_camps_school ON vita_hero.school_camps(school_id, status)`;
+  await sql`CREATE INDEX IF NOT EXISTS school_enrollments_school ON vita_hero.school_enrollments(school_id)`;
 }
 
 /**
@@ -577,13 +683,14 @@ async function seedDoctorsIfEmpty(sql: Sql): Promise<void> {
       ["d4", "Dr. Karthik Nair", "Nutrition", "KIMS Hospital", 4.6],
       ["d5", "Dr. Priya Sharma", "General Paediatrics", "Continental Hospitals", 4.5],
     ] as const;
-    for (const [id, name, specialty, hospital, rating] of doctors) {
-      await sql`
-        INSERT INTO vita_hero.doctors (id, name, specialty, hospital, rating)
-        VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${rating})
-        ON CONFLICT (id) DO NOTHING
-      `;
-    }
+    await insertRows(
+      sql,
+      `INSERT INTO vita_hero.doctors (id, name, specialty, hospital, rating)
+       SELECT v.id, v.name, v.specialty, v.hospital, v.rating::numeric
+       FROM (VALUES %VALUES%) AS v(id, name, specialty, hospital, rating)
+       ON CONFLICT (id) DO NOTHING`,
+      doctors.map((d) => [...d])
+    );
   }
 }
 
@@ -618,7 +725,24 @@ function generateDoctorSlots(
   return slots;
 }
 
-async function seedPartnerSchools(sql: Sql): Promise<void> {
+/**
+ * The demo partner schools and their camps, once, on a database that has none.
+ *
+ * This used to be called from `ensureSchema`, which was wrong twice over.
+ *
+ * `ensureSchema` is pure DDL: it is handed a recorder that writes statements
+ * down instead of running them, and reads come back empty. So the
+ * `SELECT COUNT(*)` guard below always saw zero and never fired. The inserts
+ * survived that only because they say DO NOTHING — which in turn meant an ops
+ * user who deleted a demo school got it back the next time the schema version
+ * moved, because by then the row it would have conflicted with was gone. A
+ * school returning from the dead after somebody deliberately removed it is not
+ * a cosmetic problem, and the console can delete schools now.
+ *
+ * Run as a seed step the read is real, the guard does its job, and the whole
+ * thing is two statements rather than ten.
+ */
+export async function seedPartnerSchools(sql: Sql): Promise<void> {
   const schoolCount = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.schools`;
   if ((schoolCount[0]?.c as number) > 0) return;
 
@@ -627,15 +751,14 @@ async function seedPartnerSchools(sql: Sql): Promise<void> {
     ["sch_dps", "Delhi Public School Hyderabad", "Hyderabad", "Khajaguda", "DPS2026", "nurse@dpshyd.com", "Vision, dental & nutrition camps every term"],
     ["sch_jgs", "Johnson Grammar School", "Hyderabad", "Habsiguda", "JGS2026", "wellness@jgs.edu.in", "IAP-aligned growth monitoring"],
     ["sch_chirec", "CHIREC International School", "Hyderabad", "Kondapur", "CHI2026", "health@chirec.in", "WHO growth charts integrated with camp results"],
-  ] as const;
+  ];
 
-  for (const [id, name, city, district, code, email, desc] of schools) {
-    await sql`
-      INSERT INTO vita_hero.schools (id, name, city, district, partner_code, contact_email, description)
-      VALUES (${id}, ${name}, ${city}, ${district}, ${code}, ${email}, ${desc})
-      ON CONFLICT (id) DO NOTHING
-    `;
-  }
+  await insertRows(
+    sql,
+    `INSERT INTO vita_hero.schools (id, name, city, district, partner_code, contact_email, description)
+     VALUES %VALUES% ON CONFLICT (id) DO NOTHING`,
+    schools
+  );
 
   const now = new Date();
   const fmt = (d: Date) =>
@@ -645,37 +768,31 @@ async function seedPartnerSchools(sql: Sql): Promise<void> {
   const d45 = new Date(now); d45.setDate(d45.getDate() + 45);
   const d60 = new Date(now); d60.setDate(d60.getDate() - 30);
 
-  const campHospitalById: Record<string, string> = {
-    sc_oak_1: "hosp_rainbow",
-    sc_oak_2: "hosp_kims",
-    sc_oak_past: "hosp_rainbow",
-    sc_dps_1: "hosp_lvp",
-    sc_jgs_1: "hosp_rainbow",
-    sc_chirec_1: "hosp_continental",
-  };
+  // The hospital each camp is run with, carried on the row rather than patched
+  // in afterwards by a second pass over the same six ids.
+  const camps: unknown[][] = [
+    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision", "Haemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null, "hosp_rainbow"],
+    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "SCHEDULED", ["Height & weight", "Haemoglobin"], ["Class 6", "Class 7", "Class 8"], 180, null, "hosp_kims"],
+    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "SCHEDULED", ["Dental", "Vision"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null, "hosp_lvp"],
+    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "SCHEDULED", ["Height & weight"], ["Class 4", "Class 5", "Class 6"], 200, null, "hosp_rainbow"],
+    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision"], ["All grades"], 400, null, "hosp_continental"],
+    ["sc_oak_past", "sch_oak", "Mid-Term Dental Check", "Completed screening — 3 follow-ups recommended", fmt(d60), "10:00 AM – 12:00 PM", "COMPLETED", ["Dental"], ["Class 3", "Class 4"], 120, "142 children screened · 3 follow-ups recommended", "hosp_rainbow"],
+  ];
 
-  const camps = [
-    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision", "Haemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null],
-    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "SCHEDULED", ["Height & weight", "Haemoglobin"], ["Class 6", "Class 7", "Class 8"], 180, null],
-    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "SCHEDULED", ["Dental", "Vision"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null],
-    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "SCHEDULED", ["Height & weight"], ["Class 4", "Class 5", "Class 6"], 200, null],
-    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision"], ["All grades"], 400, null],
-    ["sc_oak_past", "sch_oak", "Mid-Term Dental Check", "Completed screening — 3 follow-ups recommended", fmt(d60), "10:00 AM – 12:00 PM", "COMPLETED", ["Dental"], ["Class 3", "Class 4"], 120, "142 children screened · 3 follow-ups recommended"],
-  ] as const;
-
-  for (const [id, schoolId, title, desc, date, time, status, checks, grades, cap, summary] of camps) {
-    const hospitalId = campHospitalById[id] || null;
-    await sql`
-      INSERT INTO vita_hero.school_camps
-        (id, school_id, title, description, date, time, status, checks, grades, capacity, result_summary, hospital_id)
-      VALUES (
-        ${id}, ${schoolId}, ${title}, ${desc}, ${date}, ${time}, ${status},
-        ${JSON.stringify(checks)}::jsonb, ${JSON.stringify(grades)}::jsonb,
-        ${cap}, ${summary}, ${hospitalId}
-      )
-      ON CONFLICT (id) DO NOTHING
-    `;
-  }
+  await insertRows(
+    sql,
+    `INSERT INTO vita_hero.school_camps
+       (id, school_id, title, description, date, time, status, checks, grades, capacity, result_summary, hospital_id)
+     SELECT v.id, v.school_id, v.title, v.description, v.date, v.time, v.status,
+            v.checks::jsonb, v.grades::jsonb, v.capacity::int, v.result_summary, v.hospital_id
+     FROM (VALUES %VALUES%) AS v(id, school_id, title, description, date, time, status,
+                                 checks, grades, capacity, result_summary, hospital_id)
+     ON CONFLICT (id) DO NOTHING`,
+    camps.map((c) => [
+      c[0], c[1], c[2], c[3], c[4], c[5], c[6],
+      JSON.stringify(c[7]), JSON.stringify(c[8]), c[9], c[10], c[11],
+    ])
+  );
 }
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -693,8 +810,6 @@ function kidBmi(heightCm: number, weightKg: number): number {
   const m = heightCm / 100;
   return m > 0 ? weightKg / (m * m) : 0;
 }
-
-
 
 
 async function mergeCampResultsIntoKids(
@@ -983,24 +1098,6 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
   `;
 }
 
-async function linkCampHospitals(sql: Sql): Promise<void> {
-  const campHospitalLinks: Record<string, string> = {
-    sc_oak_1: "hosp_rainbow",
-    sc_oak_2: "hosp_kims",
-    sc_oak_past: "hosp_rainbow",
-    sc_dps_1: "hosp_lvp",
-    sc_jgs_1: "hosp_rainbow",
-    sc_chirec_1: "hosp_continental",
-  };
-
-  for (const [campId, hospitalId] of Object.entries(campHospitalLinks)) {
-    await sql`
-      UPDATE vita_hero.school_camps
-      SET hospital_id = ${hospitalId}
-      WHERE id = ${campId} AND (hospital_id IS NULL OR hospital_id = '')
-    `;
-  }
-}
 
 async function getFamilyOwnerId(
   sql: Sql,
@@ -1032,24 +1129,96 @@ function anonymizeLeaderboardName(name: string, rank: number, isYou: boolean): s
 
 // ─── Session Auth ───────────────────────────────────────────
 
+/**
+ * How long a session lasts without being used. Every authenticated request
+ * pushes it out again, so a parent who opens the app in term time is never
+ * asked to sign in; one who last opened it two academic years ago is.
+ */
+const SESSION_TTL_DAYS = 180;
+
+/**
+ * Mint a session for a device.
+ *
+ * The bug this replaces: a session was a single `session_token` column on the
+ * profile, so every sign-in overwrote the one before it. Signing in on a
+ * second device, or simply signing in again after a while, invalidated the
+ * token the first device was still holding — and the first device never found
+ * out, because the app read the resulting 401 as "no data" and drew an empty
+ * screen that looked like a loading failure. A parent with a phone and a
+ * tablet could not have both working at once.
+ *
+ * `profiles.session_token` is still written: tokens minted before this table
+ * existed are still in the field and are still honoured. It is now a record of
+ * the most recent sign-in rather than the only one that works.
+ */
+async function mintSession(sql: Sql, profileId: string, device = ""): Promise<string> {
+  const token = generateToken();
+  const expires = new Date(Date.now() + SESSION_TTL_DAYS * 86_400_000).toISOString();
+  try {
+    await sql`
+      INSERT INTO vita_hero.sessions (token, profile_id, expires_at, device)
+      VALUES (${token}, ${profileId}, ${expires}, ${device.slice(0, 200)})
+    `;
+  } catch {
+    // A database that has not run the migration yet: profiles.session_token
+    // still carries this sign-in, so nobody is locked out by the gap.
+  }
+  return token;
+}
+
+/** Revoke one device's session. Logging out of a phone leaves the tablet alone. */
+async function revokeSession(sql: Sql, token: string): Promise<void> {
+  try {
+    await sql`UPDATE vita_hero.sessions SET revoked_at = NOW() WHERE token = ${token}`;
+  } catch { /* pre-migration database */ }
+  await sql`
+    UPDATE vita_hero.profiles
+    SET session_token = NULL, is_logged_in = false
+    WHERE session_token = ${token}
+  `;
+}
+
 async function authenticateSession(
   sql: Sql,
   token: string
 ): Promise<{ profileId: string; userId: string; name: string; role: string; schoolId: string | null } | null> {
   if (!token || token.length < 30) return null;
+
+  const shape = (r: Record<string, unknown>) => ({
+    profileId: r.id as string,
+    userId: (r.user_id as string) || "",
+    name: r.name as string,
+    role: (r.role as string) || "PARENT",
+    schoolId: (r.school_id as string) || null,
+  });
+
+  try {
+    const rows = await sql`
+      SELECT p.id, p.user_id, p.name, p.role, p.school_id
+      FROM vita_hero.sessions s
+      JOIN vita_hero.profiles p ON p.id = s.profile_id
+      WHERE s.token = ${token} AND s.revoked_at IS NULL AND s.expires_at > NOW()
+      LIMIT 1
+    `;
+    if (rows.length > 0) {
+      // Sliding expiry, best effort: a failed touch must never fail the request.
+      Promise.resolve(
+        sql`UPDATE vita_hero.sessions SET last_seen_at = NOW() WHERE token = ${token}`
+      ).catch(() => {});
+      return shape(rows[0]);
+    }
+  } catch {
+    // The table is not there yet. Fall through to the column below, which is
+    // where every token issued before this change lives.
+  }
+
   try {
     const rows = await sql`
       SELECT id, user_id, name, role, school_id FROM vita_hero.profiles
       WHERE session_token = ${token} LIMIT 1
     `;
     if (rows.length === 0) return null;
-    return {
-      profileId: rows[0].id,
-      userId: rows[0].user_id || "",
-      name: rows[0].name,
-      role: (rows[0].role as string) || "PARENT",
-      schoolId: (rows[0].school_id as string) || null,
-    };
+    return shape(rows[0]);
   } catch {
     return null;
   }
@@ -1168,7 +1337,6 @@ function normHealthFlag(v: string): string {
 }
 
 
-
 interface ImportRowResult {
   row: number;
   phone: string;
@@ -1268,7 +1436,7 @@ async function processImport(
         if (!opts.dryRun) {
           await sql`
             INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, active)
-            VALUES (${campId}, ${schoolId}, ${campTitle}, ${campDate || new Date().toISOString().slice(0, 10)}, 'COMPLETED', true)
+            VALUES (${campId}, ${schoolId}, ${campTitle}, ${campDate || programmeToday()}, 'COMPLETED', true)
             ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title
           `;
         }
@@ -1364,10 +1532,12 @@ async function processImport(
 
   // Send invites (only on a real run when requested).
   if (!opts.dryRun && opts.sendInvites) {
-    for (const [last10, e164] of uniquePhones) {
-      const sent = await sendInviteForPhone(sql, env, last10, e164, opts.appOrigin);
-      if (sent) report.invited++;
-    }
+    const outcome = await sendInvitesForPhones(
+      sql, env,
+      [...uniquePhones].map(([last10, e164]) => ({ last10, e164 })),
+      opts.appOrigin
+    );
+    report.invited += outcome.sent.length;
   }
 
   if (!opts.dryRun) {
@@ -1382,35 +1552,88 @@ async function processImport(
   return report;
 }
 
-/** Send an invite SMS to a provisioned parent (respects a resend cooldown). */
-async function sendInviteForPhone(
+/**
+ * Invite a list of provisioned parents.
+ *
+ * This was one phone at a time, and each one cost four subrequests: read the
+ * cooldown, send the text, log it, mark the profile. A roster import for a
+ * school of two hundred families was eight hundred, which is past what the
+ * platform allows, so the invites stopped partway through an import that
+ * reported success.
+ *
+ * It also marked every number as invited whether the text went out or not, so
+ * a school whose provider was misconfigured had its whole roster put behind
+ * the resend cooldown without one message arriving.
+ */
+async function sendInvitesForPhones(
   sql: Sql,
   env: Env,
-  last10: string,
-  e164: string,
+  numbers: Array<{ last10: string; e164: string }>,
   appOrigin: string,
   force = false
-): Promise<boolean> {
-  const profileId = profileIdForPhone(last10);
-  const prof = await sql`SELECT invited_at FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1`;
-  if (!force && prof[0]?.invited_at) {
-    const elapsed = Date.now() - new Date(prof[0].invited_at as string).getTime();
-    if (elapsed < INVITE_RESEND_COOLDOWN_HOURS * 3600_000) return false;
+): Promise<{ sent: string[]; skipped: string[] }> {
+  if (numbers.length === 0) return { sent: [], skipped: [] };
+
+  const byProfile = new Map(numbers.map((n) => [profileIdForPhone(n.last10), n]));
+  const ids = [...byProfile.keys()];
+  const known = await sql`
+    SELECT id, invited_at FROM vita_hero.profiles WHERE id = ANY(${ids})
+  `;
+  const invitedAt = new Map(known.map((r) => [r.id as string, r.invited_at as string | null]));
+
+  const skipped: string[] = [];
+  const due: Array<{ id: string; phone: string; last10: string }> = [];
+  for (const [profileId, n] of byProfile) {
+    const last = invitedAt.get(profileId);
+    if (!force && last) {
+      const elapsed = Date.now() - new Date(last).getTime();
+      if (elapsed < INVITE_RESEND_COOLDOWN_HOURS * 3600_000) { skipped.push(n.e164); continue; }
+    }
+    due.push({ id: profileId, phone: n.e164, last10: n.last10 });
   }
-  const token = await signInviteToken(last10, env);
-  const link = token ? `${appOrigin}/i/${token}` : (env.APP_PLAY_URL || appOrigin);
-  const ok = (await makeSender(env)(
-    e164,
-    `VitaHero: your child's school health report is ready. Open the app and sign in with this mobile number: ${link}`
-  )).ok;
-  await sql`
-    INSERT INTO vita_hero.sms_log (id, phone, type, status)
-    VALUES (${"sms_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)}, ${e164}, 'INVITE', ${ok ? "SENT" : "FAILED"})
-  `;
-  await sql`
-    UPDATE vita_hero.profiles SET invited_at = NOW(), invite_count = invite_count + 1 WHERE id = ${profileId}
-  `;
-  return ok;
+  if (due.length === 0) return { sent: [], skipped };
+
+  const tokens = await Promise.all(due.map((d) => signInviteToken(d.last10, env)));
+  const linkFor = new Map(due.map((d, i) => [
+    d.id,
+    tokens[i] ? `${appOrigin}/i/${tokens[i]}` : (env.APP_PLAY_URL || appOrigin),
+  ]));
+
+  const outcome = await sendToMany(
+    makeSender(env),
+    due.map((d) => ({ id: d.id, phone: d.phone })),
+    (r: { id: string; phone: string }) =>
+      "VitaHero: your child's school health report is ready. Open the app and " +
+      `sign in with this mobile number: ${linkFor.get(r.id)}`
+  );
+
+  const phoneOf = new Map(due.map((d) => [d.id, d.phone]));
+  await insertRows(
+    sql,
+    `INSERT INTO vita_hero.sms_log (id, phone, type, status)
+     SELECT v.id, v.phone, 'INVITE', v.status
+     FROM (VALUES %VALUES%) AS v(id, phone, status)`,
+    [
+      ...outcome.sent.map((id: string) => [
+        "sms_" + Math.random().toString(36).slice(2, 12), phoneOf.get(id), "SENT",
+      ]),
+      ...outcome.failed.map((f: { id: string }) => [
+        "sms_" + Math.random().toString(36).slice(2, 12), phoneOf.get(f.id), "FAILED",
+      ]),
+    ]
+  );
+
+  // Only the ones that actually went. A failed send must not start the
+  // cooldown, or the number can never be retried.
+  if (outcome.sent.length > 0) {
+    await sql`
+      UPDATE vita_hero.profiles
+      SET invited_at = NOW(), invite_count = COALESCE(invite_count, 0) + 1
+      WHERE id = ANY(${outcome.sent})
+    `;
+  }
+  for (const f of outcome.failed) skipped.push(phoneOf.get(f.id) || f.id);
+  return { sent: outcome.sent.map((id: string) => phoneOf.get(id) || id), skipped };
 }
 
 interface NeonAuthUser {
@@ -1474,7 +1697,7 @@ async function upsertProfileFromNeonAuth(
   role?: string
 ): Promise<{ profileId: string; sessionToken: string }> {
   const profileId = `na_${user.id.slice(0, 24)}`;
-  const sessionToken = generateToken();
+  const sessionToken = await mintSession(sql, profileId, provider);
 
   const existing = await sql`
     SELECT id FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1
@@ -1525,10 +1748,49 @@ const SCHEMA_STEPS = [
 ];
 
 /** Steps that have to read before they write. Only ever touch an empty table. */
-const SEED_STEPS = [seedDoctorsIfEmpty, seedLibraryIfEmpty];
+const SEED_STEPS = [seedDoctorsIfEmpty, seedPartnerSchools, seedLibraryIfEmpty];
 
 /** Per-isolate latch so schema init does not run on every request. */
 let schemaReady = false;
+
+/**
+ * A list from a request body, refused rather than truncated when it is too big.
+ *
+ * Truncating would be worse than refusing: a screener's sync would come back
+ * reporting success having written half a camp. The caps are far above any
+ * real use — a camp is a few hundred children, an invite run is a school —
+ * and exist because these lists cost a database statement or a text message
+ * each, and nothing was stopping one request from asking for a hundred
+ * thousand of either.
+ */
+const MAX_SYNC_ENTRIES = 2000;
+const MAX_INVITE_PHONES = 1000;
+
+function cappedList<T>(value: unknown, limit: number, what: string): T[] {
+  if (!Array.isArray(value)) return [];
+  if (value.length > limit) {
+    throw new ApiError(413, `Too many ${what} in one request (limit ${limit})`, "TOO_MANY");
+  }
+  return value as T[];
+}
+
+/**
+ * What a caller is told when something broke that was not their fault.
+ *
+ * These returned the raw exception message. A Postgres error carries the
+ * table, the column, the constraint and often the value that tripped it, so a
+ * 500 handed any signed-in parent a piece of the schema — and echoed back
+ * whatever had been submitted. The detail goes to the log, where whoever is
+ * on call can read it; the caller gets a sentence and a code.
+ *
+ * An ApiError is different and is passed through: those are written for the
+ * person reading them, which is the whole reason the type exists.
+ */
+function serverError(e: unknown, where: string): Response {
+  if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+  console.error(`[${where}]`, e instanceof Error ? e.stack || e.message : String(e));
+  return json({ error: "Something went wrong at our end", code: "SERVER_ERROR" }, 500);
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -1678,13 +1940,20 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       }
 
       if (path === "/admin" || path === "/admin/") {
-        return cors(new Response(PORTAL_HTML, {
-          status: 200,
-          headers: {
-            "Content-Type": "text/html; charset=utf-8",
-            "Cache-Control": "no-cache",
-          },
-        }));
+        // no-cache means "check with me first", not "do not store". Paired with
+        // a validator, a console that has not changed since the last visit is
+        // answered with an empty 304 instead of 259 KiB of HTML, and a deploy
+        // is still picked up on the very next load.
+        const etag = portalShellEtag();
+        const shellHeaders = {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache",
+          ETag: etag,
+        };
+        if (request.headers.get("If-None-Match") === etag) {
+          return cors(new Response(null, { status: 304, headers: shellHeaders }));
+        }
+        return cors(new Response(PORTAL_HTML, { status: 200, headers: shellHeaders }));
       }
 
       // ── Admin: referrals, corrections, lifecycle, reports ──
@@ -1724,9 +1993,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Referral route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -1864,7 +2131,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (section === "screening-bulk" && method === "POST") {
             const b = await readBody();
             return json(await saveScreeningBulk(sql, actor, campId,
-              Array.isArray(b.entries) ? (b.entries as Record<string, unknown>[]) : []));
+              cappedList(b.entries, MAX_SYNC_ENTRIES, "entries")));
           }
 
           if (section === "screening") {
@@ -1937,9 +2204,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Camp route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -2068,9 +2333,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Admin services route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -2159,9 +2422,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Directory route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -2200,6 +2461,22 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (method === "GET") return json(await getSchool(sql, actor, schoolId));
             if (method === "PATCH" || method === "PUT") {
               return json(await updateSchool(sql, actor, schoolId, await readBody()));
+            }
+            // A9 — closing a school down. The name is sent in the body rather
+            // than the query string so it is not left sitting in a request log.
+            if (method === "DELETE") {
+              const b = await readBody();
+              return json(await deleteSchool(sql, actor, schoolId, String(b.confirmName || "")));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+
+          // A9 — archive, reopen, and the preview that says which is possible.
+          if (section === "archive") {
+            if (method === "GET") return json(await schoolDeletionPreview(sql, actor, schoolId));
+            if (method === "POST") {
+              const b = await readBody();
+              return json(await setSchoolArchived(sql, actor, schoolId, b.archived !== false));
             }
             return json({ error: "Method not allowed" }, 405);
           }
@@ -2272,6 +2549,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (method === "GET") return json(await listStaff(sql, actor, schoolId));
             if (method === "POST" && !parts[2]) {
               return json(await addStaffMember(sql, actor, schoolId, await readBody()), 201);
+            }
+            // Revoking a screener's or physician's access to the school. The
+            // tab could add them and never take them away.
+            if (method === "DELETE" && parts[2]) {
+              return json(await removeStaffMember(sql, actor, schoolId, parts[2]));
             }
             // A sign-in code an administrator can read out.
             //
@@ -2364,11 +2646,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) {
-            return json({ error: e.message, code: e.code }, e.status);
-          }
-          console.error("Stage A error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "stage-a");
         }
       }
 
@@ -2383,8 +2661,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           const body: Record<string, unknown> = await request.json();
           return json(await grantOpsRole(sql, String(body.phone || ""), String(body.name || "")));
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -2604,7 +2881,6 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const norm = normalizePhone(phone);
         if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
         const profileId = profileIdForPhone(norm.last10);
-        const sessionToken = generateToken();
 
         const existing = await sql`
           SELECT id, provisioned, name, role, school_id
@@ -2621,6 +2897,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           );
         }
 
+        const sessionToken = await mintSession(sql, profileId, "PHONE");
         await sql`
           UPDATE vita_hero.profiles
           SET session_token = ${sessionToken}, is_logged_in = true, phone = ${phone},
@@ -2684,7 +2961,6 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const norm = normalizePhone(fbPhone);
         if (!norm) return json({ error: "Enter a valid mobile number" }, 400);
         const profileId = profileIdForPhone(norm.last10);
-        const sessionToken = generateToken();
 
         const existing = await sql`
           SELECT id, provisioned, name, role, school_id
@@ -2701,6 +2977,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           );
         }
 
+        const sessionToken = await mintSession(sql, profileId, "FIREBASE_PHONE");
         await sql`
           UPDATE vita_hero.profiles
           SET session_token = ${sessionToken}, is_logged_in = true, phone = ${fbPhone},
@@ -2737,13 +3014,9 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // ── Logout ───────────────────────────────────────
       if (path === "/api/auth/logout" && request.method === "POST") {
         const token = extractToken(request);
-        if (token) {
-          await sql`
-            UPDATE vita_hero.profiles
-            SET session_token = NULL, is_logged_in = false
-            WHERE session_token = ${token}
-          `;
-        }
+        // Only this device. Signing out of a phone used to be indistinguishable
+        // from signing out of every device the family owns.
+        if (token) await revokeSession(sql, token);
         return json({ success: true });
       }
 
@@ -2786,20 +3059,37 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const admin = await requireAdmin(request, sql, env);
         if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
         const body: Record<string, unknown> = await request.json();
-        const phones = Array.isArray(body.phones) ? (body.phones as string[]) : [];
+        // An SMS each, so the cap is about what this can be made to spend, not
+        // about what the worker can hold. The meals route has had one from the
+        // start; the routes that cost money did not.
+        const phones = cappedList<string>(body.phones, MAX_INVITE_PHONES, "phones");
         const force = body.force === true;
         let invited = 0;
         const skipped: string[] = [];
+        // One read to find out who is provisioned, then one batched send,
+        // rather than four subrequests per number pasted in.
+        const wanted: Array<{ last10: string; e164: string }> = [];
         for (const raw of phones) {
           const norm = normalizePhone(raw);
           if (!norm) { skipped.push(raw); continue; }
-          const prof = await sql`
-            SELECT provisioned FROM vita_hero.profiles WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1
-          `;
-          if (prof.length === 0 || prof[0].provisioned !== true) { skipped.push(norm.e164); continue; }
-          const sent = await sendInviteForPhone(sql, env, norm.last10, norm.e164, url.origin, force);
-          if (sent) invited++; else skipped.push(norm.e164);
+          wanted.push({ last10: norm.last10, e164: norm.e164 });
         }
+        const provisioned = wanted.length
+          ? await sql`
+              SELECT id FROM vita_hero.profiles
+              WHERE id = ANY(${wanted.map((w) => profileIdForPhone(w.last10))})
+                AND provisioned = true
+            `
+          : [];
+        const ready = new Set(provisioned.map((r) => r.id as string));
+        const eligible = wanted.filter((w) => {
+          if (ready.has(profileIdForPhone(w.last10))) return true;
+          skipped.push(w.e164);
+          return false;
+        });
+        const outcome = await sendInvitesForPhones(sql, env, eligible, url.origin, force);
+        invited = outcome.sent.length;
+        skipped.push(...outcome.skipped);
         return json({ invited, skipped });
       }
 
@@ -2897,55 +3187,28 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         return json(rows);
       }
 
+      // Children come from the school, not from the app.
+      //
+      // This is a closed programme: a guardian is provisioned by a roster
+      // import and their children arrive with it, matched on the mobile number
+      // the school holds. There is no parent-created child, and there never
+      // should have been — a child the school has not enrolled cannot be
+      // screened, cannot be consented for, and cannot appear on a camp list,
+      // so one created here would sit in the app looking real and do nothing.
+      //
+      // A correction to a child the school did enrol goes through
+      // /api/me/correction, which the school office reviews. That is the
+      // pathway, and it is deliberately not this one.
       if (path === "/api/kids" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
-        const body: Record<string, unknown> = await request.json();
-        const row = await sql`
-          INSERT INTO vita_hero.kids
-            (id, profile_id, user_id, name, age, gender, school, grade,
-             height_cm, weight_kg, avatar_color, overall_score, dental,
-             eyesight, nutrition, last_checkup)
-          VALUES (
-            ${body.id as string}, ${session.profileId},
-            ${session.userId || null}, ${body.name as string},
-            ${body.age as number}, ${body.gender as string},
-            ${(body.school as string) || ""}, ${(body.grade as string) || ""},
-            ${(body.height_cm as number) || 0}, ${(body.weight_kg as number) || 0},
-            ${(body.avatar_color as number) || 0}, ${(body.overall_score as number) || 80},
-            ${(body.dental as string) || "GOOD"}, ${(body.eyesight as string) || "GOOD"},
-            ${(body.nutrition as string) || "GOOD"}, ${(body.last_checkup as string) || "Not yet"}
-          )
-          ON CONFLICT (id) DO UPDATE SET
-            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
-            name = EXCLUDED.name, age = EXCLUDED.age, gender = EXCLUDED.gender,
-            school = EXCLUDED.school, grade = EXCLUDED.grade,
-            avatar_color = EXCLUDED.avatar_color,
-            height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg,
-            dental = COALESCE(
-              (SELECT ckr.dental FROM vita_hero.camp_kid_results ckr
-               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
-              EXCLUDED.dental),
-            eyesight = COALESCE(
-              (SELECT ckr.eyesight FROM vita_hero.camp_kid_results ckr
-               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
-              EXCLUDED.eyesight),
-            nutrition = COALESCE(
-              (SELECT ckr.nutrition FROM vita_hero.camp_kid_results ckr
-               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
-              EXCLUDED.nutrition),
-            last_checkup = COALESCE(
-              (SELECT sc.date FROM vita_hero.camp_kid_results ckr
-               JOIN vita_hero.school_camps sc ON sc.id = ckr.school_camp_id
-               WHERE ckr.kid_id = EXCLUDED.id ORDER BY ckr.recorded_at DESC LIMIT 1),
-              EXCLUDED.last_checkup),
-            overall_score = CASE
-              WHEN EXISTS (
-                SELECT 1 FROM vita_hero.camp_kid_results ckr WHERE ckr.kid_id = EXCLUDED.id
-              ) THEN vita_hero.kids.overall_score
-              ELSE EXCLUDED.overall_score END
-          RETURNING *
-        `;
-        return json(row[0], 201);
+        return json(
+          {
+            error: "Children are added by your school, not from the app. " +
+              "If a child is missing, ask the school office to check the mobile number they hold for you.",
+            code: "ROSTER_MANAGED",
+          },
+          403
+        );
       }
 
       if (path.startsWith("/api/kids/") && request.method === "DELETE") {
@@ -2958,7 +3221,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json(await deleteChild(sql, session.profileId, kidId, session.profileId));
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -2998,12 +3261,14 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${date}, ${time}
           )
           ON CONFLICT (id) DO UPDATE SET
-            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            user_id = EXCLUDED.user_id,
             doctor_id = EXCLUDED.doctor_id,
             doctor_name = EXCLUDED.doctor_name, specialty = EXCLUDED.specialty,
             kid_name = EXCLUDED.kid_name, date = EXCLUDED.date, time = EXCLUDED.time
+          WHERE vita_hero.appointments.profile_id = ${session.profileId}
           RETURNING *
         `;
+        if (row.length === 0) return json(NOT_YOURS, 409);
         return json(row[0], 201);
       }
 
@@ -3150,9 +3415,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Guardian route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3163,7 +3426,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json(await pendingConsents(sql, session.profileId));
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3190,7 +3453,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           ));
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3205,7 +3468,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           ));
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3303,13 +3566,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${(body.result_summary as string) || null}
           )
           ON CONFLICT (id) DO UPDATE SET
-            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            user_id = EXCLUDED.user_id,
             title = EXCLUDED.title, school = EXCLUDED.school,
             date = EXCLUDED.date, time = EXCLUDED.time,
             status = EXCLUDED.status, checks = EXCLUDED.checks,
             result_summary = EXCLUDED.result_summary
+          WHERE vita_hero.camps.profile_id = ${session.profileId}
           RETURNING *
         `;
+        if (row.length === 0) return json(NOT_YOURS, 409);
         return json(row[0], 201);
       }
 
@@ -3319,7 +3584,17 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
       if (path === "/api/meals" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
-        const rows = await sql`SELECT * FROM vita_hero.meal_items WHERE profile_id = ${session.profileId} ORDER BY kid_id, time_slot`;
+        // Today's plan, not every meal the family has ever logged. The limit
+        // is a backstop: six slots a child and a handful of snacks is nowhere
+        // near it, and a family that somehow passes it has something wrong
+        // that silently returning half a plan would hide.
+        const today = programmeToday();
+        const rows = await sql`
+          SELECT * FROM vita_hero.meal_items
+          WHERE profile_id = ${session.profileId} AND day = ${today}
+          ORDER BY kid_id, time_slot
+          LIMIT 500
+        `;
         return json(rows);
       }
 
@@ -3327,28 +3602,65 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body = await request.json() as Record<string, unknown>[];
         const meals = Array.isArray(body) ? body : [body];
-        const results = [];
-        for (const m of meals) {
-          const row = await sql`
-            INSERT INTO vita_hero.meal_items
-              (id, profile_id, user_id, kid_id, time_slot, name, detail, kcal, eaten)
-            VALUES (
-              ${m.id as string}, ${session.profileId},
-              ${session.userId || null}, ${m.kid_id as string},
-              ${m.time_slot as string}, ${m.name as string},
-              ${(m.detail as string) || ""}, ${(m.kcal as number) || 0},
-              ${(m.eaten as boolean) || false}
-            )
-            ON CONFLICT (id) DO UPDATE SET
-              profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
-              kid_id = EXCLUDED.kid_id, time_slot = EXCLUDED.time_slot,
-              name = EXCLUDED.name, detail = EXCLUDED.detail,
-              kcal = EXCLUDED.kcal, eaten = EXCLUDED.eaten
-            RETURNING *
-          `;
-          results.push(row[0]);
+        if (meals.length === 0) return json([], 201);
+        const today = programmeToday();
+        if (meals.length > 500) {
+          return json({ error: "Too many meals in one request", code: "TOO_MANY" }, 413);
         }
-        return json(results, 201);
+
+        // Only this parent's own children. The kid id arrived from the client
+        // and was never checked, so a day's plan could be written onto
+        // somebody else's child.
+        const kidIds = [...new Set(meals.map((m) => String(m.kid_id || "")).filter(Boolean))];
+        if (kidIds.length > 0) {
+          const mine = await sql`
+            SELECT id FROM vita_hero.kids
+            WHERE id = ANY(${kidIds}) AND profile_id = ${session.profileId}
+          `;
+          if (mine.length !== kidIds.length) return json({ error: "Kid not found" }, 404);
+        }
+
+        // One statement for the whole plan. The app sends a bootstrap plan of
+        // several meals per child, and this used to be a round trip each.
+        const values: string[] = [];
+        const params: unknown[] = [];
+        meals.forEach((m, i) => {
+          const b = i * 10;
+          values.push(
+            `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, ` +
+            `$${b + 7}, $${b + 8}, $${b + 9}, $${b + 10})`
+          );
+          params.push(
+            String(m.id || ""),
+            session.profileId,
+            session.userId || null,
+            String(m.kid_id || ""),
+            String(m.time_slot || ""),
+            String(m.name || ""),
+            String(m.detail || ""),
+            Number(m.kcal) || 0,
+            m.eaten === true,
+            // The app does not send a day and does not need to: a meal is
+            // logged when it is sent. Deliberately not updated on conflict —
+            // the app re-sends its whole set on every sync, and re-dating
+            // yesterday's plan to today would put the growth straight back.
+            String(m.day || "") || today,
+          );
+        });
+        const rows = await sql.query(
+          `INSERT INTO vita_hero.meal_items
+             (id, profile_id, user_id, kid_id, time_slot, name, detail, kcal, eaten, day)
+           VALUES ${values.join(", ")}
+           ON CONFLICT (id) DO UPDATE SET
+             user_id = EXCLUDED.user_id,
+             kid_id = EXCLUDED.kid_id, time_slot = EXCLUDED.time_slot,
+             name = EXCLUDED.name, detail = EXCLUDED.detail,
+             kcal = EXCLUDED.kcal, eaten = EXCLUDED.eaten
+           WHERE vita_hero.meal_items.profile_id = $${params.length + 1}
+           RETURNING *`,
+          [...params, session.profileId]
+        );
+        return json(rows, 201);
       }
 
       // ═══════════════════════════════════════════════════
@@ -3421,11 +3733,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${(body.height as number) || 0}, ${(body.weight as number) || 0}, NOW()
           )
           ON CONFLICT (id) DO UPDATE SET
-            kid_id = EXCLUDED.kid_id, user_id = EXCLUDED.user_id,
+            user_id = EXCLUDED.user_id,
             label = EXCLUDED.label, height = EXCLUDED.height,
             weight = EXCLUDED.weight
+          WHERE vita_hero.growth_points.kid_id = ${kidId}
           RETURNING *
         `;
+        if (row.length === 0) return json(NOT_YOURS, 409);
         return json(row[0], 201);
       }
 
@@ -3480,11 +3794,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${body.relation as string}, ${(body.joined_date as string) || ""}
           )
           ON CONFLICT (id) DO UPDATE SET
-            profile_id = EXCLUDED.profile_id, user_id = EXCLUDED.user_id,
+            user_id = EXCLUDED.user_id,
             name = EXCLUDED.name, relation = EXCLUDED.relation,
             joined_date = EXCLUDED.joined_date
+          WHERE vita_hero.co_parents.profile_id = ${session.profileId}
           RETURNING *
         `;
+        if (row.length === 0) return json(NOT_YOURS, 409);
         return json(row[0], 201);
       }
 
@@ -3721,10 +4037,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           WHERE id = ${kidId} AND profile_id = ${session.profileId}
           LIMIT 1
         `;
+        // Today's, like /api/meals. This is the same view of the same thing,
+        // and returning every meal ever logged here would put back exactly
+        // what dating the rows was for.
         const mealRows = await sql`
           SELECT * FROM vita_hero.meal_items
           WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}
+            AND day = ${programmeToday()}
           ORDER BY time_slot
+          LIMIT 200
         `;
         const streakRows = await sql`
           SELECT * FROM vita_hero.streaks
@@ -4154,9 +4475,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       return json({ error: "Not found", path }, 404);
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("Worker error:", message);
-      return json({ error: message }, 500);
+      // serverError, not a blanket 500: an ApiError reaching here is still a
+      // sentence written for the person who asked — a 413 for too much, a 403
+      // for not yours — and turning those into "something went wrong" loses
+      // both the reason and the status.
+      return serverError(error, "worker");
     }
   },
 };

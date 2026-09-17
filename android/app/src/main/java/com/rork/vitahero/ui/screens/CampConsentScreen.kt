@@ -275,7 +275,7 @@ fun ScreenHeader(title: String, subtitle: String, onBack: () -> Unit) {
                 .clickable(onClick = onBack),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null)
+            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
         }
         Spacer(Modifier.width(12.dp))
         Column {

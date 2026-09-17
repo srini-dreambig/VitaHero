@@ -80,17 +80,8 @@ object S {
 
     // ---- Kids ----
     const val myKids = "my_kids"
-    const val addChild = "add_child"
-    const val kidName = "kid_name"
-    const val kidAge = "kid_age"
-    const val kidGender = "kid_gender"
-    const val kidSchool = "kid_school"
-    const val kidGrade = "kid_grade"
     const val kidHeight = "kid_height"
     const val kidWeight = "kid_weight"
-    const val saveKid = "save_kid"
-    const val boy = "boy"
-    const val girl = "girl"
 
     // ---- Kid Detail ----
     const val growthTab = "growth_tab"
@@ -275,9 +266,7 @@ object S {
     const val orContinue = "or_continue"
     const val weWillSendCode = "we_will_send_code"
     const val appSubtitle = "app_subtitle"
-    const val addPhotoOptional = "add_photo_optional"
-    const val addAnotherChild = "add_another_child"
-    const val trackAllKids = "track_all_kids"
+    const val childrenFromSchool = "children_from_school"
     const val childrenTracked = "children_tracked"
     const val childTracked = "child_tracked"
     const val schoolScreenings = "school_screenings"
@@ -344,6 +333,12 @@ object S {
     const val authSignupFailed = "auth_signup_failed"
     const val authSigninFailed = "auth_signin_failed"
     const val authMissingToken = "auth_missing_token"
+    const val authSessionEnded = "auth_session_ended"
+    const val serverUnreachable = "server_unreachable"
+    const val bookingCouldNotReach = "booking_could_not_reach"
+    const val bookingInProgress = "booking_in_progress"
+    const val goBack = "go_back"
+    const val medicalDisclaimer = "medical_disclaimer"
     const val authOtpSendFailed = "auth_otp_send_failed"
     const val authOtpInvalid = "auth_otp_invalid"
     const val familyInvalid = "family_invalid"
@@ -358,7 +353,6 @@ object S {
     // Everyday illness is the one clinical thing a guardian writes.
     // Measurements belong to the camp; erasure is a data right.
     const val measurementsFromSchool = "measurements_from_school"
-    const val addChildNoMeasurements = "add_child_no_measurements"
     const val logSymptom = "log_symptom"
     const val symptomsTitle = "symptoms_title"
     const val symptomsSub = "symptoms_sub"
@@ -576,17 +570,8 @@ private val en = mapOf(
     S.doingWell to "Doing well",
     S.viewDetails to "View details",
     S.myKids to "My Kids",
-    S.addChild to "Add a child",
-    S.kidName to "Child's name",
-    S.kidAge to "Age (years)",
-    S.kidGender to "Gender",
-    S.kidSchool to "School name",
-    S.kidGrade to "Class / Grade",
     S.kidHeight to "Height (cm)",
     S.kidWeight to "Weight (kg)",
-    S.saveKid to "Save child profile",
-    S.boy to "Boy",
-    S.girl to "Girl",
     S.growthTab to "Growth",
     S.dentalTab to "Dental",
     S.eyeTab to "Eyesight",
@@ -736,9 +721,7 @@ private val en = mapOf(
     S.orContinue to "or continue with",
     S.weWillSendCode to "We'll send a 6-digit verification code to this number.",
     S.appSubtitle to "Your child's health, in heroic hands",
-    S.addPhotoOptional to "Add a photo (optional)",
-    S.addAnotherChild to "Add another child",
-    S.trackAllKids to "Track all your kids in one place",
+    S.childrenFromSchool to "Your school adds your children to VitaHero. Ask the school office if one is missing.",
     S.childrenTracked to "%d children tracked",
     S.childTracked to "%d child tracked",
     S.schoolScreenings to "School screening camps & follow-ups",
@@ -794,13 +777,19 @@ private val en = mapOf(
     S.allCaughtUp to "All caught up",
     S.allCaughtUpSub to "You'll see camp updates, checkup reminders, and reward alerts here.",
     S.noKidsYet to "No children yet",
-    S.noKidsSub to "Add your first child to start tracking their health & growth.",
+    S.noKidsSub to "Your school adds your children using the mobile number they hold for you. If your children are missing, ask the school office to check that number.",
     S.addFirstChild to "Add a child",
     S.syncFailed to "Could not save your data. Please try again.",
     S.authGoogleFailed to "Google sign-in failed. Please try again.",
     S.authSignupFailed to "Sign up failed. Please check your details.",
     S.authSigninFailed to "Invalid email or password.",
     S.authMissingToken to "Sign-in incomplete. Please try again.",
+    S.authSessionEnded to "You were signed out. Sign in again to see your children\u2019s records.",
+    S.serverUnreachable to "Can\u2019t reach VitaHero. What you see may be out of date.",
+    S.bookingCouldNotReach to "Couldn\u2019t reach the server, so nothing was booked. Please try again.",
+    S.bookingInProgress to "Booking\u2026",
+    S.goBack to "Go back",
+    S.medicalDisclaimer to "For information only. Always consult a doctor about your child\u2019s health.",
     S.authOtpSendFailed to "Could not send OTP. Please try again.",
     S.authOtpInvalid to "Invalid OTP. Please try again.",
     S.familyInvalid to "Family code not found. Please check and try again.",
@@ -894,7 +883,6 @@ private val en = mapOf(
     S.correctionSent to "Sent to the school to check.",
     S.correctionFailed to "We could not send that. Please try again.",
     S.measurementsFromSchool to "Height, weight, vision and dental results are measured at your child's school health camp. If something here looks wrong, ask the school to correct it from Your child's record.",
-    S.addChildNoMeasurements to "We do not ask for height or weight. Those are measured at a school health camp by someone trained to measure them.",
     S.logSymptom to "Record an illness",
     S.symptomsTitle to "Everyday illness",
     S.symptomsSub to "Fever, cough and the like, for %s",
@@ -954,6 +942,12 @@ private val en = mapOf(
 )
 
 private val hi = mapOf(
+    S.goBack to "\u0935\u093E\u092A\u0938 \u091C\u093E\u090F\u0902",
+    S.medicalDisclaimer to "\u0915\u0947\u0935\u0932 \u091C\u093E\u0928\u0915\u093E\u0930\u0940 \u0915\u0947 \u0932\u093F\u090F\u0964 \u0905\u092A\u0928\u0947 \u092C\u091A\u094D\u091A\u0947 \u0915\u0947 \u0938\u094D\u0935\u093E\u0938\u094D\u0925\u094D\u092F \u0915\u0947 \u092C\u093E\u0930\u0947 \u092E\u0947\u0902 \u0939\u092E\u0947\u0936\u093E \u0921\u0949\u0915\u094D\u091F\u0930 \u0938\u0947 \u0938\u0932\u093E\u0939 \u0932\u0947\u0902\u0964",
+    S.bookingInProgress to "\u092C\u0941\u0915 \u0939\u094B \u0930\u0939\u093E \u0939\u0948\u2026",
+    S.bookingCouldNotReach to "\u0938\u0930\u094D\u0935\u0930 \u0938\u0947 \u0938\u0902\u092A\u0930\u094D\u0915 \u0928\u0939\u0940\u0902 \u0939\u0941\u0906, \u0907\u0938\u0932\u093F\u090F \u0915\u094B\u0908 \u092C\u0941\u0915\u093F\u0902\u0917 \u0928\u0939\u0940\u0902 \u0939\u0941\u0908\u0964 \u0915\u0943\u092A\u092F\u093E \u092B\u093F\u0930 \u0938\u0947 \u092A\u094D\u0930\u092F\u093E\u0938 \u0915\u0930\u0947\u0902\u0964",
+    S.authSessionEnded to "\u0906\u092A\u0915\u094B \u0938\u093E\u0907\u0928 \u0906\u0909\u091F \u0915\u0930 \u0926\u093F\u092F\u093E \u0917\u092F\u093E \u0925\u093E\u0964 \u0905\u092A\u0928\u0947 \u092C\u091A\u094D\u091A\u094B\u0902 \u0915\u0947 \u0930\u093F\u0915\u0949\u0930\u094D\u0921 \u0926\u0947\u0916\u0928\u0947 \u0915\u0947 \u0932\u093F\u090F \u092B\u093F\u0930 \u0938\u0947 \u0938\u093E\u0907\u0928 \u0907\u0928 \u0915\u0930\u0947\u0902\u0964",
+    S.serverUnreachable to "VitaHero \u0938\u0947 \u0938\u0902\u092A\u0930\u094D\u0915 \u0928\u0939\u0940\u0902 \u0939\u094B \u092A\u093E \u0930\u0939\u093E\u0964 \u091C\u094B \u0926\u093F\u0916 \u0930\u0939\u093E \u0939\u0948 \u0935\u0939 \u092A\u0941\u0930\u093E\u0928\u093E \u0939\u094B \u0938\u0915\u0924\u093E \u0939\u0948\u0964",
     S.recordUnavailable to "इस बच्चे का रिकॉर्ड अभी उपलब्ध नहीं है। वापस जाकर सूची से बच्चा चुनें।",
     S.dentalGoodMsg to "\u092A\u093F\u091B\u0932\u0940 \u091C\u093E\u0901\u091A \u092E\u0947\u0902 \u0915\u094B\u0908 \u0915\u0948\u0935\u093F\u091F\u0940 \u0928\u0939\u0940\u0902 \u092E\u093F\u0932\u0940\u0964 \u0926\u093F\u0928 \u092E\u0947\u0902 \u0926\u094B \u092C\u093E\u0930 \u092C\u094D\u0930\u0936 \u0915\u0930\u0924\u0947 \u0930\u0939\u0947\u0902\u0964",
     S.dentalWatchMsg to "\u0925\u094B\u0921\u093C\u0940 \u092A\u094D\u0932\u0947\u0915 \u0926\u093F\u0916\u0940\u0964 2 \u0938\u092A\u094D\u0924\u093E\u0939 \u092E\u0947\u0902 \u0926\u093E\u0902\u0924\u094B\u0902 \u0915\u0940 \u091C\u093E\u0901\u091A \u0915\u0930\u093E\u090F\u0901\u0964",
@@ -1021,17 +1015,8 @@ private val hi = mapOf(
     S.doingWell to "\u0905\u091A\u094D\u091B\u093E \u091A\u0932 \u0930\u0939\u093E \u0939\u0948",
     S.viewDetails to "\u0935\u093F\u0935\u0930\u0923 \u0926\u0947\u0916\u0947\u0902",
     S.myKids to "\u092E\u0947\u0930\u0947 \u092C\u091A\u094D\u091A\u0947",
-    S.addChild to "\u092C\u091A\u094D\u091A\u093E \u091C\u094B\u0921\u093C\u0947\u0902",
-    S.kidName to "\u092C\u091A\u094D\u091A\u0947 \u0915\u093E \u0928\u093E\u092E",
-    S.kidAge to "\u0906\u092F\u0941 (\u0938\u093E\u0932)",
-    S.kidGender to "\u0932\u093F\u0902\u0917",
-    S.kidSchool to "\u0938\u094D\u0915\u0942\u0932 \u0915\u093E \u0928\u093E\u092E",
-    S.kidGrade to "\u0915\u0915\u094D\u0937\u093E",
     S.kidHeight to "\u090A\u0902\u091A\u093E\u0908 (\u0938\u0947\u092E\u0940)",
     S.kidWeight to "\u0935\u091C\u0928 (\u0915\u093F\u0932\u094B)",
-    S.saveKid to "\u092C\u091A\u094D\u091A\u0947 \u0915\u0940 \u092A\u094D\u0930\u094B\u092B\u093E\u0907\u0932 \u0938\u0947\u0935 \u0915\u0930\u0947\u0902",
-    S.boy to "\u0932\u0921\u093C\u0915\u093E",
-    S.girl to "\u0932\u0921\u093C\u0915\u0940",
     S.growthTab to "\u0935\u093F\u0915\u093E\u0938",
     S.dentalTab to "\u0926\u093E\u0902\u0924",
     S.eyeTab to "\u0906\u0902\u0916\u0947\u0902",
@@ -1228,7 +1213,6 @@ private val hi = mapOf(
     S.correctionSent to "\u091C\u093E\u0901\u091A \u0915\u0947 \u0932\u093F\u090F \u0938\u094D\u0915\u0942\u0932 \u0915\u094B \u092D\u0947\u091C \u0926\u093F\u092F\u093E \u0917\u092F\u093E\u0964",
     S.correctionFailed to "\u0939\u092E \u0907\u0938\u0947 \u092D\u0947\u091C \u0928\u0939\u0940\u0902 \u0938\u0915\u0947\u0964 \u0915\u0943\u092A\u092F\u093E \u0926\u094B\u092C\u093E\u0930\u093E \u0915\u094B\u0936\u093F\u0936 \u0915\u0930\u0947\u0902\u0964",
     S.measurementsFromSchool to "\u090A\u0901\u091A\u093E\u0908, \u0935\u091C\u093C\u0928, \u0926\u0943\u0937\u094D\u091F\u093F \u0914\u0930 \u0926\u093E\u0901\u0924\u094B\u0902 \u0915\u0947 \u0928\u0924\u0940\u091C\u0947 \u0906\u092A\u0915\u0947 \u092C\u091A\u094D\u091A\u0947 \u0915\u0947 \u0938\u094D\u0915\u0942\u0932 \u0938\u094D\u0935\u093E\u0938\u094D\u0925\u094D\u092F \u0915\u0948\u0902\u092A \u092E\u0947\u0902 \u092E\u093E\u092A\u0947 \u091C\u093E\u0924\u0947 \u0939\u0948\u0902\u0964 \u0905\u0917\u0930 \u092F\u0939\u093E\u0901 \u0915\u0941\u091B \u0917\u0932\u0924 \u0932\u0917\u0947, \u0924\u094B '\u0906\u092A\u0915\u0947 \u092C\u091A\u094D\u091A\u0947 \u0915\u093E \u0930\u093F\u0915\u0949\u0930\u094D\u0921' \u0938\u0947 \u0938\u094D\u0915\u0942\u0932 \u0915\u094B \u0938\u0941\u0927\u093E\u0930\u0928\u0947 \u0915\u0947 \u0932\u093F\u090F \u0915\u0939\u0947\u0902\u0964",
-    S.addChildNoMeasurements to "\u0939\u092E \u090A\u0901\u091A\u093E\u0908 \u092F\u093E \u0935\u091C\u093C\u0928 \u0928\u0939\u0940\u0902 \u092A\u0942\u091B\u0924\u0947\u0964 \u0935\u0947 \u0938\u094D\u0915\u0942\u0932 \u0938\u094D\u0935\u093E\u0938\u094D\u0925\u094D\u092F \u0915\u0948\u0902\u092A \u092E\u0947\u0902 \u092A\u094D\u0930\u0936\u093F\u0915\u094D\u0937\u093F\u0924 \u0935\u094D\u092F\u0915\u094D\u0924\u093F \u0926\u094D\u0935\u093E\u0930\u093E \u092E\u093E\u092A\u0947 \u091C\u093E\u0924\u0947 \u0939\u0948\u0902\u0964",
     S.logSymptom to "\u092C\u0940\u092E\u093E\u0930\u0940 \u0926\u0930\u094D\u091C \u0915\u0930\u0947\u0902",
     S.symptomsTitle to "\u0930\u094B\u091C\u093C\u092E\u0930\u094D\u0930\u093E \u0915\u0940 \u092C\u0940\u092E\u093E\u0930\u0940",
     S.symptomsSub to "%s \u0915\u0947 \u0932\u093F\u090F \u092C\u0941\u0916\u093E\u0930, \u0916\u093E\u0901\u0938\u0940 \u0935\u0917\u0948\u0930\u0939",
@@ -1288,6 +1272,12 @@ private val hi = mapOf(
 )
 
 private val te = mapOf(
+    S.goBack to "\u0C35\u0C46\u0C28\u0C15\u0C4D\u0C15\u0C3F \u0C35\u0C46\u0C33\u0C4D\u0C32\u0C02\u0C21\u0C3F",
+    S.medicalDisclaimer to "\u0C15\u0C47\u0C35\u0C32\u0C02 \u0C38\u0C2E\u0C3E\u0C1A\u0C3E\u0C30\u0C02 \u0C15\u0C4B\u0C38\u0C02. \u0C2E\u0C40 \u0C2C\u0C3F\u0C21\u0C4D\u0C21 \u0C06\u0C30\u0C4B\u0C17\u0C4D\u0C2F\u0C02 \u0C17\u0C41\u0C30\u0C3F\u0C02\u0C1A\u0C3F \u0C0E\u0C2A\u0C4D\u0C2A\u0C41\u0C21\u0C42 \u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D\u0C28\u0C41 \u0C38\u0C02\u0C2A\u0C4D\u0C30\u0C26\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
+    S.bookingInProgress to "\u0C2C\u0C41\u0C15\u0C4D \u0C05\u0C35\u0C41\u0C24\u0C4B\u0C02\u0C26\u0C3F\u2026",
+    S.bookingCouldNotReach to "\u0C38\u0C30\u0C4D\u0C35\u0C30\u0C4D\u200C\u0C15\u0C41 \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C1F\u0C4D \u0C05\u0C35\u0C32\u0C47\u0C26\u0C41, \u0C05\u0C02\u0C26\u0C41\u0C35\u0C32\u0C4D\u0C32 \u0C2C\u0C41\u0C15\u0C4D \u0C15\u0C3E\u0C32\u0C47\u0C26\u0C41. \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C2E\u0C33\u0C4D\u0C32\u0C40 \u0C2A\u0C4D\u0C30\u0C2F\u0C24\u0C4D\u0C28\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
+    S.authSessionEnded to "\u0C2E\u0C40\u0C30\u0C41 \u0C38\u0C48\u0C28\u0C4D \u0C05\u0C35\u0C41\u0C1F\u0C4D \u0C05\u0C2F\u0C4D\u0C2F\u0C3E\u0C30\u0C41. \u0C2E\u0C40 \u0C2A\u0C3F\u0C32\u0C4D\u0C32\u0C32 \u0C30\u0C3F\u0C15\u0C3E\u0C30\u0C4D\u0C21\u0C41\u0C32\u0C28\u0C41 \u0C1A\u0C42\u0C21\u0C1F\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C2E\u0C33\u0C4D\u0C32\u0C40 \u0C38\u0C48\u0C28\u0C4D \u0C07\u0C28\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F.",
+    S.serverUnreachable to "VitaHero \u0C15\u0C3F \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C1F\u0C4D \u0C05\u0C35\u0C32\u0C47\u0C26\u0C41. \u0C15\u0C28\u0C2C\u0C21\u0C41\u0C24\u0C41\u0C28\u0C4D\u0C28\u0C35\u0C3F \u0C2A\u0C3E\u0C24\u0C35\u0C3F \u0C15\u0C3E\u0C35\u0C1A\u0C4D\u0C1A\u0C41.",
     S.recordUnavailable to "ఈ పిల్లవాడి రికార్డ్ ఇప్పుడు అందుబాటులో లేదు. వెనక్కి వెళ్లి జాబితా నుండి పిల్లవాడిని ఎంచుకోండి.",
     S.risingHero to "%s \u0C12\u0C15 \u0C0E\u0C26\u0C41\u0C17\u0C41\u0C24\u0C41\u0C28\u0C4D\u0C28 \u0C39\u0C40\u0C30\u0C4B!",
     S.notMeasuredMsg to "\u0C08 \u0C2A\u0C30\u0C40\u0C15\u0C4D\u0C37 \u0C07\u0C02\u0C15\u0C3E \u0C1C\u0C30\u0C17\u0C32\u0C47\u0C26\u0C41. \u0C24\u0C26\u0C41\u0C2A\u0C30\u0C3F \u0C38\u0C4D\u0C15\u0C42\u0C32\u0C4D \u0C39\u0C46\u0C32\u0C4D\u0C24\u0C4D \u0C15\u0C4D\u0C2F\u0C3E\u0C02\u0C2A\u0C4D \u0C24\u0C30\u0C4D\u0C35\u0C3E\u0C24 \u0C07\u0C15\u0C4D\u0C15\u0C21 \u0C15\u0C28\u0C2C\u0C21\u0C41\u0C24\u0C41\u0C02\u0C26\u0C3F.",
@@ -1349,17 +1339,8 @@ private val te = mapOf(
     S.doingWell to "\u0C2C\u0C3E\u0C17\u0C3E \u0C09\u0C02\u0C26\u0C3F",
     S.viewDetails to "\u0C35\u0C3F\u0C35\u0C30\u0C3E\u0C32\u0C41 \u0C1A\u0C42\u0C21\u0C02\u0C21\u0C3F",
     S.myKids to "\u0C28\u0C3E \u0C2A\u0C3F\u0C32\u0C4D\u0C32\u0C32\u0C41",
-    S.addChild to "\u0C2A\u0C3F\u0C32\u0C4D\u0C32\u0C28\u0C41 \u0C1C\u0C4B\u0C21\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F",
-    S.kidName to "\u0C2A\u0C3F\u0C32\u0C4D\u0C32 \u0C2A\u0C47\u0C30\u0C41",
-    S.kidAge to "\u0C35\u0C2F\u0C38\u0C4D\u0C38\u0C41 (\u0C38\u0C02\u0C35\u0C24\u0C4D\u0C38\u0C30\u0C3E\u0C32\u0C41)",
-    S.kidGender to "\u0C32\u0C3F\u0C02\u0C17\u0C02",
-    S.kidSchool to "\u0C38\u0C4D\u0C15\u0C42\u0C32\u0C4D \u0C2A\u0C47\u0C30\u0C41",
-    S.kidGrade to "\u0C24\u0C30\u0C17\u0C24\u0C3F",
     S.kidHeight to "\u0C0E\u0C24\u0C4D\u0C24\u0C41 (\u0C38\u0C46\u0C02.\u0C2E\u0C40.)",
     S.kidWeight to "\u0C2C\u0C30\u0C41\u0C35\u0C41 (\u0C15\u0C47.\u0C1C\u0C40.)",
-    S.saveKid to "\u0C2A\u0C3F\u0C32\u0C4D\u0C32 \u0C2A\u0C4D\u0C30\u0C4A\u0C2B\u0C48\u0C32\u0C4D \u0C38\u0C47\u0C35\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
-    S.boy to "\u0C05\u0C2C\u0C4D\u0C2C\u0C3E\u0C2F\u0C3F",
-    S.girl to "\u0C05\u0C2E\u0C4D\u0C2E\u0C3E\u0C2F\u0C3F",
     S.growthTab to "\u0C0E\u0C26\u0C41\u0C17\u0C41\u0C26\u0C32",
     S.dentalTab to "\u0C26\u0C3E\u0C02\u0C24\u0C3E\u0C32\u0C41",
     S.eyeTab to "\u0C15\u0C33\u0C4D\u0C32\u0C41",
@@ -1558,7 +1539,6 @@ private val te = mapOf(
     S.correctionSent to "\u0C24\u0C28\u0C3F\u0C16\u0C40 \u0C15\u0C4B\u0C38\u0C02 \u0C2A\u0C3E\u0C20\u0C36\u0C3E\u0C32\u0C15\u0C41 \u0C2A\u0C02\u0C2A\u0C2C\u0C21\u0C3F\u0C02\u0C26\u0C3F.",
     S.correctionFailed to "\u0C2E\u0C47\u0C2E\u0C41 \u0C26\u0C3E\u0C28\u0C3F\u0C28\u0C3F \u0C2A\u0C02\u0C2A\u0C32\u0C47\u0C15\u0C2A\u0C4B\u0C2F\u0C3E\u0C2E\u0C41. \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C2E\u0C33\u0C4D\u0C32\u0C40 \u0C2A\u0C4D\u0C30\u0C2F\u0C24\u0C4D\u0C28\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
     S.measurementsFromSchool to "\u0C0E\u0C24\u0C4D\u0C24\u0C41, \u0C2C\u0C30\u0C41\u0C35\u0C41, \u0C1A\u0C42\u0C2A\u0C41 \u0C2E\u0C30\u0C3F\u0C2F\u0C41 \u0C26\u0C02\u0C24\u0C3E\u0C32 \u0C2B\u0C32\u0C3F\u0C24\u0C3E\u0C32\u0C41 \u0C2E\u0C40 \u0C2C\u0C3F\u0C21\u0C4D\u0C21 \u0C2A\u0C3E\u0C20\u0C36\u0C3E\u0C32 \u0C06\u0C30\u0C4B\u0C17\u0C4D\u0C2F \u0C36\u0C3F\u0C2C\u0C3F\u0C30\u0C02\u0C32\u0C4B \u0C15\u0C4A\u0C32\u0C41\u0C38\u0C4D\u0C24\u0C3E\u0C30\u0C41. \u0C07\u0C15\u0C4D\u0C15\u0C21 \u0C0F\u0C26\u0C48\u0C28\u0C3E \u0C24\u0C2A\u0C4D\u0C2A\u0C41\u0C17\u0C3E \u0C05\u0C28\u0C3F\u0C2A\u0C3F\u0C38\u0C4D\u0C24\u0C47, '\u0C2E\u0C40 \u0C2C\u0C3F\u0C21\u0C4D\u0C21 \u0C30\u0C3F\u0C15\u0C3E\u0C30\u0C4D\u0C21\u0C41' \u0C28\u0C41\u0C02\u0C21\u0C3F \u0C38\u0C30\u0C3F\u0C26\u0C3F\u0C26\u0C4D\u0C26\u0C2E\u0C28\u0C3F \u0C2A\u0C3E\u0C20\u0C36\u0C3E\u0C32\u0C28\u0C41 \u0C05\u0C21\u0C17\u0C02\u0C21\u0C3F.",
-    S.addChildNoMeasurements to "\u0C2E\u0C47\u0C2E\u0C41 \u0C0E\u0C24\u0C4D\u0C24\u0C41 \u0C32\u0C47\u0C26\u0C3E \u0C2C\u0C30\u0C41\u0C35\u0C41 \u0C05\u0C21\u0C17\u0C2E\u0C41. \u0C35\u0C3E\u0C1F\u0C3F\u0C28\u0C3F \u0C2A\u0C3E\u0C20\u0C36\u0C3E\u0C32 \u0C06\u0C30\u0C4B\u0C17\u0C4D\u0C2F \u0C36\u0C3F\u0C2C\u0C3F\u0C30\u0C02\u0C32\u0C4B \u0C36\u0C3F\u0C15\u0C4D\u0C37\u0C23 \u0C2A\u0C4A\u0C02\u0C26\u0C3F\u0C28 \u0C35\u0C4D\u0C2F\u0C15\u0C4D\u0C24\u0C3F \u0C15\u0C4A\u0C32\u0C41\u0C38\u0C4D\u0C24\u0C3E\u0C30\u0C41.",
     S.logSymptom to "\u0C05\u0C28\u0C3E\u0C30\u0C4B\u0C17\u0C4D\u0C2F\u0C3E\u0C28\u0C4D\u0C28\u0C3F \u0C28\u0C2E\u0C4B\u0C26\u0C41 \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
     S.symptomsTitle to "\u0C38\u0C3E\u0C27\u0C3E\u0C30\u0C23 \u0C05\u0C28\u0C3E\u0C30\u0C4B\u0C17\u0C4D\u0C2F\u0C02",
     S.symptomsSub to "%s \u0C15\u0C4B\u0C38\u0C02 \u0C1C\u0C4D\u0C35\u0C30\u0C02, \u0C26\u0C17\u0C4D\u0C17\u0C41 \u0C35\u0C02\u0C1F\u0C3F\u0C35\u0C3F",

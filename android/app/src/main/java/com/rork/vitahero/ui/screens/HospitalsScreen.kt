@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,7 +62,7 @@ fun HospitalsScreen(
     onBookAppointment: () -> Unit,
 ) {
     val context = LocalContext.current
-    var filterSpecialty by remember { mutableStateOf<String?>(null) }
+    var filterSpecialty by rememberSaveable { mutableStateOf<String?>(null) }
     var expandedHospitalId by remember { mutableStateOf<String?>(null) }
 
     val hospitals = directory?.hospitals.orEmpty()
@@ -101,7 +102,7 @@ fun HospitalsScreen(
                         .clickable(onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null)
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {
@@ -120,7 +121,7 @@ fun HospitalsScreen(
             }
             Spacer(Modifier.height(8.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(listOf("Hyderabad")) { city ->
+                items(listOf("Hyderabad"), key = { it }) { city ->
                     val selected = bookingCity.equals(city, ignoreCase = true)
                     Box(
                         Modifier
@@ -186,7 +187,7 @@ fun HospitalsScreen(
         if (allSpecialties.isNotEmpty()) {
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(allSpecialties) { spec ->
+                    items(allSpecialties, key = { it }) { spec ->
                         val active = filterSpecialty == spec
                         Box(
                             Modifier

@@ -91,34 +91,36 @@ export async function acceptTerms(sql: Sql, profileId: string, version: string) 
 
 /** Everything VitaHero holds about this family, in one JSON document. */
 export async function exportGuardianData(sql: Sql, profileId: string) {
-  const profile = await sql`
-    SELECT id, phone, name, email, auth_provider, role, locale_code, family_code,
-           onboarding_complete, consent_accepted, consent_declined, created_by
-    FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1
-  `;
+  // A data-rights export reads ten tables. Nine of them are keyed on the
+  // guardian alone, so they go out together; only the three keyed on the
+  // children have to wait for the children's ids. Two waits, not ten.
+  const [profile, kids, referrals, appointments, meals, consents, rights] = await Promise.all([
+    sql`
+      SELECT id, phone, name, email, auth_provider, role, locale_code, family_code,
+             onboarding_complete, consent_accepted, consent_declined, created_by
+      FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1
+    `,
+    sql`SELECT * FROM vita_hero.kids WHERE profile_id = ${profileId}`,
+    sql`SELECT * FROM vita_hero.referrals WHERE profile_id = ${profileId}`,
+    sql`SELECT * FROM vita_hero.appointments WHERE profile_id = ${profileId}`,
+    sql`SELECT * FROM vita_hero.meal_items WHERE profile_id = ${profileId}`,
+    sql`SELECT * FROM vita_hero.consent_log WHERE profile_id = ${profileId}`,
+    sql`SELECT * FROM vita_hero.data_rights_log WHERE profile_id = ${profileId}`,
+  ]);
   if (profile.length === 0) throw new ApiError(404, "Profile not found", "NOT_FOUND");
 
-  const kids = await sql`SELECT * FROM vita_hero.kids WHERE profile_id = ${profileId}`;
   const kidIds = kids.map((k) => k.id as string);
-
-  const growth = kidIds.length
-    ? await sql`SELECT * FROM vita_hero.growth_points WHERE kid_id = ANY(${kidIds})`
-    : [];
-  const findings = kidIds.length
-    ? await sql`
-        SELECT f.*, sc.title AS camp_title, sc.date AS camp_date
-        FROM vita_hero.camp_findings f
-        LEFT JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
-        WHERE f.kid_id = ANY(${kidIds})`
-    : [];
-  const participation = kidIds.length
-    ? await sql`SELECT * FROM vita_hero.camp_participants WHERE kid_id = ANY(${kidIds})`
-    : [];
-  const referrals = await sql`SELECT * FROM vita_hero.referrals WHERE profile_id = ${profileId}`;
-  const appointments = await sql`SELECT * FROM vita_hero.appointments WHERE profile_id = ${profileId}`;
-  const meals = await sql`SELECT * FROM vita_hero.meal_items WHERE profile_id = ${profileId}`;
-  const consents = await sql`SELECT * FROM vita_hero.consent_log WHERE profile_id = ${profileId}`;
-  const rights = await sql`SELECT * FROM vita_hero.data_rights_log WHERE profile_id = ${profileId}`;
+  const [growth, findings, participation] = kidIds.length
+    ? await Promise.all([
+        sql`SELECT * FROM vita_hero.growth_points WHERE kid_id = ANY(${kidIds})`,
+        sql`
+          SELECT f.*, sc.title AS camp_title, sc.date AS camp_date
+          FROM vita_hero.camp_findings f
+          LEFT JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
+          WHERE f.kid_id = ANY(${kidIds})`,
+        sql`SELECT * FROM vita_hero.camp_participants WHERE kid_id = ANY(${kidIds})`,
+      ])
+    : [[], [], []];
 
   await logRight(sql, profileId, "EXPORT", "Full data export", profileId);
 
@@ -315,6 +317,31 @@ export async function deleteChild(sql: Sql, profileId: string, kidId: string, ac
   await sql`DELETE FROM vita_hero.streaks WHERE kid_id = ${kidId}`;
   await sql`DELETE FROM vita_hero.ai_diet_tips WHERE kid_id = ${kidId}`;
   await sql`DELETE FROM vita_hero.school_enrollments WHERE kid_id = ${kidId}`;
+
+  // The photographs of this child's findings. They were not on this list, so
+  // an erasure request took the findings and left the pictures — the bytes
+  // themselves, in finding_photos.data — attached to a child who no longer
+  // exists. The table is created by media.ts, which a given deployment may not
+  // have run, hence the same defensive shape as sessions below.
+  try {
+    await sql`DELETE FROM vita_hero.finding_photos WHERE kid_id = ${kidId}`;
+  } catch { /* deployment without the media schema */ }
+
+  // Everything the guardian asked the school about this child, and the
+  // school's answers. The messages hang off the thread, so they go first.
+  try {
+    await sql`
+      DELETE FROM vita_hero.question_messages
+      WHERE thread_id IN (SELECT id FROM vita_hero.question_threads WHERE kid_id = ${kidId})
+    `;
+    await sql`DELETE FROM vita_hero.question_threads WHERE kid_id = ${kidId}`;
+  } catch { /* deployment without the messages schema */ }
+
+  // record_access is deliberately not touched. It is the log of who looked at
+  // this child's record, which is the evidence that the looking was accounted
+  // for; erasing it would destroy the trail rather than the data. It names no
+  // child beyond the id that is about to stop resolving.
+
   await sql`DELETE FROM vita_hero.kids WHERE id = ${kidId}`;
 
   await logRight(sql, profileId, "CHILD_DELETED", String(owns[0].name), actorId);
@@ -332,6 +359,26 @@ export async function deleteAccount(sql: Sql, profileId: string) {
   await sql`DELETE FROM vita_hero.consent_log WHERE profile_id = ${profileId}`;
   await sql`DELETE FROM vita_hero.correction_requests WHERE profile_id = ${profileId}`;
   await sql`DELETE FROM vita_hero.referrals WHERE profile_id = ${profileId}`;
+  // A guardian is not normally staff, but the row is keyed on the profile and
+  // this is the function that makes the profile stop existing. Left behind it
+  // is a camp listing somebody who cannot be looked up.
+  try {
+    await sql`DELETE FROM vita_hero.camp_staff WHERE profile_id = ${profileId}`;
+  } catch { /* deployment without the camp schema */ }
+  try {
+    await sql`
+      DELETE FROM vita_hero.question_messages
+      WHERE thread_id IN (SELECT id FROM vita_hero.question_threads WHERE profile_id = ${profileId})
+    `;
+    await sql`DELETE FROM vita_hero.question_threads WHERE profile_id = ${profileId}`;
+  } catch { /* deployment without the messages schema */ }
+
+  // Every device, not just the one that asked. An erased account whose tablet
+  // still held a live session would keep answering requests for a profile row
+  // that no longer exists.
+  try {
+    await sql`DELETE FROM vita_hero.sessions WHERE profile_id = ${profileId}`;
+  } catch { /* pre-migration database */ }
 
   // The rights log outlives the profile on purpose: it is the evidence that
   // the erasure was asked for and carried out.
@@ -530,12 +577,27 @@ export async function changeGuardianPhone(
     "kids", "appointments", "co_parents", "meal_items", "school_enrollments",
     "camp_participants", "camp_registrations", "camp_kid_results", "referrals",
     "consent_log", "correction_requests", "ai_diet_tips",
+    // These two were left off. The threads meant a guardian who changed their
+    // number lost the questions they had asked. camp_staff is worse: this
+    // function copies the role across, so a screener or physician can come
+    // through it, and their camp assignments staying behind is not an
+    // inconvenience — an assignment to a running camp is what lets clinical
+    // staff sign in at all, so changing their mobile number locked them out.
+    "question_threads",
+    "camp_staff",
   ];
+  // A table a given deployment has not created yet must not take the move down
+  // with it: the old profile row is deleted at the end of this, so a throw
+  // half way leaves a guardian whose records point at an identity that is
+  // about to stop existing. Everything else here that touches an optional
+  // table is defensive in the same way.
   for (const t of TABLES_WITH_PROFILE_ID) {
-    await sql.query(
-      `UPDATE vita_hero."${t}" SET profile_id = $1 WHERE profile_id = $2`,
-      [newId, oldId]
-    );
+    try {
+      await sql.query(
+        `UPDATE vita_hero."${t}" SET profile_id = $1 WHERE profile_id = $2`,
+        [newId, oldId]
+      );
+    } catch { /* this deployment does not have that table */ }
   }
   await sql`UPDATE vita_hero.kids SET user_id = ${newId} WHERE user_id = ${oldId}`;
   await sql`DELETE FROM vita_hero.profiles WHERE id = ${oldId}`;
@@ -559,18 +621,21 @@ export async function retentionReport(sql: Sql, actor: Actor, retainYears = 7) {
   cutoff.setUTCFullYear(cutoff.getUTCFullYear() - retainYears);
   const iso = cutoff.toISOString();
 
-  const stale = await sql`
-    SELECT COUNT(*)::int AS n FROM vita_hero.camp_findings WHERE recorded_at < ${iso}
-  `;
-  const leftLongAgo = await sql`
-    SELECT COUNT(*)::int AS n FROM vita_hero.kids
-    WHERE status IN ('LEFT','GRADUATED','AGED_OUT') AND left_at IS NOT NULL AND left_at < ${iso}
-  `;
-  const dormant = await sql`
-    SELECT COUNT(*)::int AS n FROM vita_hero.profiles
-    WHERE role = 'PARENT' AND is_logged_in = false AND provisioned = true
-      AND NOT EXISTS (SELECT 1 FROM vita_hero.kids k WHERE k.profile_id = vita_hero.profiles.id)
-  `;
+  // Three independent counts over the same cutoff; one wait.
+  const [stale, leftLongAgo, dormant] = await Promise.all([
+    sql`
+      SELECT COUNT(*)::int AS n FROM vita_hero.camp_findings WHERE recorded_at < ${iso}
+    `,
+    sql`
+      SELECT COUNT(*)::int AS n FROM vita_hero.kids
+      WHERE status IN ('LEFT','GRADUATED','AGED_OUT') AND left_at IS NOT NULL AND left_at < ${iso}
+    `,
+    sql`
+      SELECT COUNT(*)::int AS n FROM vita_hero.profiles
+      WHERE role = 'PARENT' AND is_logged_in = false AND provisioned = true
+        AND NOT EXISTS (SELECT 1 FROM vita_hero.kids k WHERE k.profile_id = vita_hero.profiles.id)
+    `,
+  ]);
   return {
     retainYears,
     cutoff: iso.slice(0, 10),

@@ -28,7 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,12 +37,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Camp
-import com.rork.vitahero.data.CampStatus
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.StatusBarSpacer
+import com.rork.vitahero.ui.components.campWhen
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroOrange
@@ -54,12 +54,14 @@ fun CampDetailScreen(
     kids: List<Kid>,
     onBack: () -> Unit,
     onRegister: (kidId: String) -> Unit,
+    /** True while the registration is with the server. */
+    busy: Boolean = false,
     onBookFollowUp: () -> Unit,
     /** Open what a doctor released for one child at this camp. */
     onOpenResult: (campId: String, kidId: String) -> Unit = { _, _ -> },
 ) {
-    var selectedKidId by remember { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
-    val upcoming = camp.status == CampStatus.UPCOMING
+    var selectedKidId by rememberSaveable { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
+    val upcoming = camp.status.isUpcoming
     val accent = if (upcoming) HeroBlue else HeroOrange
     val registered = camp.registeredKidIds
 
@@ -76,7 +78,7 @@ fun CampDetailScreen(
                     Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onBack),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = null)
+                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
                 }
                 Spacer(Modifier.width(12.dp))
                 Text(t(S.campDetails), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -112,7 +114,7 @@ fun CampDetailScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Outlined.Schedule, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("${camp.date} · ${camp.time}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(campWhen(camp.date, camp.time), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                     }
                     if (camp.description.isNotBlank()) {
                         Spacer(Modifier.height(14.dp))
@@ -208,7 +210,8 @@ fun CampDetailScreen(
                 if (kid != null && kid.id !in registered) {
                     Spacer(Modifier.height(8.dp))
                     PrimaryGradientButton(
-                        text = t(S.confirmRegistration),
+                        text = if (busy) t(S.pleaseWait) else t(S.confirmRegistration),
+                        enabled = !busy,
                         onClick = { onRegister(kid.id) },
                     )
                 }

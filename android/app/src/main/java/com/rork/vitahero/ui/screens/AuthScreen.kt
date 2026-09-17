@@ -121,10 +121,16 @@ fun AuthScreen(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFFEE2E2))
+                    // Theme colours: the fixed light red was a bright pink
+                    // panel on an otherwise dark screen in dark mode.
+                    .background(MaterialTheme.colorScheme.errorContainer)
                     .padding(12.dp)
             ) {
-                Text(authError, style = MaterialTheme.typography.bodySmall, color = Color(0xFFDC2626))
+                Text(
+                    authError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
             }
         }
 

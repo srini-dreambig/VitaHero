@@ -117,34 +117,6 @@ class KidsViewModel(
     }
 
     /**
-     * Add a child who is not on a school's roster.
-     *
-     * No measurements, and no flags. Every check starts NOT_MEASURED, because
-     * nobody has looked at this child yet — and a health app that answers
-     * "how are their teeth?" before anyone has looked in their mouth is worse
-     * than one that says it does not know. A camp fills these in; the app does
-     * not guess them, and neither does the parent.
-     */
-    fun addKid(name: String, age: Int, gender: String, school: String, grade: String) {
-        val newKid = Kid(
-            id = "k${System.currentTimeMillis()}",
-            name = name, age = age, gender = gender, school = school, grade = grade,
-            heightCm = 0f, weightKg = 0f,
-            avatarColor = kidPalette[state.uiState.value.kids.size % kidPalette.size],
-            overallScore = 0,
-            growth = emptyList(),
-            dental = HealthFlag.NOT_MEASURED,
-            eyesight = HealthFlag.NOT_MEASURED,
-            nutrition = HealthFlag.NOT_MEASURED,
-            lastCheckup = "",
-        )
-        state.uiState.update { it.copy(kids = it.kids + newKid) }
-        state.meals.update { it + (newKid.id to MealPlanGenerator.initialPlanFor(newKid)) }
-        state.streaks.update { it + (newKid.id to StreakInfo()) }
-        container.persistNow(SyncEntity.KIDS, SyncEntity.MEALS, SyncEntity.STREAKS)
-    }
-
-    /**
      * Drop a child from local state after the server erased them.
      *
      * The erasure itself belongs to the record screen and is logged as a data
@@ -270,12 +242,19 @@ class KidsViewModel(
         }
     }
 
+    /**
+     * Show a co-parent the children they now share.
+     *
+     * Local only. This used to push them back as this account's own children,
+     * which was never right — the roster says whose child is whose, and the
+     * other guardian is already on it. The server refuses that write now, so
+     * the push could only ever have produced an error message.
+     */
     fun mergeSharedKids(kids: List<Kid>) {
         val existingIds = state.uiState.value.kids.map { it.id }.toSet()
         val newKids = kids.filter { it.id !in existingIds }
         if (newKids.isNotEmpty()) {
             state.uiState.update { it.copy(kids = it.kids + newKids) }
-            container.persist(SyncEntity.KIDS)
         }
     }
 }

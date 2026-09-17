@@ -9,12 +9,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -94,8 +98,12 @@ fun OnboardingScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-                    .padding(top = 36.dp),
+                    // Was a flat 36dp, which is a guess at the status bar and
+                    // wrong on any phone with a cutout — the logo and Skip sat
+                    // underneath it. Every other screen in the app uses the
+                    // real inset; this one was missed.
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -130,8 +138,14 @@ fun OnboardingScreen(
                     ) {
                         Box(
                             Modifier
-                                .fillMaxWidth()
-                                .aspectRatio(0.78f)
+                                // Sized from the height it has, not the width.
+                                // `fillMaxWidth().aspectRatio(0.78f)` derives
+                                // height from width, so on a landscape screen
+                                // 800dp wide it asked for 1025dp of height and
+                                // ran off the bottom. Matching the height
+                                // constraint first fits both orientations.
+                                .fillMaxHeight()
+                                .aspectRatio(0.78f, matchHeightConstraintsFirst = true)
                                 .clip(RoundedCornerShape(32.dp))
                                 .background(slide.accent.copy(alpha = 0.08f))
                         ) {

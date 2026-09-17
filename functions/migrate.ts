@@ -28,6 +28,15 @@ import { Sql } from "./common";
  * shape, so the check in migrate.test.ts asserts this file changes whenever
  * the DDL does.
  */
+// 8 — meal_items gains `day`. There was no date on a meal and nothing ever
+//     removed one, so a plan only grew: every custom snack a parent added
+//     came back as part of today's, still ticked. Existing rows are dated to
+//     the day of the migration rather than dropped.
+// 7 — indexes for the hot paths. Every one of these queries was a sequential
+//     scan, including the authentication lookup that runs on every request.
+// 6 — adds vita_hero.sessions. A session was a single column on the profile,
+//     so signing in anywhere invalidated every other device without telling
+//     it. One row per device, with an expiry that slides on use.
 // 5 — retires the legacy 'UPCOMING' camp status, which the lifecycle never
 //     knew and so could never advance past.
 // 4 — camp_staff gains active/revoked_at/revoked_by/doctor_id: a doctor's
@@ -37,7 +46,7 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 8;
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

@@ -647,23 +647,27 @@ export async function listRoster(
   const skip = Math.max(offset || 0, 0);
 
   const filterYear = (academicYear || "").trim();
-  const rows = await sql`
-    SELECT k.id, k.name, k.grade, k.section, k.gender, k.age, k.date_of_birth,
-           k.student_ref, k.guardian_name, k.academic_year, p.phone, p.is_logged_in,
-           k.profile_id
-    FROM vita_hero.kids k
-    LEFT JOIN vita_hero.profiles p ON p.id = k.profile_id
-    WHERE k.school_id = ${schoolId}
-      AND (${filterYear} = '' OR k.academic_year = ${filterYear})
-      AND (${search === ""} OR LOWER(k.name) LIKE ${like} OR LOWER(COALESCE(k.student_ref,'')) LIKE ${like}
-           OR LOWER(COALESCE(k.guardian_name,'')) LIKE ${like} OR COALESCE(p.phone,'') LIKE ${like})
-    ORDER BY k.grade, k.section, k.name
-    LIMIT ${cap} OFFSET ${skip}
-  `;
-  const totalRows = await sql`
-    SELECT COUNT(*)::int AS n FROM vita_hero.kids
-    WHERE school_id = ${schoolId} AND (${filterYear} = '' OR academic_year = ${filterYear})
-  `;
+  // The page of students and the count behind the pager do not depend on each
+  // other, so the roster screen waits once rather than twice.
+  const [rows, totalRows] = await Promise.all([
+    sql`
+      SELECT k.id, k.name, k.grade, k.section, k.gender, k.age, k.date_of_birth,
+             k.student_ref, k.guardian_name, k.academic_year, p.phone, p.is_logged_in,
+             k.profile_id
+      FROM vita_hero.kids k
+      LEFT JOIN vita_hero.profiles p ON p.id = k.profile_id
+      WHERE k.school_id = ${schoolId}
+        AND (${filterYear} = '' OR k.academic_year = ${filterYear})
+        AND (${search === ""} OR LOWER(k.name) LIKE ${like} OR LOWER(COALESCE(k.student_ref,'')) LIKE ${like}
+             OR LOWER(COALESCE(k.guardian_name,'')) LIKE ${like} OR COALESCE(p.phone,'') LIKE ${like})
+      ORDER BY k.grade, k.section, k.name
+      LIMIT ${cap} OFFSET ${skip}
+    `,
+    sql`
+      SELECT COUNT(*)::int AS n FROM vita_hero.kids
+      WHERE school_id = ${schoolId} AND (${filterYear} = '' OR academic_year = ${filterYear})
+    `,
+  ]);
 
   return {
     total: (totalRows[0]?.n as number) || 0,
