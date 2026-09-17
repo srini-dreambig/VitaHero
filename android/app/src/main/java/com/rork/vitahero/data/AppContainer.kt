@@ -43,14 +43,15 @@ class AppContainer(application: Application) {
     suspend fun retryPendingSync() {
         if (!SyncQueueStore.hasPending(app)) return
         val batch = SyncQueueStore.loadBatch(app) ?: return
-        when (val result = BackendSyncEngine.push(batch)) {
-            is BackendSyncEngine.PushResult.Ok -> SyncQueueStore.clear(app)
+        val result = BackendSyncEngine.push(batch)
+        SyncQueueStore.settle(app, result.settled)
+        when (result) {
+            is BackendSyncEngine.PushResult.Ok -> Unit
             is BackendSyncEngine.PushResult.Retry -> SyncRetryScheduler.schedule(app)
             is BackendSyncEngine.PushResult.Rejected -> {
                 // Whatever was waiting from a previous session has been refused.
-                // Drop it rather than carry it forward, undo what it left on
-                // screen, and say what the server said.
-                SyncQueueStore.clear(app)
+                // Undo what it left on screen and say what the server said. What
+                // only failed to reach the server is still in the queue.
                 result.rejections.forEach { rollBack(it) }
                 state.syncMessage.value = result.rejections.first().message
                 if (result.transient != null) SyncRetryScheduler.schedule(app)
@@ -75,10 +76,19 @@ class AppContainer(application: Application) {
             isLoggedIn = auth.isLoggedIn.value,
         )
 
-        SyncQueueStore.saveBatch(app, batch)
+        // Added to what is already waiting, not put in its place: a batch that
+        // failed to send must not be dropped by the next unrelated change.
+        SyncQueueStore.enqueue(app, batch)
 
-        when (val result = BackendSyncEngine.push(batch)) {
-            is BackendSyncEngine.PushResult.Ok -> SyncQueueStore.clear(app)
+        val result = BackendSyncEngine.push(batch)
+        // Only what the server settled comes off the queue: everything it took,
+        // and everything it refused for good. A refusal used to clear the whole
+        // queue, so the parts that merely failed to send were dropped too — and
+        // the retry it then scheduled found nothing left to send.
+        SyncQueueStore.settle(app, result.settled)
+
+        when (result) {
+            is BackendSyncEngine.PushResult.Ok -> Unit
 
             is BackendSyncEngine.PushResult.Retry -> {
                 reportSyncError(result.cause as? Exception ?: Exception(result.cause.message))
@@ -86,12 +96,10 @@ class AppContainer(application: Application) {
             }
 
             is BackendSyncEngine.PushResult.Rejected -> {
-                // The server will not accept these however often they are sent,
-                // so the queue is cleared rather than replayed forever. It is
-                // also the moment to take the record back off screen: the app
-                // showed it the instant the parent tapped, and nothing else
+                // The server will not accept these however often they are sent.
+                // It is also the moment to take the record back off screen: the
+                // app showed it the instant the parent tapped, and nothing else
                 // will ever correct that.
-                SyncQueueStore.clear(app)
                 result.rejections.forEach { rollBack(it) }
                 state.syncMessage.value = result.rejections.first().message
                 // A refusal and a network fault can arrive together. The parts

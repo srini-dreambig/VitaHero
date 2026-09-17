@@ -146,18 +146,32 @@ object BackendSyncEngine {
      * them: carry on, try again later, or stop trying and tell the parent.
      */
     sealed interface PushResult {
-        data object Ok : PushResult
+        /**
+         * Which entities need no further attempt: everything the server either
+         * took or refused outright. The queue keeps the rest.
+         *
+         * This used to be missing, and the caller cleared the whole queue on a
+         * refusal — so a batch where one record was refused and another merely
+         * failed to reach the server lost both.
+         */
+        val settled: Set<SyncEntity>
+
+        data class Ok(override val settled: Set<SyncEntity>) : PushResult
 
         /** The network or the server faltered. Worth retrying unchanged. */
-        data class Retry(val cause: Throwable) : PushResult
+        data class Retry(
+            val cause: Throwable,
+            override val settled: Set<SyncEntity> = emptySet(),
+        ) : PushResult
 
         /**
-         * The server refused something and will refuse it again. `rejected`
+         * The server refused something and will refuse it again. `rejections`
          * names which records, so the caller can take them back off screen.
          */
         data class Rejected(
             val rejections: List<Rejection>,
             val transient: Throwable? = null,
+            override val settled: Set<SyncEntity> = emptySet(),
         ) : PushResult
     }
 
@@ -189,15 +203,23 @@ object BackendSyncEngine {
             return PushResult.Retry(IllegalStateException("Backend not configured"))
         }
         val entities = batch.entities()
-        if (entities.isEmpty()) return PushResult.Ok
+        if (entities.isEmpty()) return PushResult.Ok(emptySet())
 
         val rejections = mutableListOf<Rejection>()
+        // An entity is unfinished only if something in it failed for a reason
+        // that could go away. A refusal will not, so it does not hold the
+        // entity in the queue.
+        val unfinished = mutableSetOf<SyncEntity>()
         var transient: Throwable? = null
 
         suspend fun attempt(entity: SyncEntity, id: String, write: suspend () -> Result<Unit>) {
             write().onFailure { e ->
-                if (e is PermanentRejection) rejections += Rejection(entity, id, e.message)
-                else if (transient == null) transient = e
+                if (e is PermanentRejection) {
+                    rejections += Rejection(entity, id, e.message)
+                } else {
+                    unfinished += entity
+                    if (transient == null) transient = e
+                }
             }
         }
 
@@ -220,10 +242,11 @@ object BackendSyncEngine {
             for (c in batch.camps) attempt(SyncEntity.CAMPS, c.id) { api.upsertCamp(c) }
         }
 
+        val settled = entities - unfinished
         return when {
-            rejections.isNotEmpty() -> PushResult.Rejected(rejections, transient)
-            transient != null -> PushResult.Retry(transient!!)
-            else -> PushResult.Ok
+            rejections.isNotEmpty() -> PushResult.Rejected(rejections, transient, settled)
+            transient != null -> PushResult.Retry(transient!!, settled)
+            else -> PushResult.Ok(settled)
         }
     }
 }

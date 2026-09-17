@@ -37,9 +37,7 @@ class SyncCoordinator(
             delay(debounceMs)
             val batch = pending.toSet()
             pending.clear()
-            if (batch.isNotEmpty()) {
-                onSync(batch)
-            }
+            if (batch.isNotEmpty()) push(batch)
         }
     }
 
@@ -49,6 +47,21 @@ class SyncCoordinator(
         val batch = (pending + entities).toSet()
         pending.clear()
         if (batch.isEmpty()) return
-        scope.launch { onSync(batch) }
+        scope.launch { push(batch) }
+    }
+
+    /**
+     * The entities are taken out of [pending] before the push, so if the push
+     * throws on its way out they are gone — nothing would carry them, and the
+     * next sync would not know they were owed. Putting them back means the
+     * following change sweeps them up with it.
+     */
+    private suspend fun push(batch: Set<SyncEntity>) {
+        try {
+            onSync(batch)
+        } catch (e: Throwable) {
+            pending.addAll(batch)
+            throw e
+        }
     }
 }
