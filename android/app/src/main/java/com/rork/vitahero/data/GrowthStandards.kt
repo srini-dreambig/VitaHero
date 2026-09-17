@@ -34,22 +34,37 @@ object GrowthStandards {
         Ref(12, 40.1f), Ref(13, 44.8f), Ref(14, 48.5f), Ref(15, 50.8f), Ref(16, 52.0f),
         Ref(17, 52.5f), Ref(18, 53.0f),
     )
-    private fun isBoy(gender: String): Boolean =
-        gender.lowercase().startsWith("b") || gender.lowercase() == "male"
+    /**
+     * Which reference table applies, or null when the record does not say.
+     *
+     * This used to be a boolean — boy, or else — so a child whose sex was not
+     * recorded, or recorded as neither, was charted against the girls' table
+     * and shown a percentile as though it were the right one. At fourteen the
+     * two medians are four centimetres and two and a half kilograms apart.
+     * Mirrors referenceSex() in clinical.ts; functions/growth.test.ts fails if
+     * the two drift.
+     */
+    fun referenceSex(gender: String): String? {
+        val g = gender.trim().lowercase()
+        if (g.startsWith("b") || g == "male" || g == "m") return "M"
+        if (g.startsWith("g") || g == "female" || g == "f") return "F"
+        return null
+    }
 
     private fun refs(metric: Metric, isBoy: Boolean): List<Ref> = when (metric) {
         Metric.HEIGHT -> if (isBoy) heightBoys else heightGirls
         Metric.WEIGHT -> if (isBoy) weightBoys else weightGirls
     }
 
-    /** Interpolate P50 at fractional age (years). */
-    fun medianAtAge(ageYears: Int, gender: String, metric: Metric): Float {
-        val boy = isBoy(gender)
-        val table = refs(metric, boy)
+    private fun medianFor(ageYears: Int, sex: String, metric: Metric): Float {
+        val table = refs(metric, sex == "M")
         val age = ageYears.coerceIn(2, 18)
-        return table.firstOrNull { it.age == age }?.p50
-            ?: table.last().p50
+        return table.firstOrNull { it.age == age }?.p50 ?: table.last().p50
     }
+
+    /** P50 at an age, against the reference for a recorded sex. */
+    fun medianAtAge(ageYears: Int, gender: String, metric: Metric): Float =
+        medianFor(ageYears, referenceSex(gender) ?: "F", metric)
 
     /** Percentile curve value at age for chart drawing (3, 15, 50, 85, 97). */
     fun percentileValue(ageYears: Int, gender: String, metric: Metric, percentile: Int): Float {
@@ -71,12 +86,24 @@ object GrowthStandards {
 
     /** Estimate percentile (1–99) for a measured value. */
     fun estimatePercentile(value: Float, ageYears: Int, gender: String, metric: Metric): Int {
-        val boy = isBoy(gender)
+        val sex = referenceSex(gender)
+            ?: // Nothing here can say which reference is right, so take the one
+               // that reads lower. Guessing the other way means telling a
+               // family a child is fine when the other table would have
+               // flagged them.
+                return minOf(
+                    percentileAgainst(value, ageYears, "M", metric),
+                    percentileAgainst(value, ageYears, "F", metric),
+                )
+        return percentileAgainst(value, ageYears, sex, metric)
+    }
+
+    private fun percentileAgainst(value: Float, ageYears: Int, sex: String, metric: Metric): Int {
         val spread = when (metric) {
             Metric.HEIGHT -> 0.045f
             Metric.WEIGHT -> 0.14f
         }
-        val p50 = medianAtAge(ageYears, gender, metric)
+        val p50 = medianFor(ageYears, sex, metric)
         if (p50 <= 0f) return 50
         val z = ((value / p50) - 1f) / spread
         val pct = when {

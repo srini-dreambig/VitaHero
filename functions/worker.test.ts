@@ -7,14 +7,23 @@
 import { describe, expect, test, mock, beforeEach } from "bun:test";
 
 // ── stub the Neon driver before the worker imports it ──
-interface Handler { match: RegExp; rows: Record<string, unknown>[] }
+interface Handler {
+  match: RegExp;
+  rows?: Record<string, unknown>[];
+  /** Fail the way the database fails, so the error path can be tested. */
+  throws?: Error;
+}
 
 let handlers: Handler[] = [];
 let calls: { text: string; params: unknown[] }[] = [];
 
 function run(text: string, params: unknown[]) {
   calls.push({ text, params });
-  for (const h of handlers) if (h.match.test(text)) return Promise.resolve(h.rows);
+  for (const h of handlers) {
+    if (!h.match.test(text)) continue;
+    if (h.throws) return Promise.reject(h.throws);
+    return Promise.resolve(h.rows || []);
+  }
   return Promise.resolve([] as Record<string, unknown>[]);
 }
 
@@ -512,6 +521,41 @@ describe("classes", () => {
     });
     const marked = calls.filter((c) => /UPDATE vita_hero\.profiles[\s\S]*invited_at/.test(c.text));
     expect(marked).toEqual([]);
+  });
+
+  test("a request that would cost a thousand texts is refused, not truncated", async () => {
+    // Truncating would be worse: a sync would come back reporting success
+    // having written half a camp, and an invite run would silently miss
+    // families. Nothing capped these, and each entry is a statement or a text.
+    const r = await call("/api/admin/invite", {
+      method: "POST", headers: opsHeaders,
+      body: JSON.stringify({ phones: Array.from({ length: 1001 }, (_, i) => "98" + String(i).padStart(8, "0")) }),
+    });
+    expect(r.status).toBe(413);
+    expect((await r.json()).code).toBe("TOO_MANY");
+  });
+
+  test("a 500 does not hand the caller the database's own words", async () => {
+    // A Postgres error names the table, the column and the constraint, and
+    // often echoes the value that tripped it. That used to go straight back to
+    // whoever asked.
+    handlers = [{
+      match: /SELECT/,
+      throws: new Error(
+        'relation "vita_hero.camp_findings" does not exist; column kid_id at row 3'),
+    }];
+    const original = console.error;
+    console.error = () => {};
+    try {
+      const r = await call("/api/admin/schools", { headers: opsHeaders });
+      const body = await r.text();
+      expect(r.status).toBe(500);
+      expect(body).not.toContain("vita_hero.camp_findings");
+      expect(body).not.toContain("does not exist");
+      expect(JSON.parse(body).code).toBe("SERVER_ERROR");
+    } finally {
+      console.error = original;
+    }
   });
 
   test("requires a body it can understand", async () => {
