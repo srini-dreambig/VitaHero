@@ -6,16 +6,17 @@
 
 import { neon } from "@neondatabase/serverless";
 import {
-  Sql,
   DEFAULT_COUNTRY_CODE,
-  normalizePhone,
-  profileIdForPhone,
-  slugify,
+  Sql,
   buildStudentRef,
-  parseNum,
   deriveAge,
-  rowField,
   insertRows,
+  normalizePhone,
+  parseNum,
+  profileIdForPhone,
+  programmeToday,
+  rowField,
+  slugify,
 } from "./common";
 import {
   Actor,
@@ -456,7 +457,7 @@ async function ensureSchema(sql: Sql): Promise<void> {
   // What is already there is somebody's plan as it stands, so it becomes
   // today's rather than vanishing. Runs once: after this nothing is blank.
   await sql`
-    UPDATE vita_hero.meal_items SET day = to_char(NOW(), 'YYYY-MM-DD') WHERE COALESCE(day, '') = ''
+    UPDATE vita_hero.meal_items SET day = ${programmeToday()} WHERE COALESCE(day, '') = ''
   `;
   await sql`CREATE INDEX IF NOT EXISTS meal_items_profile_day ON vita_hero.meal_items(profile_id, day)`;
 
@@ -1435,7 +1436,7 @@ async function processImport(
         if (!opts.dryRun) {
           await sql`
             INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, active)
-            VALUES (${campId}, ${schoolId}, ${campTitle}, ${campDate || new Date().toISOString().slice(0, 10)}, 'COMPLETED', true)
+            VALUES (${campId}, ${schoolId}, ${campTitle}, ${campDate || programmeToday()}, 'COMPLETED', true)
             ON CONFLICT (id) DO UPDATE SET title = EXCLUDED.title
           `;
         }
@@ -1752,6 +1753,45 @@ const SEED_STEPS = [seedDoctorsIfEmpty, seedPartnerSchools, seedLibraryIfEmpty];
 /** Per-isolate latch so schema init does not run on every request. */
 let schemaReady = false;
 
+/**
+ * A list from a request body, refused rather than truncated when it is too big.
+ *
+ * Truncating would be worse than refusing: a screener's sync would come back
+ * reporting success having written half a camp. The caps are far above any
+ * real use — a camp is a few hundred children, an invite run is a school —
+ * and exist because these lists cost a database statement or a text message
+ * each, and nothing was stopping one request from asking for a hundred
+ * thousand of either.
+ */
+const MAX_SYNC_ENTRIES = 2000;
+const MAX_INVITE_PHONES = 1000;
+
+function cappedList<T>(value: unknown, limit: number, what: string): T[] {
+  if (!Array.isArray(value)) return [];
+  if (value.length > limit) {
+    throw new ApiError(413, `Too many ${what} in one request (limit ${limit})`, "TOO_MANY");
+  }
+  return value as T[];
+}
+
+/**
+ * What a caller is told when something broke that was not their fault.
+ *
+ * These returned the raw exception message. A Postgres error carries the
+ * table, the column, the constraint and often the value that tripped it, so a
+ * 500 handed any signed-in parent a piece of the schema — and echoed back
+ * whatever had been submitted. The detail goes to the log, where whoever is
+ * on call can read it; the caller gets a sentence and a code.
+ *
+ * An ApiError is different and is passed through: those are written for the
+ * person reading them, which is the whole reason the type exists.
+ */
+function serverError(e: unknown, where: string): Response {
+  if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+  console.error(`[${where}]`, e instanceof Error ? e.stack || e.message : String(e));
+  return json({ error: "Something went wrong at our end", code: "SERVER_ERROR" }, 500);
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }));
@@ -1953,9 +1993,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Referral route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -2093,7 +2131,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (section === "screening-bulk" && method === "POST") {
             const b = await readBody();
             return json(await saveScreeningBulk(sql, actor, campId,
-              Array.isArray(b.entries) ? (b.entries as Record<string, unknown>[]) : []));
+              cappedList(b.entries, MAX_SYNC_ENTRIES, "entries")));
           }
 
           if (section === "screening") {
@@ -2166,9 +2204,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Camp route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -2297,9 +2333,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Admin services route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -2388,9 +2422,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Directory route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -2614,11 +2646,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) {
-            return json({ error: e.message, code: e.code }, e.status);
-          }
-          console.error("Stage A error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "stage-a");
         }
       }
 
@@ -2633,8 +2661,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           const body: Record<string, unknown> = await request.json();
           return json(await grantOpsRole(sql, String(body.phone || ""), String(body.name || "")));
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3032,7 +3059,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const admin = await requireAdmin(request, sql, env);
         if (!admin) return json({ error: "Admin authorization required", code: "ADMIN_REQUIRED" }, 403);
         const body: Record<string, unknown> = await request.json();
-        const phones = Array.isArray(body.phones) ? (body.phones as string[]) : [];
+        // An SMS each, so the cap is about what this can be made to spend, not
+        // about what the worker can hold. The meals route has had one from the
+        // start; the routes that cost money did not.
+        const phones = cappedList<string>(body.phones, MAX_INVITE_PHONES, "phones");
         const force = body.force === true;
         let invited = 0;
         const skipped: string[] = [];
@@ -3191,7 +3221,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json(await deleteChild(sql, session.profileId, kidId, session.profileId));
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3385,9 +3415,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
           return json({ error: "Not found" }, 404);
         } catch (e) {
-          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          console.error("Guardian route error:", e);
-          return json({ error: (e as Error).message || "Request failed" }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3398,7 +3426,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           return json(await pendingConsents(sql, session.profileId));
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3425,7 +3453,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           ));
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3440,7 +3468,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           ));
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
-          return json({ error: (e as Error).message }, 500);
+          return serverError(e, "api");
         }
       }
 
@@ -3560,7 +3588,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         // is a backstop: six slots a child and a handful of snacks is nowhere
         // near it, and a family that somehow passes it has something wrong
         // that silently returning half a plan would hide.
-        const today = new Date().toISOString().slice(0, 10);
+        const today = programmeToday();
         const rows = await sql`
           SELECT * FROM vita_hero.meal_items
           WHERE profile_id = ${session.profileId} AND day = ${today}
@@ -3575,7 +3603,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const body = await request.json() as Record<string, unknown>[];
         const meals = Array.isArray(body) ? body : [body];
         if (meals.length === 0) return json([], 201);
-        const today = new Date().toISOString().slice(0, 10);
+        const today = programmeToday();
         if (meals.length > 500) {
           return json({ error: "Too many meals in one request", code: "TOO_MANY" }, 413);
         }
@@ -4015,7 +4043,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const mealRows = await sql`
           SELECT * FROM vita_hero.meal_items
           WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}
-            AND day = ${new Date().toISOString().slice(0, 10)}
+            AND day = ${programmeToday()}
           ORDER BY time_slot
           LIMIT 200
         `;
@@ -4447,9 +4475,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       return json({ error: "Not found", path }, 404);
 
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("Worker error:", message);
-      return json({ error: message }, 500);
+      // serverError, not a blanket 500: an ApiError reaching here is still a
+      // sentence written for the person who asked — a 413 for too much, a 403
+      // for not yours — and turning those into "something went wrong" loses
+      // both the reason and the status.
+      return serverError(error, "worker");
     }
   },
 };

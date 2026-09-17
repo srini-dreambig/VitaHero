@@ -10,7 +10,11 @@
 // console can say "not measured" instead of drawing a confident line through
 // the origin.
 
-import { Sql, isOpsRole } from "./common";
+import {
+  Sql,
+  isOpsRole,
+  programmeToday,
+} from "./common";
 import { Actor } from "./schools";
 
 /** How many months of history the trend covers. */
@@ -78,7 +82,7 @@ export async function adminAnalytics(sql: Sql, actor: Actor, opts: { schoolId?: 
       COUNT(*) FILTER (WHERE status = 'EXPIRED')::int AS expired,
       COUNT(*) FILTER (WHERE urgency = 'URGENT' AND status IN ('OPEN','BOOKED'))::int AS urgent_open,
       COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED') AND due_by <> ''
-        AND due_by < to_char(NOW(), 'YYYY-MM-DD'))::int AS overdue,
+        AND due_by < ${programmeToday()})::int AS overdue,
       AVG(EXTRACT(EPOCH FROM (closed_at - created_at)) / 86400.0)
         FILTER (WHERE closed_at IS NOT NULL) AS avg_days_to_close
     FROM vita_hero.referrals

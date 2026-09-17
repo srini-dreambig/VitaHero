@@ -237,10 +237,38 @@ export function generatePartnerCode(name: string): string {
   return `${prefix}${suffix}`;
 }
 
+/**
+ * The programme's own calendar day.
+ *
+ * Everything that means "today" to a person — which day a meal belongs to,
+ * whether a referral is overdue, which academic year it is — was computed in
+ * UTC, because that is what toISOString() gives you. The schools are in India,
+ * so the day was turning over at half past five in the morning local time.
+ *
+ * The visible consequence was in meals. The app stamps its streak with the
+ * device's own LocalDate, and the server filed the meal under UTC's: a parent
+ * logging something after midnight had the streak move to the new day while
+ * the meal went into the old one, and then vanished from today's plan at
+ * 05:30. The two ends were keeping different calendars.
+ *
+ * One place, named, and overridable — a programme that runs somewhere else
+ * sets PROGRAMME_TZ rather than discovering this the same way.
+ */
+export const PROGRAMME_TZ = "Asia/Kolkata";
+
+export function programmeToday(now = new Date(), tz = PROGRAMME_TZ): string {
+  // en-CA renders as YYYY-MM-DD, which is the shape every date column here uses.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+}
+
 /** Current academic year in Indian convention (June start), e.g. "2026-27". */
 export function currentAcademicYear(now = new Date()): string {
-  const y = now.getUTCFullYear();
-  const startYear = now.getUTCMonth() >= 5 ? y : y - 1; // June (5) onward
+  // The programme's calendar, not UTC's: the year turns over on 1 June where
+  // the schools are, not five and a half hours later.
+  const [y, m] = programmeToday(now).split("-").map(Number);
+  const startYear = m >= 6 ? y : y - 1;
   return `${startYear}-${String((startYear + 1) % 100).padStart(2, "0")}`;
 }
 

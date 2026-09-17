@@ -14,7 +14,13 @@
 // partner and a funder actually care about, and it is the one number the
 // programme could not previously produce for a single child.
 
-import { Sql, chunk, isOpsRole, slugify } from "./common";
+import {
+  Sql,
+  chunk,
+  isOpsRole,
+  programmeToday,
+  slugify,
+} from "./common";
 import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { assertCampAccess } from "./camps";
@@ -89,8 +95,10 @@ export async function ensureReferralSchema(sql: Sql): Promise<void> {
 
 function dueDate(urgency: string, from = new Date()): string {
   const days = EXPIRY_DAYS[urgency] ?? 120;
-  const d = new Date(from.getTime() + days * 86400000);
-  return d.toISOString().slice(0, 10);
+  // Counted from the programme's calendar day, not UTC's. A referral raised
+  // just after midnight in Hyderabad was being dated from the day before.
+  const [y, m, d] = programmeToday(from).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
 }
 
 
@@ -380,7 +388,7 @@ export async function referralDashboard(
         COUNT(*) FILTER (WHERE status = 'DECLINED')::int AS declined,
         COUNT(*) FILTER (WHERE status = 'EXPIRED')::int AS expired,
         COUNT(*) FILTER (WHERE urgency = 'URGENT' AND status IN ('OPEN','BOOKED'))::int AS urgent_open,
-        COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED') AND due_by <> '' AND due_by < ${new Date().toISOString().slice(0, 10)})::int AS overdue
+        COUNT(*) FILTER (WHERE status IN ('OPEN','BOOKED') AND due_by <> '' AND due_by < ${programmeToday()})::int AS overdue
       FROM vita_hero.referrals
       WHERE school_id = ${schoolId} AND (${!opts.campId} OR camp_id = ${opts.campId || ""})
     `,
@@ -504,7 +512,7 @@ export async function nudgeReferrals(
   sendSms: SmsSender
 ) {
   assertSchoolAccess(actor, schoolId);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = programmeToday();
 
   const expired = await sql`
     UPDATE vita_hero.referrals
