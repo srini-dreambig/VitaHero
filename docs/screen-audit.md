@@ -714,6 +714,79 @@ straight out — that is a deliberate act by someone who has just spoken to them
   app's language reschedules everything on the next `scheduleAll`, which is the
   same launch, so the window is small.
 
+## What the survey turned up
+
+Having found the same families of bug four times over, I went looking for them
+rather than guessing. Four of the nine patterns were still live.
+
+### Erasure did not reach the photographs
+
+`deleteChild` deleted twelve tables keyed on a child. Building the real schema
+and asking Postgres, **fifteen tables hold a `kid_id`**. The three it missed:
+
+- **`finding_photos`** — the image bytes of a child's clinical findings. A
+  guardian asked for their child's data to be erased and the pictures stayed.
+- **`question_threads`** — everything the parent wrote to the school about that
+  child, and every answer.
+- `record_access` — the log of who looked at the record. This one *should*
+  survive: erasing it destroys the trail rather than the data. Nothing said so;
+  now something does.
+
+The comment directly above that function describes a bug fixed for findings —
+*"a child's clinical findings survived, attached to nothing"* — while the photos
+had exactly that problem.
+
+`functions/erasure.test.ts` does not check the list. It builds the schema, asks
+which tables hold a child or a guardian, and fails naming any erasure does not
+reach. A table added next year is covered without anyone remembering the file
+exists, and a table kept on purpose has to carry a written reason.
+
+That test immediately found a fifth thing nobody was looking for. A guardian who
+changes their mobile number has every row repointed to a new profile id, from a
+hand-kept list — and `camp_staff` was not on it. The function copies the role
+across, so a screener or physician comes through it too, and an assignment to a
+running camp is what lets clinical staff sign in at all. **Changing their number
+locked them out of every camp.** The repoint loop also threw on a table a
+deployment had not created, half way through, leaving records pointed at an
+identity about to be deleted.
+
+### A meal plan that only ever grew
+
+`meal_items` had no date column, nothing ever deleted a row, and the read had no
+filter and no limit. Two consequences, and the second is worse than the first:
+
+- A family two years in downloaded thousands of rows on every launch and
+  uploaded them again on every sync.
+- Every custom snack a parent ever added stayed in the set, so **last month's
+  snacks came back as part of today's plan, still ticked**.
+
+Meals are dated now, server-side, so the app needed no change: what it sends is
+logged for the day it arrives, and what it reads is that day. The date is
+deliberately not updated on conflict — the app re-sends its whole set on every
+sync, and re-dating yesterday's plan to today would put the growth straight
+back. What is already stored becomes today's rather than vanishing.
+
+### Three more loops that cost a subrequest per person
+
+- **Inviting a roster**: four subrequests a number — read the cooldown, send,
+  log, mark. Two hundred families is eight hundred, past what the platform
+  allows, so an import that reported success stopped sending partway through.
+  It also marked every number as invited whether the text went out or not, so a
+  school whose provider was misconfigured had its whole roster put behind the
+  resend cooldown without one message arriving.
+- **A child's health history**: one read per camp, on the screen a guardian
+  opens to see it.
+- **The home screen's nudges**: two reads per child, on every open.
+- **Saving a school's classes**: two statements per class — a secondary school
+  with twelve grades and four sections is ninety-six on an ordinary save.
+
+### Left alone, and why
+
+The sweep found twenty-nine loops that await per item. Most are already bounded:
+chunked at a hundred rows, or over a fixed list of tables, or over seed data. The
+ones named above were the ones whose size is a school's size. `if (ok)` in the
+console is a callback, not a result.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
