@@ -78,7 +78,7 @@ import {
   setCampStaffActive,
 } from "./camps";
 import { adminAnalytics } from "./analytics";
-import { makeSender, smsProvider, textbeeDevice } from "./messaging";
+import { makeSender, sendToMany, smsProvider, textbeeDevice } from "./messaging";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import {
   ensureReferralSchema,
@@ -445,6 +445,20 @@ async function ensureSchema(sql: Sql): Promise<void> {
       eaten BOOLEAN DEFAULT false
     )
   `;
+  // Which day a meal belongs to.
+  //
+  // There was no such column, and nothing ever deleted a row, so a meal plan
+  // only grew: every custom snack a parent added stayed in the set for good
+  // and came back as part of today's plan, still ticked. The read had no
+  // filter and no limit either, so a family two years in was downloading
+  // thousands of rows on every launch and uploading them again on every sync.
+  await sql`ALTER TABLE vita_hero.meal_items ADD COLUMN IF NOT EXISTS day TEXT DEFAULT ''`;
+  // What is already there is somebody's plan as it stands, so it becomes
+  // today's rather than vanishing. Runs once: after this nothing is blank.
+  await sql`
+    UPDATE vita_hero.meal_items SET day = to_char(NOW(), 'YYYY-MM-DD') WHERE COALESCE(day, '') = ''
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS meal_items_profile_day ON vita_hero.meal_items(profile_id, day)`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS vita_hero.streaks (
@@ -1517,10 +1531,12 @@ async function processImport(
 
   // Send invites (only on a real run when requested).
   if (!opts.dryRun && opts.sendInvites) {
-    for (const [last10, e164] of uniquePhones) {
-      const sent = await sendInviteForPhone(sql, env, last10, e164, opts.appOrigin);
-      if (sent) report.invited++;
-    }
+    const outcome = await sendInvitesForPhones(
+      sql, env,
+      [...uniquePhones].map(([last10, e164]) => ({ last10, e164 })),
+      opts.appOrigin
+    );
+    report.invited += outcome.sent.length;
   }
 
   if (!opts.dryRun) {
@@ -1535,35 +1551,88 @@ async function processImport(
   return report;
 }
 
-/** Send an invite SMS to a provisioned parent (respects a resend cooldown). */
-async function sendInviteForPhone(
+/**
+ * Invite a list of provisioned parents.
+ *
+ * This was one phone at a time, and each one cost four subrequests: read the
+ * cooldown, send the text, log it, mark the profile. A roster import for a
+ * school of two hundred families was eight hundred, which is past what the
+ * platform allows, so the invites stopped partway through an import that
+ * reported success.
+ *
+ * It also marked every number as invited whether the text went out or not, so
+ * a school whose provider was misconfigured had its whole roster put behind
+ * the resend cooldown without one message arriving.
+ */
+async function sendInvitesForPhones(
   sql: Sql,
   env: Env,
-  last10: string,
-  e164: string,
+  numbers: Array<{ last10: string; e164: string }>,
   appOrigin: string,
   force = false
-): Promise<boolean> {
-  const profileId = profileIdForPhone(last10);
-  const prof = await sql`SELECT invited_at FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1`;
-  if (!force && prof[0]?.invited_at) {
-    const elapsed = Date.now() - new Date(prof[0].invited_at as string).getTime();
-    if (elapsed < INVITE_RESEND_COOLDOWN_HOURS * 3600_000) return false;
+): Promise<{ sent: string[]; skipped: string[] }> {
+  if (numbers.length === 0) return { sent: [], skipped: [] };
+
+  const byProfile = new Map(numbers.map((n) => [profileIdForPhone(n.last10), n]));
+  const ids = [...byProfile.keys()];
+  const known = await sql`
+    SELECT id, invited_at FROM vita_hero.profiles WHERE id = ANY(${ids})
+  `;
+  const invitedAt = new Map(known.map((r) => [r.id as string, r.invited_at as string | null]));
+
+  const skipped: string[] = [];
+  const due: Array<{ id: string; phone: string; last10: string }> = [];
+  for (const [profileId, n] of byProfile) {
+    const last = invitedAt.get(profileId);
+    if (!force && last) {
+      const elapsed = Date.now() - new Date(last).getTime();
+      if (elapsed < INVITE_RESEND_COOLDOWN_HOURS * 3600_000) { skipped.push(n.e164); continue; }
+    }
+    due.push({ id: profileId, phone: n.e164, last10: n.last10 });
   }
-  const token = await signInviteToken(last10, env);
-  const link = token ? `${appOrigin}/i/${token}` : (env.APP_PLAY_URL || appOrigin);
-  const ok = (await makeSender(env)(
-    e164,
-    `VitaHero: your child's school health report is ready. Open the app and sign in with this mobile number: ${link}`
-  )).ok;
-  await sql`
-    INSERT INTO vita_hero.sms_log (id, phone, type, status)
-    VALUES (${"sms_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5)}, ${e164}, 'INVITE', ${ok ? "SENT" : "FAILED"})
-  `;
-  await sql`
-    UPDATE vita_hero.profiles SET invited_at = NOW(), invite_count = invite_count + 1 WHERE id = ${profileId}
-  `;
-  return ok;
+  if (due.length === 0) return { sent: [], skipped };
+
+  const tokens = await Promise.all(due.map((d) => signInviteToken(d.last10, env)));
+  const linkFor = new Map(due.map((d, i) => [
+    d.id,
+    tokens[i] ? `${appOrigin}/i/${tokens[i]}` : (env.APP_PLAY_URL || appOrigin),
+  ]));
+
+  const outcome = await sendToMany(
+    makeSender(env),
+    due.map((d) => ({ id: d.id, phone: d.phone })),
+    (r: { id: string; phone: string }) =>
+      "VitaHero: your child's school health report is ready. Open the app and " +
+      `sign in with this mobile number: ${linkFor.get(r.id)}`
+  );
+
+  const phoneOf = new Map(due.map((d) => [d.id, d.phone]));
+  await insertRows(
+    sql,
+    `INSERT INTO vita_hero.sms_log (id, phone, type, status)
+     SELECT v.id, v.phone, 'INVITE', v.status
+     FROM (VALUES %VALUES%) AS v(id, phone, status)`,
+    [
+      ...outcome.sent.map((id: string) => [
+        "sms_" + Math.random().toString(36).slice(2, 12), phoneOf.get(id), "SENT",
+      ]),
+      ...outcome.failed.map((f: { id: string }) => [
+        "sms_" + Math.random().toString(36).slice(2, 12), phoneOf.get(f.id), "FAILED",
+      ]),
+    ]
+  );
+
+  // Only the ones that actually went. A failed send must not start the
+  // cooldown, or the number can never be retried.
+  if (outcome.sent.length > 0) {
+    await sql`
+      UPDATE vita_hero.profiles
+      SET invited_at = NOW(), invite_count = COALESCE(invite_count, 0) + 1
+      WHERE id = ANY(${outcome.sent})
+    `;
+  }
+  for (const f of outcome.failed) skipped.push(phoneOf.get(f.id) || f.id);
+  return { sent: outcome.sent.map((id: string) => phoneOf.get(id) || id), skipped };
 }
 
 interface NeonAuthUser {
@@ -2967,16 +3036,30 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const force = body.force === true;
         let invited = 0;
         const skipped: string[] = [];
+        // One read to find out who is provisioned, then one batched send,
+        // rather than four subrequests per number pasted in.
+        const wanted: Array<{ last10: string; e164: string }> = [];
         for (const raw of phones) {
           const norm = normalizePhone(raw);
           if (!norm) { skipped.push(raw); continue; }
-          const prof = await sql`
-            SELECT provisioned FROM vita_hero.profiles WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1
-          `;
-          if (prof.length === 0 || prof[0].provisioned !== true) { skipped.push(norm.e164); continue; }
-          const sent = await sendInviteForPhone(sql, env, norm.last10, norm.e164, url.origin, force);
-          if (sent) invited++; else skipped.push(norm.e164);
+          wanted.push({ last10: norm.last10, e164: norm.e164 });
         }
+        const provisioned = wanted.length
+          ? await sql`
+              SELECT id FROM vita_hero.profiles
+              WHERE id = ANY(${wanted.map((w) => profileIdForPhone(w.last10))})
+                AND provisioned = true
+            `
+          : [];
+        const ready = new Set(provisioned.map((r) => r.id as string));
+        const eligible = wanted.filter((w) => {
+          if (ready.has(profileIdForPhone(w.last10))) return true;
+          skipped.push(w.e164);
+          return false;
+        });
+        const outcome = await sendInvitesForPhones(sql, env, eligible, url.origin, force);
+        invited = outcome.sent.length;
+        skipped.push(...outcome.skipped);
         return json({ invited, skipped });
       }
 
@@ -3473,7 +3556,17 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
       if (path === "/api/meals" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
-        const rows = await sql`SELECT * FROM vita_hero.meal_items WHERE profile_id = ${session.profileId} ORDER BY kid_id, time_slot`;
+        // Today's plan, not every meal the family has ever logged. The limit
+        // is a backstop: six slots a child and a handful of snacks is nowhere
+        // near it, and a family that somehow passes it has something wrong
+        // that silently returning half a plan would hide.
+        const today = new Date().toISOString().slice(0, 10);
+        const rows = await sql`
+          SELECT * FROM vita_hero.meal_items
+          WHERE profile_id = ${session.profileId} AND day = ${today}
+          ORDER BY kid_id, time_slot
+          LIMIT 500
+        `;
         return json(rows);
       }
 
@@ -3482,6 +3575,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const body = await request.json() as Record<string, unknown>[];
         const meals = Array.isArray(body) ? body : [body];
         if (meals.length === 0) return json([], 201);
+        const today = new Date().toISOString().slice(0, 10);
         if (meals.length > 500) {
           return json({ error: "Too many meals in one request", code: "TOO_MANY" }, 413);
         }
@@ -3503,8 +3597,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const values: string[] = [];
         const params: unknown[] = [];
         meals.forEach((m, i) => {
-          const b = i * 9;
-          values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, $${b + 7}, $${b + 8}, $${b + 9})`);
+          const b = i * 10;
+          values.push(
+            `($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4}, $${b + 5}, $${b + 6}, ` +
+            `$${b + 7}, $${b + 8}, $${b + 9}, $${b + 10})`
+          );
           params.push(
             String(m.id || ""),
             session.profileId,
@@ -3515,11 +3612,16 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             String(m.detail || ""),
             Number(m.kcal) || 0,
             m.eaten === true,
+            // The app does not send a day and does not need to: a meal is
+            // logged when it is sent. Deliberately not updated on conflict —
+            // the app re-sends its whole set on every sync, and re-dating
+            // yesterday's plan to today would put the growth straight back.
+            String(m.day || "") || today,
           );
         });
         const rows = await sql.query(
           `INSERT INTO vita_hero.meal_items
-             (id, profile_id, user_id, kid_id, time_slot, name, detail, kcal, eaten)
+             (id, profile_id, user_id, kid_id, time_slot, name, detail, kcal, eaten, day)
            VALUES ${values.join(", ")}
            ON CONFLICT (id) DO UPDATE SET
              user_id = EXCLUDED.user_id,
@@ -3907,10 +4009,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           WHERE id = ${kidId} AND profile_id = ${session.profileId}
           LIMIT 1
         `;
+        // Today's, like /api/meals. This is the same view of the same thing,
+        // and returning every meal ever logged here would put back exactly
+        // what dating the rows was for.
         const mealRows = await sql`
           SELECT * FROM vita_hero.meal_items
           WHERE kid_id = ${kidId} AND profile_id = ${session.profileId}
+            AND day = ${new Date().toISOString().slice(0, 10)}
           ORDER BY time_slot
+          LIMIT 200
         `;
         const streakRows = await sql`
           SELECT * FROM vita_hero.streaks

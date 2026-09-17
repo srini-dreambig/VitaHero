@@ -459,8 +459,59 @@ describe("classes", () => {
       method: "POST", headers: opsHeaders,
       body: JSON.stringify({ academicYear: "2026-27", grades: ["Class 1", "Class 2"], sections: ["A", "B"] }),
     });
+    // Two grades by two sections is four classes. That is the assertion; how
+    // many statements carry them is not — this used to send one INSERT each,
+    // which is two statements a class on an ordinary save, and pinning the
+    // count here is what made batching them look like a regression.
     const inserts = calls.filter((c) => /INSERT INTO vita_hero\.school_classes/.test(c.text));
-    expect(inserts.length).toBe(4);
+    const rows = inserts.flatMap((c) => c.params || []).filter(
+      (p) => typeof p === "string" && /^cls_/.test(p as string));
+    expect(rows.sort()).toEqual([
+      "cls_sch-oak_2026-27_class-1_a",
+      "cls_sch-oak_2026-27_class-1_b",
+      "cls_sch-oak_2026-27_class-2_a",
+      "cls_sch-oak_2026-27_class-2_b",
+    ]);
+  });
+
+  test("inviting a list of parents does not cost four statements a number", async () => {
+    // A roster import for a school of two hundred families used to send four
+    // subrequests per number — read the cooldown, send, log, mark — which is
+    // eight hundred, past what the platform allows. The import reported
+    // success and the invites stopped partway through.
+    handlers = [
+      { match: /SELECT id FROM vita_hero\.profiles/, rows: [
+        { id: "ph_9800000001" }, { id: "ph_9800000002" }, { id: "ph_9800000003" },
+        { id: "ph_9800000004" }, { id: "ph_9800000005" },
+      ] },
+    ];
+    const r = await call("/api/admin/invite", {
+      method: "POST", headers: opsHeaders,
+      body: JSON.stringify({ phones: [
+        "9800000001", "9800000002", "9800000003", "9800000004", "9800000005",
+      ] }),
+    });
+    expect(r.status).toBe(200);
+    // Whatever the statements are, there must not be one per number: the
+    // ceiling is deliberately loose and still far below five times anything.
+    const touching = calls.filter((c) => /profiles|sms_log/.test(c.text));
+    expect(touching.length).toBeLessThan(5);
+  });
+
+  test("an invite that could not be sent does not start the cooldown", async () => {
+    // Marking a number invited when nothing went out puts it behind the resend
+    // cooldown, so a school whose provider is misconfigured has its whole
+    // roster silently locked out of ever being invited.
+    handlers = [
+      { match: /SELECT id FROM vita_hero\.profiles/, rows: [{ id: "ph_9800000009" }] },
+    ];
+    // No Twilio credentials in ENV, so every send fails.
+    await call("/api/admin/invite", {
+      method: "POST", headers: opsHeaders,
+      body: JSON.stringify({ phones: ["9800000009"] }),
+    });
+    const marked = calls.filter((c) => /UPDATE vita_hero\.profiles[\s\S]*invited_at/.test(c.text));
+    expect(marked).toEqual([]);
   });
 
   test("requires a body it can understand", async () => {

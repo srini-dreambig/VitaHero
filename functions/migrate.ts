@@ -42,7 +42,7 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

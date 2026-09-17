@@ -41,12 +41,28 @@ export async function kidHealthHistory(sql: Sql, profileId: string, kidId: strin
     ORDER BY sc.date DESC
   `;
 
+  // Every camp's findings in one read rather than one read per camp. A child
+  // who has been in the programme since Class 1 has a row here for each year,
+  // and this is the screen their guardian opens to see the history.
+  const campIds = rows.map((r) => r.camp_id as string);
+  const findings = campIds.length
+    ? await sql`
+        SELECT camp_id, check_type, flag, value_text, rationale, detail
+        FROM vita_hero.camp_findings
+        WHERE kid_id = ${kidId} AND camp_id = ANY(${campIds})
+      `
+    : [];
+  const byCamp = new Map<string, Record<string, unknown>[]>();
+  for (const f of findings) {
+    const id = f.camp_id as string;
+    const list = byCamp.get(id) || [];
+    list.push(f);
+    byCamp.set(id, list);
+  }
+
   const camps = [];
   for (const r of rows) {
-    const f = await sql`
-      SELECT check_type, flag, value_text, rationale, detail FROM vita_hero.camp_findings
-      WHERE camp_id = ${r.camp_id as string} AND kid_id = ${kidId}
-    `;
+    const f = byCamp.get(r.camp_id as string) || [];
     camps.push({
       campId: r.camp_id as string,
       title: r.title as string,
@@ -394,17 +410,50 @@ export async function guardianNudges(sql: Sql, profileId: string) {
     WHERE profile_id = ${profileId} AND COALESCE(status,'ACTIVE') = 'ACTIVE'
   `;
   const nudges: Array<{ kidId: string; kidName: string; kind: string; priority: number; text: string }> = [];
+  const kidIds = kids.map((k) => k.id as string);
+
+  // Two reads for the whole family rather than two per child. This is the
+  // home screen, so it ran on every open, and it grew with the number of
+  // children on the account.
+  const [openRows, trendRows] = kidIds.length
+    ? await Promise.all([
+        // Anything outstanding beats anything else we might say; DISTINCT ON
+        // keeps the most urgent one per child, which is what the loop's
+        // ORDER BY ... LIMIT 1 was doing one child at a time.
+        sql`
+          SELECT DISTINCT ON (kid_id) kid_id, specialty, urgency, due_by
+          FROM vita_hero.referrals
+          WHERE kid_id = ANY(${kidIds}) AND status IN ('OPEN','BOOKED')
+          ORDER BY kid_id, CASE urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END
+        `,
+        // I3 — recognise a child who got better. This is what earns retention.
+        sql`
+          WITH ranked AS (
+            SELECT f.kid_id, sc.date,
+              MAX(CASE f.flag WHEN 'ALERT' THEN 2 WHEN 'WATCH' THEN 1 ELSE 0 END) AS severity,
+              ROW_NUMBER() OVER (PARTITION BY f.kid_id ORDER BY sc.date DESC) AS rn
+            FROM vita_hero.camp_findings f
+            JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
+            JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
+            WHERE f.kid_id = ANY(${kidIds}) AND p.status = 'RELEASED' AND f.flag <> 'NOT_MEASURED'
+            GROUP BY f.kid_id, sc.date
+          )
+          SELECT kid_id,
+                 MAX(severity) FILTER (WHERE rn = 1) AS latest,
+                 MAX(severity) FILTER (WHERE rn = 2) AS previous
+          FROM ranked GROUP BY kid_id
+        `,
+      ])
+    : [[], []];
+
+  const openByKid = new Map(openRows.map((r) => [r.kid_id as string, r]));
+  const trendByKid = new Map(trendRows.map((r) => [r.kid_id as string, r]));
 
   for (const k of kids) {
     const kidId = k.id as string;
     const name = k.name as string;
 
-    // Anything outstanding beats anything else we might say.
-    const open = await sql`
-      SELECT specialty, urgency, due_by FROM vita_hero.referrals
-      WHERE kid_id = ${kidId} AND status IN ('OPEN','BOOKED')
-      ORDER BY CASE urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END LIMIT 1
-    `;
+    const open = openByKid.has(kidId) ? [openByKid.get(kidId)!] : [];
     if (open.length > 0) {
       const u = (open[0].urgency as string) || "ROUTINE";
       nudges.push({
@@ -416,21 +465,7 @@ export async function guardianNudges(sql: Sql, profileId: string) {
       continue;
     }
 
-    // I3 — recognise a child who got better. This is what earns retention.
-    const trend = await sql`
-      WITH ranked AS (
-        SELECT sc.date,
-          MAX(CASE f.flag WHEN 'ALERT' THEN 2 WHEN 'WATCH' THEN 1 ELSE 0 END) AS severity,
-          ROW_NUMBER() OVER (ORDER BY sc.date DESC) AS rn
-        FROM vita_hero.camp_findings f
-        JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
-        JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
-        WHERE f.kid_id = ${kidId} AND p.status = 'RELEASED' AND f.flag <> 'NOT_MEASURED'
-        GROUP BY sc.date
-      )
-      SELECT (SELECT severity FROM ranked WHERE rn = 1) AS latest,
-             (SELECT severity FROM ranked WHERE rn = 2) AS previous
-    `;
+    const trend = trendByKid.has(kidId) ? [trendByKid.get(kidId)!] : [];
     const latest = trend[0]?.latest as number | null;
     const previous = trend[0]?.previous as number | null;
     if (latest !== null && previous !== null && latest < previous) {

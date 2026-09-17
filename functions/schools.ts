@@ -9,19 +9,7 @@
 // Every handler returns plain data; the entrypoint wraps it in a JSON response.
 // Errors are thrown as ApiError so the entrypoint can map them to status codes.
 
-import {
-  Sql,
-  ROLE_ADMIN,
-  ROLE_SCHOOL_ADMIN,
-  ROLE_SUPERADMIN,
-  isOpsRole,
-  normalizePhone,
-  profileIdForPhone,
-  slugify,
-  tidyName,
-  generatePartnerCode,
-  currentAcademicYear,
-} from "./common";
+import { ROLE_ADMIN, ROLE_SCHOOL_ADMIN, ROLE_SUPERADMIN, Sql, currentAcademicYear, generatePartnerCode, insertRows, isOpsRole, normalizePhone, profileIdForPhone, slugify, tidyName } from "./common";
 
 export class ApiError extends Error {
   status: number;
@@ -510,30 +498,51 @@ export async function setClasses(
   `;
   const removed: string[] = [];
   const blocked: string[] = [];
-  for (const row of existing) {
+  const dropping = existing.filter((row) => {
     const key = `${schoolId}|${year}|${row.grade as string}|${(row.section as string) || ""}`;
-    if (keep.includes(key)) continue;
-    const inUse = await sql`
-      SELECT 1 FROM vita_hero.kids
-      WHERE school_id = ${schoolId} AND academic_year = ${year}
-        AND grade = ${row.grade as string} AND COALESCE(section, '') = ${(row.section as string) || ""}
-      LIMIT 1
-    `;
-    if (inUse.length > 0) {
-      blocked.push(`${row.grade as string} ${(row.section as string) || ""}`.trim());
+    return !keep.includes(key);
+  });
+
+  // Which of the classes being dropped still have a child in them — asked once
+  // for all of them rather than once each. A secondary school with twelve
+  // grades and four sections was two statements a class, on an ordinary
+  // administrative save.
+  const inUse = dropping.length
+    ? await sql`
+        SELECT DISTINCT grade, COALESCE(section, '') AS section
+        FROM vita_hero.kids
+        WHERE school_id = ${schoolId} AND academic_year = ${year}
+          AND grade = ANY(${dropping.map((r) => r.grade as string)})
+      `
+    : [];
+  const occupied = new Set(inUse.map((r) => `${r.grade as string}|${r.section as string}`));
+
+  const toDelete: string[] = [];
+  for (const row of dropping) {
+    const label = `${row.grade as string} ${(row.section as string) || ""}`.trim();
+    if (occupied.has(`${row.grade as string}|${(row.section as string) || ""}`)) {
+      blocked.push(label);
       continue;
     }
-    await sql`DELETE FROM vita_hero.school_classes WHERE id = ${row.id as string}`;
-    removed.push(`${row.grade as string} ${(row.section as string) || ""}`.trim());
+    toDelete.push(row.id as string);
+    removed.push(label);
+  }
+  if (toDelete.length > 0) {
+    await sql`DELETE FROM vita_hero.school_classes WHERE id = ANY(${toDelete})`;
   }
 
-  for (const p of pairs) {
-    const id = `cls_${slugify(schoolId)}_${slugify(year)}_${slugify(p.grade)}_${slugify(p.section) || "na"}`;
-    await sql`
-      INSERT INTO vita_hero.school_classes (id, school_id, academic_year, grade, section)
-      VALUES (${id}, ${schoolId}, ${year}, ${p.grade}, ${p.section})
-      ON CONFLICT (school_id, academic_year, grade, section) DO NOTHING
-    `;
+  if (pairs.length > 0) {
+    await insertRows(
+      sql,
+      `INSERT INTO vita_hero.school_classes (id, school_id, academic_year, grade, section)
+       SELECT v.id, v.school_id, v.academic_year, v.grade, v.section
+       FROM (VALUES %VALUES%) AS v(id, school_id, academic_year, grade, section)
+       ON CONFLICT (school_id, academic_year, grade, section) DO NOTHING`,
+      pairs.map((p) => [
+        `cls_${slugify(schoolId)}_${slugify(year)}_${slugify(p.grade)}_${slugify(p.section) || "na"}`,
+        schoolId, year, p.grade, p.section,
+      ])
+    );
   }
 
   // Keep the school's headline year in step with the classes just defined.
