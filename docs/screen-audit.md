@@ -787,6 +787,81 @@ chunked at a hundred rows, or over a fixed list of tables, or over seed data. Th
 ones named above were the ones whose size is a school's size. `if (ok)` in the
 console is a callback, not a result.
 
+## A pass over what had not been looked at
+
+Six dimensions this review had never swept. Two came back clean, four did not.
+
+### Clean: authorisation
+
+Every one of the 132 routes has a check in an enclosing scope. Fourteen queries
+key on an id from the request without naming the caller in the same statement,
+and every one has a `kidOwnedByProfile`, an enrolment check or an admin guard
+on the line above. No IDOR found.
+
+### The day turned over at half past five in the morning
+
+Everything that means "today" to a person — which day a meal belongs to,
+whether a referral is overdue, which academic year it is, when a referral is
+due — was computed in UTC, because that is what `toISOString()` gives you. The
+schools are in India.
+
+The visible consequence was in meals, and it is one I introduced the day
+before. The app stamps its streak with the device's own `LocalDate`; the server
+filed the meal under UTC's. A parent logging something after midnight had the
+streak move to the new day while the meal went into the old one, and then
+vanish from today's plan at 05:30. The two ends were keeping different
+calendars.
+
+`programmeToday()` in `common.ts` names the zone once and is overridable, so a
+programme that runs somewhere else sets `PROGRAMME_TZ` rather than discovering
+this the same way.
+
+### A child whose sex was not recorded was measured as a girl
+
+A growth percentile only means anything against a reference for the child's
+sex. Both implementations asked `isBoy()` — a boolean — so a child recorded as
+"Other", or not recorded at all, was measured against the girls' table and
+shown a percentile as though it were the right one. At fourteen the two medians
+are four centimetres and two and a half kilograms apart, which is the
+difference between a flag and no flag.
+
+Both sides now return the percentile from **whichever reference reads lower**,
+and the screener's rationale says the sex was not recorded. Guessing the other
+way means telling a family a child is fine when the other table would have
+flagged them.
+
+### The clinical reference exists twice and nothing made it agree
+
+`clinical.ts` decides what a screener is told and what the physician reviews.
+`GrowthStandards.kt` draws the chart a parent sees and labels their child on
+it. Same WHO medians, same spreads, same band edges — kept in step by hand.
+
+They do agree today. `functions/growth.test.ts` reads both and compares them, so
+a number changed in one and not the other fails rather than telling a family
+their child is fine on a chart while the record says otherwise. Changing one
+digit in the Kotlin table fails that test.
+
+### A 500 handed the caller the database's own words
+
+Eleven routes returned the raw exception on a server error. A Postgres error
+names the table, the column and the constraint, and often echoes the value that
+tripped it — so any signed-in parent could read a piece of the schema back. The
+detail goes to the log now and the caller gets a sentence and a code.
+
+`/api/admin/schema` still returns the raw error and the table list. That is the
+point of it, it is behind the ops key, and it says so.
+
+Writing that fix broke something the test caught: a blanket 500 swallowed
+`ApiError`, so a 413 for "too much" and a 403 for "not yours" both became
+"something went wrong". The handler passes those through.
+
+### Two request lists could be made to cost a thousand messages
+
+`body.phones` on the invite route and `body.entries` on the camp-day sync had
+no cap, and each element costs a text or a statement. They are refused now
+rather than truncated: truncating a sync would come back reporting success
+having written half a camp.
+
 ## Still open
 
 The Android app has never been compiled. `dl.google.com` is blocked by policy
