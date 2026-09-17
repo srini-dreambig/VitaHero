@@ -3,6 +3,7 @@
 // Auth delegates to Neon Auth (Better Auth) for Google OAuth + email/password.
 // Phone OTP via Twilio is independent.
 // Updated: 2026-06-15 — email/password + Neon Auth social sign-in (idToken exchange, no callbackURL)
+// Updated: 2026-09-17 — merged audit work deployed (schema v8, Firebase phone verify retained)
 
 import { neon } from "@neondatabase/serverless";
 import {

@@ -199,7 +199,7 @@ fun FoodRecognitionScreen(
                     Text(t(S.detectedFoodTitle), style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(12.dp))
                 }
-                itemsIndexed(detectedItems, key = { i, it -> "$i-${it.label}" }) { _, item ->
+                itemsIndexed(detectedItems, key = { i, it -> "$i-${it.name}" }) { _, item ->
                     val logged = item.name in loggedItems
                     HeroCard(
                         Modifier
