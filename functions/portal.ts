@@ -491,7 +491,7 @@ export const PORTAL_HTML = `<!doctype html>
       // first use, so nothing could clear what it did not know about. Several
       // of them name a child: the access trail, the screening capture in
       // progress, the reviewer's draft, the symptom history.
-      inFlight: 0, scope: 0,
+      inFlight: 0, scope: 0, syncing: false,
       accessDays: 30, oversightTab: "partners", partners: null, childTrail: null,
       childQuery: "", screenData: null, reviewEdit: null, symptoms: null,
       smsStatus: null, saved: null, search: "", showAll: false, dragOver: false,
@@ -670,7 +670,12 @@ export const PORTAL_HTML = `<!doctype html>
       entry.at = new Date().toISOString();
       q.push(entry);
     }
-    return queueSave(campId, q) ? q.length : queueLoad(campId).length;
+    // -1 when the device would not take it. It used to answer with the length
+    // the queue already had, which the caller read as success: the console then
+    // said "Saved on this device", cleared the form, and the child's
+    // measurements were gone — the one copy of them was the form it had just
+    // thrown away.
+    return queueSave(campId, q) ? q.length : -1;
   }
   function queueCount() {
     return S.camp ? queueLoad(S.camp.camp.id).length : 0;
@@ -678,27 +683,65 @@ export const PORTAL_HTML = `<!doctype html>
 
   function isOffline() { return S.forceOffline || !navigator.onLine; }
 
+  /**
+   * Send the queue, and put back only what the send did not cover.
+   *
+   * The old version read the queue, posted it, and on the way back wrote
+   * "queue = what the server refused". A screener does not stop working while a
+   * sync is in the air — it fires the moment signal returns, in a hall, with
+   * children still in the line — and every capture recorded during those
+   * seconds was in the queue this wrote over. It was a morning's measurements,
+   * gone, with a green "synced" message on the screen.
+   *
+   * So the queue is re-read when the answer comes back, and a child is only
+   * removed if the entry still there is the one that was sent, unchanged. What
+   * the server refused goes too: those refusals are all decisions about the
+   * record — no consent, already released, not on this camp — and the same
+   * bytes will be refused forever. They are named to the screener instead,
+   * because a capture that cannot be saved is something a person has to deal
+   * with, not a badge that never clears.
+   */
   function syncQueue(campId, done) {
     var q = queueLoad(campId);
     if (q.length === 0) { if (done) done({ applied: 0, rejected: [] }); return; }
+    // The online event can fire more than once and the button is still there.
+    // Two syncs of the same queue would each write the other's result away.
+    if (S.syncing) return;
+    S.syncing = true;
+
+    var sentAt = {};
+    q.forEach(function (e) { sentAt[e.kidId] = e.at || ""; });
+
+    S.inFlight = (S.inFlight || 0) + 1;
     set({ busy: true, error: "" });
+    function settled() {
+      S.syncing = false;
+      S.inFlight = Math.max(0, S.inFlight - 1);
+      S.busy = S.inFlight > 0;
+    }
+
     api("/api/admin/camps/" + campId + "/screening-bulk", { method: "POST", body: { entries: q } })
       .then(function (r) {
-        S.busy = false;
-        // Keep only what the server refused, so nothing is silently lost.
-        var bad = {};
-        (r.rejected || []).forEach(function (x) { bad[x.kidId] = x; });
-        var left = q.filter(function (e) { return bad[e.kidId]; });
+        settled();
+        var left = queueLoad(campId).filter(function (e) {
+          // Recorded, or corrected, since this request left. Not ours to drop.
+          return !(e.kidId in sentAt) || (e.at || "") !== sentAt[e.kidId];
+        });
         queueSave(campId, left);
         S.syncRejects = r.rejected || [];
         S.notice = r.applied + " children synced"
-          + (left.length ? ", " + left.length + " could not be saved" : "") + ".";
+          + (S.syncRejects.length ? ", " + S.syncRejects.length + " refused" : "")
+          + (left.length ? ", " + left.length + " recorded since and still to send" : "") + ".";
         S.participants = null; S.screenData = null;
         if (done) done(r);
         refreshCamp();
       })
       .catch(function (e) {
-        set({ busy: false, error: "Could not sync: " + (e.message || "network error") });
+        // The queue is untouched, deliberately: nobody knows how far the server
+        // got, and sending it again is safe — every write it makes is an upsert
+        // keyed on the camp, the child and the check.
+        settled();
+        set({ error: "Could not sync: " + (e.message || "network error") });
       });
   }
 
@@ -3155,11 +3198,22 @@ export const PORTAL_HTML = `<!doctype html>
     var selected = S.screenKid;
     return el("div", null,
       campDayBar(pack, queued, offline),
+      // Named, not counted. These captures are off the queue for good — the
+      // server will refuse the same bytes every time — so "2 could not be
+      // saved" left a screener with no way to know which two children to go
+      // back to, or to write the measurement down on paper instead.
       S.syncRejects && S.syncRejects.length
         ? el("div", { class: "msg err" },
-            el("b", null, S.syncRejects.length + " could not be saved: "),
-            S.syncRejects.map(function (r) { return r.reason; })
-              .filter(function (v, i, a) { return a.indexOf(v) === i; }).join("; "))
+            el("b", null, S.syncRejects.length === 1
+              ? "One child could not be saved: "
+              : S.syncRejects.length + " children could not be saved: "),
+            S.syncRejects.map(function (r) {
+              var who = null;
+              for (var i = 0; i < source.length; i++) {
+                if (source[i].kidId === r.kidId) { who = source[i]; break; }
+              }
+              return (who ? who.name : r.kidId) + " \u2014 " + r.reason;
+            }).join("; "))
         : null,
       el("div", { class: "split" },
         el("div", null,
@@ -3311,7 +3365,11 @@ export const PORTAL_HTML = `<!doctype html>
 
     function mark(v) {
       if (isOffline()) {
-        queuePush(S.camp.camp.id, { kidId: ch.kidId, attendance: v });
+        if (queuePush(S.camp.camp.id, { kidId: ch.kidId, attendance: v }) < 0) {
+          // queueSave has already said what is wrong. Do not claim otherwise.
+          render();
+          return;
+        }
         d.attendance = v;
         S.notice = ch.name + " marked " + v.toLowerCase() + ". Saved on this device.";
         render();
@@ -3330,6 +3388,13 @@ export const PORTAL_HTML = `<!doctype html>
       if (findings.length === 0) { set({ error: "Record at least one measurement before saving." }); return; }
       if (isOffline()) {
         var n = queuePush(S.camp.camp.id, { kidId: ch.kidId, findings: findings, attendance: d.attendance });
+        if (n < 0) {
+          // The device is full and this capture is not on it. Keep the form
+          // open: what is on screen is the only copy of these measurements, and
+          // the screener can sync and save again, or write them down.
+          render();
+          return;
+        }
         // No flags to show: the clinical rules run on the server, and guessing
         // them here would risk the device and the record disagreeing.
         S.saved = null;

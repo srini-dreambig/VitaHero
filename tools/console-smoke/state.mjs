@@ -241,5 +241,225 @@ async function open() {
   await p.close();
 }
 
+// ── what a screener records while the sync is in the air ────
+{
+  const p = await b.newPage({ viewport: { width: 1280, height: 1000 } });
+  const errs = [];
+  p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+
+  await p.addInitScript(() => {
+    localStorage.setItem("vh_console", JSON.stringify({
+      mode: "key", key: "k", name: "Ops", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+    }));
+    // Two captures already waiting, and a third recorded while the sync of
+    // those two is still in flight.
+    localStorage.setItem("vh_queue_cmp_1", JSON.stringify([
+      { kidId: "k1", attendance: "PRESENT", findings: [{ checkType: "Vision", detail: {} }],
+        at: "2026-09-17T09:00:00.000Z" },
+      { kidId: "k2", attendance: "PRESENT", findings: [{ checkType: "Vision", detail: {} }],
+        at: "2026-09-17T09:01:00.000Z" },
+    ]));
+    const camp = {
+      camp: {
+        id: "cmp_1", schoolId: "sch_1", schoolName: "Silver Oaks", title: "Annual Camp",
+        date: "2026-09-18", status: "IN_PROGRESS", checks: ["Vision"], grades: ["Class 4"],
+        participants: 3, consented: 3, declined: 0, pendingConsent: 0, present: 0,
+        absent: 0, screened: 0, awaitingReview: 0, approved: 0, released: 0, urgent: 0,
+        photosEnabled: false, academicYear: "2026-27", sections: [], capacity: 200,
+        consentDeadline: "", venue: "", time: "", description: "", releasedAt: "", resultSummary: "",
+      },
+      staff: [],
+      can: { schedule: true, screen: true, review: true },
+    };
+    const participants = [
+      { kidId: "k1", name: "Asha One", grade: "Class 4", section: "A", studentRef: "1",
+        consentStatus: "GRANTED", consentChecks: ["Vision"], attendance: "UNKNOWN",
+        status: "NOT_SCREENED", urgency: "NONE", guardianName: "G1", guardianPhone: "+911" },
+      { kidId: "k2", name: "Bala Two", grade: "Class 4", section: "A", studentRef: "2",
+        consentStatus: "GRANTED", consentChecks: ["Vision"], attendance: "UNKNOWN",
+        status: "NOT_SCREENED", urgency: "NONE", guardianName: "G2", guardianPhone: "+912" },
+      { kidId: "k3", name: "Chitra Three", grade: "Class 4", section: "A", studentRef: "3",
+        consentStatus: "GRANTED", consentChecks: ["Vision"], attendance: "UNKNOWN",
+        status: "NOT_SCREENED", urgency: "NONE", guardianName: "G3", guardianPhone: "+913" },
+    ];
+    const D = {
+      "/api/admin/overview": { schools: 1, students: 3, guardians: 3, guardiansActivated: 1,
+        campStatus: {}, upcoming: [] },
+      "/api/admin/analytics": { funnel: {}, prevalence: [], months: [], bySchool: [] },
+      "/api/admin/schools": { schools: [{ id: "sch_1", name: "Silver Oaks", city: "Hyderabad",
+        partnerCode: "SO-1", academicYear: "2026-27", students: 3, camps: 1 }] },
+      "/api/admin/schools/sch_1": { school: { id: "sch_1", name: "Silver Oaks", city: "Hyderabad",
+        district: "", contactName: "", contactPhone: "", contactEmail: "", academicYear: "2026-27",
+        campCadence: "ANNUAL", checksOffered: ["Vision"], description: "", partnerCode: "SO-1" } },
+      "/api/admin/schools/sch_1/roster": { total: 0, academicYear: "2026-27", students: [] },
+      "/api/admin/schools/sch_1/camps": { camps: [{ id: "cmp_1", title: "Annual Camp",
+        date: "2026-09-18", status: "IN_PROGRESS", participants: 3, consented: 3, screened: 0,
+        released: 0, schoolName: "Silver Oaks" }] },
+      "/api/admin/camps/cmp_1": camp,
+      "/api/admin/camps/cmp_1/participants": { participants: participants },
+    };
+    window.__bulk = 0;
+    const real = window.fetch;
+    window.fetch = (u, o) => {
+      const path = new URL(u, location.origin).pathname;
+      if (/screening-bulk/.test(path)) {
+        window.__bulk++;
+        // While this is in the air, a third child is measured — exactly what
+        // happens when signal returns and the line is still moving.
+        const q = JSON.parse(localStorage.getItem("vh_queue_cmp_1") || "[]");
+        q.push({ kidId: "k3", attendance: "PRESENT",
+          findings: [{ checkType: "Vision", detail: {} }], at: "2026-09-17T09:05:00.000Z" });
+        localStorage.setItem("vh_queue_cmp_1", JSON.stringify(q));
+        return new Promise((r) => setTimeout(() => r(new Response(
+          JSON.stringify({ applied: 2, rejected: [] }),
+          { headers: { "content-type": "application/json" } })), 500));
+      }
+      let body = D[path];
+      if (body === undefined) body = path.startsWith("/api/") ? {} : null;
+      if (body === null) return real(u, o);
+      return Promise.resolve(new Response(JSON.stringify(body),
+        { headers: { "content-type": "application/json" } }));
+    };
+  });
+
+  await p.goto(URL, { waitUntil: "networkidle" });
+  await p.waitForTimeout(500);
+  await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+  await p.waitForTimeout(300);
+  await p.getByText("Silver Oaks").first().click();
+  await p.waitForTimeout(600);
+  await p.locator(".navi", { hasText: /^All camps$/ }).first().click();
+  await p.waitForTimeout(500);
+  await p.getByText("Annual Camp").first().click();
+  await p.waitForTimeout(700);
+
+  // The online event is how a sync starts when signal comes back in the hall.
+  // Fired twice, because it does fire more than once in practice.
+  await p.evaluate(() => window.dispatchEvent(new Event("online")));
+  await p.evaluate(() => window.dispatchEvent(new Event("online")));
+  await p.waitForTimeout(1600);
+
+  const left = await p.evaluate(() =>
+    JSON.parse(localStorage.getItem("vh_queue_cmp_1") || "[]").map((e) => e.kidId));
+  const bulks = await p.evaluate(() => window.__bulk);
+
+  check("the sync actually ran", bulks >= 1);
+  check("two online events do not start two syncs", bulks === 1);
+  check("a capture recorded during the sync survives it", left.includes("k3"));
+  check("the captures that were sent are off the queue",
+    !left.includes("k1") && !left.includes("k2"));
+
+  check("sync race: no page errors", errs.length === 0);
+  if (errs.length) console.log(errs.join("\n"));
+  await p.close();
+}
+
+// ── a capture the device will not take ──────────────────────
+{
+  const p = await b.newPage({ viewport: { width: 1280, height: 1000 } });
+  const errs = [];
+  p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
+
+  await p.addInitScript(() => {
+    localStorage.setItem("vh_console", JSON.stringify({
+      mode: "key", key: "k", name: "Ops", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+    }));
+    // The pack the screener downloaded before walking into the hall. Offline,
+    // the console builds the capture form out of this rather than the network.
+    localStorage.setItem("vh_pack_cmp_1", JSON.stringify({
+      camp: { id: "cmp_1", title: "Annual Camp", checks: ["Vision"], photosEnabled: false },
+      participants: [{
+        kidId: "k1", name: "Asha One", grade: "Class 4", section: "A", studentRef: "1",
+        consentStatus: "GRANTED", checks: ["Vision"], attendance: "UNKNOWN",
+        status: "NOT_SCREENED", findings: [], guardianName: "G1",
+      }],
+    }));
+    const camp = {
+      camp: {
+        id: "cmp_1", schoolId: "sch_1", schoolName: "Silver Oaks", title: "Annual Camp",
+        date: "2026-09-18", status: "IN_PROGRESS", checks: ["Vision"], grades: ["Class 4"],
+        participants: 1, consented: 1, declined: 0, pendingConsent: 0, present: 0,
+        absent: 0, screened: 0, awaitingReview: 0, approved: 0, released: 0, urgent: 0,
+        photosEnabled: false, academicYear: "2026-27", sections: [], capacity: 200,
+        consentDeadline: "", venue: "", time: "", description: "", releasedAt: "", resultSummary: "",
+      },
+      staff: [],
+      // A screener's view: no scheduling, no review — so the camp opens on the
+      // camp-day tab, which is where captures are made.
+      can: { schedule: false, screen: true, review: false },
+    };
+    const D = {
+      "/api/admin/overview": { schools: 1, students: 1, guardians: 1, guardiansActivated: 1,
+        campStatus: {}, upcoming: [] },
+      "/api/admin/analytics": { funnel: {}, prevalence: [], months: [], bySchool: [] },
+      "/api/admin/schools": { schools: [{ id: "sch_1", name: "Silver Oaks", city: "Hyderabad",
+        partnerCode: "SO-1", academicYear: "2026-27", students: 1, camps: 1 }] },
+      "/api/admin/schools/sch_1": { school: { id: "sch_1", name: "Silver Oaks", city: "Hyderabad",
+        district: "", contactName: "", contactPhone: "", contactEmail: "", academicYear: "2026-27",
+        campCadence: "ANNUAL", checksOffered: ["Vision"], description: "", partnerCode: "SO-1" } },
+      "/api/admin/schools/sch_1/roster": { total: 0, academicYear: "2026-27", students: [] },
+      "/api/admin/schools/sch_1/camps": { camps: [{ id: "cmp_1", title: "Annual Camp",
+        date: "2026-09-18", status: "IN_PROGRESS", participants: 1, consented: 1, screened: 0,
+        released: 0, schoolName: "Silver Oaks" }] },
+      "/api/admin/camps/cmp_1": camp,
+      "/api/admin/camps/cmp_1/participants": { participants: [
+        { kidId: "k1", name: "Asha One", grade: "Class 4", section: "A", studentRef: "1",
+          consentStatus: "GRANTED", consentChecks: ["Vision"], attendance: "UNKNOWN",
+          status: "NOT_SCREENED", urgency: "NONE", guardianName: "G1", guardianPhone: "+911" },
+      ] },
+    };
+    const real = window.fetch;
+    window.fetch = (u, o) => {
+      const path = new URL(u, location.origin).pathname;
+      let body = D[path];
+      if (body === undefined) body = path.startsWith("/api/") ? {} : null;
+      if (body === null) return real(u, o);
+      return Promise.resolve(new Response(JSON.stringify(body),
+        { headers: { "content-type": "application/json" } }));
+    };
+  });
+
+  await p.goto(URL, { waitUntil: "networkidle" });
+  await p.waitForTimeout(500);
+  await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+  await p.waitForTimeout(300);
+  await p.getByText("Silver Oaks").first().click();
+  await p.waitForTimeout(600);
+  await p.locator(".navi", { hasText: /^All camps$/ }).first().click();
+  await p.waitForTimeout(500);
+  await p.getByText("Annual Camp").first().click();
+  await p.waitForTimeout(700);
+
+  // A device with no room left, and no signal to sync it away.
+  await p.evaluate(() => {
+    const store = window.localStorage;
+    const realSet = store.setItem.bind(store);
+    Storage.prototype.setItem = function (k, v) {
+      if (String(k).indexOf("vh_queue_") === 0) {
+        const e = new Error("QuotaExceededError");
+        e.name = "QuotaExceededError";
+        throw e;
+      }
+      return realSet(k, v);
+    };
+    Object.defineProperty(navigator, "onLine", { get: () => false, configurable: true });
+    window.dispatchEvent(new Event("offline"));
+  });
+  await p.waitForTimeout(300);
+
+  await p.getByText("Asha One").first().click();
+  await p.waitForTimeout(500);
+  await p.getByRole("button", { name: /^Present$/ }).first().click();
+  await p.waitForTimeout(400);
+
+  const t = await p.$eval("#root", (n) => n.innerText);
+  check("a full device says so", /run out of storage/i.test(t));
+  check("and does not claim the capture was saved", !/Saved on this device/i.test(t));
+
+  check("full device: no page errors", errs.length === 0);
+  if (errs.length) console.log(errs.join("\n"));
+  await p.close();
+}
+
 await b.close();
 process.exit(failures ? 1 : 0);
