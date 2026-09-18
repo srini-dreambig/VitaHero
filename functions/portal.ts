@@ -5284,6 +5284,84 @@ export const PORTAL_HTML = `<!doctype html>
     try { return fn(); } catch (e) { return brokenScreen(e); }
   }
 
+  // ── the address bar ──
+  //
+  // The console had no routing at all: which screen you were on lived in S and
+  // nowhere else, so the URL never changed. That is four things missing rather
+  // than one — you could not send somebody a link to a school, the back button
+  // did nothing, a refresh dropped you back at the overview, and a bookmark
+  // was useless.
+  //
+  // Hash routing rather than paths, because the worker serves this one page at
+  // /admin and would have to learn to serve it for every sub-path too. The
+  // hash never reaches the server, so nothing on that side has to change.
+
+  /** Where we are, as a path. The one place that decides what a screen's address is. */
+  function currentPath() {
+    if (S.view === "school" && S.school) return "/schools/" + S.school.id + "/" + S.schoolTab;
+    if (S.view === "camp" && S.camp) return "/camps/" + S.camp.camp.id + "/" + S.campTab;
+    if (S.view === "oversight") return "/oversight/" + (S.oversightTab || "partners");
+    if (S.view === "newSchool") return "/schools/new";
+    if (S.view === "schools") return "/schools";
+    if (S.view === "hospitals") return "/hospitals";
+    if (S.view === "library") return "/library";
+    if (S.view === "mycamps") return "/my-camps";
+    return "/overview";
+  }
+
+  // What we last put in the address bar. Compared before writing, so a render
+  // that did not change the screen does not add a history entry — otherwise
+  // typing in a search box would fill the back button with itself.
+  var shownPath = "";
+
+  function syncPath() {
+    if (!S.auth) return;
+    var want = currentPath();
+    if (want === shownPath) return;
+    // Not while a screen is still arriving.
+    //
+    // Opening a school renders once to show it is working, and at that moment
+    // the screen on display is still the one being left — so pushing here adds
+    // a history entry for where you just were. The back button then walked
+    // back through those instead of through the screens: one press worked, the
+    // second went nowhere.
+    if (S.inFlight > 0) return;
+    shownPath = want;
+    try {
+      if (("#" + want) !== location.hash) history.pushState(null, "", "#" + want);
+    } catch (e) {
+      // A sandboxed frame can refuse history. The console still works; only
+      // the address bar stops keeping up.
+    }
+  }
+
+  /**
+   * Go where an address says.
+   *
+   * Anything unrecognised falls through to the overview rather than showing a
+   * blank screen: a link with a typo in it, or one to a school somebody has
+   * since deleted, should land you somewhere usable.
+   */
+  function applyPath(path) {
+    var parts = String(path || "").replace(/^#/, "").split("/").filter(Boolean);
+    var head = parts[0] || "overview";
+    shownPath = "/" + parts.join("/");
+
+    if (head === "schools") {
+      if (!parts[1]) return loadSchools();
+      if (parts[1] === "new") { S.form = null; return set({ view: "newSchool", error: "" }); }
+      return openSchool(parts[1], parts[2]);
+    }
+    if (head === "camps" && parts[1]) return openCamp(parts[1], parts[2]);
+    if (head === "hospitals") return loadHospitals();
+    if (head === "library") return loadLibrary();
+    if (head === "my-camps") return loadMyCamps();
+    if (head === "oversight") return loadOversight(parts[1] || "partners");
+    S.view = "overview";
+    render();
+    if (!S.overview) boot();
+  }
+
   function render() {
     var root = document.getElementById("root");
 
@@ -5351,6 +5429,7 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     placeMenu(root);
+    syncPath();
 
     if (wasId) {
       var again = document.getElementById(wasId);
@@ -5399,6 +5478,15 @@ export const PORTAL_HTML = `<!doctype html>
   });
   window.addEventListener("offline", render);
 
+  // Back and forward. popstate fires for the button, not for our own
+  // pushState, so this only ever runs when the person navigated.
+  window.addEventListener("popstate", function () {
+    if (!S.auth) return;
+    var path = location.hash.replace(/^#/, "");
+    if (path === shownPath) return;
+    applyPath(path || "/overview");
+  });
+
   // A menu closes when you click away from it or press Escape. Capture phase,
   // so the click that dismisses the menu is seen here before it reaches
   // whatever is underneath — otherwise dismissing a menu over a table row
@@ -5424,7 +5512,12 @@ export const PORTAL_HTML = `<!doctype html>
   var saved = loadAuth();
   if (saved) {
     S.auth = saved;
-    boot();
+    // A link, a bookmark or a refresh lands where it says. boot() is still what
+    // fills the overview, so it is only skipped when the address names
+    // somewhere else.
+    var opening = location.hash.replace(/^#/, "");
+    if (opening && opening !== "/overview") applyPath(opening);
+    else boot();
   }
   render();
 })();

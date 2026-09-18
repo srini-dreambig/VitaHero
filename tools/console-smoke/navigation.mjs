@@ -201,5 +201,100 @@ await run("SCHOOL_ADMIN", { billing: false });
   await b2.close();
 }
 
+// ── the address bar ──
+//
+// Four things that were all missing together, because which screen you were on
+// lived in memory and nowhere else: you could not send anybody a link, the back
+// button did nothing, a refresh dropped you at the overview, and a bookmark was
+// useless.
+{
+  const b3 = await chromium.launch();
+  const p3 = await b3.newPage({ viewport: { width: 1280, height: 900 } });
+  const err3 = [];
+  p3.on("pageerror", (e) => err3.push(e.message));
+  await p3.addInitScript(() => {
+    localStorage.setItem("vh_console", JSON.stringify({
+      mode: "key", key: "k", name: "Ops", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+    }));
+    const school = { id: "sch_1", name: "Silver Oaks", city: "Hyderabad", district: "",
+      partnerCode: "SO-1", academicYear: "2026-27", contactName: "", contactPhone: "",
+      contactEmail: "", campCadence: "ANNUAL", checksOffered: [], description: "",
+      studentCount: 1, adminCount: 1, active: true, status: "ACTIVE" };
+    const D = {
+      "/api/admin/overview": { schools: 1, students: 1, guardians: 1, guardiansActivated: 0,
+        campStatus: {}, upcoming: [] },
+      "/api/admin/schools": { schools: [school] },
+      "/api/admin/schools/sch_1": { school },
+      "/api/admin/schools/sch_1/roster": { total: 0, academicYear: "2026-27", students: [] },
+      "/api/admin/schools/sch_1/classes": { classes: [] },
+      "/api/admin/hospitals": { canEdit: true, hospitals: [] },
+      "/api/admin/doctors": { canEdit: true, doctors: [] },
+    };
+    window.fetch = async (u) => {
+      const path = new URL(u, location.origin).pathname;
+      const keys = Object.keys(D).sort((a, x) => x.length - a.length);
+      const k = keys.find((x) => path === x) || keys.find((x) => path.startsWith(x));
+      return new Response(JSON.stringify(k ? D[k] : {}),
+        { headers: { "content-type": "application/json" } });
+    };
+  });
+
+  await p3.goto(URL, { waitUntil: "networkidle" });
+  await p3.waitForTimeout(500);
+  const hash = () => p3.evaluate(() => location.hash);
+
+  check("the address says where you are", /#\/overview$/.test(await hash()));
+
+  await go(p3, "Hospitals");
+  check("and it changes when you go somewhere else", /#\/hospitals$/.test(await hash()));
+
+  await go(p3, "Schools");
+  await p3.getByText("Silver Oaks").first().click();
+  await p3.waitForTimeout(600);
+  check("a school has its own address, down to the screen",
+    /#\/schools\/sch_1\/roster$/.test(await hash()));
+
+  await go(p3, "Classes");
+  check("and so does each screen inside it",
+    /#\/schools\/sch_1\/classes$/.test(await hash()));
+
+  // Back through: classes -> roster -> schools -> hospitals.
+  await p3.goBack(); await p3.waitForTimeout(500);
+  check("the back button goes back a screen, not out of the console",
+    /#\/schools\/sch_1\/roster$/.test(await hash()));
+  await p3.goBack(); await p3.waitForTimeout(500);
+  await p3.goBack(); await p3.waitForTimeout(500);
+  check("and keeps going back", /#\/hospitals$/.test(await hash()));
+  const onScreen = await p3.locator(".content").innerText();
+  check("and the screen follows the address, not just the address bar",
+    /hospital/i.test(onScreen));
+
+  await p3.goForward(); await p3.waitForTimeout(500);
+  check("forward works too", /#\/schools$/.test(await hash()));
+
+  // The whole point: a link somebody sends you.
+  await p3.goto(URL + "#/schools/sch_1/classes", { waitUntil: "networkidle" });
+  await p3.waitForTimeout(700);
+  const deep = await p3.evaluate(() => ({
+    hash: location.hash,
+    crumb: document.querySelector(".bar").textContent,
+    seg: [...document.querySelectorAll(".seg button.on")].map((n) => n.textContent.trim()),
+  }));
+  check("a link opens the screen it names, not the overview",
+    /#\/schools\/sch_1\/classes$/.test(deep.hash)
+    && /Silver Oaks/.test(deep.crumb) && deep.seg.includes("Classes"));
+
+  // A nonsense address should land somewhere usable rather than blank.
+  await p3.goto(URL + "#/schools/sch_nope/roster", { waitUntil: "networkidle" });
+  await p3.waitForTimeout(700);
+  const rubbish = await p3.evaluate(() => document.querySelector(".content").textContent);
+  check("an address that names nothing still lands somewhere usable",
+    rubbish.trim().length > 0);
+
+  check("address bar: no page errors", err3.length === 0);
+  if (err3.length) console.log(err3.join("\n"));
+  await b3.close();
+}
+
 process.exit(failures ? 1 : 0);
 

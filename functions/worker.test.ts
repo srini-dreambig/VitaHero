@@ -1282,3 +1282,47 @@ describe("a parent cannot create a child", () => {
     expect([408, 429]).not.toContain(403);
   });
 });
+
+describe("every admin route the console calls is actually reachable", () => {
+  // The gap this closes.
+  //
+  // /api/admin/lookup and /api/admin/demo-data were written, tested and
+  // shipped, and neither could ever be reached: both sat inside a guard that
+  // matches hospitals, doctors, invites and camp-people, so the path fell past
+  // them to the generic 404. The console showed "Not found" on a screen whose
+  // server-side function had passing tests.
+  //
+  // It passed both ways because neither test went through the router. The
+  // database tests call lookupPhone() and previewDemoData() directly; the
+  // console tests stub fetch. Both ends were covered and the wiring between
+  // them was not. This drives the worker's own fetch handler, which is the
+  // only thing that answers the question "does this URL work".
+  const ROUTES: Array<[string, string]> = [
+    ["GET", "/api/admin/overview"],
+    ["GET", "/api/admin/schools"],
+    ["GET", "/api/admin/hospitals"],
+    ["GET", "/api/admin/doctors"],
+    ["GET", "/api/admin/lookup?phone=9876543210"],
+    ["GET", "/api/admin/demo-data"],
+    ["GET", "/api/admin/partners"],
+    ["GET", "/api/admin/retention"],
+    ["GET", "/api/admin/access-log?days=30"],
+    ["GET", "/api/admin/library"],
+    ["GET", "/api/admin/analytics"],
+  ];
+
+  for (const [method, path] of ROUTES) {
+    test(`${method} ${path} is routed`, async () => {
+      // No stubs: an unmatched query answers with no rows, which is enough to
+      // find out whether the path reaches a handler at all.
+      handlers = [];
+      const res = await call(path, { method, headers: opsHeaders });
+      // What is being asserted is that something answered for this path — not
+      // that the answer is right, which is every other test's job. A 404 here
+      // means the URL reaches no handler at all.
+      expect(res.status, `${method} ${path}`).not.toBe(404);
+      const body = await res.json().catch(() => ({}));
+      expect((body as { error?: string }).error, `${method} ${path}`).not.toBe("Not found");
+    });
+  }
+});

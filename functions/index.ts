@@ -2383,10 +2383,16 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // ═══════════════════════════════════════════════════
       // Hospitals, doctors, invitations, and who is at a camp
       // ═══════════════════════════════════════════════════
+      // Every path handled inside this block has to be named here, or its
+      // handler is unreachable and the request falls past to the generic 404.
+      // /api/admin/lookup and /api/admin/demo-data were written inside it and
+      // not added here: both shipped as dead code, and the console showed
+      // "Not found" on a screen whose server-side function had passing tests.
       if (path === "/api/admin/hospitals" || path.startsWith("/api/admin/hospitals/")
           || path === "/api/admin/doctors" || path.startsWith("/api/admin/doctors/")
           || path === "/api/admin/invites" || path === "/api/admin/invites/send"
-          || path === "/api/admin/camp-people") {
+          || path === "/api/admin/camp-people"
+          || path === "/api/admin/lookup" || path === "/api/admin/demo-data") {
         const actor = await resolveActor(request, sql, env);
         if (!actor) {
           return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
