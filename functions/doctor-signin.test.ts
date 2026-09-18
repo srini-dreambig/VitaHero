@@ -24,6 +24,7 @@ import { SCHEMA_STEPS } from "./index";
 import { migrate } from "./migrate";
 import { listDoctors, upsertDoctor } from "./directory";
 import { canClinicianSignIn } from "./camps";
+import { surfaceRefusal } from "./surfaces";
 
 const URL = process.env.TEST_DATABASE_URL;
 const suite = URL ? describe : describe.skip;
@@ -246,5 +247,50 @@ suite("a doctor added in the console can sign in", () => {
     expect(parent[0].provisioned).toBe(true);
     const retired = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE id = 'ph_9876500099'`;
     expect(retired[0].n).toBe(0);
+  });
+
+  // ── which product the sign-in is for ──
+  //
+  // Granting doctors a sign-in is only half an answer, and on its own it is a
+  // worse bug than the one it fixed. A parent and a doctor do different jobs on
+  // different products: the family app shows a parent their own child's
+  // results, the console shows a doctor the findings of a camp they were
+  // assigned to. The app does not model a role at all — everyone who gets in is
+  // `_parentName`, defaulted to the word "Parent" — so a doctor let in there is
+  // greeted as a parent of nobody.
+  test("a doctor's sign-in is a console sign-in, and not a way into the family app", async () => {
+    const d = await find("Dr Meera Iyer");
+    expect(d.canSignIn).toBe(true);
+    const at = await doorOpensFor(d.phone);
+    expect(at.role).toBe("PHYSICIAN");
+
+    const CONSOLE = "https://vitahero.example/admin";
+    // Their own product: through.
+    expect(surfaceRefusal("console", at.role!, CONSOLE)).toBeNull();
+    // The family app: turned round, by role, with somewhere to go.
+    const wrong = surfaceRefusal("app", at.role!, CONSOLE)!;
+    expect(wrong.code).toBe("WRONG_SURFACE_APP");
+    expect(wrong.error).toMatch(/registered as a doctor/i);
+    expect(wrong.error).toContain(CONSOLE);
+  });
+
+  test("and a backfilled doctor is the same, not a special case", async () => {
+    // The migration grants these without going through upsertDoctor, so the
+    // two halves have to agree about what it granted.
+    const at = await doorOpensFor("9876500077");
+    expect(at.open).toBe(true);
+    expect(at.role).toBe("PHYSICIAN");
+    expect(surfaceRefusal("app", at.role!, "https://x/admin")!.code).toBe("WRONG_SURFACE_APP");
+    expect(surfaceRefusal("console", at.role!, "https://x/admin")).toBeNull();
+  });
+
+  test("a parent is the mirror image: the app is theirs, the console is not", async () => {
+    const at = await doorOpensFor("9876500033");
+    expect(at.role).toBe("PARENT");
+    expect(surfaceRefusal("app", at.role!, "https://x/admin")).toBeNull();
+    // Even though the directory also holds a doctor row on this number, the
+    // number belongs to the parent, and the console is not theirs.
+    expect(surfaceRefusal("console", at.role!, "https://x/admin")!.code)
+      .toBe("WRONG_SURFACE_CONSOLE");
   });
 });
