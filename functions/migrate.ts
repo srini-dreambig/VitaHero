@@ -28,6 +28,12 @@ import { Sql } from "./common";
  * shape, so the check in migrate.test.ts asserts this file changes whenever
  * the DDL does.
  */
+// 9 — backfills sign-in for the directory. Doctors added before the "can
+//     sign in" switch existed had no provisioned profile (or one left at
+//     false), so the closed-app gate refused their OTP with "this number
+//     isn't registered". Every active directory doctor with a usable Indian
+//     mobile now gets a provisioned profile; parents and retired entries are
+//     left alone.
 // 8 — meal_items gains `day`. There was no date on a meal and nothing ever
 //     removed one, so a plan only grew: every custom snack a parent added
 //     came back as part of today's, still ticked. Existing rows are dated to
@@ -46,7 +52,7 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

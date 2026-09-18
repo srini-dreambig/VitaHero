@@ -200,4 +200,51 @@ suite("a doctor added in the console can sign in", () => {
     // Still able to sign in, because nothing was taken away.
     expect((await doorOpensFor("9876500011")).open).toBe(true);
   });
+
+  test("doctors from before provisioning existed are let in by the backfill", async () => {
+    // The rows this migration exists for: a directory doctor whose profile was
+    // never created (the "can sign in" switch did not exist when they were
+    // added), and one whose profile exists but was left unprovisioned.
+    await sql`INSERT INTO vita_hero.doctors (id, name, specialty, phone, active)
+              VALUES ('doc_legacy', 'Dr Legacy', 'Paediatrics', '9876500077', true)
+              ON CONFLICT (id) DO NOTHING`;
+    await sql`INSERT INTO vita_hero.profiles (id, phone, name, role, provisioned)
+              VALUES ('ph_9876500088', '+919876500088', 'Dr Stale', 'PHYSICIAN', false)
+              ON CONFLICT (id) DO NOTHING`;
+    await sql`INSERT INTO vita_hero.doctors (id, name, specialty, phone, active)
+              VALUES ('doc_stale', 'Dr Stale', 'ENT', '9876500088', true)
+              ON CONFLICT (id) DO NOTHING`;
+
+    // Re-run the migration the way a version bump does on a live database.
+    await sql`UPDATE vita_hero.schema_meta SET version = 0 WHERE id = 1`;
+    await migrate(sql, SCHEMA_STEPS, []);
+
+    const made = await doorOpensFor("9876500077");
+    expect(made.open).toBe(true);
+    expect(made.role).toBe("PHYSICIAN");
+    expect((await doorOpensFor("9876500088")).open).toBe(true);
+    const fixed = await sql`SELECT provisioned FROM vita_hero.profiles WHERE id = 'ph_9876500088'`;
+    expect(fixed[0].provisioned).toBe(true);
+  });
+
+  test("the backfill leaves parents and retired doctors exactly as they were", async () => {
+    // ph_9876500033 is Rahul Sharma, a parent. The directory also ends up with
+    // a doctor row on that number; the number still belongs to one person.
+    await sql`INSERT INTO vita_hero.doctors (id, name, specialty, phone, active)
+              VALUES ('doc_clash', 'Dr Clash Legacy', 'ENT', '9876500033', true)
+              ON CONFLICT (id) DO NOTHING`;
+    // Retired entries are closed doors; the directory no longer offers them.
+    await sql`INSERT INTO vita_hero.doctors (id, name, specialty, phone, active)
+              VALUES ('doc_retired', 'Dr Retired', 'ENT', '9876500099', false)
+              ON CONFLICT (id) DO NOTHING`;
+
+    await sql`UPDATE vita_hero.schema_meta SET version = 0 WHERE id = 1`;
+    await migrate(sql, SCHEMA_STEPS, []);
+
+    const parent = await sql`SELECT role, provisioned FROM vita_hero.profiles WHERE id = 'ph_9876500033'`;
+    expect(parent[0].role).toBe("PARENT");
+    expect(parent[0].provisioned).toBe(true);
+    const retired = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.profiles WHERE id = 'ph_9876500099'`;
+    expect(retired[0].n).toBe(0);
+  });
 });
