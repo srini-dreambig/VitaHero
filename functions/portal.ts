@@ -120,6 +120,14 @@ export const PORTAL_HTML = `<!doctype html>
   .navi .n{margin-left:auto;background:#2C3E4E;color:#CBD5E1;border-radius:9px;
     padding:0 6px;font-size:11px;font-weight:650;line-height:17px}
   .navi.sub.on .n{background:var(--nav-ac);color:#0F172A}
+  /* Present but not yet usable. Dimmed rather than hidden, because the point
+     of showing it is that the shape of the work stays legible; the cursor and
+     the lack of a hover say it is not a thing to press. */
+  .navi.off{opacity:.42;cursor:default}
+  .navi.off:hover{background:none;color:var(--nav-tx)}
+  .navi.off:hover .dotix{background:#3C4F60}
+  /* One quiet line under a section heading saying what it is waiting for. */
+  .navnote{padding:0 9px 5px;font-size:10.5px;line-height:1.35;color:#5D707E}
   .navsec h4{color:#5D707E;padding:8px 8px 5px;font-size:10px}
   .navi{
     display:flex;align-items:center;gap:8px;width:100%;text-align:left;
@@ -568,6 +576,12 @@ export const PORTAL_HTML = `<!doctype html>
       // both — the console simply never sent either.
       docHospital: "", docQuery: "",
       lookupQuery: "", lookup: null, demo: null,
+      // The school most recently opened. The left navigation lists a school's
+      // sections at all times, so clicking "Roster" from the hospitals screen
+      // has to know which school is meant. Held in memory only, not in
+      // storage: it names a school, and signing out must not leave that on a
+      // shared machine.
+      lastSchool: null,
       addChild: null,
       invites: null, campPeople: null, peopleQuery: "",
       threads: null, thread: null, billing: null, library: null, libForm: null,
@@ -1089,6 +1103,7 @@ export const PORTAL_HTML = `<!doctype html>
     newScope();
     run(api("/api/admin/schools/" + encodeURIComponent(id)), inScope(function (d) {
       S.school = d.school; S.view = "school"; S.schoolTab = tab || "roster";
+      S.lastSchool = { id: d.school.id, name: d.school.name };
       // A different school means none of the last one's tabs, and none of the
       // last one's camp either — the camp view reads the school around it.
       clearScope(SCHOOL_SCOPED);
@@ -4593,31 +4608,67 @@ export const PORTAL_HTML = `<!doctype html>
    * Twelve tabs across the top of a school and five across a camp asked
    * somebody who runs a school office to hold the whole product in their head
    * and read a strip of words to find out where they were. This is the same
-   * screens, arranged as the work actually goes: the school you have open,
-   * then the camp you have open inside it, with the stages in the order they
-   * happen.
+   * screens, arranged as the work actually goes: the school, then the camp
+   * inside it, with the stages in the order they happen.
    *
-   * Contextual on purpose. Nothing about a camp appears until a camp is open,
-   * so the list stays short.
+   * Every section is on screen at all times. It used to appear only once you
+   * had opened the thing it belonged to, which kept the list short and meant
+   * the navigation rearranged itself underneath you as you moved: the sections
+   * you were looking for were missing precisely when you were looking for
+   * them, and what was on screen depended on where you had been rather than on
+   * what the product does. A school's sections work from anywhere now; a
+   * camp's say what they are waiting for.
    */
-  function navSub(label, key, current, go, badge) {
-    return el("button", { class: "navi sub" + (current === key ? " on" : ""), onclick: go },
-      el("span", { class: "dotix" }), label,
+  function navSub(label, key, current, go, badge, off) {
+    // "off" is a sentence explaining why this cannot be used yet. An item that
+    // is visibly unavailable and says why is a different thing from one that
+    // looks live and does nothing when pressed.
+    return el("button", {
+      class: "navi sub" + (current === key ? " on" : "") + (off ? " off" : ""),
+      disabled: !!off, title: off || null,
+      onclick: off ? null : go,
+    }, el("span", { class: "dotix" }), label,
       badge ? el("span", { class: "n" }, badge) : null);
   }
 
   function schoolNav() {
-    if (!S.school || S.view !== "school") return null;
-    var t = S.schoolTab;
+    if (!canManage()) return null;
+    // Highlighted only when this is actually the screen in front of you. The
+    // section is on screen from everywhere now, so matching the tab alone
+    // would leave "Roster" looking selected while you are reading the
+    // hospital directory.
+    var t = S.view === "school" ? S.schoolTab : null;
+    var open = S.school || S.lastSchool;
+
+    /**
+     * Go to one of a school's sections, from wherever you happen to be.
+     *
+     * Three cases, in order of how little work they need: the school is
+     * already loaded, so only the tab changes; a school was open earlier, so
+     * reopen it at that tab; or no school has been opened at all, so show the
+     * list and let one be picked.
+     */
     function go(tab) {
       return function () {
-        S.schoolTab = tab; S.error = ""; S.upload = null; S.addChild = null;
-        render(); loadSchoolTab();
+        S.error = ""; S.upload = null; S.addChild = null;
+        if (S.school) {
+          S.view = "school"; S.schoolTab = tab;
+          render(); loadSchoolTab();
+        } else if (S.lastSchool) {
+          openSchool(S.lastSchool.id, tab);
+        } else {
+          loadSchools();
+        }
       };
     }
+    // Nothing is greyed out here even with no school open: picking one is the
+    // obvious next step and the list is one click away, so the item does that
+    // rather than refusing.
+    var name = S.school ? S.school.name : S.lastSchool ? S.lastSchool.name : "";
     return [
       el("div", { class: "navsec" },
-        el("h4", null, truncate(S.school.name, 22)),
+        el("h4", null, name ? truncate(name, 22) : "School"),
+        !open ? el("div", { class: "navnote" }, "No school open \u2014 pick one") : null,
         navSub("Roster", "roster", t, go("roster")),
         navSub("Classes", "classes", t, go("classes")),
         navSub("Import history", "history", t, go("history"))),
@@ -4629,8 +4680,11 @@ export const PORTAL_HTML = `<!doctype html>
         el("h4", null, "Following up"),
         navSub("Referrals", "referrals", t, go("referrals")),
         navSub("Questions", "questions", t, go("questions"))),
+      // Headed "Administration", not "School": the first section falls back to
+      // "School" when none is open, and two sections under the same word is
+      // how you end up clicking the wrong one.
       el("div", { class: "navsec" },
-        el("h4", null, "School"),
+        el("h4", null, "Administration"),
         navSub("Staff", "people", t, go("people")),
         navSub("Camp report", "report", t, go("report")),
         navSub("Programme", "programme", t, go("programme")),
@@ -4642,24 +4696,43 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function campNav() {
-    if (!S.camp || S.view !== "camp") return null;
-    var c = S.camp.camp, can = S.camp.can, t = S.campTab;
+    var t = S.view === "camp" ? S.campTab : null;
+    var c = S.camp ? S.camp.camp : null;
+    var can = S.camp ? S.camp.can : null;
+
     function go(tab) {
       return function () {
         S.campTab = tab; S.error = ""; S.screenKid = null; S.reviewKid = null;
         render(); loadCampTab();
       };
     }
+
     // The order the day actually runs in.
-    var stages = [];
-    if (can.schedule) stages.push(["setup", "Setup", null]);
-    if (can.schedule) stages.push(["people", "Parents & children", null]);
-    if (can.schedule) stages.push(["consent", "Consent", c.pendingConsent]);
-    if (can.screen) stages.push(["campday", "Camp day", c.awaitingReview]);
-    if (can.review) stages.push(["review", "Review", c.awaitingReview]);
+    var stages;
+    if (c) {
+      stages = [];
+      if (can.schedule) stages.push(["setup", "Setup", null]);
+      if (can.schedule) stages.push(["people", "Parents & children", null]);
+      if (can.schedule) stages.push(["consent", "Consent", c.pendingConsent]);
+      if (can.screen) stages.push(["campday", "Camp day", c.awaitingReview]);
+      if (can.review) stages.push(["review", "Review", c.awaitingReview]);
+    } else {
+      // No camp open. Unlike a school, there is no sensible one to assume:
+      // a stage belongs to a particular camp on a particular day, and which
+      // stages exist at all depends on what that camp lets this person do.
+      // The names stay on screen so the shape of the work is still legible,
+      // and they say what they are waiting for rather than misrouting.
+      stages = [["setup", "Setup"], ["people", "Parents & children"],
+        ["consent", "Consent"], ["campday", "Camp day"], ["review", "Review"]];
+    }
+
     return el("div", { class: "navsec" },
-      el("h4", null, truncate(c.title, 22)),
-      stages.map(function (x) { return navSub(x[1], x[0], t, go(x[0]), x[2]); }));
+      el("h4", null, c ? truncate(c.title, 22) : "Camp"),
+      !c ? el("div", { class: "navnote" }, "No camp open") : null,
+      stages.map(function (x) {
+        return navSub(x[1], x[0], t, c ? go(x[0]) : null, c ? x[2] : null,
+          c ? null : "Open a camp first \u2014 All camps, above");
+      }));
   }
 
   /**
@@ -4790,10 +4863,16 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function oversightNav() {
-    if (S.view !== "oversight") return null;
-    var t = S.oversightTab;
+    if (!isOps()) return null;
+    var t = S.view === "oversight" ? S.oversightTab : null;
+    // Sets the view as well as the tab. It used to only ever be reached from
+    // inside oversight, so changing the tab was enough; now that it is on
+    // screen from everywhere, a click has to actually take you there.
     function go(tab) {
-      return function () { S.oversightTab = tab; S.error = ""; render(); loadOversightTab(); };
+      return function () {
+        S.oversightTab = tab; S.view = "oversight"; S.error = "";
+        render(); loadOversightTab();
+      };
     }
     return el("div", { class: "navsec" },
       el("h4", null, "Oversight"),
@@ -4827,13 +4906,7 @@ export const PORTAL_HTML = `<!doctype html>
           isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null),
         schoolNav(),
         campNav(),
-        oversightNav(),
-        // Getting back out of a camp without the browser's back button.
-        S.camp && S.view === "camp" && S.school
-          ? el("div", { class: "navsec" },
-              el("button", { class: "navi", onclick: function () { openSchool(S.school.id, "camps"); } },
-                el("span", { class: "ic" }, icon("home", 17)), "Back to " + truncate(S.school.name, 18)))
-          : null),
+        oversightNav()),
       el("div", { class: "navfoot" },
         el("b", null, S.auth.name),
         el("div", { class: "role" }, roleLabel()),
