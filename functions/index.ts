@@ -1759,6 +1759,62 @@ async function upsertProfileFromNeonAuth(
 // ─── Entrypoint ─────────────────────────────────────────────
 
 /**
+ * Backfill sign-in for doctors who were in the directory before it could
+ * grant it.
+ *
+ * The directory's "can sign in" switch writes a provisioned profile at
+ * ph_<last ten digits of the doctor's phone> — but it only runs when a doctor
+ * is added or edited. Doctors entered before that switch existed have no
+ * profile at all, or one left at `provisioned = false`, so the closed-app OTP
+ * gate turns them away with "this number isn't registered" — the exact
+ * report doctor-signin.test.ts starts from.
+ *
+ * Two write-only statements, both safe to re-run:
+ *
+ *   1. An existing PHYSICIAN profile left unprovisioned, whose number matches
+ *      an active directory doctor, gets provisioned.
+ *   2. An active directory doctor with a usable Indian mobile and no profile
+ *      row gets one, built exactly the way grantDoctorSignIn builds it.
+ *
+ * Deliberately untouched: PARENT numbers (a number belongs to one person and
+ * is never quietly made a physician's) and retired directory entries
+ * (active = false — a door the directory closed stays closed). A sign-in
+ * revoked through the panel is re-granted by this once, because the switch
+ * did not exist when most of these rows were written; the migration runs one
+ * time per version, so anything revoked afterwards stays revoked.
+ */
+async function ensureDoctorSignInBackfill(sql: Sql): Promise<void> {
+  await sql`
+    UPDATE vita_hero.profiles p
+    SET provisioned = true
+    WHERE p.role = 'PHYSICIAN' AND p.provisioned = false
+      AND EXISTS (
+        SELECT 1 FROM vita_hero.doctors d
+        WHERE d.active = true
+          AND p.id = 'ph_' || RIGHT(REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', '', 'g'), 10)
+      )
+  `;
+
+  await sql`
+    INSERT INTO vita_hero.profiles
+      (id, user_id, phone, name, auth_provider, role, provisioned,
+       is_logged_in, onboarding_complete)
+    SELECT 'ph_' || dig.last10, 'ph_' || dig.last10, '+91' || dig.last10,
+           d.name, 'PHONE', 'PHYSICIAN', true, false, true
+    FROM vita_hero.doctors d
+    CROSS JOIN LATERAL (
+      SELECT RIGHT(REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', '', 'g'), 10) AS last10
+    ) dig
+    WHERE d.active = true
+      AND dig.last10 ~ '^[6-9][0-9]{9}$'
+      AND NOT EXISTS (
+        SELECT 1 FROM vita_hero.profiles p WHERE p.id = 'ph_' || dig.last10
+      )
+    ON CONFLICT (id) DO NOTHING
+  `;
+}
+
+/**
  * Pure DDL, in dependency order. Recorded and shipped as a batch by migrate().
  * Nothing in here may read a query result — see migrate.ts for why.
  */
@@ -1774,6 +1830,7 @@ export const SCHEMA_STEPS = [
   ensureBillingSchema,
   ensureSymptomSchema,
   ensureOversightSchema,
+  ensureDoctorSignInBackfill,
 ];
 
 /** Steps that have to read before they write. Only ever touch an empty table. */
