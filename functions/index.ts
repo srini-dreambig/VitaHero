@@ -181,7 +181,9 @@ import {
   inviteStatus,
   inviteGuardians,
   campPeople,
+  lookupPhone,
 } from "./directory";
+import { previewDemoData, purgeDemoData } from "./demo";
 import { migrate, SCHEMA_VERSION } from "./migrate";
 import { servePrivacyPage, serveDataDeletionPage } from "./pages";
 import { PORTAL_HTML, SERVICE_WORKER_JS, portalShellEtag } from "./portal";
@@ -660,9 +662,11 @@ async function ensureHotPathIndexes(sql: Sql): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS appointments_slot
             ON vita_hero.appointments(doctor_id, date, time)`;
 
-  // The school side. Grade is the second column because building a camp roster
-  // filters a school's children by class; school_id alone uses the same index.
-  await sql`CREATE INDEX IF NOT EXISTS kids_school_grade ON vita_hero.kids(school_id, grade)`;
+  // kids_school_grade is created in ensureStageASchema instead, beside the
+  // ALTER that adds kids.school_id. It lived here, one step earlier in
+  // SCHEMA_STEPS than the column it indexes, which is fine on a database that
+  // already has the column and fatal on an empty one: a brand-new deployment
+  // could not build its own schema.
   await sql`CREATE INDEX IF NOT EXISTS school_camps_school ON vita_hero.school_camps(school_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS school_enrollments_school ON vita_hero.school_enrollments(school_id)`;
 }
@@ -1029,6 +1033,28 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
   // invented one is worse than none.
   await sql`ALTER TABLE vita_hero.doctors ADD COLUMN IF NOT EXISTS phone TEXT DEFAULT ''`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
+}
+
+/**
+ * The hospitals and doctors a first-time reader of the console expects to see.
+ *
+ * These rows used to be written by ensureHospitalPartnerships, which is a DDL
+ * step, with ON CONFLICT DO UPDATE on every column. Two consequences, both of
+ * them live:
+ *
+ *   - An operations user who corrected a hospital's address or phone number
+ *     had that correction reverted the next time the schema version moved.
+ *     Nothing reported it; the edit simply went back to the seeded value.
+ *   - Deleting a demonstration hospital or doctor was pointless, because the
+ *     next migration put it back.
+ *
+ * It is a seed now: it only runs when the directory is empty, and only when
+ * demonstration data has been asked for. The DDL it was living inside stays
+ * where it was.
+ */
+async function seedDirectoryIfEmpty(sql: Sql): Promise<void> {
+  const have = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.hospitals`;
+  if ((have[0]?.c as number) > 0) return;
 
   const hospitals = [
     ["hosp_rainbow", "Rainbow Children's Hospital", "Hyderabad", "Gachibowli", "Road No. 2, Gachibowli", 17.4401, 78.3489, "+91 40 4244 2222", 4.9, true],
@@ -1734,7 +1760,7 @@ async function upsertProfileFromNeonAuth(
  * Pure DDL, in dependency order. Recorded and shipped as a batch by migrate().
  * Nothing in here may read a query result — see migrate.ts for why.
  */
-const SCHEMA_STEPS = [
+export const SCHEMA_STEPS = [
   ensureSchema,
   ensureStageASchema,
   ensureCampSchema,
@@ -1749,7 +1775,23 @@ const SCHEMA_STEPS = [
 ];
 
 /** Steps that have to read before they write. Only ever touch an empty table. */
-const SEED_STEPS = [seedDoctorsIfEmpty, seedPartnerSchools, seedLibraryIfEmpty];
+// Demonstration data is opt-in now.
+//
+// Four fictional schools, six camps against them, four hospitals and five
+// doctors are exactly what someone opening the console for the first time
+// wants to see, and exactly what a district running a real programme does not:
+// they sit among the real schools looking like real schools. Set
+// SEED_DEMO_DATA=true on an evaluation deployment; leave it unset everywhere
+// that matters.
+//
+// The reading library is not demo data — it is content a guardian is shown —
+// so it is seeded regardless.
+export function seedSteps(env: Env) {
+  const demo = String((env as unknown as Record<string, unknown>).SEED_DEMO_DATA || "") === "true";
+  return demo
+    ? [seedDirectoryIfEmpty, seedDoctorsIfEmpty, seedPartnerSchools, seedLibraryIfEmpty]
+    : [seedLibraryIfEmpty];
+}
 
 /** Per-isolate latch so schema init does not run on every request. */
 let schemaReady = false;
@@ -1825,7 +1867,7 @@ export default {
       // migrated database (one query) and it reports what actually broke.
       if (!schemaReady) {
         try {
-          await migrate(sql, SCHEMA_STEPS, SEED_STEPS);
+          await migrate(sql, SCHEMA_STEPS, seedSteps(env));
           schemaReady = true;
         } catch (schemaErr) {
           const detail = (schemaErr as Error)?.message || String(schemaErr);
@@ -2373,7 +2415,9 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
           if (path === "/api/admin/doctors") {
             if (method === "GET") {
-              return json(await listDoctors(sql, actor, url.searchParams.get("hospital_id") || ""));
+              return json(await listDoctors(sql, actor,
+                url.searchParams.get("hospital_id") || "",
+                url.searchParams.get("q") || ""));
             }
             if (method === "POST" || method === "PUT") {
               return json(await upsertDoctor(sql, actor, await readBody()));
@@ -2383,6 +2427,22 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (path.startsWith("/api/admin/doctors/") && method === "DELETE") {
             return json(await deleteDoctor(sql, actor,
               decodeURIComponent(path.slice("/api/admin/doctors/".length))));
+          }
+
+          // Who is this number? Crosses every school, so operations only —
+          // the function checks that itself rather than trusting this route.
+          if (path === "/api/admin/lookup" && method === "GET") {
+            return json(await lookupPhone(sql, actor, url.searchParams.get("phone") || ""));
+          }
+
+          // Demonstration data: look before you leap, then leap.
+          if (path === "/api/admin/demo-data") {
+            if (method === "GET") return json(await previewDemoData(sql, actor));
+            if (method === "DELETE") {
+              const b = await readBody();
+              return json(await purgeDemoData(sql, actor, { articles: b.articles === true }));
+            }
+            return json({ error: "Method not allowed" }, 405);
           }
 
           if (path === "/api/admin/invites" && method === "GET") {

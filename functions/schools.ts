@@ -9,7 +9,7 @@
 // Every handler returns plain data; the entrypoint wraps it in a JSON response.
 // Errors are thrown as ApiError so the entrypoint can map them to status codes.
 
-import { ROLE_ADMIN, ROLE_SCHOOL_ADMIN, ROLE_SUPERADMIN, Sql, currentAcademicYear, generatePartnerCode, insertRows, isOpsRole, normalizePhone, profileIdForPhone, slugify, tidyName } from "./common";
+import { ROLE_ADMIN, ROLE_SCHOOL_ADMIN, ROLE_SUPERADMIN, Sql, currentAcademicYear, generatePartnerCode, insertRows, isOpsRole, normalizeMobile, normalizePhone, profileIdForPhone, slugify, tidyName } from "./common";
 
 export class ApiError extends Error {
   status: number;
@@ -88,6 +88,11 @@ export async function ensureStageASchema(sql: Sql): Promise<void> {
     CREATE INDEX IF NOT EXISTS kids_school_year
     ON vita_hero.kids(school_id, academic_year)
   `;
+  // Grade is the second column because building a camp roster filters a
+  // school's children by class; school_id alone uses the same index. It has to
+  // be here rather than in ensureSchema, which runs before kids.school_id
+  // exists.
+  await sql`CREATE INDEX IF NOT EXISTS kids_school_grade ON vita_hero.kids(school_id, grade)`;
 
   // A5-A8 — roster upload audit trail, distinct from the camp-results import log.
   await sql`
@@ -241,7 +246,7 @@ export async function createSchool(
 
   let contactPhone = "";
   if (body.contactPhone) {
-    const norm = normalizePhone(String(body.contactPhone));
+    const norm = normalizeMobile(String(body.contactPhone));
     if (!norm) throw new ApiError(400, "Contact phone is not a valid mobile number", "BAD_PHONE");
     contactPhone = norm.e164;
   }
@@ -320,7 +325,7 @@ export async function updateSchool(
     const raw = String(body.contactPhone || "").trim();
     if (!raw) contactPhone = "";
     else {
-      const norm = normalizePhone(raw);
+      const norm = normalizeMobile(raw);
       if (!norm) throw new ApiError(400, "Contact phone is not a valid mobile number", "BAD_PHONE");
       contactPhone = norm.e164;
     }
@@ -582,8 +587,10 @@ export async function addSchoolAdmin(
   const name = tidyName(String(body.name || ""));
   if (name.length < 2) throw new ApiError(400, "Administrator name is required", "NAME_REQUIRED");
 
-  const norm = normalizePhone(String(body.phone || ""));
-  if (!norm) throw new ApiError(400, "Enter a valid mobile number", "BAD_PHONE");
+  // An administrator signs in with a one-time code, so this has to be a
+  // number that can receive one.
+  const norm = normalizeMobile(String(body.phone || ""));
+  if (!norm) throw new ApiError(400, "Enter a valid mobile number — a landline cannot receive the sign-in code", "BAD_PHONE");
 
   const profileId = profileIdForPhone(norm.last10);
   const email = String(body.email || "").trim();
@@ -784,14 +791,24 @@ export async function schoolFootprint(sql: Sql, schoolId: string): Promise<Schoo
 
   const students = await count(() => sql`
     SELECT COUNT(*)::int AS c FROM vita_hero.kids WHERE school_id = ${schoolId}`);
+  // school_camps, not camps.
+  //
+  // vita_hero.camps is the parent app's own table — a family's saved camps,
+  // keyed by profile_id, with the school as free text. The school programme's
+  // camps have always lived in school_camps. Querying camps.school_id asks for
+  // a column that has never existed, and count() turns any failure into zero,
+  // so every school reported nought camps and nought findings no matter what
+  // it had run. `clinical` then rested on referrals and photos alone: a school
+  // that had screened four hundred children but raised no referral and took no
+  // photograph read as having no clinical record at all.
   const camps = await count(() => sql`
-    SELECT COUNT(*)::int AS c FROM vita_hero.camps WHERE school_id = ${schoolId}`);
+    SELECT COUNT(*)::int AS c FROM vita_hero.school_camps WHERE school_id = ${schoolId}`);
   const campsRun = await count(() => sql`
-    SELECT COUNT(*)::int AS c FROM vita_hero.camps
+    SELECT COUNT(*)::int AS c FROM vita_hero.school_camps
     WHERE school_id = ${schoolId} AND UPPER(COALESCE(status, '')) NOT IN ('DRAFT', 'SCHEDULED', 'CANCELLED')`);
   const findings = await count(() => sql`
     SELECT COUNT(*)::int AS c FROM vita_hero.camp_findings f
-    JOIN vita_hero.camps c ON c.id = f.camp_id WHERE c.school_id = ${schoolId}`);
+    JOIN vita_hero.school_camps c ON c.id = f.camp_id WHERE c.school_id = ${schoolId}`);
   const referrals = await count(() => sql`
     SELECT COUNT(*)::int AS c FROM vita_hero.referrals WHERE school_id = ${schoolId}`);
   const photos = await count(() => sql`
@@ -914,7 +931,7 @@ export async function deleteSchool(
 
   // Camps first: only drafts and cancelled camps can exist at this point, but
   // their staff assignments and consent rows still reference them.
-  const camps = await sql`SELECT id FROM vita_hero.camps WHERE school_id = ${schoolId}`;
+  const camps = await sql`SELECT id FROM vita_hero.school_camps WHERE school_id = ${schoolId}`;
   for (const camp of camps) {
     const campId = camp.id as string;
     for (const table of ["camp_staff", "camp_participants", "consent_log", "camp_registrations"]) {
@@ -925,7 +942,7 @@ export async function deleteSchool(
       }
     }
   }
-  await sql`DELETE FROM vita_hero.camps WHERE school_id = ${schoolId}`;
+  await sql`DELETE FROM vita_hero.school_camps WHERE school_id = ${schoolId}`;
 
   for (const table of SCHOOL_OWNED_TABLES) {
     try {

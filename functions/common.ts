@@ -41,11 +41,53 @@ export function normalizePhone(
   if (digits.length < 10) return null;
   const last10 = digits.slice(-10);
   // Preserve an explicit country code if one was provided, else default.
+  //
+  // The leading zero is a trunk prefix, not a country code. Indians write
+  // their own numbers as 09876543210 and landlines as 04023456789 constantly,
+  // and both used to come out of here as "+0..." — a country code of zero,
+  // which is not a country. The last10 was right, so the profile id was right
+  // and nothing looked broken; it was the stored E.164 that was malformed, and
+  // every message sent to it went nowhere.
   let cc = DEFAULT_COUNTRY_CODE;
-  if (digits.length > 10) cc = digits.slice(0, digits.length - 10);
-  else if (hadPlus) cc = ""; // already E.164-ish without national digits — unlikely
+  if (digits.length > 10) {
+    cc = digits.slice(0, digits.length - 10).replace(/^0+/, "") || DEFAULT_COUNTRY_CODE;
+  } else if (hadPlus) cc = ""; // already E.164-ish without national digits — unlikely
   const e164 = `+${cc || DEFAULT_COUNTRY_CODE}${last10}`;
   return { e164, last10 };
+}
+
+/**
+ * The same, but it must be a number that can actually receive an OTP.
+ *
+ * normalizePhone() accepts any ten digits, which is right for a hospital
+ * switchboard — a family rings it and a person answers. It is wrong for
+ * anyone who signs in. A Hyderabad landline, 040 2345 6789, normalises to
+ * +914023456789 and was accepted as a doctor's number: the profile was
+ * created, the OTP was sent, and it went to a desk phone that cannot read it.
+ * Nothing failed loudly; the doctor simply could never get in.
+ *
+ * Several call sites already told the user "not a valid mobile number". This
+ * is the check that makes that sentence true.
+ *
+ * Indian mobile numbers are ten digits beginning 6, 7, 8 or 9. Landlines,
+ * toll-free and premium ranges begin with other digits and are rejected here.
+ * A number with a country code other than India is accepted on its digits
+ * alone, because this rule is about the Indian numbering plan and guessing at
+ * another country's would do more harm than good.
+ */
+export function normalizeMobile(
+  raw: string | undefined | null
+): { e164: string; last10: string } | null {
+  const n = normalizePhone(raw);
+  if (!n) return null;
+  const indian = n.e164 === `+${DEFAULT_COUNTRY_CODE}${n.last10}`;
+  if (!indian) return n;
+  return /^[6-9]\d{9}$/.test(n.last10) ? n : null;
+}
+
+/** True when this is a number an OTP could reach. */
+export function isMobile(raw: string | undefined | null): boolean {
+  return normalizeMobile(raw) !== null;
 }
 
 export function profileIdForPhone(last10: string): string {

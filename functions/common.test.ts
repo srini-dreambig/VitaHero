@@ -31,7 +31,12 @@ describe("normalizePhone", () => {
 
   test("keeps an explicit country code", () => {
     expect(normalizePhone("+91 98765 43210")?.e164).toBe("+919876543210");
-    expect(normalizePhone("0091 9876543210")?.e164).toBe("+00919876543210");
+    // 00 is the international access code people dial before the country
+    // code, not part of it. This used to assert "+00919876543210" — a country
+    // code of zero-zero-nine-one, which is not a country — and so pinned the
+    // bug in place. The same number written four ways is one number.
+    expect(normalizePhone("0091 9876543210")?.e164).toBe("+919876543210");
+    expect(normalizePhone("09876543210")?.e164).toBe("+919876543210");
   });
 
   test("rejects anything shorter than 10 digits", () => {

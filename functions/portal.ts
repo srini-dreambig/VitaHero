@@ -229,6 +229,10 @@ export const PORTAL_HTML = `<!doctype html>
   tbody tr.muted td{color:var(--ink-3)}
   tbody tr.muted td button{color:var(--ink)}
   .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  /* A short value that reads as one thing — a year, a date, a cadence — and
+     looks broken split over two lines. The table scrolls sideways rather than
+     wrapping these. */
+  td.nw,th.nw{white-space:nowrap}
   /* The actions column: fixed to the right, never the reason a table scrolls. */
   th.act,td.act{text-align:right;width:1%;white-space:nowrap;padding-left:6px}
   td.act .row{justify-content:flex-end;gap:4px;flex-wrap:nowrap}
@@ -559,6 +563,11 @@ export const PORTAL_HTML = `<!doctype html>
       forceOffline: false, syncRejects: null,
       photos: null, photosKid: null, photoOpen: null,
       hospitals: null, doctors: null, hosForm: null, docForm: null, hosQuery: "",
+      // The doctors table has its own filter and search: a directory of any
+      // size is unusable without them, and the endpoint has always accepted
+      // both — the console simply never sent either.
+      docHospital: "", docQuery: "",
+      lookupQuery: "", lookup: null, demo: null,
       addChild: null,
       invites: null, campPeople: null, peopleQuery: "",
       threads: null, thread: null, billing: null, library: null, libForm: null,
@@ -685,6 +694,11 @@ export const PORTAL_HTML = `<!doctype html>
   var CHECKS = ["Height & weight","Vision","Dental","Haemoglobin"];
   var ACUITY = ["6/6","6/9","6/12","6/18","6/24","6/36","6/60","<6/60"];
   var CADENCE = [["ANNUAL","Once a year"],["BIANNUAL","Twice a year"],["QUARTERLY","Every quarter"],["ADHOC","As arranged"]];
+  /** How often camps run at this school, in the words the form used to set it. */
+  function cadenceLabel(code) {
+    for (var i = 0; i < CADENCE.length; i++) if (CADENCE[i][0] === code) return CADENCE[i][1];
+    return code || "\\u2014";
+  }
 
   // ── auth storage ──
   function saveAuth(a) { try { localStorage.setItem("vh_console", JSON.stringify(a)); } catch (e) {} }
@@ -1521,10 +1535,17 @@ export const PORTAL_HTML = `<!doctype html>
             isOps() ? el("button", { class: "pri", onclick: function () { set({ view: "newSchool" }); } },
               icon("plus", 14), " Add school") : null))
         : el("div", { class: "tw" }, el("table", null,
+            // Everything the onboarding form captures. mapSchool has always
+            // returned eighteen fields and this table showed six: the contact
+            // nobody could find without opening the school, the checks the
+            // school actually agreed to, how often camps run, when it came on
+            // board. All of it was already on the wire.
             el("thead", null, el("tr", null,
-              el("th", null, "School"), el("th", null, "Partner code"), el("th", null, "Year"),
+              el("th", null, "School"), el("th", null, "Partner code"), el("th", { class: "nw" }, "Year"),
+              el("th", null, "Contact"), el("th", { class: "nw" }, "Contact mobile"), el("th", null, "Email"),
+              el("th", { class: "nw" }, "Camps"), el("th", null, "Checks agreed"),
               el("th", { class: "num" }, "Students"), el("th", { class: "num" }, "Staff"),
-              el("th", null, "Status"), el("th", { class: "act" }, ""))),
+              el("th", null, "Onboarded"), el("th", null, "Status"), el("th", { class: "act" }, ""))),
             el("tbody", null, rows.map(function (s) {
               var archived = s.active === false || s.status === "ARCHIVED";
               return el("tr", { class: "click" + (archived ? " muted" : ""),
@@ -1533,9 +1554,25 @@ export const PORTAL_HTML = `<!doctype html>
                   el("div", { class: "muted", style: "font-size:11.5px" },
                     [s.city, s.district].filter(Boolean).join(" \\u00b7 "))),
                 el("td", null, el("span", { class: "code" }, s.partnerCode)),
-                el("td", null, s.academicYear || el("span", { class: "muted" }, "\\u2014")),
+                el("td", { class: "nw" }, s.academicYear || el("span", { class: "muted" }, "\\u2014")),
+                el("td", { class: "nw" }, s.contactName || el("span", { class: "muted" }, "\\u2014")),
+                el("td", { class: "mono nw" }, s.contactPhone
+                  || el("span", { class: "muted", style: "font-family:inherit" }, "\\u2014")),
+                el("td", { class: "muted" }, s.contactEmail || "\\u2014"),
+                el("td", { class: "nw" }, cadenceLabel(s.campCadence)),
+                // The checks a camp at this school may record. A camp cannot
+                // offer anything outside this list, so it is the school's
+                // whole clinical scope in one cell.
+                el("td", null, (s.checksOffered || []).length
+                  ? el("span", { title: (s.checksOffered || []).join(", ") },
+                      (s.checksOffered || []).length + " \\u00b7 "
+                      + truncate((s.checksOffered || []).join(", "), 26))
+                  : el("span", { class: "muted" }, "none set")),
                 el("td", { class: "num" }, s.studentCount),
                 el("td", { class: "num" }, s.adminCount),
+                el("td", { class: "nw" }, s.onboardedAt
+                  ? fmtDate(s.onboardedAt)
+                  : el("span", { class: "muted" }, "\\u2014")),
                 el("td", null, statusPill(s.active && s.status === "ACTIVE" ? "ACTIVE" : s.status)),
                 el("td", { class: "act" }, isOps()
                   ? rowMenu("sch:" + s.id, [
@@ -4018,6 +4055,8 @@ export const PORTAL_HTML = `<!doctype html>
       run(api("/api/admin/access-log?days=" + (S.accessDays || 30)), function (d) { S.access = d; });
     } else if (t === "retention" && !S.retention) {
       run(api("/api/admin/retention"), function (d) { S.retention = d; });
+    } else if (t === "demo" && !S.demo) {
+      run(api("/api/admin/demo-data"), function (d) { S.demo = d; });
     }
   }
 
@@ -4028,6 +4067,8 @@ export const PORTAL_HTML = `<!doctype html>
       S.oversightTab === "access" ? tabAccessLog()
         : S.oversightTab === "retention" ? tabRetention()
         : S.oversightTab === "child" ? tabChildTrail()
+        : S.oversightTab === "phone" ? tabPhoneLookup()
+        : S.oversightTab === "demo" ? tabDemoData()
         : tabPartners());
   }
 
@@ -4266,6 +4307,18 @@ export const PORTAL_HTML = `<!doctype html>
         : null);
   }
 
+  /** The doctors query string, built from the filter and the search together. */
+  function doctorQuery() {
+    var p = [];
+    if (S.docHospital) p.push("hospital_id=" + encodeURIComponent(S.docHospital));
+    if (S.docQuery) p.push("q=" + encodeURIComponent(S.docQuery));
+    return p.length ? "?" + p.join("&") : "";
+  }
+
+  function loadDoctors() {
+    run(api("/api/admin/doctors" + doctorQuery()), function (r) { S.doctors = r; });
+  }
+
   function loadHospitals() {
     run(api("/api/admin/hospitals" + (S.hosQuery ? "?q=" + encodeURIComponent(S.hosQuery) : "")),
       function (d) {
@@ -4274,7 +4327,7 @@ export const PORTAL_HTML = `<!doctype html>
         // so a render error was swallowed whole and the console went blank with
         // nothing in the log — which is how a missing field in one response
         // could look like the app had simply died.
-        api("/api/admin/doctors").then(
+        api("/api/admin/doctors" + doctorQuery()).then(
           function (r) { S.doctors = r; },
           function () { S.doctors = { doctors: [] }; }
         ).then(render);
@@ -4381,12 +4434,12 @@ export const PORTAL_HTML = `<!doctype html>
                   (S.hospitals.hospitals || []).map(function (h) {
                     return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
                   })))),
-            el("div", { class: "fld" }, el("label", null, "Direct number (optional)"),
-              el("input", { value: g.phone || "", oninput: db("phone"), placeholder: "+91 98765 43210" }))),
+            el("div", { class: "fld" }, el("label", null, "Mobile number"),
+              el("input", { value: g.phone || "", oninput: db("phone"), placeholder: "98765 43210" }))),
           el("div", { class: "hint" },
-            "A referral names a specialty. Attaching the doctor to a hospital is what lets the app "
-            + "tell a family where to go \u2014 and if this doctor has no direct number, the family "
-            + "is given the hospital's, so leaving it blank is better than guessing one.")),
+            "The mobile is required, and it has to be a mobile: it is how this doctor receives "
+            + "a one-time code and signs in to review results, and a landline cannot receive one. "
+            + "Attaching them to a hospital is what lets the app tell a family where to go.")),
         el("div", { class: "card-f" }, el("div", { class: "row" },
           el("button", { class: "pri", disabled: S.busy, onclick: saveDoctor }, "Save doctor"),
           el("button", { onclick: function () { set({ docForm: null }); } }, "Cancel"))));
@@ -4459,28 +4512,54 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "tbar", style: "margin-top:18px" },
         el("span", { class: "ttl" }, "Doctors"),
         S.doctors && (S.doctors.doctors || []).length
-          ? el("span", { class: "cnt" }, String(S.doctors.doctors.length)) : null),
+          ? el("span", { class: "cnt" }, String(S.doctors.doctors.length)) : null,
+        el("div", { class: "sep" }),
+        // Filter by hospital. The endpoint has accepted hospital_id since it
+        // was written; nothing ever sent it, so a directory of any size could
+        // only be read end to end.
+        el("select", { style: "width:auto;min-width:190px",
+          onchange: function (e) { S.docHospital = e.target.value; loadDoctors(); } },
+          [el("option", { value: "", selected: !S.docHospital }, "All hospitals")].concat(
+            (S.hospitals.hospitals || []).map(function (h) {
+              return el("option", { value: h.id, selected: S.docHospital === h.id }, h.name);
+            }))),
+        el("input", { type: "text", id: "docq", value: S.docQuery,
+          placeholder: "Name, specialty, city or number",
+          oninput: function (e) { S.docQuery = e.target.value; },
+          onkeydown: function (e) { if (e.key === "Enter") loadDoctors(); } }),
+        el("button", { onclick: loadDoctors }, icon("search", 14), " Search"),
+        S.docHospital || S.docQuery
+          ? el("button", { class: "ghost", onclick: function () {
+              S.docHospital = ""; S.docQuery = ""; loadDoctors();
+            } }, icon("x", 14), " Clear")
+          : null),
       !S.doctors
         ? el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"))
         : (S.doctors.doctors || []).length === 0
           ? el("div", { class: "card" }, el("div", { class: "empty" },
-              el("p", { style: "font-size:12.5px;margin:0" }, "None yet.")))
+              el("p", { style: "font-size:12.5px;margin:0" },
+                S.docHospital || S.docQuery ? "No doctor matches that." : "None yet.")))
           : el("div", { class: "tw" }, el("table", null,
               el("thead", null, el("tr", null, el("th", null, "Doctor"), el("th", null, "Specialty"),
-                el("th", null, "Hospital"), el("th", null, "Phone"), el("th", null, "Status"),
-                el("th", { class: "act" }, ""))),
+                el("th", null, "Hospital"), el("th", null, "City"), el("th", null, "Mobile"),
+                el("th", { class: "num" }, "Camps"), el("th", { class: "num" }, "Rating"),
+                el("th", null, "Status"), el("th", { class: "act" }, ""))),
               el("tbody", null, (S.doctors.doctors || []).map(function (d) {
                 return el("tr", { class: d.active ? "" : "muted" },
                   el("td", null, el("b", null, d.name)),
-                  el("td", null, d.specialty),
+                  el("td", null, d.specialty || el("span", { class: "muted" }, "\u2014")),
                   el("td", { class: "muted" }, d.hospitalName || "\u2014"),
-                  // No direct number is a real state, not a blank cell: the
-                  // family is given the hospital's instead, and saying so
-                  // stops it reading like missing data.
-                  el("td", { class: "mono" }, d.phone
+                  el("td", null, d.city || el("span", { class: "muted" }, "\u2014")),
+                  // A doctor signs in with this number. "via hospital" used to
+                  // sit here and read like a reasonable fallback; it meant this
+                  // doctor cannot receive a code and cannot be put on a camp,
+                  // which is worth saying out loud rather than dressing up.
+                  el("td", { class: "mono" }, d.canSignIn
                     ? d.phone
-                    : el("span", { class: "muted", style: "font-family:inherit" },
-                        d.hospitalName ? "via hospital" : "\u2014")),
+                    : el("span", { class: "pill err", style: "font-family:inherit" },
+                        d.phone ? "Not a mobile" : "No mobile")),
+                  el("td", { class: "num" }, d.campCount || 0),
+                  el("td", { class: "num" }, d.rating ? d.rating.toFixed(1) : "\u2014"),
                   el("td", null, d.active === false
                     ? el("span", { class: "pill mute" }, "Retired")
                     : el("span", { class: "pill ok" }, "Active")),
@@ -4491,6 +4570,9 @@ export const PORTAL_HTML = `<!doctype html>
                             hospitalId: d.hospitalId, city: d.city, phone: d.phone || "",
                             active: d.active !== false } });
                         }],
+                        ["open", "Only this hospital", function () {
+                          S.docHospital = d.hospitalId || ""; loadDoctors();
+                        }, false, !d.hospitalId],
                         "-",
                         d.active
                           ? ["ban", "Retire doctor\\u2026", function () { retire("doctors", d.id, d.name); }, true]
@@ -4580,6 +4662,133 @@ export const PORTAL_HTML = `<!doctype html>
       stages.map(function (x) { return navSub(x[1], x[0], t, go(x[0]), x[2]); }));
   }
 
+  /**
+   * Who is this number?
+   *
+   * The office takes a call from someone who says they got a message. Before
+   * this, answering that meant knowing which list to look in first — roster,
+   * staff, administrators, the directory, the hospitals — and looking in each
+   * of them by hand.
+   */
+  function tabPhoneLookup() {
+    function find() {
+      var q = (S.lookupQuery || "").trim();
+      if (!q) return;
+      run(api("/api/admin/lookup?phone=" + encodeURIComponent(q)), function (d) { S.lookup = d; });
+    }
+    var d = S.lookup;
+    return el("div", null,
+      el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, "Find a number")),
+        el("div", { class: "card-b" },
+          el("div", { class: "row" },
+            el("input", { type: "text", id: "lookupq", style: "max-width:280px",
+              value: S.lookupQuery || "", placeholder: "98765 43210, or the last four digits",
+              oninput: function (e) { S.lookupQuery = e.target.value; },
+              onkeydown: function (e) { if (e.key === "Enter") find(); } }),
+            el("button", { class: "pri", disabled: S.busy, onclick: find },
+              icon("search", 14), " Find")),
+          el("div", { class: "hint" },
+            "Searches guardians, school contacts, administrators, screeners, physicians, "
+            + "the doctor directory and the hospitals \u2014 all at once, across every school."))),
+
+      !d ? null
+        : el("div", null,
+            el("div", { class: "tbar" },
+              el("span", { class: "ttl" }, d.matches.length
+                ? d.matches.length + (d.matches.length === 1 ? " match" : " matches")
+                : "No match"),
+              d.normalized ? el("span", { class: "code" }, d.normalized) : null,
+              // Said plainly: the difference between "we have no record" and
+              // "we have a record that can never receive a message".
+              d.normalized && !d.isMobile
+                ? el("span", { class: "pill warn" }, "Not a mobile \u2014 no code can reach it")
+                : null),
+            d.matches.length === 0
+              ? el("div", { class: "card" }, el("div", { class: "empty" },
+                  el("p", { style: "font-size:12.5px;margin:0" },
+                    "Nobody in the programme has that number.")))
+              : el("div", { class: "tw" }, el("table", null,
+                  el("thead", null, el("tr", null, el("th", null, "Found as"), el("th", null, "Name"),
+                    el("th", null, "Number"), el("th", null, "Where"), el("th", { class: "act" }, ""))),
+                  el("tbody", null, d.matches.map(function (m) {
+                    return el("tr", null,
+                      el("td", null, el("span", { class: "pill info" }, m.kind)),
+                      el("td", null, el("b", null, m.name || "\u2014")),
+                      el("td", { class: "mono" }, m.phone || "\u2014"),
+                      el("td", { class: "muted" }, m.detail || "\u2014"),
+                      el("td", { class: "act" }, m.schoolId
+                        ? el("button", { class: "sm", onclick: function () { openSchool(m.schoolId); } },
+                            icon("open", 13), " Open school")
+                        : null));
+                  }))))));
+  }
+
+  /**
+   * Clearing the demonstration data.
+   *
+   * Shows what it would remove before it removes anything. A school holding
+   * screening records is never deleted by this — it is listed with the reason
+   * and left exactly where it is.
+   */
+  function tabDemoData() {
+    var d = S.demo;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+
+    function purge(withArticles) {
+      var what = d.removable + (d.removable === 1 ? " record" : " records");
+      if (!confirm("Remove " + what + "?\\n\\nThis cannot be undone. Anything holding real "
+        + "records is kept and will be listed.")) return;
+      run(api("/api/admin/demo-data", { method: "DELETE", body: { articles: !!withArticles } }),
+        function (r) {
+          S.notice = r.removed.length
+            ? "Removed " + r.removed.length + (r.removed.length === 1 ? " record." : " records.")
+            : "Nothing to remove.";
+          if (r.kept.length) {
+            S.notice += " Kept " + r.kept.length + " that hold real records.";
+          }
+          S.demo = null; S.schools = []; loadOversightTab();
+        });
+    }
+
+    return el("div", null,
+      el("div", { class: "msg info" },
+        "Demonstration data is the fictional schools, hospitals and doctors a new database "
+        + "starts with. It is no longer re-created on its own \u2014 set SEED_DEMO_DATA=true "
+        + "to get it back on an evaluation deployment."),
+
+      d.empty
+        ? el("div", { class: "card" }, el("div", { class: "empty" },
+            el("h3", null, "Nothing to clear"),
+            el("p", { style: "font-size:12.5px" }, "This database holds no demonstration records.")))
+        : el("div", null,
+            el("div", { class: "tbar" },
+              el("span", { class: "ttl" }, "Demonstration records"),
+              el("span", { class: "cnt" }, String(d.items.length)),
+              el("div", { style: "flex:1" }),
+              d.removable
+                ? el("button", { class: "dang", disabled: S.busy, onclick: function () { purge(false); } },
+                    icon("trash", 14), " Remove " + d.removable)
+                : null,
+              d.articles
+                ? el("button", { disabled: S.busy, onclick: function () { purge(true); } },
+                    icon("trash", 14), " Remove these and the " + d.articles + " library articles")
+                : null),
+            el("div", { class: "tw" }, el("table", null,
+              el("thead", null, el("tr", null, el("th", null, "Kind"), el("th", null, "Name"),
+                el("th", null, "Detail"), el("th", null, "What happens"))),
+              el("tbody", null, d.items.map(function (i) {
+                return el("tr", { class: i.removable ? "" : "muted" },
+                  el("td", null, el("span", { class: "pill mute" }, i.kind)),
+                  el("td", null, el("b", null, i.name)),
+                  el("td", { class: "muted" }, i.detail || "\u2014"),
+                  el("td", null, i.removable
+                    ? el("span", { class: "pill err" }, "Will be removed")
+                    : el("span", null, el("span", { class: "pill ok" }, "Kept"),
+                        el("div", { class: "muted", style: "font-size:11.5px;margin-top:2px" }, i.reason))));
+              }))))));
+  }
+
   function oversightNav() {
     if (S.view !== "oversight") return null;
     var t = S.oversightTab;
@@ -4591,7 +4800,9 @@ export const PORTAL_HTML = `<!doctype html>
       navSub("Hospital partners", "partners", t, go("partners")),
       navSub("Record access", "access", t, go("access")),
       navSub("Retention", "retention", t, go("retention")),
-      navSub("Look up a child", "child", t, go("child")));
+      navSub("Look up a child", "child", t, go("child")),
+      navSub("Find a number", "phone", t, go("phone")),
+      isOps() ? navSub("Demonstration data", "demo", t, go("demo")) : null);
   }
 
   function truncate(v, n) {

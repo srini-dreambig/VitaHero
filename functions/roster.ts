@@ -18,6 +18,7 @@ import {
   buildStudentRef,
   chunk,
   normalizeGender,
+  isMobile,
   normalizePhone,
   parseDob,
   profileIdForPhone,
@@ -196,9 +197,15 @@ async function analyseRoster(
         severity: "error",
         message: `"${phoneRaw}" is not a valid mobile number`,
       });
-    } else if (!/^[6-9]/.test(norm.last10)) {
-      // Indian mobile numbers start 6-9. A landline here means the invite SMS
-      // will never arrive, so flag it rather than discovering it at camp time.
+    } else if (!isMobile(phoneRaw)) {
+      // Kept a warning rather than an error: one odd number in a spreadsheet
+      // of four hundred should not stop the import, and the child still has a
+      // roster place. The guardian simply cannot be invited until it is fixed.
+      //
+      // This was the only place in the codebase that knew Indian mobiles start
+      // 6-9, written inline here while every other call site accepted a
+      // landline and created a profile that could never sign in. The rule now
+      // lives in one place and this asks for it.
       issues.push({
         field: "phone",
         severity: "warning",

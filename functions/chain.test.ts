@@ -1322,7 +1322,7 @@ suite("end to end", () => {
        VALUES ('doc_nophone', 'Dr No Number', 'Dental', '')
        ON CONFLICT (id) DO NOTHING`);
     await expect(assignDoctorToCamp(sql, admin, campId, "doc_nophone"))
-      .rejects.toThrow(/no mobile number/);
+      .rejects.toThrow(/no usable mobile number/);
   });
 
   test("an assigned doctor can open the camp and screen", async () => {
@@ -1416,11 +1416,25 @@ suite("end to end", () => {
     })).rejects.toThrow(/valid mobile number/);
   });
 
-  test("no number is a legitimate state, not an empty string to guess at", async () => {
-    const r = await upsertDoctor(sql, OPS, { name: "Dr Anon", specialty: "Dental" });
-    expect(r.phone).toBe("");
-    const listed = await listDoctors(sql, OPS, "");
-    expect(listed.doctors.find((d) => d.id === r.id)!.phone).toBe("");
+  test("a doctor with no number is refused, because they could never sign in", async () => {
+    // This test used to assert the opposite: that a doctor with no number was
+    // a legitimate directory entry, on the reasoning that the family falls
+    // back to the hospital switchboard. That was true while the directory only
+    // listed places to send people. A directory doctor is now also someone who
+    // is put on a camp and signs in to review results, and assignDoctorToCamp
+    // already refused them — so the gap surfaced at assignment time, in front
+    // of whoever was trying to staff the camp, rather than at the desk where
+    // the number is known.
+    await expect(upsertDoctor(sql, OPS, { name: "Dr Anon", specialty: "Dental" }))
+      .rejects.toThrow(/needs a mobile number/);
+  });
+
+  test("a doctor entered with the hospital landline is refused", async () => {
+    // The specific thing that was getting through: a real, working number that
+    // no one-time code can ever reach.
+    await expect(upsertDoctor(sql, OPS, {
+      name: "Dr Landline", specialty: "Dental", phone: "+914023456789",
+    })).rejects.toThrow(/is a landline/);
   });
 
   test("the doctor's number never reaches a family", async () => {

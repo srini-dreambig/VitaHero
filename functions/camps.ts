@@ -15,6 +15,7 @@ import {
   currentAcademicYear,
   insertRows,
   isOpsRole,
+  normalizeMobile,
   normalizePhone,
   slugify,
   tidyName,
@@ -1954,8 +1955,8 @@ export async function addStaffMember(
   }
   const name = tidyName(String(body.name || ""));
   if (name.length < 2) throw new ApiError(400, "Name is required", "NAME_REQUIRED");
-  const norm = normalizePhone(String(body.phone || ""));
-  if (!norm) throw new ApiError(400, "Enter a valid mobile number", "BAD_PHONE");
+  const norm = normalizeMobile(String(body.phone || ""));
+  if (!norm) throw new ApiError(400, "Enter a valid mobile number — a landline cannot receive the sign-in code", "BAD_PHONE");
 
   const profileId = `ph_${norm.last10}`;
   const existing = await sql`SELECT role FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1`;
@@ -2089,11 +2090,11 @@ export async function assignDoctorToCamp(
   if (docs.length === 0) throw new ApiError(404, "That doctor is not in the directory", "NO_DOCTOR");
   const doc = docs[0];
 
-  const norm = normalizePhone(String(doc.phone || ""));
+  const norm = normalizeMobile(String(doc.phone || ""));
   if (!norm) {
     throw new ApiError(
       400,
-      `${doc.name as string} has no mobile number in the directory. Add one first — it is how they sign in.`,
+      `${doc.name as string} has no usable mobile number in the directory. Add one first — it is how they sign in, and a landline cannot receive the code.`,
       "DOCTOR_NO_PHONE"
     );
   }

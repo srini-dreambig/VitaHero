@@ -6,7 +6,7 @@
 // has to add the hospital that is actually next to the school — and there was
 // nowhere to do it. This is that surface.
 
-import { Sql, isOpsRole, normalizePhone } from "./common";
+import { Sql, isOpsRole, normalizeMobile, normalizePhone } from "./common";
 import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 
@@ -24,15 +24,35 @@ const num = (v: unknown, fallback: number | null = null): number | null => {
 
 // ─── Hospitals ──────────────────────────────────────────────
 
+/**
+ * The digits to match a search against.
+ *
+ * Anything longer than a national number is a number someone pasted with a
+ * country code or a trunk zero in front of it, so it narrows to the last ten:
+ * those are what is actually stored, and what a person reading a number off a
+ * screen would type. Shorter stays as typed, so the last four digits still
+ * find someone.
+ */
+function searchDigits(q: string): string {
+  const d = (q || "").replace(/\D/g, "");
+  return d.length > 10 ? d.slice(-10) : d;
+}
+
 export async function listHospitals(sql: Sql, actor: Actor, search: string) {
   // A school admin picks a partner hospital for their camps, so they may read
   // the directory. Only operations may change it.
   const q = (search || "").toLowerCase();
+  const digits = searchDigits(q);
   const rows = await sql`
     SELECT h.*,
       (SELECT COUNT(*)::int FROM vita_hero.doctors d WHERE d.hospital_id = h.id AND d.active) AS doctor_count
     FROM vita_hero.hospitals h
-    WHERE (${q === ""} OR LOWER(h.name) LIKE ${"%" + q + "%"} OR LOWER(h.city) LIKE ${"%" + q + "%"})
+    WHERE (${q === ""}
+           OR LOWER(h.name) LIKE ${"%" + q + "%"}
+           OR LOWER(h.city) LIKE ${"%" + q + "%"}
+           OR LOWER(h.district) LIKE ${"%" + q + "%"}
+           OR LOWER(h.address) LIKE ${"%" + q + "%"}
+           OR (${digits !== ""} AND REGEXP_REPLACE(COALESCE(h.phone, ''), '[^0-9]', '', 'g') LIKE ${"%" + digits + "%"}))
     ORDER BY h.is_camp_partner DESC, h.name
   `;
   return {
@@ -88,12 +108,29 @@ export async function deleteHospital(sql: Sql, actor: Actor, id: string) {
 
 // ─── Doctors ────────────────────────────────────────────────
 
-export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string) {
+export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string, search = "") {
+  // Digits are matched against the number itself, so a phone can be found by
+  // the last few digits the way someone reads them off a screen, and with or
+  // without spaces, a country code or a trunk zero.
+  const q = (search || "").trim().toLowerCase();
+  // The last ten digits are a number's identity here, the same rule profile
+  // ids use. Without this, pasting a number the way it is stored — with +91,
+  // or with the trunk zero people write — finds nothing, because "09876543210"
+  // is not a substring of "919876543210".
+  const digits = searchDigits(q);
   const rows = await sql`
-    SELECT d.*, h.name AS hospital_name
+    SELECT d.*, h.name AS hospital_name,
+      (SELECT COUNT(*)::int FROM vita_hero.camp_staff cs
+         WHERE cs.doctor_id = d.id AND cs.active) AS camp_count
     FROM vita_hero.doctors d
     LEFT JOIN vita_hero.hospitals h ON h.id = d.hospital_id
     WHERE (${!hospitalId} OR d.hospital_id = ${hospitalId || ""})
+      AND (${q === ""}
+           OR LOWER(d.name) LIKE ${"%" + q + "%"}
+           OR LOWER(d.specialty) LIKE ${"%" + q + "%"}
+           OR LOWER(d.city) LIKE ${"%" + q + "%"}
+           OR LOWER(COALESCE(h.name, d.hospital, '')) LIKE ${"%" + q + "%"}
+           OR (${digits !== ""} AND REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', '', 'g') LIKE ${"%" + digits + "%"}))
     ORDER BY d.active DESC, d.name
   `;
   return {
@@ -106,6 +143,12 @@ export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string) {
       hospitalName: (r.hospital_name as string) || (r.hospital as string) || "",
       city: (r.city as string) || "",
       phone: (r.phone as string) || "",
+      // Whether this doctor could actually be put on a camp. The directory
+      // requires a mobile now, but rows entered before that rule — or with a
+      // switchboard number — are still there, and this is what makes them
+      // visible instead of leaving them to fail at assignment time.
+      canSignIn: normalizeMobile((r.phone as string) || "") !== null,
+      campCount: (r.camp_count as number) || 0,
       rating: Number(r.rating) || 0,
       active: r.active !== false,
     })),
@@ -127,16 +170,43 @@ export async function upsertDoctor(sql: Sql, actor: Actor, body: Record<string, 
     hospitalName = h[0].name as string;
   }
 
-  // Optional, and normalised when given. A directory entry with no number is
-  // honest — the family falls back to the hospital's switchboard — but a
-  // number that is not a phone number is not.
+  // Required, and it must be a mobile.
+  //
+  // This used to be optional, on the reasoning that a directory entry with no
+  // number is honest because the family falls back to the hospital's
+  // switchboard. That held while the directory was only a list of places to
+  // send people. It stopped holding when a directory doctor became someone who
+  // signs in: assignDoctorToCamp refuses a doctor with no number, so the gap
+  // was discovered at the point of putting them on a camp — by which time the
+  // person who knew the number had gone.
+  //
+  // A landline is refused for the same reason it is refused everywhere else: a
+  // one-time code sent to a desk phone is a sign-in that silently never
+  // happens.
   const rawPhone = String(body.phone || "").trim();
-  let phone = "";
-  if (rawPhone) {
-    const norm = normalizePhone(rawPhone);
-    if (!norm) throw new ApiError(400, "That is not a valid mobile number", "BAD_PHONE");
-    phone = norm.e164;
+  if (!rawPhone) {
+    throw new ApiError(
+      400,
+      `${name} needs a mobile number — it is how they receive a code and sign in`,
+      "PHONE_REQUIRED"
+    );
   }
+  // Two different mistakes, told apart. "12" is not a phone number at all;
+  // 040 2345 6789 is a perfectly good number that simply cannot receive a
+  // text. Saying "that is not a mobile" about the first reads as nonsense, and
+  // saying "that is not a valid number" about the second sends someone off to
+  // re-check a number that is exactly right.
+  const norm = normalizeMobile(rawPhone);
+  if (!norm) {
+    throw new ApiError(
+      400,
+      normalizePhone(rawPhone)
+        ? `"${rawPhone}" is a landline. It cannot receive the sign-in code — enter a mobile number.`
+        : `"${rawPhone}" is not a valid mobile number`,
+      "BAD_PHONE"
+    );
+  }
+  const phone = norm.e164;
 
   const id = String(body.id || "").trim() || `doc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
   await sql`
@@ -319,4 +389,131 @@ export async function campPeople(sql: Sql, actor: Actor, campId: string, schoolI
       referrals: (r.referrals as number) || 0,
     })),
   };
+}
+
+/**
+ * Find a phone number anywhere it appears in the programme.
+ *
+ * The console could search a roster for a guardian and a hospital list by
+ * name, and that was all. Someone rings the office saying "I got a message
+ * from you" and the only way to find out who they are was to know which list
+ * to look in first — parent, school contact, administrator, screener,
+ * physician, doctor in the directory, hospital switchboard — and to look in
+ * each of them in turn.
+ *
+ * Matched on digits, so how the number was typed does not matter: with or
+ * without +91, with a trunk zero, with spaces. The last ten digits are the
+ * identity of a number here, which is the same rule profile ids use.
+ *
+ * Operations only. This crosses every school, which is exactly what a school
+ * administrator must not be able to do.
+ */
+export async function lookupPhone(sql: Sql, actor: Actor, raw: string) {
+  opsOnly(actor, "Looking a number up across the programme");
+
+  const digits = (raw || "").replace(/\D/g, "");
+  if (digits.length < 4) {
+    throw new ApiError(400, "Enter at least the last four digits", "TOO_SHORT");
+  }
+  const tail = digits.slice(-10);
+  const like = `%${tail}%`;
+  const norm = normalizePhone(digits);
+
+  // One round trip per kind rather than a single union: the shapes genuinely
+  // differ, and these run together rather than one after another.
+  const [people, doctors, hospitals, schools] = await Promise.all([
+    sql`
+      SELECT p.id, p.name, p.phone, p.role, p.is_logged_in, p.school_id,
+             s.name AS school_name,
+             (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.profile_id = p.id) AS kid_count
+      FROM vita_hero.profiles p
+      LEFT JOIN vita_hero.schools s ON s.id = p.school_id
+      WHERE REGEXP_REPLACE(COALESCE(p.phone, ''), '[^0-9]', '', 'g') LIKE ${like}
+      ORDER BY p.role, p.name
+      LIMIT 50
+    `,
+    sql`
+      SELECT d.id, d.name, d.phone, d.specialty, d.city, h.name AS hospital_name
+      FROM vita_hero.doctors d
+      LEFT JOIN vita_hero.hospitals h ON h.id = d.hospital_id
+      WHERE REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', '', 'g') LIKE ${like}
+      ORDER BY d.name
+      LIMIT 50
+    `,
+    sql`
+      SELECT id, name, phone, city FROM vita_hero.hospitals
+      WHERE REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g') LIKE ${like}
+      ORDER BY name
+      LIMIT 50
+    `,
+    sql`
+      SELECT id, name, contact_name, contact_phone, city FROM vita_hero.schools
+      WHERE REGEXP_REPLACE(COALESCE(contact_phone, ''), '[^0-9]', '', 'g') LIKE ${like}
+      ORDER BY name
+      LIMIT 50
+    `,
+  ]);
+
+  const matches = [
+    ...people.map((r) => ({
+      kind: (r.role as string) === "PARENT" ? "Guardian" : roleLabel(r.role as string),
+      id: r.id as string,
+      name: (r.name as string) || "",
+      phone: (r.phone as string) || "",
+      detail: [
+        (r.school_name as string) || "",
+        (r.kid_count as number) ? `${r.kid_count} child${(r.kid_count as number) === 1 ? "" : "ren"}` : "",
+        r.is_logged_in === true ? "signed in" : "",
+      ].filter(Boolean).join(" · "),
+      schoolId: (r.school_id as string) || "",
+    })),
+    ...doctors.map((r) => ({
+      kind: "Doctor (directory)",
+      id: r.id as string,
+      name: (r.name as string) || "",
+      phone: (r.phone as string) || "",
+      detail: [(r.specialty as string) || "", (r.hospital_name as string) || "", (r.city as string) || ""]
+        .filter(Boolean).join(" · "),
+      schoolId: "",
+    })),
+    ...hospitals.map((r) => ({
+      kind: "Hospital",
+      id: r.id as string,
+      name: (r.name as string) || "",
+      phone: (r.phone as string) || "",
+      detail: (r.city as string) || "",
+      schoolId: "",
+    })),
+    ...schools.map((r) => ({
+      kind: "School contact",
+      id: r.id as string,
+      name: (r.contact_name as string) || (r.name as string),
+      phone: (r.contact_phone as string) || "",
+      detail: [(r.name as string) || "", (r.city as string) || ""].filter(Boolean).join(" · "),
+      schoolId: r.id as string,
+    })),
+  ];
+
+  return {
+    query: raw,
+    normalized: norm ? norm.e164 : "",
+    // Said plainly rather than left for the reader to work out from a blank
+    // column: this is the difference between "we have no record of them" and
+    // "we have a record that can never receive a message".
+    isMobile: normalizeMobile(digits) !== null,
+    matches,
+  };
+}
+
+/** The role names the console shows, kept next to the lookup that needs them. */
+function roleLabel(role: string): string {
+  const m: Record<string, string> = {
+    PARENT: "Guardian",
+    SCHOOL_ADMIN: "School administrator",
+    SCREENER: "Screener",
+    PHYSICIAN: "Physician",
+    ADMIN: "Operations",
+    SUPERADMIN: "Operations",
+  };
+  return m[role] || role || "Person";
 }

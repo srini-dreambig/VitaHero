@@ -315,6 +315,36 @@ describe("seeding a fresh database", () => {
       src.indexOf("async function seedDoctorsIfEmpty(")
     );
     expect(ensureSchema).not.toContain("seedPartnerSchools(sql)");
-    expect(src).toContain("const SEED_STEPS = [seedDoctorsIfEmpty, seedPartnerSchools, seedLibraryIfEmpty]");
+    // It is a seed step, wherever the list is built. The list is now chosen at
+    // runtime — demonstration data is opt-in — so this asserts the property
+    // rather than one spelling of one line.
+    const steps = src.slice(src.indexOf("function seedSteps("));
+    expect(steps.slice(0, steps.indexOf("}"))).toContain("seedPartnerSchools");
   });
+
+  test("demonstration data is not seeded unless it is asked for", async () => {
+    // The four fictional schools are right for an evaluation and wrong for a
+    // district running a real programme, where they sit among the real schools
+    // looking exactly like one of them.
+    //
+    // Asserted by calling it rather than by reading the file: what matters is
+    // which steps come back, not how the branch is written.
+    const { seedSteps } = await import("./index");
+    const names = (env: unknown) =>
+      (seedSteps(env as never) as Array<{ name: string }>).map((f) => f.name);
+
+    expect(names({})).toEqual(["seedLibraryIfEmpty"]);
+    expect(names({ SEED_DEMO_DATA: "false" })).toEqual(["seedLibraryIfEmpty"]);
+    // Anything other than an explicit "true" leaves it off — an env var that
+    // arrived as "1" or "yes" must not quietly seed a live programme.
+    expect(names({ SEED_DEMO_DATA: "1" })).toEqual(["seedLibraryIfEmpty"]);
+
+    const on = names({ SEED_DEMO_DATA: "true" });
+    expect(on).toContain("seedPartnerSchools");
+    expect(on).toContain("seedDoctorsIfEmpty");
+    // The reading library is content a guardian is shown, not fiction, so it
+    // is seeded either way.
+    expect(on).toContain("seedLibraryIfEmpty");
+  });
+
 });

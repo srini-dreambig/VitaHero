@@ -33,6 +33,23 @@ bun -e "
   await Bun.write('$work/portal.html', PORTAL_HTML);
 "
 
+# Syntax-check the console's own script before driving it.
+#
+# A missing bracket makes every test in every file fail with something that
+# looks unrelated — seventeen assertions about dashboard numbers, none of which
+# mention a syntax error. One line here names it instead.
+node -e "
+  const fs = require('fs');
+  const html = fs.readFileSync('$work/portal.html', 'utf8');
+  const m = html.match(/<script>([\s\S]*)<\/script>/);
+  if (!m) { console.error('console-smoke: no script block in the portal HTML'); process.exit(1); }
+  fs.writeFileSync('$work/app.js', m[1]);
+" || exit 1
+if ! node --check "$work/app.js"; then
+  echo "console-smoke: the console's script does not parse — fix that first" >&2
+  exit 1
+fi
+
 port=8099
 python3 -m http.server "$port" --directory "$work" --bind 127.0.0.1 >/dev/null 2>&1 &
 srv=$!
@@ -42,7 +59,7 @@ for _ in $(seq 1 40); do
 done
 
 status=0
-for f in "$here"/screens.mjs "$here"/photo-gating.mjs "$here"/phone.mjs "$here"/dashboard.mjs "$here"/oversight.mjs "$here"/doctor-camp.mjs "$here"/navigation.mjs "$here"/actions.mjs "$here"/school-lifecycle.mjs "$here"/manage.mjs "$here"/state.mjs; do
+for f in "$here"/screens.mjs "$here"/photo-gating.mjs "$here"/phone.mjs "$here"/dashboard.mjs "$here"/oversight.mjs "$here"/doctor-camp.mjs "$here"/navigation.mjs "$here"/actions.mjs "$here"/school-lifecycle.mjs "$here"/manage.mjs "$here"/admin-panel.mjs "$here"/state.mjs; do
   echo "── $(basename "$f")"
   PW_DIR="$pwdir" PORTAL_URL="http://127.0.0.1:$port/portal.html" node "$f" || status=1
 done
