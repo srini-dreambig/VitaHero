@@ -1193,14 +1193,21 @@ export const PORTAL_HTML = `<!doctype html>
     function send() {
       var p = phoneI.value.trim();
       if (!p) { set({ error: "Enter your mobile number" }); return; }
-      run(api("/api/auth/phone/send", { method: "POST", body: { phone: p } }),
+      // Which product is asking. Without it the worker assumes the family
+      // app, because every installed copy of the app predates the field and
+      // this console is served fresh by the same worker on every load.
+      run(api("/api/auth/phone/send", { method: "POST", body: { phone: p, surface: "console" } }),
         function () { S.otp = { phone: p }; S.notice = "Code sent to " + p; });
     }
     function verify() {
       var c = otpI.value.trim();
       if (!c) { set({ error: "Enter the code" }); return; }
-      run(api("/api/auth/phone/verify", { method: "POST", body: { phone: S.otp.phone, otp: c } }), function (d) {
+      run(api("/api/auth/phone/verify", { method: "POST", body: { phone: S.otp.phone, otp: c, surface: "console" } }), function (d) {
         var p = d.profile || {};
+        // Belt and braces. The worker refuses a parent at this door now and
+        // says where to go instead, so this should be unreachable — but a
+        // console that trusts the server's answer alone is one deploy skew
+        // away from letting a family in to a screening queue.
         if (["SCHOOL_ADMIN","SCREENER","PHYSICIAN","ADMIN","SUPERADMIN"].indexOf(p.role) < 0) {
           S.error = "That number is not registered as staff."; S.auth = null; return;
         }

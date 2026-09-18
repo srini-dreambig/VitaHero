@@ -1337,11 +1337,14 @@ describe("every admin route the console calls is actually reachable", () => {
 // different and the difference is the whole point: unknown, in the directory
 // but not given access, and in.
 describe("requesting a sign-in code", () => {
+  // A doctor's sign-in is a console sign-in: that is their job. The surface
+  // is named here rather than left out, because leaving it out means the
+  // family app, and a doctor has no business there.
   const send = (phone: string) =>
     call("/api/auth/phone/send", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify({ phone, surface: "console" }),
     });
 
   test("a number nobody has heard of is told so, plainly", async () => {
@@ -1387,6 +1390,94 @@ describe("requesting a sign-in code", () => {
     const b = (await res.json()) as { code?: string; note?: string };
     expect(b.code).toBeUndefined();
     expect(b.note).toContain("could not deliver");
+  });
+
+  // ── the two products ──
+  //
+  // The reported failure was a doctor being told their number was not
+  // registered. Fixing that by provisioning doctors opened a worse one: the
+  // family app and the console share this endpoint, so a doctor could now sign
+  // in to the family app, which has no notion of a role and greets everyone as
+  // "Parent". They are different jobs. The door has to know which is which.
+  const sendAs = (phone: string, surface?: string) =>
+    call("/api/auth/phone/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(surface ? { phone, surface } : { phone }),
+    });
+
+  test("a doctor at the family app is turned round, with the console address", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PHYSICIAN" }] },
+    ];
+    const res = await sendAs("9876500011", "app");
+    expect(res.status).toBe(403);
+    const b = (await res.json()) as { code?: string; error?: string };
+    expect(b.code).toBe("WRONG_SURFACE_APP");
+    expect(b.error).toMatch(/registered as a doctor/i);
+    expect(b.error).toContain("/admin");
+  });
+
+  test("a parent at the console is turned round the other way", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PARENT" }] },
+    ];
+    const res = await sendAs("9876543210", "console");
+    expect(res.status).toBe(403);
+    const b = (await res.json()) as { code?: string; error?: string };
+    expect(b.code).toBe("WRONG_SURFACE_CONSOLE");
+    expect(b.error).toMatch(/app on your phone/i);
+  });
+
+  test("and neither is sent a code they could not use", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PHYSICIAN" }] },
+    ];
+    calls = [];
+    await sendAs("9876500011", "app");
+    // Nothing was written to phone_otps, so no text went out. Refusing after
+    // sending the code is a text message telling somebody to open a door that
+    // will not open.
+    expect(calls.some((c) => /phone_otps/i.test(c.text))).toBe(false);
+  });
+
+  test("a client that says nothing is the family app, so parents keep working", async () => {
+    // Every installed copy of the app predates the field.
+    handlers = [
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PARENT" }] },
+      { match: /FROM vita_hero\.phone_otps/i, rows: [] },
+    ];
+    const res = await sendAs("9876543210");
+    expect(res.status).not.toBe(403);
+  });
+
+  test("a parent signing in to the app is not affected by any of this", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PARENT" }] },
+      { match: /FROM vita_hero\.phone_otps/i, rows: [] },
+    ];
+    const res = await sendAs("9876543210", "app");
+    expect(res.status).not.toBe(403);
+  });
+
+  test("verifying a code checks the door too, not only requesting one", async () => {
+    // A check that only happens on the way in is a check anyone can walk
+    // around: /verify mints the session, and it is reachable on its own.
+    handlers = [
+      { match: /FROM vita_hero\.phone_otps/i, rows: [{
+        otp: "123456", expires_at: new Date(Date.now() + 600_000).toISOString(), attempts: 0,
+      }] },
+      { match: /FROM vita_hero\.profiles/i, rows: [{
+        id: "ph_9876500011", provisioned: true, role: "PHYSICIAN", name: "Dr Meera Iyer",
+      }] },
+    ];
+    const res = await call("/api/auth/phone/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone: "9876500011", otp: "123456", surface: "app" }),
+    });
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code?: string }).code).toBe("WRONG_SURFACE_APP");
   });
 
   test("a doctor whose camps were all revoked still gets a closed door", async () => {

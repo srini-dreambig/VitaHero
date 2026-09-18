@@ -19,6 +19,21 @@ import java.util.UUID
  */
 class ApiRepository {
 
+    private companion object {
+        /**
+         * Which of the two products this is.
+         *
+         * The Android app is the family app: a parent's own children, their
+         * consent, their results. The web console is the programme: camps,
+         * screening, review, release. They share a sign-in endpoint and used
+         * to share a door, so anyone provisioned could open either — and this
+         * app has no notion of a role, so a doctor who signed in here was
+         * greeted as "Parent" with no children. Saying which product is asking
+         * is what lets the backend send them to the right one.
+         */
+        const val SURFACE = "app"
+    }
+
     private val http get() = ApiService.http
     private val base get() = ApiService.baseUrl
     private val skipNetwork: Boolean get() = !ApiService.isConfigured
@@ -97,7 +112,12 @@ class ApiRepository {
         try {
             val resp = http.post("$base/api/auth/phone/send") {
                 contentType(ContentType.Application.Json)
-                setBody(mapOf("phone" to phone))
+                // Which product is asking. This app is for families; school
+                // staff, screening teams and doctors belong in the console,
+                // and the backend turns them round here with the address of
+                // it rather than signing them in to a screen that has no idea
+                // what a doctor is and would call them "Parent".
+                setBody(mapOf("phone" to phone, "surface" to SURFACE))
             }
             if (resp.observed()) {
                 val body = try { resp.body<PhoneSendResponse>() } catch (_: Exception) { PhoneSendResponse(true) }
@@ -118,7 +138,7 @@ class ApiRepository {
         try {
             val resp = http.post("$base/api/auth/phone/verify") {
                 contentType(ContentType.Application.Json)
-                setBody(mapOf("phone" to phone, "otp" to otp))
+                setBody(mapOf("phone" to phone, "otp" to otp, "surface" to SURFACE))
             }
             if (resp.observed()) {
                 Result.success(resp.body<GoogleAuthResponse>())
@@ -138,7 +158,7 @@ class ApiRepository {
         try {
             val resp = http.post("$base/api/auth/phone/firebase-verify") {
                 contentType(ContentType.Application.Json)
-                setBody(mapOf("idToken" to idToken))
+                setBody(mapOf("idToken" to idToken, "surface" to SURFACE))
             }
             if (resp.observed()) {
                 Result.success(resp.body<GoogleAuthResponse>())

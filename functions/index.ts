@@ -19,6 +19,7 @@ import {
   rowField,
   slugify,
 } from "./common";
+import { surfaceOf, surfaceRefusal } from "./surfaces";
 import {
   Actor,
   ApiError,
@@ -2909,7 +2910,21 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         // nothing behind this door — so it does not open. Said plainly, because
         // the alternative is a doctor standing in a school hall reading
         // "something went wrong".
-        const clinicianRole = (provRows[0].role as string) || "";
+        // Which product is asking, and is this their door? Two very different
+        // jobs sit behind this one endpoint, and it used to let anyone
+        // provisioned into whichever one they had opened — so a doctor could
+        // sign in to the family app, which has no notion of a role and would
+        // have called them "Parent" and shown them an empty list of children.
+        const signInRole = (provRows[0].role as string) || "";
+        const wrongDoor = surfaceRefusal(
+          surfaceOf(body.surface), signInRole, new URL(request.url).origin + "/admin");
+        if (wrongDoor) {
+          // Refused before the code is sent, not after. There is no point
+          // texting somebody a code for a door that will not open.
+          return json(wrongDoor, 403);
+        }
+
+        const clinicianRole = signInRole;
         if (!(await canClinicianSignIn(sql, signInProfileId, clinicianRole))) {
           return json(
             {
@@ -3019,6 +3034,14 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           );
         }
 
+        // The same question as at /send, asked again where the session is
+        // actually minted. A door that only checks on the way in is a door
+        // anyone can walk around.
+        const verifyWrongDoor = surfaceRefusal(
+          surfaceOf(body.surface), (existing[0].role as string) || "",
+          new URL(request.url).origin + "/admin");
+        if (verifyWrongDoor) return json(verifyWrongDoor, 403);
+
         const sessionToken = await mintSession(sql, profileId, "PHONE");
         await sql`
           UPDATE vita_hero.profiles
@@ -3098,6 +3121,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             403
           );
         }
+
+        // Firebase is a third way in, and it needs the same question asked of
+        // it. It is the one the Android app actually uses.
+        const fbWrongDoor = surfaceRefusal(
+          surfaceOf(body.surface), (existing[0].role as string) || "",
+          new URL(request.url).origin + "/admin");
+        if (fbWrongDoor) return json(fbWrongDoor, 403);
 
         const sessionToken = await mintSession(sql, profileId, "FIREBASE_PHONE");
         await sql`
