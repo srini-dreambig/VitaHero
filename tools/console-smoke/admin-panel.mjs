@@ -236,10 +236,15 @@ check("the same number is reported as a guardian and as a doctor",
 check("the match says where that person sits", /Silver Oaks/.test(found));
 
 // ── clearing the demonstration data ───────────────────────────
-// Maintenance holds one screen, so the group tab is the control.
-await go(p, "Maintenance");
+await go(p, "Demonstration data");
 await p.waitForTimeout(400);
 const demo = await raw(".content");
+// Findable by the words somebody would go looking for, not behind a category
+// invented to hold one screen.
+const oversightTabs = await p.$$eval(".tabs .tab", (ns) =>
+  ns.map((n) => n.textContent.replace(/\d+$/, "").trim()));
+check("clearing the demo data is named on the tab, not hidden behind a category",
+  oversightTabs.includes("Demonstration data") && !oversightTabs.includes("Maintenance"));
 check("the demo panel lists what it would remove", /Oakridge International School/.test(demo));
 check("it says which records it will keep, and why",
   /Kept/.test(demo) && /In use by a camp/.test(demo));

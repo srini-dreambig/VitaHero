@@ -4407,7 +4407,11 @@ export const PORTAL_HTML = `<!doctype html>
       ["partners", "Partners", [["partners", "Hospital partners"]]],
       ["lookups", "Lookups", [["child", "Look up a child"], ["phone", "Find a number"]]],
       ["records", "Records", [["access", "Record access"], ["retention", "Retention"]]],
-      ["maint", "Maintenance", [isOps() ? ["demo", "Demonstration data"] : null]],
+      // Named after the one screen in it. "Maintenance" was a category invented
+      // to hold a single thing, and it hid that thing: somebody looking for
+      // where to clear the demonstration data had to guess which of four words
+      // it was behind. A group of one is named after its screen.
+      ["maint", "Demonstration data", [isOps() ? ["demo", "Demonstration data"] : null]],
     ];
   }
 
