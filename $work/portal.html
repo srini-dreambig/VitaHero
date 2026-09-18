@@ -1,19 +1,4 @@
-// The VitaHero administration console, served at /admin.
-//
-// Dependency-free on purpose: no build step, no CDN, no framework. It ships
-// with the worker, so there is one thing to deploy and one place the API
-// contract lives.
-//
-// Four audiences share it, and each sees only their own surface:
-//   ops          every school, every camp
-//   school admin one school: roster, camps, people, consent
-//   screener     the camps they are assigned to, camp-day capture only
-//   physician    the camps they are assigned to, review and release
-//
-// The portal JS below avoids template literals so this file can hold it in one
-// without escaping every backtick.
-
-export const PORTAL_HTML = `<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -237,12 +222,11 @@ export const PORTAL_HTML = `<!doctype html>
      into the same shape and you end up with thirteen thin columns of numbers.
      Columns stay aligned because it is still a grid. */
   .recs{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
-    box-shadow:var(--sh);overflow-x:auto}
-  .recw{border-bottom:1px solid var(--line-2)}
-  .recw:last-child{border-bottom:none}
-  .rec{display:grid;align-items:center;gap:14px;padding:9px 14px;cursor:pointer;
+    box-shadow:var(--sh);overflow:hidden}
+  .rec{display:grid;align-items:center;gap:14px;padding:9px 14px;
+    border-bottom:1px solid var(--line-2);cursor:pointer;
     transition:background .1s}
-  .rec.open{background:var(--sunk)}
+  .rec:last-child{border-bottom:none}
   .rec:hover{background:#F7FAFC}
   .rec.muted{background:var(--bg)}
   .rec.muted .rname{color:var(--ink-3)}
@@ -275,28 +259,10 @@ export const PORTAL_HTML = `<!doctype html>
     width:26px;height:26px;border-radius:50%;background:var(--sunk);color:var(--ink-3)}
 
   /* Tag chips, with the ones that did not fit counted rather than dropped. */
-  /* A chip is a chip wherever it is. Scoping this to .tagset left the same
-     markup rendering as bare text in the detail panel. */
-  .tg{display:inline-block;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:10px;
+  .tagset{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;min-width:0}
+  .tagset .tg{font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:10px;
     background:var(--sunk);border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
-  .tagset{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;min-width:0;overflow:hidden}
-  /* Only in a row does a chip give way; in the panel it is shown in full. */
-  .tagset .tg{overflow:hidden;text-overflow:ellipsis;min-width:0}
-  /* The count of what did not fit never shrinks and is never the thing that
-     gets clipped — a "+2" that is itself cut off is worse than no chip at all.
-     The named chips give way first. */
-  .tagset .tg.more{background:none;border-color:transparent;color:var(--ink-3);flex:none}
-
-  /* The rest of a record, opened out under its row. A definition grid rather
-     than more columns: these are things you look up one at a time, not things
-     you scan down a list. */
-  .recd{padding:12px 14px 14px 56px;background:var(--sunk);
-    border-top:1px solid var(--line)}
-  .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
-    gap:10px 18px}
-  .dv{display:block;font-size:12.5px;line-height:1.4;margin-top:1px}
-  .chev{display:flex;transition:transform .15s}
-  .chev.up{transform:rotate(180deg)}
+  .tagset .tg.more{background:none;border-color:transparent;color:var(--ink-3)}
 
   /* A row of counts you can filter by, each saying how many it would leave. */
   .qf{display:inline-flex;align-items:center;gap:2px;background:var(--mute-bg);
@@ -573,8 +539,6 @@ export const PORTAL_HTML = `<!doctype html>
     open: "M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6",
     ban: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM4.9 4.9l14.2 14.2",
     x: "M18 6 6 18M6 6l12 12",
-    chevron: "m6 9 6 6 6-6",
-    mail: "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM22 7l-10 6L2 7",
   };
 
   /**
@@ -665,7 +629,7 @@ export const PORTAL_HTML = `<!doctype html>
    */
   function tagSet(tags, max) {
     var list = (tags || []).filter(Boolean);
-    if (!list.length) return el("span", { class: "muted", style: "font-size:11.5px" }, "\u2014");
+    if (!list.length) return el("span", { class: "muted", style: "font-size:11.5px" }, "—");
     var shown = list.slice(0, max || 2), rest = list.length - shown.length;
     return el("div", { class: "tagset" },
       shown.map(function (t) { return el("span", { class: "tg" }, t); }),
@@ -753,9 +717,6 @@ export const PORTAL_HTML = `<!doctype html>
       // is tens of rows, and a round trip to re-sort tens of rows is a round
       // trip spent to feel slower.
       schoolFilter: "all", schoolQuery: "", schoolSort: "name",
-      // Which school's row is opened out. One at a time: two open rows and the
-      // list stops being a list.
-      schoolOpen: "",
       // Which row action menu is open, by id. One field rather than a flag per
       // row, so opening a second menu closes the first without either knowing
       // about the other.
@@ -870,7 +831,7 @@ export const PORTAL_HTML = `<!doctype html>
   /** How often camps run at this school, in the words the form used to set it. */
   function cadenceLabel(code) {
     for (var i = 0; i < CADENCE.length; i++) if (CADENCE[i][0] === code) return CADENCE[i][1];
-    return code || "\\u2014";
+    return code || "\u2014";
   }
 
   // ── auth storage ──
@@ -911,7 +872,7 @@ export const PORTAL_HTML = `<!doctype html>
       for (var i = 0; i < unsent.length; i++) n += unsent[i].count;
       if (!confirm(
         n + (n === 1 ? " capture has" : " captures have") + " not reached the server yet."
-        + "\\n\\nThey stay on this device and can be sent when there is signal."
+        + "\n\nThey stay on this device and can be sent when there is signal."
         + " Sign out anyway?"
       )) return;
     }
@@ -1098,7 +1059,7 @@ export const PORTAL_HTML = `<!doctype html>
   // ── csv ──
   function parseCsv(text) {
     var rows = [], row = [], f = "", q = false, i = 0;
-    text = text.replace(/^\\uFEFF/, "");
+    text = text.replace(/^\uFEFF/, "");
     while (i < text.length) {
       var c = text.charAt(i);
       if (q) {
@@ -1107,8 +1068,8 @@ export const PORTAL_HTML = `<!doctype html>
       }
       if (c === '"') { q = true; i++; continue; }
       if (c === ",") { row.push(f); f = ""; i++; continue; }
-      if (c === "\\r") { i++; continue; }
-      if (c === "\\n") { row.push(f); rows.push(row); row = []; f = ""; i++; continue; }
+      if (c === "\r") { i++; continue; }
+      if (c === "\n") { row.push(f); rows.push(row); row = []; f = ""; i++; continue; }
       f += c; i++;
     }
     if (f.length || row.length) { row.push(f); rows.push(row); }
@@ -1129,9 +1090,9 @@ export const PORTAL_HTML = `<!doctype html>
     return rows.map(function (r) {
       return r.map(function (c) {
         var s = c === null || c === undefined ? "" : String(c);
-        return /[",\\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
       }).join(",");
-    }).join("\\n");
+    }).join("\n");
   }
   function download(name, text) {
     var b = new Blob([text], { type: "text/csv;charset=utf-8" }), u = URL.createObjectURL(b);
@@ -1144,7 +1105,7 @@ export const PORTAL_HTML = `<!doctype html>
   function uniq(a) { return a.filter(function (v, i) { return a.indexOf(v) === i; }); }
   function trim(s) { return String(s).trim(); }
   function fmtDate(iso) {
-    if (!iso) return "\\u2014";
+    if (!iso) return "\u2014";
     var d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
     return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
@@ -1214,19 +1175,19 @@ export const PORTAL_HTML = `<!doctype html>
                 keyI = el("input", { type: "text", placeholder: "Paste your key",
                   onkeydown: function (e) { if (e.key === "Enter") useKey(); } }),
                 el("div", { class: "hint" }, "The ADMIN_API_KEY set on the worker.")),
-              el("button", { class: "pri", style: "width:100%", disabled: S.busy, onclick: useKey }, S.busy ? "Checking\\u2026" : "Sign in"))
+              el("button", { class: "pri", style: "width:100%", disabled: S.busy, onclick: useKey }, S.busy ? "Checking\u2026" : "Sign in"))
           : (!S.otp
               ? el("div", null,
                   el("div", { class: "fld" }, el("label", null, "Mobile number"),
                     phoneI = el("input", { type: "tel", placeholder: "98765 43210",
                       onkeydown: function (e) { if (e.key === "Enter") send(); } }),
                     el("div", { class: "hint" }, "The number VitaHero registered for you.")),
-                  el("button", { class: "pri", style: "width:100%", disabled: S.busy, onclick: send }, S.busy ? "Sending\\u2026" : "Send code"))
+                  el("button", { class: "pri", style: "width:100%", disabled: S.busy, onclick: send }, S.busy ? "Sending\u2026" : "Send code"))
               : el("div", null,
                   el("div", { class: "fld" }, el("label", null, "Six-digit code"),
                     otpI = el("input", { type: "text", inputmode: "numeric", maxlength: "6", placeholder: "000000",
                       onkeydown: function (e) { if (e.key === "Enter") verify(); } })),
-                  el("button", { class: "pri", style: "width:100%", disabled: S.busy, onclick: verify }, S.busy ? "Verifying\\u2026" : "Verify and sign in"),
+                  el("button", { class: "pri", style: "width:100%", disabled: S.busy, onclick: verify }, S.busy ? "Verifying\u2026" : "Verify and sign in"),
                   el("button", { class: "lnk", style: "display:block;margin:10px auto 0",
                     onclick: function () { set({ otp: null, notice: "" }); } }, "Use a different number")))
       )));
@@ -1351,7 +1312,7 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ overview
   function viewOverview() {
     var o = S.overview;
-    if (!o) return el("div", { class: "empty" }, "Loading\\u2026");
+    if (!o) return el("div", { class: "empty" }, "Loading\u2026");
     var cs = o.campStatus || {};
     return el("div", null,
       isOps() ? el("div", { class: "row", style: "margin-bottom:14px" },
@@ -1679,8 +1640,8 @@ export const PORTAL_HTML = `<!doctype html>
    */
   function setSchoolArchived(s, next) {
     var msg = next
-      ? "Archive " + s.name + "?\\n\\nIt stops running: parents no longer see it, no camp can be scheduled, and its staff are signed out. Every record is kept and you can reopen it."
-      : "Reopen " + s.name + "?\\n\\nIts staff can sign in again and camps can be scheduled.";
+      ? "Archive " + s.name + "?\n\nIt stops running: parents no longer see it, no camp can be scheduled, and its staff are signed out. Every record is kept and you can reopen it."
+      : "Reopen " + s.name + "?\n\nIts staff can sign in again and camps can be scheduled.";
     if (!confirm(msg)) return;
     run(api("/api/admin/schools/" + s.id + "/archive", { method: "POST", body: { archived: next } }),
       function (r) {
@@ -1741,14 +1702,14 @@ export const PORTAL_HTML = `<!doctype html>
 
     var q = (S.schoolQuery || "").trim().toLowerCase();
     if (q) {
-      var digits = q.replace(/\D/g, "");
+      var digits = q.replace(/D/g, "");
       rows = rows.filter(function (x) {
         return (x.name || "").toLowerCase().indexOf(q) >= 0
           || (x.city || "").toLowerCase().indexOf(q) >= 0
           || (x.district || "").toLowerCase().indexOf(q) >= 0
           || (x.partnerCode || "").toLowerCase().indexOf(q) >= 0
           || (x.contactName || "").toLowerCase().indexOf(q) >= 0
-          || (digits && (x.contactPhone || "").replace(/\D/g, "").indexOf(digits) >= 0);
+          || (digits && (x.contactPhone || "").replace(/D/g, "").indexOf(digits) >= 0);
       });
     }
 
@@ -1803,35 +1764,36 @@ export const PORTAL_HTML = `<!doctype html>
         : el("div", { class: "recs" }, rows.map(schoolRow)));
   }
 
-  /** One school, whole, on one row — with the rest of it underneath on ask. */
+  /** One school, whole, on one row. */
   function schoolRow(s) {
     var off = s.active === false || s.status === "ARCHIVED";
-    var open = S.schoolOpen === s.id;
-    return el("div", { class: "recw" }, el("div", {
-      class: "rec" + (off ? " muted" : "") + (open ? " open" : ""),
-      // The row carries what you scan down a list for. The checks a school has
-      // agreed to are reference — you look them up for one school, you do not
-      // compare them down a column — and chips squeezed to "D..." say nothing
-      // at all. They are in the panel underneath, in full.
-      style: "grid-template-columns:28px minmax(220px,1.6fr) "
-        + "repeat(4,minmax(118px,.9fr)) minmax(76px,.5fr) 84px 64px",
+    return el("div", {
+      class: "rec" + (off ? " muted" : ""),
+      style: "grid-template-columns:28px minmax(190px,1.4fr) minmax(118px,.85fr) "
+        + "repeat(4,minmax(112px,.8fr)) minmax(70px,.45fr) 78px 32px",
       onclick: function () { openSchool(s.id); },
     },
       el("span", { class: "rt" }, icon("school", 15)),
 
       el("div", { class: "rcol" },
-        el("div", { class: "rid" }, s.partnerCode || "\u2014"),
+        el("div", { class: "rid" }, s.partnerCode || "—"),
         el("div", { class: "rname" }, s.name),
         el("div", { class: "rsub" },
-          [s.city, s.district].filter(Boolean).join(" \u00b7 ")
-          + (s.academicYear ? "  \u00b7  " + s.academicYear : ""))),
+          [s.city, s.district].filter(Boolean).join(" · ")
+          + (s.academicYear ? "  ·  " + s.academicYear : ""))),
+
+      // The checks this school has agreed to. A camp here cannot record
+      // anything outside them, so it is the school's clinical scope.
+      el("div", { class: "rcol" },
+        el("span", { class: "ml", style: "margin-bottom:3px" }, "Checks agreed"),
+        tagSet(s.checksOffered, 2)),
 
       metric(ring(s.consentRate, rateTone(s.consentRate)), "Consent",
-        s.consentRate === null ? "\u2014" : s.consentRate + "%",
+        s.consentRate === null ? "—" : s.consentRate + "%",
         s.consentRate === null ? "off" : rateTone(s.consentRate)),
 
       metric(ring(s.coverage, rateTone(s.coverage)), "Screened",
-        s.coverage === null ? "\u2014" : s.coverage + "%",
+        s.coverage === null ? "—" : s.coverage + "%",
         s.coverage === null ? "off" : rateTone(s.coverage)),
 
       metric(el("span", null, icon("calendar", 14)), "Camps run",
@@ -1850,75 +1812,17 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "rcol" },
         statusPill(!off && s.status === "ACTIVE" ? "ACTIVE" : s.status || "ARCHIVED")),
 
-
-      el("div", { class: "row", style: "gap:2px;justify-content:flex-end",
-          onclick: function (e) { e.stopPropagation(); } },
-        el("button", {
-          class: "ibtn expander" + (open ? " on" : ""),
-          title: open ? "Hide the details" : "Everything captured at onboarding",
-          "aria-expanded": open ? "true" : "false",
-          onclick: function () { set({ schoolOpen: open ? "" : s.id }); },
-        }, el("span", { class: "chev" + (open ? " up" : "") }, icon("chevron", 15))),
-        isOps()
+      el("div", { onclick: function (e) { e.stopPropagation(); } }, isOps()
         ? rowMenu("sch:" + s.id, [
             ["open", "Open school", function () { openSchool(s.id); }],
             ["settings", "School settings", function () { openSchool(s.id, "programme"); }],
             "-",
             off
               ? ["restore", "Reopen school", function () { setSchoolArchived(s, false); }]
-              : ["archive", "Archive school\u2026", function () { setSchoolArchived(s, true); }],
-            ["trash", "Delete school\u2026", function () { openSchool(s.id, "programme"); }, true],
+              : ["archive", "Archive school…", function () { setSchoolArchived(s, true); }],
+            ["trash", "Delete school…", function () { openSchool(s.id, "programme"); }, true],
           ], "Manage " + s.name)
-        : null)),
-      open ? schoolDetail(s) : null);
-  }
-
-  /**
-   * Everything a school told us at onboarding, under its own row.
-   *
-   * The row carries what you scan for — is this school on track, does it need
-   * anything today. This carries what you look up: who to ring, what was
-   * agreed, when it started. Putting all of it in the row meant thirteen thin
-   * columns; putting it only inside the school meant opening a school to find
-   * a phone number.
-   */
-  function schoolDetail(s) {
-    function f(label, value, mono) {
-      return el("div", null,
-        el("span", { class: "ml" }, label),
-        el("span", { class: (mono ? "mono " : "") + "dv" },
-          value || el("span", { class: "muted" }, "\u2014")));
-    }
-    return el("div", { class: "recd" },
-      el("div", { class: "dgrid" },
-        f("Contact", s.contactName),
-        f("Contact mobile", s.contactPhone, true),
-        f("Email", s.contactEmail),
-        f("Partner code", s.partnerCode, true),
-        f("Academic year", s.academicYear),
-        f("Camps run", cadenceLabel(s.campCadence)),
-        f("Onboarded", s.onboardedAt ? fmtDate(s.onboardedAt) : ""),
-        f("Children on roll", String(s.studentCount || 0)),
-        f("Staff", String(s.adminCount || 0)),
-        f("Consent given", s.consented + " of " + s.participants),
-        f("Children screened", s.screened + " of " + s.participants),
-        f("Referrals still open", String(s.openReferrals || 0))),
-      el("div", { style: "margin-top:10px" },
-        el("span", { class: "ml" }, "Checks this school has agreed to"),
-        el("div", { class: "chips", style: "margin-top:4px" },
-          (s.checksOffered || []).length
-            ? (s.checksOffered || []).map(function (c) { return el("span", { class: "tg" }, c); })
-            : el("span", { class: "muted", style: "font-size:12px" }, "None set \u2014 a camp here can record nothing"))),
-      s.description
-        ? el("div", { style: "margin-top:10px" },
-            el("span", { class: "ml" }, "Notes"),
-            el("div", { class: "dv" }, s.description))
-        : null,
-      el("div", { class: "row", style: "margin-top:12px" },
-        el("button", { class: "sm", onclick: function () { openSchool(s.id); } },
-          icon("open", 13), " Open school"),
-        isOps() ? el("button", { class: "sm", onclick: function () { openSchool(s.id, "programme"); } },
-          icon("settings", 13), " Settings") : null));
+        : null));
   }
 
   function viewNewSchool() {
@@ -1963,7 +1867,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("div", { class: "hint" }, "A camp can only record checks on this list.")),
           el("div", { class: "fld" }, el("label", null, "Notes"), el("textarea", { oninput: b("description") }, f.description)))),
       el("div", { class: "row" },
-        el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Creating\\u2026" : "Create school"),
+        el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Creating\u2026" : "Create school"),
         el("button", { onclick: function () { S.form = null; set({ view: "schools", error: "" }); } }, "Cancel")));
   }
 
@@ -1974,8 +1878,7 @@ export const PORTAL_HTML = `<!doctype html>
       tabBar(schoolGroups(), S.schoolTab, goSchoolTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
-      safely(function () {
-      return S.schoolTab === "roster" ? tabRoster()
+      S.schoolTab === "roster" ? tabRoster()
         : S.schoolTab === "camps" ? tabCamps()
         : S.schoolTab === "referrals" ? tabReferrals()
         : S.schoolTab === "questions" ? tabQuestions()
@@ -1986,8 +1889,7 @@ export const PORTAL_HTML = `<!doctype html>
         : S.schoolTab === "people" ? tabPeople()
         : S.schoolTab === "requests" ? tabRequests()
         : S.schoolTab === "programme" ? tabProgramme()
-        : tabHistory();
-      }));
+        : tabHistory());
   }
 
   function tabProgramme() {
@@ -2030,7 +1932,7 @@ export const PORTAL_HTML = `<!doctype html>
               return el("label", { class: "chip" + (on ? " on" : "") },
                 el("input", { type: "checkbox", checked: on, onchange: function () { tog(c); } }), c); }))),
           el("div", { class: "fld" }, el("label", null, "Notes"), el("textarea", { oninput: b("description") }, f.description)))),
-      el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save changes"),
+      el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Saving\u2026" : "Save changes"),
       isOps() ? dangerZone(s) : null);
   }
 
@@ -2046,7 +1948,7 @@ export const PORTAL_HTML = `<!doctype html>
     var d = S.danger;
     if (!d || d.schoolId !== s.id) {
       return el("div", { class: "card", style: "margin-top:24px" },
-        el("div", { class: "card-b" }, el("span", { class: "muted" }, "Checking what is attached to this school\\u2026")));
+        el("div", { class: "card-b" }, el("span", { class: "muted" }, "Checking what is attached to this school\u2026")));
     }
 
     var fp = d.footprint;
@@ -2055,7 +1957,7 @@ export const PORTAL_HTML = `<!doctype html>
     function setArchived(next) {
       var verb = next ? "Archive" : "Reopen";
       var warn = next
-        ? "Archive " + s.name + "?\\n\\nIt stops running: parents no longer see it, no camp can be scheduled, and its staff are signed out. Every record is kept and you can reopen it."
+        ? "Archive " + s.name + "?\n\nIt stops running: parents no longer see it, no camp can be scheduled, and its staff are signed out. Every record is kept and you can reopen it."
         : "Reopen " + s.name + "? Staff will need a new sign-in code.";
       if (!confirm(warn)) return;
       run(api("/api/admin/schools/" + s.id + "/archive", { method: "POST", body: { archived: next } }), function (r) {
@@ -2114,7 +2016,7 @@ export const PORTAL_HTML = `<!doctype html>
   function deleteConfirmField(d, name, destroy) {
     var btn = el("button", { class: "dang", style: "margin-top:10px",
       disabled: S.busy || trim(d.confirm).toLowerCase() !== trim(name).toLowerCase(),
-      onclick: destroy }, S.busy ? "Deleting\u2026" : "Delete this school");
+      onclick: destroy }, S.busy ? "Deleting…" : "Delete this school");
     var box = el("input", { type: "text", id: "school-delete-confirm", value: d.confirm,
       placeholder: "Type " + name + " to confirm",
       oninput: function (e) {
@@ -2125,7 +2027,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function tabClasses() {
-    if (!S.classes) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!S.classes) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var c = S.classes;
     var g = form("classes", {
       year: c.academicYear,
@@ -2141,7 +2043,7 @@ export const PORTAL_HTML = `<!doctype html>
         S.classes = d; S.form = null;
         S.notice = "Saved " + d.classes.length + " classes for " + d.academicYear + ".";
         if (d.keptBecauseInUse && d.keptBecauseInUse.length) {
-          S.notice += " Kept " + d.keptBecauseInUse.join(", ") + " \\u2014 students are still enrolled.";
+          S.notice += " Kept " + d.keptBecauseInUse.join(", ") + " \u2014 students are still enrolled.";
         }
       });
     }
@@ -2159,13 +2061,13 @@ export const PORTAL_HTML = `<!doctype html>
             el("div", { class: "fld" }, el("label", null, "Sections"),
               el("input", { type: "text", value: g.sections, oninput: function (e) { g.sections = e.target.value; } }))),
           el("div", { class: "hint", style: "margin-bottom:12px" }, "Comma separated, exactly as they appear in your roster file."),
-          el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save classes"))),
+          el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Saving\u2026" : "Save classes"))),
       c.classes.length
         ? el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Class"), el("th", null, "Section"), el("th", { class: "num" }, "Students"))),
             el("tbody", null, c.classes.map(function (x) {
               return el("tr", null, el("td", null, x.grade),
-                el("td", null, x.section || el("span", { class: "muted" }, "\\u2014")),
+                el("td", null, x.section || el("span", { class: "muted" }, "\u2014")),
                 el("td", { class: "num" }, x.studentCount)); }))))
         : el("div", { class: "card" }, el("div", { class: "empty" }, "No classes defined for " + c.academicYear + " yet.")),
       c.classes.length ? rolloverPanel(c) : null);
@@ -2212,7 +2114,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function nextYear(y) {
-    var m = /^(\d{4})-(\d{2})$/.exec(y || "");
+    var m = /^(d{4})-(d{2})$/.exec(y || "");
     if (!m) return "";
     var a = parseInt(m[1], 10) + 1;
     var b = (a + 1) % 100;
@@ -2220,7 +2122,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function tabPeople() {
-    if (!S.admins) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!S.admins) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var f = form("staff", { name: "", phone: "", email: "", kind: "SCHOOL_ADMIN" });
     function addPerson() {
       if (f.kind === "SCHOOL_ADMIN") {
@@ -2242,7 +2144,7 @@ export const PORTAL_HTML = `<!doctype html>
         S.notice = r.smsDelivered
           ? ("Code texted to " + r.name + ".")
           : ("Read this to " + r.name + ": " + r.code
-             + " \\u2014 they enter it on the sign-in screen with " + r.phone
+             + " \u2014 they enter it on the sign-in screen with " + r.phone
              + ". It expires in " + r.expiresInMinutes + " minutes.");
       });
     }
@@ -2260,7 +2162,7 @@ export const PORTAL_HTML = `<!doctype html>
     // sign-in and their camp assignments; the profile itself stays, because
     // "who screened this child" has to keep answering.
     function removeStaff(a) {
-      if (!confirm("Remove " + a.name + "?\\n\\nThey are signed out and taken off every camp at this school. Results they already recorded are kept.")) return;
+      if (!confirm("Remove " + a.name + "?\n\nThey are signed out and taken off every camp at this school. Results they already recorded are kept.")) return;
       run(api("/api/admin/schools/" + S.school.id + "/staff/" + encodeURIComponent(a.profileId), { method: "DELETE" }), function () {
         S.staff = (S.staff || []).filter(function (x) { return x.profileId !== a.profileId; });
         S.notice = a.name + " no longer has access.";
@@ -2289,7 +2191,7 @@ export const PORTAL_HTML = `<!doctype html>
             f.kind === "PHYSICIAN" ? "A physician reviews and approves every result before guardians see it."
               : f.kind === "SCREENER" ? "Screeners record measurements on camp day. They cannot approve or release."
               : "Administrators manage the roster, classes and camps for this school."),
-          el("button", { class: "pri", disabled: S.busy, onclick: addPerson }, S.busy ? "Adding\\u2026" : "Add person"))),
+          el("button", { class: "pri", disabled: S.busy, onclick: addPerson }, S.busy ? "Adding\u2026" : "Add person"))),
       people.length
         ? el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Name"), el("th", null, "Role"),
@@ -2315,7 +2217,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function tabHistory() {
-    if (!S.batches) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!S.batches) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     if (!S.batches.length) return el("div", { class: "card" }, el("div", { class: "empty" }, "No roster uploads yet."));
     return el("div", { class: "tw" }, el("table", null,
       el("thead", null, el("tr", null, el("th", null, "When"), el("th", null, "File"), el("th", null, "By"),
@@ -2323,8 +2225,8 @@ export const PORTAL_HTML = `<!doctype html>
         el("th", { class: "num" }, "Updated"), el("th", { class: "num" }, "Skipped"))),
       el("tbody", null, S.batches.map(function (b) {
         return el("tr", null, el("td", null, fmtDate(b.createdAt)),
-          el("td", null, b.filename || el("span", { class: "muted" }, "\\u2014")),
-          el("td", null, b.adminName || el("span", { class: "muted" }, "\\u2014")),
+          el("td", null, b.filename || el("span", { class: "muted" }, "\u2014")),
+          el("td", null, b.adminName || el("span", { class: "muted" }, "\u2014")),
           el("td", null, b.academicYear),
           el("td", { class: "num" }, b.total), el("td", { class: "num" }, b.created),
           el("td", { class: "num" }, b.updated),
@@ -2344,7 +2246,7 @@ export const PORTAL_HTML = `<!doctype html>
     var f = S.addChild;
     var b = function (k) { return function (e) { f[k] = e.target.value; }; };
     var classes = (S.classes || []).map(function (c) {
-      return c.grade + (c.section ? " \u00b7 " + c.section : "");
+      return c.grade + (c.section ? " · " + c.section : "");
     });
     function save() {
       run(api("/api/admin/schools/" + S.school.id + "/roster/student", { method: "POST",
@@ -2361,7 +2263,7 @@ export const PORTAL_HTML = `<!doctype html>
               if (i.level === "error") issues.push(i.message);
             });
           });
-          S.error = issues.length ? issues.join(" \u00b7 ") : "That child could not be added.";
+          S.error = issues.length ? issues.join(" · ") : "That child could not be added.";
           render();
           return;
         }
@@ -2393,7 +2295,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("input", { value: f.section, oninput: b("section"), placeholder: "B" })),
           el("div", { class: "fld" }, el("label", null, "Sex"),
             el("select", { onchange: b("gender") },
-              el("option", { value: "" }, "\u2014"),
+              el("option", { value: "" }, "—"),
               ["Male", "Female"].map(function (g) {
                 return el("option", { value: g, selected: f.gender === g }, g); })))),
         el("div", { class: "g2" },
@@ -2412,7 +2314,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   function tabRoster() {
     if (S.upload) return uploadWizard();
-    if (!S.roster) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!S.roster) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var r = S.roster;
     var act = r.students.filter(function (s) { return s.guardianActivated; }).length;
     var notOnApp = r.students.filter(function (s) {
@@ -2475,7 +2377,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("h3", null, "No students yet"),
             el("p", { style: "font-size:12.5px" },
               "Import the school's roster as a CSV, or add children one at a time. "
-              + "Everything else \u2014 camps, consent, screening \u2014 works from this list.")))
+              + "Everything else — camps, consent, screening — works from this list.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Student"), el("th", null, "Class"), el("th", null, "DOB"),
               el("th", null, "Guardian"), el("th", null, "Mobile"), el("th", null, "App"))),
@@ -2485,7 +2387,7 @@ export const PORTAL_HTML = `<!doctype html>
                   s.studentRef ? el("div", { class: "muted mono", style: "font-size:11.5px" }, s.studentRef.replace(/^sid_/, "")) : null),
                 el("td", null, (s.grade || "") + (s.section ? " " + s.section : "")),
                 el("td", { class: "mono" }, s.dob || el("span", { class: "muted" }, "age " + (s.age || "?"))),
-                el("td", null, s.guardianName || el("span", { class: "muted" }, "\\u2014")),
+                el("td", null, s.guardianName || el("span", { class: "muted" }, "\u2014")),
                 el("td", { class: "mono" }, s.guardianPhone),
                 el("td", null, s.guardianActivated
                   ? el("span", { class: "pill ok" }, "Yes")
@@ -2515,7 +2417,7 @@ export const PORTAL_HTML = `<!doctype html>
   function uploadWizard() {
     var u = S.upload;
     return el("div", null,
-      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ upload: null, error: "" }); } }, "\\u2190 Back to roster"),
+      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ upload: null, error: "" }); } }, "\u2190 Back to roster"),
       el("div", { class: "steps" }, stepPill(1, "Choose file", u.step), el("span", { class: "sep" }),
         stepPill(2, "Review", u.step), el("span", { class: "sep" }), stepPill(3, "Done", u.step)),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
@@ -2523,13 +2425,13 @@ export const PORTAL_HTML = `<!doctype html>
   }
   function stepPill(n, label, cur) {
     return el("span", { class: "step" + (cur === n ? " on" : cur > n ? " done" : "") },
-      el("b", null, cur > n ? "\\u2713" : String(n)), label);
+      el("b", null, cur > n ? "\u2713" : String(n)), label);
   }
   function stepChoose() {
     var input;
     function handle(file) {
       if (!file) return;
-      if (!/\\.csv$/i.test(file.name)) { set({ error: "Please upload a .csv file. In Excel: File \\u2192 Save As \\u2192 CSV." }); return; }
+      if (!/\.csv$/i.test(file.name)) { set({ error: "Please upload a .csv file. In Excel: File \u2192 Save As \u2192 CSV." }); return; }
       var rd = new FileReader();
       rd.onload = function () {
         var p = csvToObjects(String(rd.result));
@@ -2550,13 +2452,13 @@ export const PORTAL_HTML = `<!doctype html>
         el("p", { class: "muted", style: "font-size:12.5px" }, "or choose a file from your computer"),
         input = el("input", { type: "file", accept: ".csv,text/csv", style: "display:none",
           onchange: function (e) { handle(e.target.files[0]); } }),
-        el("button", { class: "pri", disabled: S.busy, onclick: function () { input.click(); } }, S.busy ? "Checking\\u2026" : "Choose file"),
+        el("button", { class: "pri", disabled: S.busy, onclick: function () { input.click(); } }, S.busy ? "Checking\u2026" : "Choose file"),
         el("div", { style: "margin-top:12px" }, el("button", { class: "lnk", onclick: dlTemplate }, "Download the template"))),
       el("div", { class: "card", style: "margin-top:16px" }, el("div", { class: "card-b" },
         el("h3", { style: "margin-bottom:8px" }, "What the file needs"),
         el("ul", { style: "font-size:12.5px;margin:0;padding-left:17px;color:var(--ink-2);line-height:1.7" },
           el("li", null, el("b", null, "Required: "), "student name, guardian mobile, class, and either a date of birth or an age"),
-          el("li", null, el("b", null, "Strongly recommended: "), "admission or roll number \\u2014 without it, renaming a student later creates a duplicate"),
+          el("li", null, el("b", null, "Strongly recommended: "), "admission or roll number \u2014 without it, renaming a student later creates a duplicate"),
           el("li", null, el("b", null, "Dates: "), "DD/MM/YYYY. Ambiguous dates are flagged, not guessed"),
           el("li", null, el("b", null, "Not here: "), "height, weight, vision or dental. Those are recorded at a camp, not in the roster")))));
   }
@@ -2593,7 +2495,7 @@ export const PORTAL_HTML = `<!doctype html>
         : null,
       el("div", { class: "row", style: "margin-bottom:12px" },
         el("button", { class: "pri", disabled: S.busy || rep.errors > 0, onclick: function () { commit(false); } },
-          S.busy ? "Importing\\u2026" : "Import " + (rep.create + rep.update) + " students"),
+          S.busy ? "Importing\u2026" : "Import " + (rep.create + rep.update) + " students"),
         rep.errors > 0 ? el("button", { disabled: S.busy, onclick: function () { commit(true); } },
           "Import the " + (rep.create + rep.update) + " good rows") : null,
         (rep.errors + rep.warnings) > 0 ? el("button", { onclick: dlIssues }, "Download problem list") : null,
@@ -2610,15 +2512,15 @@ export const PORTAL_HTML = `<!doctype html>
           var w = r.issues.some(function (i) { return i.severity === "warning"; });
           return el("tr", { class: e ? "rowerr" : w ? "rowwarn" : "" },
             el("td", { class: "num muted" }, r.row),
-            el("td", null, r.studentName || el("span", { class: "muted" }, "\\u2014")),
+            el("td", null, r.studentName || el("span", { class: "muted" }, "\u2014")),
             el("td", null, (r.grade || "") + (r.section ? " " + r.section : "")),
-            el("td", { class: "mono" }, r.dob || (r.age !== null ? "age " + r.age : "\\u2014")),
-            el("td", null, el("div", null, r.guardianName || el("span", { class: "muted" }, "\\u2014")),
+            el("td", { class: "mono" }, r.dob || (r.age !== null ? "age " + r.age : "\u2014")),
+            el("td", null, el("div", null, r.guardianName || el("span", { class: "muted" }, "\u2014")),
               el("div", { class: "muted mono", style: "font-size:11.5px" }, r.phone)),
             el("td", null, el("span", { class: "pill " + (r.action === "create" ? "ok" : r.action === "update" ? "info" : r.action === "skip" ? "err" : "mute") }, r.action)),
             el("td", null, r.issues.length
               ? el("ul", { class: "issues" }, r.issues.map(function (i) { return el("li", { class: i.severity === "error" ? "e" : "w" }, i.message); }))
-              : el("span", { class: "muted" }, "\\u2014")));
+              : el("span", { class: "muted" }, "\u2014")));
         })))));
   }
   function stepDone() {
@@ -2629,7 +2531,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" }, el("div", { class: "card-b" },
         el("h3", { style: "margin-bottom:6px" }, "What happens next"),
         el("p", { class: "muted", style: "font-size:12.5px;margin:0" },
-          "These students are on the roll for " + r.academicYear + ". Guardians see nothing yet \\u2014 schedule a camp, then request consent."))),
+          "These students are on the roll for " + r.academicYear + ". Guardians see nothing yet \u2014 schedule a camp, then request consent."))),
       el("div", { class: "row" },
         el("button", { class: "pri", onclick: function () { set({ upload: null, notice: "" }); loadSchoolTab(); } }, "Back to roster"),
         el("button", { onclick: function () { set({ upload: null, schoolTab: "camps" }); loadSchoolTab(); } }, "Schedule a camp")));
@@ -2899,7 +2801,7 @@ export const PORTAL_HTML = `<!doctype html>
   // than leave families waiting, and the server will not let them do that
   // until the queue is clear.
   function tabQuestions() {
-    if (!S.threads) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    if (!S.threads) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
     var q = S.threads, id = S.school.id;
 
     function reloadQ() { S.threads = null; S.thread = null; loadSchoolTab(); }
@@ -2941,15 +2843,15 @@ export const PORTAL_HTML = `<!doctype html>
               el("th", null, "Status"), el("th", null, ""))),
             el("tbody", null, q.threads.map(function (t) {
               return el("tr", { class: "click", onclick: function () { openThread(t); } },
-                el("td", null, el("b", null, t.guardianName || "\u2014"),
+                el("td", null, el("b", null, t.guardianName || "—"),
                   el("div", { class: "muted mono", style: "font-size:12px" }, t.guardianPhone || "")),
-                el("td", null, t.kidName || el("span", { class: "muted" }, "\u2014")),
+                el("td", null, t.kidName || el("span", { class: "muted" }, "—")),
                 el("td", { class: "muted", style: "font-size:12.5px" },
-                  (t.lastMessage || "").slice(0, 90) + ((t.lastMessage || "").length > 90 ? "\u2026" : "")),
+                  (t.lastMessage || "").slice(0, 90) + ((t.lastMessage || "").length > 90 ? "…" : "")),
                 el("td", { class: "num" }, t.awaiting === "SCHOOL"
                   ? el("span", { class: "pill " + (t.waitingDays > q.responseWindowDays ? "err" : "warn") },
                       t.waitingDays + "d")
-                  : el("span", { class: "muted" }, "\u2014")),
+                  : el("span", { class: "muted" }, "—")),
                 el("td", null, statusPill(t.status)),
                 el("td", null, el("button", { class: "sm" }, "Open")));
             })))));
@@ -2966,18 +2868,18 @@ export const PORTAL_HTML = `<!doctype html>
         function () { S.notice = close ? "Replied and closed." : "Replied."; reloadQ(); });
     }
     return el("div", null,
-      el("button", { class: "sm", onclick: function () { set({ thread: null }); } }, "\u2190 All questions"),
+      el("button", { class: "sm", onclick: function () { set({ thread: null }); } }, "← All questions"),
       el("div", { class: "card", style: "margin-top:12px" },
         el("div", { class: "card-h" },
           el("div", { style: "flex:1" }, el("h2", null, t.subject || "Question"),
             el("div", { class: "muted", style: "font-size:12.5px" },
-              [t.kidName, t.schoolName].filter(Boolean).join(" \u00b7 "))),
+              [t.kidName, t.schoolName].filter(Boolean).join(" · "))),
           statusPill(t.status)),
         el("div", { class: "card-b" },
           d.messages.map(function (m) {
             return el("div", { style: "margin-bottom:12px;padding-left:" + (m.side === "SCHOOL" ? "28px" : "0") },
               el("div", { class: "muted", style: "font-size:12px" },
-                (m.side === "SCHOOL" ? "You \u00b7 " : "") + (m.name || "") + " \u00b7 " + fmtDate(m.at)),
+                (m.side === "SCHOOL" ? "You · " : "") + (m.name || "") + " · " + fmtDate(m.at)),
               el("div", { style: "font-size:12.5px;white-space:pre-wrap" }, m.body));
           }))),
       t.status === "CLOSED"
@@ -3000,7 +2902,7 @@ export const PORTAL_HTML = `<!doctype html>
   // result only lands if the guardian has the app. Nothing used to report that
   // number, so the first anyone would know was after a release went nowhere.
   function tabInvites() {
-    if (!S.invites) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    if (!S.invites) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
     var v = S.invites, id = S.school.id;
 
     function send(onlyNotJoined) {
@@ -3066,14 +2968,14 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { style: "flex:1" }),
         el("button", { onclick: exportList }, icon("download", 14), " Export CSV")),
       el("div", { class: "hint", style: "margin-bottom:14px" },
-        "Each message carries a link that opens the app on the guardian\u2019s own number. Re-messaging everyone includes families already using it, so keep it for a reason."),
+        "Each message carries a link that opens the app on the guardian’s own number. Re-messaging everyone includes families already using it, so keep it for a reason."),
       el("div", { class: "tw" }, el("table", null,
         el("thead", null, el("tr", null, el("th", null, "Guardian"), el("th", null, "Mobile"),
           el("th", { class: "num" }, "Children"), el("th", null, "App"), el("th", null, "Last texted"))),
         el("tbody", null, v.guardians.map(function (g) {
           return el("tr", null,
-            el("td", null, el("b", null, g.name || "\u2014")),
-            el("td", { class: "mono" }, g.phone || "\u2014"),
+            el("td", null, el("b", null, g.name || "—")),
+            el("td", { class: "mono" }, g.phone || "—"),
             el("td", { class: "num" }, g.children),
             el("td", null, g.usingApp
               ? el("span", { class: "pill ok" }, "Installed")
@@ -3086,10 +2988,10 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ contracts and invoices
   //
   // Prices are not baked in anywhere. A contract is a shape and a rate, and an
-  // invoice is built from what was actually delivered \u2014 children whose
-  // results were released \u2014 with the evidence printed on every line.
+  // invoice is built from what was actually delivered — children whose
+  // results were released — with the evidence printed on every line.
   function tabBilling() {
-    if (!S.billing) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    if (!S.billing) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
     var id = S.school.id, c = S.billing.contract, invs = S.billing.invoices;
 
     function reloadB() { S.billing = null; loadSchoolTab(); }
@@ -3121,9 +3023,9 @@ export const PORTAL_HTML = `<!doctype html>
             el("div", { class: "fld" }, el("label", null, "Shape"),
               el("select", { onchange: b("shape") },
                 [["PER_STUDENT_YEAR","Per student, per year"],["PER_CAMP","Per camp"],
-                 ["FLAT_ANNUAL","Flat annual fee"],["FREE","Free \u2014 nothing is invoiced"]].map(function (o) {
+                 ["FLAT_ANNUAL","Flat annual fee"],["FREE","Free — nothing is invoiced"]].map(function (o) {
                   return el("option", { value: o[0], selected: f.shape === o[0] }, o[1]); }))),
-            el("div", { class: "fld" }, el("label", null, "Rate (\u20b9)"),
+            el("div", { class: "fld" }, el("label", null, "Rate (₹)"),
               el("input", { type: "number", step: "0.01", value: f.rateRupees, oninput: b("rateRupees") }))),
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Academic year"),
@@ -3144,7 +3046,7 @@ export const PORTAL_HTML = `<!doctype html>
 
     return el("div", null,
       el("div", { class: "msg info" },
-        "Invoices are built from children whose results were actually released \u2014 never from a headcount. There is no payment gateway here: mark an invoice paid when the money arrives."),
+        "Invoices are built from children whose results were actually released — never from a headcount. There is no payment gateway here: mark an invoice paid when the money arrives."),
       el("div", { class: "card" },
         el("div", { class: "card-h" },
           el("div", { style: "flex:1" }, el("h2", null, "Contract")),
@@ -3153,10 +3055,10 @@ export const PORTAL_HTML = `<!doctype html>
           c
             ? el("dl", { class: "kv", style: "margin:0" },
                 el("dt", null, "Shape"), el("dd", null, c.shape.replace(/_/g, " ").toLowerCase()),
-                el("dt", null, "Rate"), el("dd", null, c.shape === "FREE" ? "\u2014" : "\u20b9 " + c.rateRupees),
-                el("dt", null, "Year"), el("dd", null, c.academicYear || "\u2014"),
-                el("dt", null, "Period"), el("dd", null, (c.startsOn || "\u2014") + " to " + (c.endsOn || "\u2014")),
-                el("dt", null, "Notes"), el("dd", null, c.notes || "\u2014"))
+                el("dt", null, "Rate"), el("dd", null, c.shape === "FREE" ? "—" : "₹ " + c.rateRupees),
+                el("dt", null, "Year"), el("dd", null, c.academicYear || "—"),
+                el("dt", null, "Period"), el("dd", null, (c.startsOn || "—") + " to " + (c.endsOn || "—")),
+                el("dt", null, "Notes"), el("dd", null, c.notes || "—"))
             : el("p", { class: "muted", style: "font-size:12.5px;margin:0" },
                 "No contract yet. Nothing can be invoiced until VitaHero operations sets one.")),
         isOps() ? el("div", { class: "card-f" }, el("div", { class: "row" },
@@ -3171,7 +3073,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Invoices")),
         !invs
-          ? el("div", { class: "empty" }, "Loading\u2026")
+          ? el("div", { class: "empty" }, "Loading…")
           : invs.length === 0
             ? el("div", { class: "empty" }, el("p", { style: "font-size:12.5px;margin:0" }, "None raised."))
             : el("table", null,
@@ -3180,8 +3082,8 @@ export const PORTAL_HTML = `<!doctype html>
                 el("tbody", null, invs.map(function (iv) {
                   return el("tr", null,
                     el("td", { class: "mono" }, iv.number),
-                    el("td", null, iv.academicYear || "\u2014"),
-                    el("td", { class: "num" }, "\u20b9 " + iv.amountRupees),
+                    el("td", null, iv.academicYear || "—"),
+                    el("td", { class: "num" }, "₹ " + iv.amountRupees),
                     el("td", null, statusPill(iv.status)),
                     el("td", { style: "text-align:right" }, isOps()
                       ? el("div", { class: "row" },
@@ -3195,7 +3097,7 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ camps list
   function tabCamps() {
     if (S.form && S.form.newCamp) return newCampForm();
-    if (!S.camps) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!S.camps) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     return el("div", null,
       el("div", { class: "row", style: "margin-bottom:14px" },
         el("div", { style: "flex:1" }),
@@ -3214,7 +3116,7 @@ export const PORTAL_HTML = `<!doctype html>
               return el("tr", { class: "click", onclick: function () { openCamp(c.id); } },
                 el("td", null, el("b", null, c.title), c.venue ? el("div", { class: "muted", style: "font-size:12.5px" }, c.venue) : null),
                 el("td", null, fmtDate(c.date)),
-                el("td", { class: "muted" }, (c.grades || []).join(", ") || "\\u2014"),
+                el("td", { class: "muted" }, (c.grades || []).join(", ") || "\u2014"),
                 el("td", { class: "num" }, c.participants || 0),
                 el("td", { class: "num" }, (c.consented || 0) + " / " + (c.participants || 0)),
                 el("td", { class: "num" }, (c.screened || 0) + " / " + (c.participants || 0)),
@@ -3241,7 +3143,7 @@ export const PORTAL_HTML = `<!doctype html>
       });
     }
     return el("div", null,
-      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ form: null, error: "" }); } }, "\\u2190 Back to camps"),
+      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ form: null, error: "" }); } }, "\u2190 Back to camps"),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       offered.length === 0
         ? el("div", { class: "msg warn" }, "This school has no agreed checks yet. Set them under Programme first.")
@@ -3274,7 +3176,7 @@ export const PORTAL_HTML = `<!doctype html>
                     } }, "Clear"),
                     S.classes && S.classes.derived
                       ? el("span", { class: "muted", style: "font-size:12.5px" },
-                          "From the roster \\u2014 these are the classes your imported children are in.")
+                          "From the roster \u2014 these are the classes your imported children are in.")
                       : null),
                   el("div", { class: "chips" }, grades.map(function (g) {
                     var on = f.grades.indexOf(g) >= 0;
@@ -3299,7 +3201,7 @@ export const PORTAL_HTML = `<!doctype html>
                   return el("label", { class: "chip" + (on ? " on" : "") },
                     el("input", { type: "checkbox", checked: on, onchange: function () { togList(f.sections, s); } }), s); })))
             : null)),
-      el("button", { class: "pri", disabled: S.busy, onclick: create }, S.busy ? "Creating\\u2026" : "Create camp"));
+      el("button", { class: "pri", disabled: S.busy, onclick: create }, S.busy ? "Creating\u2026" : "Create camp"));
   }
 
   // ══════════════════════════════════════ camp detail
@@ -3319,13 +3221,11 @@ export const PORTAL_HTML = `<!doctype html>
       tabBar(campGroups(), S.campTab, goCampTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
-      safely(function () {
-        return S.campTab === "setup" ? campSetup()
-          : S.campTab === "people" ? campPeopleTab()
-          : S.campTab === "consent" ? campConsent()
-          : S.campTab === "campday" ? campDay()
-          : campReview();
-      }));
+      S.campTab === "setup" ? campSetup()
+        : S.campTab === "people" ? campPeopleTab()
+        : S.campTab === "consent" ? campConsent()
+        : S.campTab === "campday" ? campDay()
+        : campReview());
   }
 
   function campSetup() {
@@ -3348,10 +3248,10 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "card-b" },
           el("dl", { class: "kv", style: "margin:0 0 16px" },
             el("dt", null, "Date"), el("dd", null, fmtDate(c.date) + (c.time ? " at " + c.time : "")),
-            el("dt", null, "Venue"), el("dd", null, c.venue || "\\u2014"),
-            el("dt", null, "Classes"), el("dd", null, (c.grades || []).join(", ") + (c.sections && c.sections.length ? " \\u00b7 sections " + c.sections.join(", ") : " \\u00b7 all sections")),
+            el("dt", null, "Venue"), el("dd", null, c.venue || "\u2014"),
+            el("dt", null, "Classes"), el("dd", null, (c.grades || []).join(", ") + (c.sections && c.sections.length ? " \u00b7 sections " + c.sections.join(", ") : " \u00b7 all sections")),
             el("dt", null, "Checks"), el("dd", null, (c.checks || []).join(", ")),
-            el("dt", null, "Consent by"), el("dd", null, c.consentDeadline ? fmtDate(c.consentDeadline) : "\\u2014")),
+            el("dt", null, "Consent by"), el("dd", null, c.consentDeadline ? fmtDate(c.consentDeadline) : "\u2014")),
           el("div", { class: "row" },
             el("button", { class: "pri", disabled: S.busy, onclick: build },
               (c.participants ? "Rebuild" : "Build") + " the list of children"),
@@ -3396,7 +3296,7 @@ export const PORTAL_HTML = `<!doctype html>
   // whoever flips this switch is the person who has to ask guardians again.
   function photosCard(c) {
     function toggle(on) {
-      if (on && !confirm("Turn photographs on for this camp?\\n\\nEvery guardian must be asked separately before any photo can be taken. Consent to the check-up is not consent to a camera.")) return;
+      if (on && !confirm("Turn photographs on for this camp?\n\nEvery guardian must be asked separately before any photo can be taken. Consent to the check-up is not consent to a camera.")) return;
       run(api("/api/admin/camps/" + c.id + "/photos-enabled", { method: "POST", body: { enabled: on } }),
         function () {
           S.notice = on
@@ -3413,14 +3313,14 @@ export const PORTAL_HTML = `<!doctype html>
         el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 10px" },
           c.photosEnabled
             ? "A screener can attach a photograph to a finding, but only for a child whose guardian said yes to photographs specifically. Every photograph opened is recorded against the person who opened it."
-            : "Off, which is right for almost every camp. Turn this on only where a picture changes a clinical decision \\u2014 a skin lesion, a squint, a caries pattern."),
+            : "Off, which is right for almost every camp. Turn this on only where a picture changes a clinical decision \u2014 a skin lesion, a squint, a caries pattern."),
         el("div", { class: "row" },
           el("button", { class: c.photosEnabled ? "dang" : "", disabled: S.busy,
             onclick: function () { toggle(!c.photosEnabled); } },
             c.photosEnabled ? "Turn photographs off" : "Turn photographs on"),
           el("span", { class: "muted", style: "font-size:12.5px" },
             c.photosEnabled
-              ? "Cannot be switched off once photographs exist \\u2014 delete them first."
+              ? "Cannot be switched off once photographs exist \u2014 delete them first."
               : "Guardians are not shown the photography question while this is off.")))); 
   }
 
@@ -3461,7 +3361,7 @@ export const PORTAL_HTML = `<!doctype html>
   function assignStaffRow(c) {
     if (!loadOnce("staff", "/api/admin/schools/" + c.schoolId + "/staff",
         function (r) { return (r && r.staff) || []; })) {
-      return el("span", { class: "muted", style: "font-size:12.5px" }, "Loading team\\u2026");
+      return el("span", { class: "muted", style: "font-size:12.5px" }, "Loading team\u2026");
     }
     var assigned = S.camp.staff.map(function (s) { return s.profileId; });
     var avail = S.staff.filter(function (s) { return assigned.indexOf(s.profileId) < 0; });
@@ -3480,7 +3380,7 @@ export const PORTAL_HTML = `<!doctype html>
               el("option", { value: "SCREENER", selected: f.role === "SCREENER" }, "Screener"),
               el("option", { value: "PHYSICIAN", selected: f.role === "PHYSICIAN" }, "Physician")))),
         el("div", { class: "hint", style: "margin-bottom:10px" },
-          "They sign in to this console with that mobile number \\u2014 no password. A physician can approve results; a screener can only record them."),
+          "They sign in to this console with that mobile number \u2014 no password. A physician can approve results; a screener can only record them."),
         el("div", { class: "row" },
           el("button", { class: "pri", disabled: S.busy, onclick: function () {
             run(api("/api/admin/schools/" + c.schoolId + "/staff", { method: "POST",
@@ -3552,7 +3452,7 @@ export const PORTAL_HTML = `<!doctype html>
   // consent stands, and whether they can even receive the result — which is
   // the list somebody prints and works down the day before a camp.
   function campPeopleTab() {
-    if (!S.campPeople) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    if (!S.campPeople) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
     var all = S.campPeople.people;
     var q = (S.peopleQuery || "").toLowerCase();
     var rows = q
@@ -3586,7 +3486,7 @@ export const PORTAL_HTML = `<!doctype html>
       noApp
         ? el("div", { class: "msg warn" },
             noApp + " of these families are not on the app yet, so a released result will not reach them. "
-            + "Invite them from the school\u2019s App invites tab.")
+            + "Invite them from the school’s App invites tab.")
         : null,
       el("div", { class: "tw" }, el("table", null,
         el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"),
@@ -3598,14 +3498,14 @@ export const PORTAL_HTML = `<!doctype html>
               p.studentRef ? el("div", { class: "muted mono", style: "font-size:12px" },
                 p.studentRef.replace(/^sid_/, "")) : null),
             el("td", null, (p.grade || "") + (p.section ? " " + p.section : "")),
-            el("td", null, p.guardianName || el("span", { class: "muted" }, "\u2014")),
-            el("td", { class: "mono" }, p.guardianPhone || "\u2014"),
+            el("td", null, p.guardianName || el("span", { class: "muted" }, "—")),
+            el("td", { class: "mono" }, p.guardianPhone || "—"),
             el("td", null, p.usingApp
               ? el("span", { class: "pill ok" }, "Yes")
               : el("span", { class: "pill warn" }, "No")),
             el("td", null, statusPill(p.consent)),
             el("td", null, p.attendance === "UNKNOWN"
-              ? el("span", { class: "muted" }, "\u2014") : statusPill(p.attendance)),
+              ? el("span", { class: "muted" }, "—") : statusPill(p.attendance)),
             el("td", null, statusPill(p.status)));
         })))),
       el("p", { class: "muted", style: "margin-top:10px;font-size:12.5px" },
@@ -3613,7 +3513,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function campConsent() {
-    if (!S.participants) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!S.participants) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var c = S.camp.camp;
     function paper(kid, decision, photos) {
       run(api("/api/admin/camps/" + c.id + "/consent/record", { method: "POST",
@@ -3629,7 +3529,7 @@ export const PORTAL_HTML = `<!doctype html>
         body: { profileIds: profileIds } }), function (r) {
         S.notice = r.sent
           ? "Consent request sent to " + r.sent + (r.sent === 1 ? " guardian." : " guardians.")
-          : "Nothing sent \u2014 check the mobile numbers.";
+          : "Nothing sent — check the mobile numbers.";
         refreshCamp("consent");
       });
     }
@@ -3648,10 +3548,10 @@ export const PORTAL_HTML = `<!doctype html>
 
     return el("div", null,
       el("div", { class: "msg info" },
-        "Consent is per camp and per child. A child cannot be screened without it \\u2014 that rule is enforced by the server, not by this screen."),
+        "Consent is per camp and per child. A child cannot be screened without it \u2014 that rule is enforced by the server, not by this screen."),
       c.photosEnabled
         ? el("div", { class: "msg warn" },
-            "Photographs are on for this camp, so the paper form has two questions. Tick photographs only where the guardian ticked it themselves \\u2014 agreeing to a check-up is not agreeing to a camera.")
+            "Photographs are on for this camp, so the paper form has two questions. Tick photographs only where the guardian ticked it themselves \u2014 agreeing to a check-up is not agreeing to a camera.")
         : null,
       el("div", { class: "tw" }, el("table", null,
         el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"), el("th", null, "Guardian"),
@@ -3662,7 +3562,7 @@ export const PORTAL_HTML = `<!doctype html>
           return el("tr", null,
             el("td", null, el("b", null, p.name)),
             el("td", null, (p.grade || "") + (p.section ? " " + p.section : "")),
-            el("td", null, p.guardianName || el("span", { class: "muted" }, "\\u2014")),
+            el("td", null, p.guardianName || el("span", { class: "muted" }, "\u2014")),
             el("td", { class: "mono" }, p.guardianPhone),
             // Whether this guardian is on the app at all. A consent reminder to
             // somebody who never installed it needs a different button, so the
@@ -3673,12 +3573,12 @@ export const PORTAL_HTML = `<!doctype html>
             el("td", null, statusPill(p.consentStatus)),
             c.photosEnabled
               ? el("td", null, p.consentStatus === "PENDING"
-                  ? el("span", { class: "muted" }, "\\u2014")
+                  ? el("span", { class: "muted" }, "\u2014")
                   : el("span", { class: "pill " + (p.consentPhotos ? "warn" : "") },
                       p.consentPhotos ? "Allowed" : "Not allowed"))
               : null,
             el("td", null, p.consentStatus !== "PENDING"
-              ? el("span", { class: "muted", style: "font-size:12.5px" }, "\u2014")
+              ? el("span", { class: "muted", style: "font-size:12.5px" }, "—")
               : p.guardianUsingApp
                 ? el("button", { class: "sm", disabled: S.busy,
                     onclick: function () { chase([p.guardianProfileId]); } }, "Remind")
@@ -3721,7 +3621,7 @@ export const PORTAL_HTML = `<!doctype html>
             ? el("div", null, el("h3", null, "No camp downloaded"),
                 el("p", { style: "font-size:12.5px" },
                   "This device is offline and has no pack for this camp. Reconnect and download it before the camp starts."))
-            : "Loading\\u2026")));
+            : "Loading\u2026")));
     }
 
     var q = (S.search || "").toLowerCase();
@@ -3747,7 +3647,7 @@ export const PORTAL_HTML = `<!doctype html>
               for (var i = 0; i < source.length; i++) {
                 if (source[i].kidId === r.kidId) { who = source[i]; break; }
               }
-              return (who ? who.name : r.kidId) + " \u2014 " + r.reason;
+              return (who ? who.name : r.kidId) + " — " + r.reason;
             }).join("; "))
         : null,
       el("div", { class: "split" },
@@ -3797,7 +3697,7 @@ export const PORTAL_HTML = `<!doctype html>
             pack ? "Refresh download" : "Download for offline use") : null,
           queued.length && !offline
             ? el("button", { class: "sm pri", disabled: S.busy, onclick: function () { syncQueue(c.id); } },
-                S.busy ? "Syncing\\u2026" : "Sync " + queued.length + " now")
+                S.busy ? "Syncing\u2026" : "Sync " + queued.length + " now")
             : null,
           el("button", { class: "sm ghost", onclick: function () { set({ forceOffline: !S.forceOffline }); } },
             S.forceOffline ? "Rejoin network" : "Test offline")),
@@ -3885,7 +3785,7 @@ export const PORTAL_HTML = `<!doctype html>
             return el("tr", null,
               el("td", null, el("b", null, e.symptom)),
               el("td", { class: "muted" }, fmtDate(e.startedOn)
-                + (e.endedOn && e.endedOn !== e.startedOn ? " \u2013 " + fmtDate(e.endedOn) : "")),
+                + (e.endedOn && e.endedOn !== e.startedOn ? " – " + fmtDate(e.endedOn) : "")),
               el("td", null, sevLabel[e.severity] || e.severity),
               el("td", null, e.sawDoctor ? "Yes" : el("span", { class: "muted" }, "No")),
               el("td", { class: "muted" }, e.note || ""));
@@ -3894,7 +3794,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   function screeningPanel() {
     var d = S.screenData;
-    if (!d || d.child.kidId !== S.screenKid) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!d || d.child.kidId !== S.screenKid) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var ch = d.child, form = S.screenForm || {};
     var blocked = d.consentStatus !== "GRANTED" && d.consentStatus !== "PAPER";
 
@@ -3949,7 +3849,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("h2", null, ch.name),
             el("div", { class: "muted", style: "font-size:12.5px" },
               [(ch.grade || "") + (ch.section ? " " + ch.section : ""), ch.gender, ch.age ? ch.age + " years" : "", ch.studentRef.replace(/^sid_/, "")]
-                .filter(Boolean).join(" \\u00b7 "))),
+                .filter(Boolean).join(" \u00b7 "))),
           statusPill(d.consentStatus)),
         el("div", { class: "card-b" },
           el("div", { class: "row", style: "margin-bottom:4px" },
@@ -3986,7 +3886,7 @@ export const PORTAL_HTML = `<!doctype html>
         (d.checks || []).map(function (ct) { return checkBlock(ct, form); }),
         photoBlock(d, ch),
         el("div", { class: "row" },
-          el("button", { class: "pri big", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save check-up"),
+          el("button", { class: "pri big", disabled: S.busy, onclick: save }, S.busy ? "Saving\u2026" : "Save check-up"),
           el("button", { onclick: function () { set({ screenKid: null, screenData: null, saved: null }); } }, "Done"))));
   }
 
@@ -4017,7 +3917,7 @@ export const PORTAL_HTML = `<!doctype html>
       var f = file.files && file.files[0];
       if (!f) { set({ error: "Choose a photograph first." }); return; }
       if (f.size > 220 * 1024) {
-        set({ error: "That photograph is " + Math.round(f.size / 1024) + " KB. The limit is 220 KB \\u2014 use your camera's smallest setting." });
+        set({ error: "That photograph is " + Math.round(f.size / 1024) + " KB. The limit is 220 KB \u2014 use your camera's smallest setting." });
         return;
       }
       var reader = new FileReader();
@@ -4052,7 +3952,7 @@ export const PORTAL_HTML = `<!doctype html>
               return el("tr", null,
                 el("td", null, el("b", null, ph.checkType),
                   ph.caption ? el("div", { class: "muted", style: "font-size:12.5px" }, ph.caption) : null),
-                el("td", { class: "muted", style: "font-size:12px" }, Math.round(ph.bytes / 1024) + " KB \\u00b7 " + (ph.uploadedBy || "")),
+                el("td", { class: "muted", style: "font-size:12px" }, Math.round(ph.bytes / 1024) + " KB \u00b7 " + (ph.uploadedBy || "")),
                 el("td", { style: "text-align:right" }, el("div", { class: "row" },
                   el("button", { class: "sm", onclick: function () { open(ph.id); } }, "View"),
                   el("button", { class: "sm dang", onclick: function () { remove(ph.id); } }, "Delete"))));
@@ -4089,10 +3989,10 @@ export const PORTAL_HTML = `<!doctype html>
       if (ct === "Vision") {
         return el("div", null, el("div", { class: "g2" },
           el("div", { class: "fld" }, el("label", null, "Left eye"),
-            el("select", { onchange: bind("leftAcuity") }, el("option", { value: "" }, "\\u2014"),
+            el("select", { onchange: bind("leftAcuity") }, el("option", { value: "" }, "\u2014"),
               ACUITY.map(function (a) { return el("option", { value: a, selected: d.leftAcuity === a }, a); }))),
           el("div", { class: "fld" }, el("label", null, "Right eye"),
-            el("select", { onchange: bind("rightAcuity") }, el("option", { value: "" }, "\\u2014"),
+            el("select", { onchange: bind("rightAcuity") }, el("option", { value: "" }, "\u2014"),
               ACUITY.map(function (a) { return el("option", { value: a, selected: d.rightAcuity === a }, a); })))),
           el("label", { class: "chip" + (d.squint ? " on" : "") },
             el("input", { type: "checkbox", id: "vision-squint", checked: !!d.squint, onchange: function (e) { d.squint = e.target.checked; render(); } }), "Squint noted"));
@@ -4102,7 +4002,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "fld" }, el("label", null, "Carious teeth"),
             el("input", { type: "number", min: "0", value: d.cariesCount === undefined ? "" : d.cariesCount, oninput: bind("cariesCount") })),
           el("div", { class: "fld" }, el("label", null, "Gums"),
-            el("select", { onchange: bind("gums") }, el("option", { value: "" }, "\\u2014"),
+            el("select", { onchange: bind("gums") }, el("option", { value: "" }, "\u2014"),
               ["healthy","bleeding","swollen"].map(function (g) {
                 return el("option", { value: g, selected: d.gums === g }, g.charAt(0).toUpperCase() + g.slice(1)); })))),
           el("label", { class: "chip" + (d.pain ? " on" : "") },
@@ -4113,7 +4013,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("input", { type: "number", step: "0.1", value: d.hb || "", oninput: bind("hb") }));
       }
       return el("div", { class: "fld" }, el("label", null, "Result"),
-        el("select", { onchange: bind("outcome") }, el("option", { value: "" }, "\\u2014"),
+        el("select", { onchange: bind("outcome") }, el("option", { value: "" }, "\u2014"),
           [["normal","Normal"],["abnormal","Abnormal, monitor"],["referral","Needs referral"]].map(function (o) {
             return el("option", { value: o[0], selected: d.outcome === o[0] }, o[1]); })));
     }
@@ -4127,7 +4027,7 @@ export const PORTAL_HTML = `<!doctype html>
   // ══════════════════════════════════════ review
   function campReview() {
     if (S.reviewKid) return reviewPanel();
-    if (!S.queue) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!S.queue) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var c = S.camp.camp;
     function release() {
       if (!confirm("Release " + (c.approved || 0) + " approved results to guardians? This cannot be undone.")) return;
@@ -4141,7 +4041,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "row", style: "margin-bottom:14px" },
         el("div", { style: "flex:1" },
           el("span", { class: "muted", style: "font-size:12.5px" },
-            pending.length + " awaiting review \\u00b7 " + (c.approved || 0) + " approved \\u00b7 " + (c.released || 0) + " released")),
+            pending.length + " awaiting review \u00b7 " + (c.approved || 0) + " approved \u00b7 " + (c.released || 0) + " released")),
         el("button", { class: "pri", disabled: S.busy || !(c.approved > 0), onclick: release },
           "Release " + (c.approved || 0) + " to guardians")),
       c.released ? el("div", { class: "msg ok" }, c.released + " results are already with guardians.") : null,
@@ -4158,7 +4058,7 @@ export const PORTAL_HTML = `<!doctype html>
                 el("td", { class: "muted" }, q.grade),
                 el("td", { class: "num" }, q.alerts ? el("span", { class: "pill err" }, q.alerts) : el("span", { class: "muted" }, "0")),
                 el("td", { class: "num" }, q.watches ? el("span", { class: "pill warn" }, q.watches) : el("span", { class: "muted" }, "0")),
-                el("td", null, urgencyPill(q.urgency) || el("span", { class: "muted" }, "\\u2014")),
+                el("td", null, urgencyPill(q.urgency) || el("span", { class: "muted" }, "\u2014")),
                 el("td", null, statusPill(q.status)),
                 el("td", null, el("button", { class: "sm" }, q.status === "APPROVED" ? "View" : "Review")));
             })))));
@@ -4175,7 +4075,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   function reviewPanel() {
     var d = S.reviewData;
-    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var e = S.reviewEdit;
     function approve() {
       var findings = d.findings.map(function (f) { return { checkType: f.checkType, flag: e.flags[f.checkType] }; });
@@ -4185,13 +4085,13 @@ export const PORTAL_HTML = `<!doctype html>
       });
     }
     return el("div", null,
-      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ reviewKid: null, reviewData: null, error: "" }); } }, "\\u2190 Back to the queue"),
+      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ reviewKid: null, reviewData: null, error: "" }); } }, "\u2190 Back to the queue"),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       el("div", { class: "card" },
         el("div", { class: "card-h" },
           el("div", { style: "flex:1" }, el("h2", null, d.child.name),
             el("div", { class: "muted", style: "font-size:12.5px" },
-              [d.child.grade, d.child.gender, d.child.age ? d.child.age + " years" : ""].filter(Boolean).join(" \\u00b7 "))),
+              [d.child.grade, d.child.gender, d.child.age ? d.child.age + " years" : ""].filter(Boolean).join(" \u00b7 "))),
           statusPill(d.status)),
         el("div", { class: "card-b" },
           el("h4", { style: "margin-bottom:10px" }, "What the screening team recorded"),
@@ -4204,7 +4104,7 @@ export const PORTAL_HTML = `<!doctype html>
               el("div", { class: "chk-b" },
                 el("div", { class: "row", style: "margin-bottom:8px" },
                   el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Measured"),
-                  el("b", { style: "font-size:12.5px" }, f.rationale || "\\u2014")),
+                  el("b", { style: "font-size:12.5px" }, f.rationale || "\u2014")),
                 f.screenerNote ? el("div", { class: "row", style: "margin-bottom:8px" },
                   el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Note"),
                   el("span", { style: "font-size:12.5px" }, f.screenerNote)) : null,
@@ -4225,11 +4125,11 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "fld" }, el("label", null, "Message to the guardian"),
             el("textarea", { oninput: function (ev) { e.recommendation = ev.target.value; } }, e.recommendation),
             el("div", { class: "hint" }, d.recommendationIsDraft
-              ? "Drafted from the findings. Edit it \\u2014 this is what the parent reads in the app."
+              ? "Drafted from the findings. Edit it \u2014 this is what the parent reads in the app."
               : "Previously saved. Edit if anything has changed.")),
           el("div", { class: "row" },
             el("button", { class: "pri big", disabled: S.busy, onclick: approve },
-              S.busy ? "Saving\\u2026" : d.status === "APPROVED" ? "Update approval" : "Approve this child"),
+              S.busy ? "Saving\u2026" : d.status === "APPROVED" ? "Update approval" : "Approve this child"),
             el("button", { onclick: function () { set({ reviewKid: null, reviewData: null }); } }, "Cancel")),
           el("div", { class: "hint", style: "margin-top:8px" },
             "Approving does not notify anyone. Results reach guardians only when you release the camp."))));
@@ -4237,7 +4137,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   // ══════════════════════════════════════ my camps (screener / physician)
   function viewMyCamps() {
-    if (!S.myCamps) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    if (!S.myCamps) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     if (!S.myCamps.length) {
       return el("div", { class: "card" }, el("div", { class: "empty" },
         el("h3", null, "No camps assigned"),
@@ -4272,7 +4172,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function viewLibrary() {
-    if (!S.library) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    if (!S.library) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
     var lib = S.library;
 
     function edit(a) {
@@ -4336,7 +4236,7 @@ export const PORTAL_HTML = `<!doctype html>
 
     return el("div", null,
       el("div", { class: "msg info" },
-        "This is what families read after a camp. Write plainly, in the second person, and never write anything that reads like a diagnosis \u2014 the physician's recommendation does that job."),
+        "This is what families read after a camp. Write plainly, in the second person, and never write anything that reads like a diagnosis — the physician's recommendation does that job."),
       el("div", { class: "row", style: "margin-bottom:14px" },
         el("div", { style: "flex:1" }),
         el("button", { class: "pri", onclick: function () { edit(null); } }, "New article")),
@@ -4350,9 +4250,9 @@ export const PORTAL_HTML = `<!doctype html>
             el("td", null, a.locale),
             el("td", { class: "muted", style: "font-size:12.5px" },
               (a.checkTypes || []).length
-                ? (a.checkTypes.join(", ") + ((a.flags || []).length ? " \u00b7 " + a.flags.join("/") : ""))
+                ? (a.checkTypes.join(", ") + ((a.flags || []).length ? " · " + a.flags.join("/") : ""))
                 : "Everyone"),
-            el("td", { class: "muted" }, a.minAge + "\u2013" + a.maxAge),
+            el("td", { class: "muted" }, a.minAge + "–" + a.maxAge),
             el("td", null, el("span", { class: "pill " + (a.published ? "ok" : "") }, a.published ? "Published" : "Draft")),
             el("td", { style: "text-align:right" }, el("div", { class: "row" },
               el("button", { class: "sm", onclick: function () { edit(a); } }, "Edit"),
@@ -4421,14 +4321,12 @@ export const PORTAL_HTML = `<!doctype html>
       tabBar(oversightGroups(), S.oversightTab, goOversightTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
-      safely(function () {
-        return S.oversightTab === "access" ? tabAccessLog()
-          : S.oversightTab === "retention" ? tabRetention()
-          : S.oversightTab === "child" ? tabChildTrail()
-          : S.oversightTab === "phone" ? tabPhoneLookup()
-          : S.oversightTab === "demo" ? tabDemoData()
-          : tabPartners();
-      }));
+      S.oversightTab === "access" ? tabAccessLog()
+        : S.oversightTab === "retention" ? tabRetention()
+        : S.oversightTab === "child" ? tabChildTrail()
+        : S.oversightTab === "phone" ? tabPhoneLookup()
+        : S.oversightTab === "demo" ? tabDemoData()
+        : tabPartners());
   }
 
   /** K4. A partnership only earns its place if children sent there are seen. */
@@ -4694,7 +4592,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function viewHospitals() {
-    if (!S.hospitals) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    if (!S.hospitals) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
     var canEdit = S.hospitals.canEdit;
 
     function saveHospital() {
@@ -4708,7 +4606,7 @@ export const PORTAL_HTML = `<!doctype html>
       });
     }
     function retire(kind, id, name) {
-      if (!confirm("Retire " + name + "?\\n\\nIt stops appearing to families, but referrals already written to it keep their record.")) return;
+      if (!confirm("Retire " + name + "?\n\nIt stops appearing to families, but referrals already written to it keep their record.")) return;
       run(api("/api/admin/" + kind + "/" + encodeURIComponent(id), { method: "DELETE" }), function () {
         S.notice = "Retired " + name + "."; loadHospitals();
       });
@@ -4734,8 +4632,8 @@ export const PORTAL_HTML = `<!doctype html>
             isCampPartner: row.isCampPartner, active: true }
         : { id: row.id, name: row.name, specialty: row.specialty,
             hospitalId: row.hospitalId, city: row.city, phone: row.phone || "", active: true };
-      if (!confirm("Restore " + row.name + "?\\n\\nIt starts appearing to families again."
-        + (kind === "hospitals" ? "\\n\\nIts doctors stay retired until you restore them too." : ""))) return;
+      if (!confirm("Restore " + row.name + "?\n\nIt starts appearing to families again."
+        + (kind === "hospitals" ? "\n\nIts doctors stay retired until you restore them too." : ""))) return;
       run(api("/api/admin/" + kind, { method: "POST", body: body }), function () {
         S.notice = "Restored " + row.name + "."; loadHospitals();
       });
@@ -4769,7 +4667,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("label", { class: "chip" + (f.isCampPartner ? " on" : ""), style: "margin-top:10px" },
             el("input", { type: "checkbox", checked: !!f.isCampPartner,
               onchange: function (e) { f.isCampPartner = e.target.checked; render(); } }),
-            "Camp partner \u2014 shown first to these families")),
+            "Camp partner — shown first to these families")),
         el("div", { class: "card-f" }, el("div", { class: "row" },
           el("button", { class: "pri", disabled: S.busy, onclick: saveHospital }, "Save hospital"),
           el("button", { onclick: function () { set({ hosForm: null }); } }, "Cancel"))));
@@ -4789,9 +4687,9 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Hospital"),
               el("select", { onchange: db("hospitalId") },
-                [el("option", { value: "" }, "\u2014 not attached \u2014")].concat(
+                [el("option", { value: "" }, "— not attached —")].concat(
                   (S.hospitals.hospitals || []).map(function (h) {
-                    return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
+                    return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " · " + h.city);
                   })))),
             el("div", { class: "fld" }, el("label", null, "Mobile number"),
               el("input", { value: g.phone || "", oninput: db("phone"), placeholder: "98765 43210" }))),
@@ -4837,8 +4735,8 @@ export const PORTAL_HTML = `<!doctype html>
               return el("tr", { class: h.active ? "" : "muted" },
                 el("td", null, el("b", null, h.name),
                   h.address ? el("div", { class: "muted", style: "font-size:12.5px" }, h.address) : null),
-                el("td", null, [h.city, h.district].filter(Boolean).join(" \u00b7 ")),
-                el("td", { class: "mono" }, h.phone || "\u2014"),
+                el("td", null, [h.city, h.district].filter(Boolean).join(" · ")),
+                el("td", { class: "mono" }, h.phone || "—"),
                 el("td", { class: "num" }, h.doctorCount),
                 // Retired outranks camp partner: a retired hospital is not a
                 // partner of anything. This cell is also the only place the row
@@ -4862,7 +4760,7 @@ export const PORTAL_HTML = `<!doctype html>
                       }],
                       "-",
                       h.active
-                        ? ["ban", "Retire hospital\\u2026", function () { retire("hospitals", h.id, h.name); }, true]
+                        ? ["ban", "Retire hospital\u2026", function () { retire("hospitals", h.id, h.name); }, true]
                         : ["restore", "Restore hospital", function () { restore("hospitals", h); }],
                     ], "Manage " + h.name)
                   : null));
@@ -4893,7 +4791,7 @@ export const PORTAL_HTML = `<!doctype html>
             } }, icon("x", 14), " Clear")
           : null),
       !S.doctors
-        ? el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"))
+        ? el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"))
         : (S.doctors.doctors || []).length === 0
           ? el("div", { class: "card" }, el("div", { class: "empty" },
               el("p", { style: "font-size:12.5px;margin:0" },
@@ -4906,9 +4804,9 @@ export const PORTAL_HTML = `<!doctype html>
               el("tbody", null, (S.doctors.doctors || []).map(function (d) {
                 return el("tr", { class: d.active ? "" : "muted" },
                   el("td", null, el("b", null, d.name)),
-                  el("td", null, d.specialty || el("span", { class: "muted" }, "\u2014")),
-                  el("td", { class: "muted" }, d.hospitalName || "\u2014"),
-                  el("td", null, d.city || el("span", { class: "muted" }, "\u2014")),
+                  el("td", null, d.specialty || el("span", { class: "muted" }, "—")),
+                  el("td", { class: "muted" }, d.hospitalName || "—"),
+                  el("td", null, d.city || el("span", { class: "muted" }, "—")),
                   // A doctor signs in with this number. "via hospital" used to
                   // sit here and read like a reasonable fallback; it meant this
                   // doctor cannot receive a code and cannot be put on a camp,
@@ -4918,7 +4816,7 @@ export const PORTAL_HTML = `<!doctype html>
                     : el("span", { class: "pill err", style: "font-family:inherit" },
                         d.phone ? "Not a mobile" : "No mobile")),
                   el("td", { class: "num" }, d.campCount || 0),
-                  el("td", { class: "num" }, d.rating ? d.rating.toFixed(1) : "\u2014"),
+                  el("td", { class: "num" }, d.rating ? d.rating.toFixed(1) : "—"),
                   el("td", null, d.active === false
                     ? el("span", { class: "pill mute" }, "Retired")
                     : el("span", { class: "pill ok" }, "Active")),
@@ -4934,7 +4832,7 @@ export const PORTAL_HTML = `<!doctype html>
                         }, false, !d.hospitalId],
                         "-",
                         d.active
-                          ? ["ban", "Retire doctor\\u2026", function () { retire("doctors", d.id, d.name); }, true]
+                          ? ["ban", "Retire doctor\u2026", function () { retire("doctors", d.id, d.name); }, true]
                           : ["restore", "Restore doctor", function () { restore("doctors", d); }],
                       ], "Manage " + d.name)
                     : null));
@@ -5095,7 +4993,7 @@ export const PORTAL_HTML = `<!doctype html>
               icon("search", 14), " Find")),
           el("div", { class: "hint" },
             "Searches guardians, school contacts, administrators, screeners, physicians, "
-            + "the doctor directory and the hospitals \u2014 all at once, across every school."))),
+            + "the doctor directory and the hospitals — all at once, across every school."))),
 
       !d ? null
         : el("div", null,
@@ -5107,7 +5005,7 @@ export const PORTAL_HTML = `<!doctype html>
               // Said plainly: the difference between "we have no record" and
               // "we have a record that can never receive a message".
               d.normalized && !d.isMobile
-                ? el("span", { class: "pill warn" }, "Not a mobile \u2014 no code can reach it")
+                ? el("span", { class: "pill warn" }, "Not a mobile — no code can reach it")
                 : null),
             d.matches.length === 0
               ? el("div", { class: "card" }, el("div", { class: "empty" },
@@ -5119,9 +5017,9 @@ export const PORTAL_HTML = `<!doctype html>
                   el("tbody", null, d.matches.map(function (m) {
                     return el("tr", null,
                       el("td", null, el("span", { class: "pill info" }, m.kind)),
-                      el("td", null, el("b", null, m.name || "\u2014")),
-                      el("td", { class: "mono" }, m.phone || "\u2014"),
-                      el("td", { class: "muted" }, m.detail || "\u2014"),
+                      el("td", null, el("b", null, m.name || "—")),
+                      el("td", { class: "mono" }, m.phone || "—"),
+                      el("td", { class: "muted" }, m.detail || "—"),
                       el("td", { class: "act" }, m.schoolId
                         ? el("button", { class: "sm", onclick: function () { openSchool(m.schoolId); } },
                             icon("open", 13), " Open school")
@@ -5138,11 +5036,11 @@ export const PORTAL_HTML = `<!doctype html>
    */
   function tabDemoData() {
     var d = S.demo;
-    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading…"));
 
     function purge(withArticles) {
       var what = d.removable + (d.removable === 1 ? " record" : " records");
-      if (!confirm("Remove " + what + "?\\n\\nThis cannot be undone. Anything holding real "
+      if (!confirm("Remove " + what + "?\n\nThis cannot be undone. Anything holding real "
         + "records is kept and will be listed.")) return;
       run(api("/api/admin/demo-data", { method: "DELETE", body: { articles: !!withArticles } }),
         function (r) {
@@ -5159,7 +5057,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       el("div", { class: "msg info" },
         "Demonstration data is the fictional schools, hospitals and doctors a new database "
-        + "starts with. It is no longer re-created on its own \u2014 set SEED_DEMO_DATA=true "
+        + "starts with. It is no longer re-created on its own — set SEED_DEMO_DATA=true "
         + "to get it back on an evaluation deployment."),
 
       d.empty
@@ -5186,7 +5084,7 @@ export const PORTAL_HTML = `<!doctype html>
                 return el("tr", { class: i.removable ? "" : "muted" },
                   el("td", null, el("span", { class: "pill mute" }, i.kind)),
                   el("td", null, el("b", null, i.name)),
-                  el("td", { class: "muted" }, i.detail || "\u2014"),
+                  el("td", { class: "muted" }, i.detail || "—"),
                   el("td", null, i.removable
                     ? el("span", { class: "pill err" }, "Will be removed")
                     : el("span", null, el("span", { class: "pill ok" }, "Kept"),
@@ -5233,7 +5131,7 @@ export const PORTAL_HTML = `<!doctype html>
       // Only name the school here when it is not already the crumb before
       // this one, or it reads "Oakridge / Oakridge · Annual Camp".
       var named = canManage() && S.school;
-      parts.push(!named && S.camp.camp.schoolName ? S.camp.camp.schoolName + " \\u00b7 " : "",
+      parts.push(!named && S.camp.camp.schoolName ? S.camp.camp.schoolName + " \u00b7 " : "",
         S.camp.camp.title);
     } else if (S.view === "newSchool") {
       parts.push(el("button", { onclick: loadSchools }, "Schools"), " / New school");
@@ -5252,32 +5150,6 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.view === "hospitals") return "Hospitals & doctors";
     if (S.view === "oversight") return "Oversight";
     return "VitaHero";
-  }
-
-  function brokenScreen(err) {
-    return el("div", { class: "card" }, el("div", { class: "card-b" },
-      el("h2", { style: "margin-bottom:4px" }, "This screen could not be drawn"),
-      el("p", { class: "muted", style: "font-size:12.5px" },
-        "The data it was given is not the shape it expected. Nothing has been " +
-        "lost \u2014 reloading usually clears it. If it keeps happening, send " +
-        "this line to VitaHero support."),
-      el("p", { class: "mono", style: "font-size:12px;color:var(--err);margin-top:8px" },
-        String((err && err.message) || err)),
-      el("div", { class: "row", style: "margin-top:12px" },
-        el("button", { class: "pri", onclick: function () { location.reload(); } }, "Reload"))));
-  }
-
-  /**
-   * Draw one screen, and keep the tab bar even if it cannot be drawn.
-   *
-   * render() already catches a throwing screen, but it catches the whole
-   * workspace with it — and the tabs live inside the workspace now that they
-   * are no longer in the sidebar. One screen with an unexpected response
-   * would take the tabs down too, leaving no way to move to a screen that
-   * works. The tabs are rendered outside this; only the content is inside.
-   */
-  function safely(fn) {
-    try { return fn(); } catch (e) { return brokenScreen(e); }
   }
 
   function render() {
@@ -5316,7 +5188,16 @@ export const PORTAL_HTML = `<!doctype html>
       else if (S.view === "schools") body = viewSchools();
       else body = viewOverview();
     } catch (renderErr) {
-      body = brokenScreen(renderErr);
+      body = el("div", { class: "card" }, el("div", { class: "card-b" },
+        el("h2", { style: "margin-bottom:4px" }, "This screen could not be drawn"),
+        el("p", { class: "muted", style: "font-size:12.5px" },
+          "The data it was given is not the shape it expected. Nothing has been " +
+          "lost — reloading usually clears it. If it keeps happening, send " +
+          "this line to VitaHero support."),
+        el("p", { class: "mono", style: "font-size:12px;color:var(--err);margin-top:8px" },
+          String((renderErr && renderErr.message) || renderErr)),
+        el("div", { class: "row", style: "margin-top:12px" },
+          el("button", { class: "pri", onclick: function () { location.reload(); } }, "Reload"))));
     }
 
     add(root, el("div", { class: "shell" }, sidebar(),
@@ -5339,7 +5220,7 @@ export const PORTAL_HTML = `<!doctype html>
     var tables = root.querySelectorAll("table");
     for (var ti = 0; ti < tables.length; ti++) {
       var tb = tables[ti];
-      if (tb.parentNode && /\b(tw|tws)\b/.test(tb.parentNode.className || "")) continue;
+      if (tb.parentNode && /(tw|tws)/.test(tb.parentNode.className || "")) continue;
       var box = document.createElement("div");
       box.className = "tws";
       tb.parentNode.insertBefore(box, tb);
@@ -5426,77 +5307,4 @@ export const PORTAL_HTML = `<!doctype html>
 })();
 </script>
 </body>
-</html>`;
-
-/**
- * Caches the console's shell so a screener who left the office online can still
- * open the page in a school hall with no signal. Deliberately minimal: it
- * caches the page itself and nothing else. Camp data is not cached here — the
- * screener downloads a camp pack explicitly, so what is available offline is
- * something they chose rather than whatever happened to be in a cache.
- */
-export const SERVICE_WORKER_JS = `
-const CACHE = "vitahero-console-v1";
-const SHELL = "/admin";
-
-self.addEventListener("install", function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.add(SHELL); }).then(function () {
-    return self.skipWaiting();
-  }));
-});
-
-self.addEventListener("activate", function (e) {
-  e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k !== CACHE; })
-      .map(function (k) { return caches.delete(k); }));
-  }).then(function () { return self.clients.claim(); }));
-});
-
-self.addEventListener("fetch", function (e) {
-  var url = new URL(e.request.url);
-  if (e.request.method !== "GET") return;
-  // API calls must never be served stale — a cached participant list would
-  // show a screener consent that has since been withdrawn.
-  if (url.pathname.indexOf("/api/") === 0) return;
-  if (url.pathname !== "/admin" && url.pathname !== "/admin/") return;
-  e.respondWith(
-    fetch(e.request).then(function (res) {
-      // Only a good response replaces the cached shell. Caching whatever came
-      // back would let one 502 during a deploy become the console every
-      // screener sees until they next have signal.
-      if (res && res.ok) {
-        var copy = res.clone();
-        caches.open(CACHE).then(function (c) { c.put(SHELL, copy); });
-      }
-      return res;
-    }).catch(function () {
-      return caches.match(SHELL);
-    })
-  );
-});
-`;
-
-/**
- * A validator for the console shell.
- *
- * The shell is a quarter of a megabyte of HTML, and it is served no-cache so a
- * deploy is picked up the moment it lands. Without a validator that means the
- * whole quarter megabyte again on every single load — including from a phone on
- * a school's wifi, which is where the console is used. With one, an unchanged
- * console costs a 304 and no body at all.
- *
- * FNV-1a, not a cryptographic hash: it only has to change when the shell does.
- * Computed once per isolate, on the first request that needs it.
- */
-let shellEtag = "";
-export function portalShellEtag(): string {
-  if (!shellEtag) {
-    let h = 0x811c9dc5;
-    for (let i = 0; i < PORTAL_HTML.length; i++) {
-      h ^= PORTAL_HTML.charCodeAt(i);
-      h = Math.imul(h, 0x01000193);
-    }
-    shellEtag = `"${(h >>> 0).toString(36)}-${PORTAL_HTML.length.toString(36)}"`;
-  }
-  return shellEtag;
-}
+</html>

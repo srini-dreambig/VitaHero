@@ -173,7 +173,30 @@ function mapSchool(r: SchoolRow) {
     onboardedAt: r.onboarded_at ? String(r.onboarded_at) : "",
     studentCount: typeof r.student_count === "number" ? r.student_count : 0,
     adminCount: typeof r.admin_count === "number" ? r.admin_count : 0,
+    // How the programme is actually going at this school. Counted in the same
+    // statement as the row itself — six correlated subqueries are still one
+    // round trip, and the alternative is a query per school in a loop.
+    campCount: num(r.camp_count),
+    campsRun: num(r.camps_run),
+    participants: num(r.participant_count),
+    consented: num(r.consented_count),
+    screened: num(r.screened_count),
+    openReferrals: num(r.open_referrals),
+    // Ratios are derived here so that no screen has to remember which
+    // denominator is the right one — and a denominator of zero reads as "not
+    // started" rather than as nought per cent, which looks like a failure.
+    consentRate: pct(num(r.consented_count), num(r.participant_count)),
+    coverage: pct(num(r.screened_count), num(r.participant_count)),
   };
+}
+
+function num(v: unknown): number {
+  return typeof v === "number" ? v : Number(v) || 0;
+}
+
+/** A percentage, or null when there is nothing to take a percentage of. */
+function pct(part: number, whole: number): number | null {
+  return whole > 0 ? Math.round((part / whole) * 100) : null;
 }
 
 /** List schools the actor can see, with roster and admin counts. */
@@ -186,7 +209,23 @@ export async function listSchools(sql: Sql, actor: Actor) {
         SELECT s.*,
           (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.school_id = s.id) AS student_count,
           (SELECT COUNT(*)::int FROM vita_hero.profiles p
-             WHERE p.school_id = s.id AND p.role = 'SCHOOL_ADMIN') AS admin_count
+             WHERE p.school_id = s.id AND p.role = 'SCHOOL_ADMIN') AS admin_count,
+          (SELECT COUNT(*)::int FROM vita_hero.school_camps sc
+             WHERE sc.school_id = s.id) AS camp_count,
+          (SELECT COUNT(*)::int FROM vita_hero.school_camps sc
+             WHERE sc.school_id = s.id
+               AND UPPER(COALESCE(sc.status, '')) NOT IN ('DRAFT','SCHEDULED','CANCELLED')) AS camps_run,
+          (SELECT COUNT(*)::int FROM vita_hero.camp_participants cp
+             WHERE cp.school_id = s.id) AS participant_count,
+          (SELECT COUNT(*)::int FROM vita_hero.camp_participants cp
+             WHERE cp.school_id = s.id
+               AND UPPER(COALESCE(cp.consent_status, '')) IN ('GRANTED','PAPER')) AS consented_count,
+          (SELECT COUNT(DISTINCT cp.kid_id)::int FROM vita_hero.camp_participants cp
+             WHERE cp.school_id = s.id
+               AND UPPER(COALESCE(cp.status, '')) IN ('SCREENED','RELEASED')) AS screened_count,
+          (SELECT COUNT(*)::int FROM vita_hero.referrals r
+             WHERE r.school_id = s.id
+               AND UPPER(COALESCE(r.status, '')) IN ('OPEN','BOOKED')) AS open_referrals
         FROM vita_hero.schools s
         WHERE s.id = ${actor.schoolId}
         ORDER BY s.name
@@ -195,7 +234,23 @@ export async function listSchools(sql: Sql, actor: Actor) {
         SELECT s.*,
           (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.school_id = s.id) AS student_count,
           (SELECT COUNT(*)::int FROM vita_hero.profiles p
-             WHERE p.school_id = s.id AND p.role = 'SCHOOL_ADMIN') AS admin_count
+             WHERE p.school_id = s.id AND p.role = 'SCHOOL_ADMIN') AS admin_count,
+          (SELECT COUNT(*)::int FROM vita_hero.school_camps sc
+             WHERE sc.school_id = s.id) AS camp_count,
+          (SELECT COUNT(*)::int FROM vita_hero.school_camps sc
+             WHERE sc.school_id = s.id
+               AND UPPER(COALESCE(sc.status, '')) NOT IN ('DRAFT','SCHEDULED','CANCELLED')) AS camps_run,
+          (SELECT COUNT(*)::int FROM vita_hero.camp_participants cp
+             WHERE cp.school_id = s.id) AS participant_count,
+          (SELECT COUNT(*)::int FROM vita_hero.camp_participants cp
+             WHERE cp.school_id = s.id
+               AND UPPER(COALESCE(cp.consent_status, '')) IN ('GRANTED','PAPER')) AS consented_count,
+          (SELECT COUNT(DISTINCT cp.kid_id)::int FROM vita_hero.camp_participants cp
+             WHERE cp.school_id = s.id
+               AND UPPER(COALESCE(cp.status, '')) IN ('SCREENED','RELEASED')) AS screened_count,
+          (SELECT COUNT(*)::int FROM vita_hero.referrals r
+             WHERE r.school_id = s.id
+               AND UPPER(COALESCE(r.status, '')) IN ('OPEN','BOOKED')) AS open_referrals
         FROM vita_hero.schools s
         ORDER BY s.name
       `;

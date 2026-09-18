@@ -1,4 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
+import { go } from "./nav.mjs";
 
 // Every console screen added late — the question queue, a question thread,
 // contracts and invoices, the reading library — rendered in a real browser
@@ -82,10 +83,10 @@ await p.goto(URL);
 await p.waitForTimeout(600);
 
 const text = async () => (await p.locator(".content").innerText()).replace(/\n+/g, " | ");
-const click = async (name) => {
-  await p.getByRole("button", { name, exact: false }).first().click();
-  await p.waitForTimeout(280);
-};
+// Destinations, groups and screens all reach through one helper — this file
+// used to match any button by name, which found the right thing only for as
+// long as everything was a sidebar item.
+const click = async (name) => go(p, name, { wait: 280 });
 
 // Case-insensitive: the stat tile captions are rendered in small caps by
 // CSS, and innerText reports text as rendered. What this asserts is that

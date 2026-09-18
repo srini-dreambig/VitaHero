@@ -1,4 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
+import { go } from "./nav.mjs";
 
 // What the console keeps, and for how long.
 //
@@ -80,7 +81,7 @@ async function open() {
 
   await p.goto(URL, { waitUntil: "networkidle" });
   await p.waitForTimeout(500);
-  await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+  await go(p, "Schools");
   await p.waitForTimeout(350);
   await p.getByText("Silver Oaks").first().click();
   await p.waitForTimeout(700);
@@ -92,13 +93,13 @@ async function open() {
   const { p, errs } = await open();
 
   // Classes fills the shared form slot with { year, grades, sections }.
-  await p.locator(".navi", { hasText: /^Classes$/ }).first().click();
+  await go(p, "Classes");
   await p.waitForTimeout(500);
   const year = await p.locator("#root input[type=text]").first().inputValue();
   check("the classes form is filled in from the school", year === "2026-27");
 
   // Leave without saving, and open a form of an entirely different shape.
-  await p.locator(".navi", { hasText: /^Staff$/ }).first().click();
+  await go(p, "Staff");
   await p.waitForTimeout(600);
 
   const role = await p.locator("#staff-kind").first().inputValue().catch(() => "");
@@ -135,7 +136,7 @@ async function open() {
   const { p, errs } = await open();
 
   // Put a roster on screen: real children, real guardian phone numbers.
-  await p.locator(".navi", { hasText: /^Roster$/ }).first().click();
+  await go(p, "Roster");
   await p.waitForTimeout(600);
   const before = await p.$eval("#root", (n) => n.innerText);
   check("the roster is on screen to begin with", /Meera Reddy/.test(before));
@@ -211,13 +212,13 @@ async function open() {
 
   await p.goto(URL, { waitUntil: "networkidle" });
   await p.waitForTimeout(500);
-  await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+  await go(p, "Schools");
   await p.waitForTimeout(350);
 
   // Ask for the slow one, change your mind, ask for the fast one.
   await p.getByText("Aster High").first().click();
   await p.waitForTimeout(150);
-  await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+  await go(p, "Schools");
   await p.waitForTimeout(200);
   await p.getByText("Bluebell School").first().click();
 
@@ -324,11 +325,11 @@ async function open() {
 
   await p.goto(URL, { waitUntil: "networkidle" });
   await p.waitForTimeout(500);
-  await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+  await go(p, "Schools");
   await p.waitForTimeout(300);
   await p.getByText("Silver Oaks").first().click();
   await p.waitForTimeout(600);
-  await p.locator(".navi", { hasText: /^All camps$/ }).first().click();
+  await go(p, "All camps");
   await p.waitForTimeout(500);
   await p.getByText("Annual Camp").first().click();
   await p.waitForTimeout(700);
@@ -421,11 +422,11 @@ async function open() {
 
   await p.goto(URL, { waitUntil: "networkidle" });
   await p.waitForTimeout(500);
-  await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+  await go(p, "Schools");
   await p.waitForTimeout(300);
   await p.getByText("Silver Oaks").first().click();
   await p.waitForTimeout(600);
-  await p.locator(".navi", { hasText: /^All camps$/ }).first().click();
+  await go(p, "All camps");
   await p.waitForTimeout(500);
   await p.getByText("Annual Camp").first().click();
   await p.waitForTimeout(700);

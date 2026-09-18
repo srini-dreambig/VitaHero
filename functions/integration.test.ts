@@ -15,6 +15,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import pg from "pg";
 import type { Sql } from "./common";
 import { serialQuery } from "./pgserial";
+import { migrate } from "./migrate";
+import { SCHEMA_STEPS } from "./index";
 import {
   ensureStageASchema,
   createSchool,
@@ -125,8 +127,14 @@ beforeAll(async () => {
   await client.connect();
   sql = neonShim(client);
   await client.query("DROP SCHEMA IF EXISTS vita_hero CASCADE");
-  await baseSchema(sql);
-  await ensureStageASchema(sql);
+  // The worker's own migration rather than a hand-built subset.
+  //
+  // This used to build just the tables Stage A touches, which worked for as
+  // long as listSchools only counted children and administrators. It now
+  // counts camps, consent, screenings and open referrals in the same
+  // statement, so it needs the tables those live in — and a test that builds
+  // its own schema goes stale the moment a query reaches past it.
+  await migrate(sql, SCHEMA_STEPS, []);
 });
 
 afterAll(async () => { if (client) await client.end(); });

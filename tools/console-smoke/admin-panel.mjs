@@ -1,4 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
+import { go } from "./nav.mjs";
 
 // What the admin panel shows, and what it lets you look for.
 //
@@ -112,9 +113,22 @@ const raw = async (sel) => p.locator(sel).first().evaluate((n) =>
     && x.firstChild.nodeType === 3 ? x.textContent : "").join(" | ") + " | " + n.textContent);
 
 // ── the schools table ─────────────────────────────────────────
-await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+await go(p, "Schools");
 await p.waitForTimeout(350);
-const schoolRow = await text("tbody tr");
+// The schools list is a record list now: the row carries what you scan for —
+// consent, coverage, camps run, referrals open — and the rest of what the
+// school told us at onboarding opens out underneath it. Thirteen columns was
+// the alternative, and it was unreadable.
+const scanned = await p.locator(".rec").first().evaluate((n) => n.textContent);
+check("the row carries how the programme is going, not just what the school is called",
+  /CONSENT/i.test(scanned) && /SCREENED/i.test(scanned)
+  && /CAMPS RUN/i.test(scanned) && /OPEN REFERRALS/i.test(scanned));
+
+// Open the first row out.
+// The expander, not the row menu — both are icon buttons.
+await p.locator(".rec .expander").first().click();
+await p.waitForTimeout(300);
+const schoolRow = await p.locator(".recd").first().evaluate((n) => n.textContent);
 
 check("the school's contact person is on the row", /Asha Rao/.test(schoolRow));
 check("the contact's mobile is on the row", /\+919800000001/.test(schoolRow));
@@ -123,13 +137,25 @@ check("the contact's email is on the row", /head@silveroaks\.in/.test(schoolRow)
 // somebody chose it.
 check("how often camps run is shown in words, not as a constant",
   /Twice a year/.test(schoolRow) && !/BIANNUAL/.test(schoolRow));
-check("the checks the school agreed to are shown", /Vision/.test(schoolRow));
+check("the checks the school agreed to are shown in full", /Vision/.test(schoolRow)
+  && /Dental/.test(schoolRow) && /Haemoglobin/.test(schoolRow));
 check("when the school came on board is shown", /2025/.test(schoolRow));
+// Read the panel as the label/value pairs it actually is. Matching a regex
+// against textContent bit us twice: it runs every cell together, so "SO-1"
+// followed by "Academic year" has no word boundary after the 1.
+const detail = await p.locator(".recd .dgrid > div").evaluateAll((ns) =>
+  Object.fromEntries(ns.map((n) => [
+    n.querySelector(".ml").textContent.trim(),
+    n.querySelector(".dv").textContent.trim(),
+  ])));
 check("the counts that were already there are still there",
-  /412/.test(schoolRow) && /\bSO-1\b/.test(schoolRow));
+  detail["Children on roll"] === "412" && detail["Partner code"] === "SO-1");
+check("and what the figures on the row are a proportion of is spelled out",
+  /\bof\b/.test(detail["Consent given"] || "")
+  && /\bof\b/.test(detail["Children screened"] || ""));
 
 // ── the doctors table ─────────────────────────────────────────
-await p.locator(".navi", { hasText: /^Hospitals$/ }).first().click();
+await go(p, "Hospitals");
 await p.waitForTimeout(450);
 
 const docTable = await p.evaluate(() => {
@@ -187,9 +213,9 @@ check("the hospital filter is kept while searching",
   !!searched && /hospital_id=hos_2/.test(searched.search));
 
 // ── finding a number across the programme ─────────────────────
-await p.locator(".navi", { hasText: /^Oversight$/ }).first().click();
+await go(p, "Oversight");
 await p.waitForTimeout(400);
-await p.locator(".navi", { hasText: /^Find a number$/ }).first().click();
+await go(p, "Find a number");
 await p.waitForTimeout(300);
 await p.evaluate(() => {
   const i = document.getElementById("lookupq");
@@ -210,7 +236,8 @@ check("the same number is reported as a guardian and as a doctor",
 check("the match says where that person sits", /Silver Oaks/.test(found));
 
 // ── clearing the demonstration data ───────────────────────────
-await p.locator(".navi", { hasText: /^Demonstration data$/ }).first().click();
+// Maintenance holds one screen, so the group tab is the control.
+await go(p, "Maintenance");
 await p.waitForTimeout(400);
 const demo = await raw(".content");
 check("the demo panel lists what it would remove", /Oakridge International School/.test(demo));

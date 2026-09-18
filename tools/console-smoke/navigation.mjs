@@ -1,4 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
+import { go } from "./nav.mjs";
 
 // The left navigation.
 //
@@ -63,22 +64,23 @@ async function run(role, expect) {
   await p.waitForTimeout(600);
   const nav = () => p.$$eval(".navi", (ns) => ns.map((n) => n.textContent.trim()));
   const has = async (label) => (await nav()).some((x) => x.replace(/\d+$/, "") === label);
+  const tabs = () => p.$$eval(".tabs .tab", (ns) => ns.map((n) => n.textContent.replace(/\d+$/, "").trim()));
+  const segs = () => p.$$eval(".seg button", (ns) => ns.map((n) => n.textContent.replace(/\d+$/, "").trim()));
+  const clickTab = async (label) => p.evaluate((l) => {
+    const b = [...document.querySelectorAll(".tabs .tab")]
+      .find((n) => n.textContent.replace(/\d+$/, "").trim() === l);
+    if (b) b.click();
+    return !!b;
+  }, label);
 
-  // The navigation does not rearrange itself as you move. Every section is on
-  // screen from the moment you sign in, whether or not the thing it belongs to
-  // has been opened yet — it used to appear only once you had opened that
-  // thing, so the section you were looking for was missing exactly when you
-  // went looking for it.
-  check(`${role}: a school's sections are listed before a school is open`,
-    (await has("Roster")) && (await has("All camps")) && (await has("Referrals")));
-  // Said only when it is true. A school administrator belongs to one school
-  // and boot() opens it for them, so their section is headed with its name
-  // from the first paint; operations, who have many, are told to pick one.
-  const notes = await p.$$eval(".navnote", (ns) => ns.map((n) => n.textContent));
-  check(`${role}: ${role === "SCHOOL_ADMIN" ? "their own school is already open" : "it says no school is open yet"}`,
-    role === "SCHOOL_ADMIN"
-      ? !notes.some((x) => /No school open/.test(x))
-      : notes.some((x) => /No school open/.test(x)));
+  // The left navigation lists destinations and nothing else. What lives inside
+  // one of them belongs to that thing, not to the shell around it — so the
+  // sidebar is the same six lines wherever you are, and does not grow to
+  // twenty-eight as you open things.
+  const menu = await nav();
+  check(`${role}: the sidebar is destinations only`, menu.length <= 7);
+  check(`${role}: and none of a school's screens are in it`,
+    !(await has("Roster")) && !(await has("Camp day")) && !(await has("Billing")));
 
   await p.locator(".navi", { hasText: /^(Schools|My school)$/ }).first().click();
   await p.waitForTimeout(400);
@@ -87,51 +89,49 @@ async function run(role, expect) {
     await p.waitForTimeout(600);
   }
 
-  check(`${role}: the open school's sections appear`,
-    (await has("Roster")) && (await has("Classes")) && (await has("All camps")));
-  check(`${role}: the nav is grouped, not one flat list`,
-    (await p.$$eval(".navsec h4", (ns) => ns.map((n) => n.textContent))).length >= 4);
-  check(`${role}: billing is ${expect.billing ? "shown" : "hidden"}`,
-    (await has("Billing")) === expect.billing);
-  // A camp's stages are listed too, but a stage belongs to one camp on one
-  // day — there is no sensible camp to assume the way there is a school. They
-  // are shown so the shape of the work stays legible, and disabled so that
-  // none of them is a live-looking button that does nothing.
-  check(`${role}: a camp's stages are listed before a camp is open`,
-    await has("Camp day"));
-  check(`${role}: and they are disabled until a camp is open`,
-    await p.evaluate(() => {
-      const b = [...document.querySelectorAll(".navi")]
-        .find((n) => n.textContent.trim().replace(/\d+$/, "") === "Camp day");
-      return !!b && b.disabled && b.classList.contains("off") && /camp/i.test(b.title);
-    }));
+  // Five groups of at most four, rather than twelve tabs in a strip or
+  // twenty-eight lines in a sidebar.
+  const schoolTabs = await tabs();
+  check(`${role}: a school is grouped into a handful of tabs`,
+    schoolTabs.length >= 4 && schoolTabs.length <= 6);
+  check(`${role}: the groups are the jobs, not the screens`,
+    ["Students", "Camps", "Follow-up", "Settings"].every((t) => schoolTabs.includes(t)));
 
-  await p.locator(".navi", { hasText: /^All camps$/ }).first().click();
-  await p.waitForTimeout(450);
+  // The screens inside the group you are in, as a second control — and only
+  // when the group holds more than one.
+  check(`${role}: the group you are in shows its own screens`,
+    (await segs()).includes("Roster") && (await segs()).includes("Import history"));
+
+  await clickTab("Reports");
+  await p.waitForTimeout(350);
+  check(`${role}: a group holding one screen shows no second row`,
+    (await segs()).length === 0);
+
+  await clickTab("Settings");
+  await p.waitForTimeout(350);
+  const settings = await segs();
+  check(`${role}: billing is ${expect.billing ? "shown" : "hidden"}`,
+    settings.includes("Billing") === expect.billing);
+  check(`${role}: settings holds the school's own affairs`,
+    settings.includes("Staff") && settings.includes("Programme"));
+
+  await clickTab("Camps");
+  await p.waitForTimeout(400);
   await p.getByText("Annual Camp").first().click();
   await p.waitForTimeout(700);
 
-  const camp = await nav();
+  // A camp is a sequence, so its stages stay one row in the order the day
+  // runs. Grouping a workflow would hide the only useful thing about it.
   const stages = ["Setup", "Parents & children", "Consent", "Camp day", "Review"];
+  const campTabs = await tabs();
   check(`${role}: the camp's stages are all present`,
-    stages.every((s) => camp.some((x) => x.replace(/\d+$/, "") === s)));
-  // In the order the day actually runs, which is the point of listing them.
-  const idx = stages.map((s) => camp.findIndex((x) => x.replace(/\d+$/, "") === s));
+    stages.every((s) => campTabs.includes(s)));
+  const idx = stages.map((s) => campTabs.indexOf(s));
   check(`${role}: the stages are in the order the day runs`,
     idx.every((v, i) => i === 0 || v > idx[i - 1]));
-  // The "Back to <school>" line this used to need is gone: the school's own
-  // sections never left the screen, so All camps is the way back.
-  check(`${role}: the school's sections are still there inside a camp`,
-    (await has("Roster")) && (await has("All camps")));
-  check(`${role}: and going back to the camp list works from inside a camp`,
-    await p.evaluate(async () => {
-      const b = [...document.querySelectorAll(".navi")]
-        .find((n) => n.textContent.trim() === "All camps");
-      if (!b || b.disabled) return false;
-      b.click();
-      await new Promise((r) => setTimeout(r, 500));
-      return /Annual Camp/.test(document.querySelector(".content").textContent);
-    }));
+  check(`${role}: a camp shows no second row either`, (await segs()).length === 0);
+  check(`${role}: and the sidebar has not changed`, (await nav()).length === menu.length);
+
   check(`${role}: no page errors`, errs.length === 0);
   if (errs.length) console.log(errs.join("\n"));
   await b.close();
@@ -141,4 +141,65 @@ await run("SUPERADMIN", { billing: true });
 // A school office has no business seeing what its own contract is worth.
 await run("SCHOOL_ADMIN", { billing: false });
 
+// ── a screen that cannot be drawn does not take the tabs with it ──
+//
+// The tabs live inside the workspace now that they are out of the sidebar, and
+// render() catches a throwing screen by replacing the whole workspace. That
+// left no way to reach a screen that works — you were stuck on the broken one
+// until you reloaded. Only the content sits inside that catch now.
+//
+// Broken with data rather than by patching the page: tabRoster() filters
+// r.students, so a roster that answers with a string for students is a real
+// response of the wrong shape, which is the case this is actually for.
+{
+  const b2 = await chromium.launch();
+  const p2 = await b2.newPage({ viewport: { width: 1280, height: 900 } });
+  await p2.addInitScript(() => {
+    localStorage.setItem("vh_console", JSON.stringify({
+      mode: "key", key: "k", name: "Ops", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+    }));
+    const D = {
+      "/api/admin/overview": { schools: 1, students: 1, guardians: 1, guardiansActivated: 0,
+        campStatus: {}, upcoming: [] },
+      "/api/admin/schools": { schools: [{ id: "sch_1", name: "Silver Oaks", city: "Hyderabad",
+        district: "", partnerCode: "SO-1", academicYear: "2026-27", studentCount: 1, adminCount: 1,
+        active: true, status: "ACTIVE", checksOffered: [], campCadence: "ANNUAL" }] },
+      "/api/admin/schools/sch_1": { school: { id: "sch_1", name: "Silver Oaks", city: "Hyderabad",
+        district: "", contactName: "", contactPhone: "", contactEmail: "", academicYear: "2026-27",
+        campCadence: "ANNUAL", checksOffered: [], description: "", partnerCode: "SO-1" } },
+      // The wrong shape, on purpose.
+      "/api/admin/schools/sch_1/roster": { total: 1, students: "not an array" },
+    };
+    window.fetch = async (u) => {
+      const path = new URL(u, location.origin).pathname;
+      const keys = Object.keys(D).sort((a, x) => x.length - a.length);
+      const k = keys.find((x) => path === x) || keys.find((x) => path.startsWith(x));
+      return new Response(JSON.stringify(k ? D[k] : {}),
+        { headers: { "content-type": "application/json" } });
+    };
+  });
+  await p2.goto(URL, { waitUntil: "networkidle" });
+  await p2.waitForTimeout(500);
+  await go(p2, "Schools");
+  await p2.getByText("Silver Oaks").first().click();
+  await p2.waitForTimeout(700);
+
+  const state = await p2.evaluate(() => ({
+    broke: /could not be drawn/.test(document.querySelector(".content").textContent),
+    tabs: document.querySelectorAll(".tabs .tab").length,
+    sidebar: document.querySelectorAll(".navi").length,
+  }));
+  check("a screen that cannot be drawn says so", state.broke === true);
+  check("and the tabs survive it", state.tabs >= 4);
+  check("and the sidebar survives it", state.sidebar > 0);
+
+  // And you can actually leave: the whole point of keeping the tabs.
+  await go(p2, "Settings");
+  const left = await p2.evaluate(() =>
+    !/could not be drawn/.test(document.querySelector(".content").textContent));
+  check("and you can move to a screen that works", left === true);
+  await b2.close();
+}
+
 process.exit(failures ? 1 : 0);
+

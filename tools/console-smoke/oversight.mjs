@@ -1,4 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
+import { go } from "./nav.mjs";
 
 // Oversight — K4 partner performance, K6 record access, J9 retention, and one
 // child's whole trail.
@@ -85,8 +86,10 @@ await p.addInitScript(() => {
 await p.goto(URL, { waitUntil: "networkidle" });
 await p.waitForTimeout(600);
 
-const nav = (label) => p.locator(".navi", { hasText: new RegExp("^" + label + "$") }).first().click();
-const tab = (label) => p.locator(".navi", { hasText: new RegExp("^" + label + "$") }).first().click();
+// One helper, not two identical ones: a destination and a screen inside it
+// are reached the same way as far as this file is concerned.
+const nav = (label) => go(p, label);
+const tab = (label) => go(p, label);
 const text = () => p.$eval("#root", (n) => n.innerText);
 
 check("Oversight is reachable from the menu",

@@ -1,4 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
+import { go } from "./nav.mjs";
 
 // A doctor at a camp, from the console's side.
 //
@@ -85,11 +86,11 @@ await p.evaluate(() => {
   // Straight to the camp: the sequence to get there is covered elsewhere.
   location.hash = "";
 });
-await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+await go(p, "Schools");
 await p.waitForTimeout(350);
 await p.getByText("Silver Oaks").first().click();
 await p.waitForTimeout(700);
-await p.locator(".navi", { hasText: /^All camps$/ }).first().click();
+await go(p, "All camps");
 await p.waitForTimeout(450);
 await p.getByText("Annual Camp").first().click();
 await p.waitForTimeout(600);

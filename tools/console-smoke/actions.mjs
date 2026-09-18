@@ -1,4 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
+import { go } from "./nav.mjs";
 
 // One rule: where the console shows a state with an obvious remedy, the
 // control for that remedy is on the same screen — ideally on the same row.
@@ -90,7 +91,7 @@ await p.addInitScript(() => {
 
 await p.goto(URL, { waitUntil: "networkidle" });
 await p.waitForTimeout(500);
-await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+await go(p, "Schools");
 await p.waitForTimeout(350);
 await p.getByText("Silver Oaks").first().click();
 await p.waitForTimeout(600);
@@ -127,7 +128,7 @@ check("inviting one guardian targets only that guardian",
     && x.body.profileIds[0] === "ph_g1"));
 
 // ── the consent screen ──
-await p.locator(".navi", { hasText: /^All camps$/ }).first().click();
+await go(p, "All camps");
 await p.waitForTimeout(400);
 await p.getByText("Annual Camp").first().click();
 await p.waitForTimeout(600);
@@ -141,7 +142,7 @@ const renders = await p.evaluate(() => new Promise((res) => {
   setTimeout(() => { mo.disconnect(); res(n); }, 1500);
 }));
 check("the camp screen settles instead of re-rendering in a loop", renders <= 2);
-await p.locator(".navi", { hasText: /^Consent/ }).first().click({ timeout: 10000 });
+await go(p, "Consent");
 await p.waitForTimeout(700);
 t = await p.$eval("#root", (n) => n.innerText);
 

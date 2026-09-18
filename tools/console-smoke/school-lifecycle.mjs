@@ -1,4 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
+import { go } from "./nav.mjs";
 
 // Getting rid of a school, and getting rid of a doctor.
 //
@@ -89,7 +90,7 @@ async function open(screened) {
 
   await p.goto(URL, { waitUntil: "networkidle" });
   await p.waitForTimeout(500);
-  await p.locator(".navi", { hasText: /^Schools$/ }).first().click();
+  await go(p, "Schools");
   await p.waitForTimeout(350);
   await p.getByText("Silver Oaks").first().click();
   await p.waitForTimeout(700);
@@ -99,7 +100,7 @@ async function open(screened) {
 // ── a school that has screened children ──────────────────────
 {
   const { p, errs } = await open(true);
-  await p.locator(".navi", { hasText: /^Programme$/ }).first().click();
+  await go(p, "Programme");
   await p.waitForTimeout(600);
   const t = await p.$eval("#root", (n) => n.innerText);
 
@@ -126,7 +127,7 @@ async function open(screened) {
 // ── an empty school, the duplicate row somebody wants gone ───
 {
   const { p, errs } = await open(false);
-  await p.locator(".navi", { hasText: /^Programme$/ }).first().click();
+  await go(p, "Programme");
   await p.waitForTimeout(600);
 
   check("deleting an empty school is offered",
@@ -173,7 +174,7 @@ async function open(screened) {
 // ── clinical staff can be taken off a school ─────────────────
 {
   const { p, errs } = await open(true);
-  await p.locator(".navi", { hasText: /^Staff$/ }).first().click();
+  await go(p, "Staff");
   await p.waitForTimeout(700);
   const t = await p.$eval("#root", (n) => n.innerText);
 

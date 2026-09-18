@@ -81,9 +81,12 @@ await p.waitForTimeout(400);
 
 /** Open the action menu on the row naming `name`, and list what it offers. */
 const openMenu = (name) => p.evaluate((n) => {
-  const row = [...document.querySelectorAll("tbody tr")].find((r) => r.textContent.includes(n));
+  // Schools are a record list, hospitals and doctors are still tables. A row
+  // is a row either way, and the test is about what its menu offers.
+  const row = [...document.querySelectorAll("tbody tr, .rec")]
+    .find((r) => r.textContent.includes(n));
   if (!row) return { error: "no row for " + n };
-  const btn = row.querySelector("td.act button");
+  const btn = row.querySelector("td.act button, .menuw button");
   if (!btn) return { error: "no action button on the row for " + n };
   btn.click();
   const menu = document.querySelector(".menu");
@@ -129,7 +132,7 @@ check("an archived school is offered reopening instead of archiving",
   !archived.error && archived.items.some((x) => /^Reopen school$/.test(x))
   && !archived.items.some((x) => /^Archive school/.test(x)));
 
-check("the menu on the last row is actually on screen, not clipped by the table",
+check("the menu on the last row is actually on screen, not clipped by its container",
   archived.visible === true);
 
 await p.keyboard.press("Escape");
