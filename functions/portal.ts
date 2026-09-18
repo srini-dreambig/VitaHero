@@ -4837,9 +4837,25 @@ export const PORTAL_HTML = `<!doctype html>
         S.notice = "Saved."; S.hosForm = null; loadHospitals();
       });
     }
+    // Switching access on or off without retyping the record. Everything else
+    // is sent back exactly as it came, so this changes one thing.
+    function setDoctorSignIn(d, on) {
+      if (!on && !confirm("Remove " + d.name + "'s sign-in?\\n\\nThey stay in the directory and "
+          + "families can still be referred to them, but the number will no longer open the console.")) return;
+      run(api("/api/admin/doctors", { method: "POST", body: {
+        id: d.id, name: d.name, specialty: d.specialty, hospitalId: d.hospitalId,
+        city: d.city, phone: d.phone, rating: d.rating, active: d.active, canSignIn: on,
+      } }), function (r) {
+        S.notice = r && r.signInHint ? r.signInHint : "Saved.";
+        loadHospitals();
+      });
+    }
     function saveDoctor() {
-      run(api("/api/admin/doctors", { method: "POST", body: S.docForm }), function () {
-        S.notice = "Saved."; S.docForm = null; loadHospitals();
+      run(api("/api/admin/doctors", { method: "POST", body: S.docForm }), function (d) {
+        // The hint, not just "Saved." Half of this is saying out loud which
+        // number now opens the door, so nobody has to go and test it.
+        S.notice = d && d.signInHint ? d.signInHint : "Saved.";
+        S.docForm = null; loadHospitals();
       });
     }
     function retire(kind, id, name) {
@@ -4933,7 +4949,25 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "hint" },
             "The mobile is required, and it has to be a mobile: it is how this doctor receives "
             + "a one-time code and signs in to review results, and a landline cannot receive one. "
-            + "Attaching them to a hospital is what lets the app tell a family where to go.")),
+            + "Attaching them to a hospital is what lets the app tell a family where to go."),
+          // The field this screen was missing. Adding a doctor used to write a
+          // directory row and nothing else, so the number the form had just
+          // insisted on was not registered anywhere, and the doctor was turned
+          // away at the door with "this number isn't registered".
+          el("div", { class: "fld", style: "margin-top:10px" },
+            el("label", { class: "chip" + (g.canSignIn !== false ? " on" : ""), style: "cursor:pointer" },
+              el("input", {
+                type: "checkbox", checked: g.canSignIn !== false, style: "margin-right:6px",
+                onchange: function (e) { g.canSignIn = e.target.checked; render(); },
+              }),
+              "Can sign in to VitaHero"),
+            el("div", { class: "hint", style: "margin-top:6px" },
+              g.canSignIn !== false
+                ? "This number will be able to request a code and sign in. Until a school puts "
+                  + "them on a camp they will see \u201cNo camps assigned\u201d \u2014 which is the truth, "
+                  + "rather than being told they do not exist."
+                : "Referral entry only. Families can be sent to them, but the number cannot sign "
+                  + "in. Use this for a hospital's consultant who has no business in the console."))),
         el("div", { class: "card-f" }, el("div", { class: "row" },
           el("button", { class: "pri", disabled: S.busy, onclick: saveDoctor }, "Save doctor"),
           el("button", { onclick: function () { set({ docForm: null }); } }, "Cancel"))));
@@ -5036,6 +5070,7 @@ export const PORTAL_HTML = `<!doctype html>
           : el("div", { class: "tw" }, el("table", null,
               el("thead", null, el("tr", null, el("th", null, "Doctor"), el("th", null, "Specialty"),
                 el("th", null, "Hospital"), el("th", null, "City"), el("th", null, "Mobile"),
+                el("th", null, "Sign-in"),
                 el("th", { class: "num" }, "Camps"), el("th", { class: "num" }, "Rating"),
                 el("th", null, "Status"), el("th", { class: "act" }, ""))),
               el("tbody", null, (S.doctors.doctors || []).map(function (d) {
@@ -5048,10 +5083,24 @@ export const PORTAL_HTML = `<!doctype html>
                   // sit here and read like a reasonable fallback; it meant this
                   // doctor cannot receive a code and cannot be put on a camp,
                   // which is worth saying out loud rather than dressing up.
-                  el("td", { class: "mono" }, d.canSignIn
+                  el("td", { class: "mono" }, d.hasMobile
                     ? d.phone
                     : el("span", { class: "pill err", style: "font-family:inherit" },
                         d.phone ? "Not a mobile" : "No mobile")),
+                  // Whether the number actually opens the door, which is a
+                  // different fact from whether it can receive a text. Showing
+                  // only the number implied the first and reported the second,
+                  // and a doctor added here was told at the door that they were
+                  // not registered.
+                  el("td", null, !d.hasMobile
+                    ? el("span", { class: "pill mute" }, "\u2014")
+                    : d.canSignIn
+                      ? (d.campCount
+                          ? el("span", { class: "pill ok" }, "Can sign in")
+                          : el("span", { class: "pill ok" }, "Can sign in \u00b7 no camp yet"))
+                      : d.campsEver
+                        ? el("span", { class: "pill warn", title: "Every camp assignment has been revoked" }, "Access ended")
+                        : el("span", { class: "pill mute", title: "Referral entry only \u2014 this number cannot sign in" }, "Referral only")),
                   el("td", { class: "num" }, d.campCount || 0),
                   el("td", { class: "num" }, d.rating ? d.rating.toFixed(1) : "\u2014"),
                   el("td", null, d.active === false
@@ -5062,8 +5111,17 @@ export const PORTAL_HTML = `<!doctype html>
                         ["pencil", "Edit doctor", function () {
                           set({ docForm: { id: d.id, name: d.name, specialty: d.specialty,
                             hospitalId: d.hospitalId, city: d.city, phone: d.phone || "",
-                            active: d.active !== false } });
+                            canSignIn: d.canSignIn, active: d.active !== false } });
                         }],
+                        // Without this, switching a doctor's access on means
+                        // reopening the form and re-saving every field, which
+                        // is how a directory of doctors ends up with nobody
+                        // able to sign in.
+                        d.canSignIn
+                          ? ["ban", "Remove sign-in", function () { setDoctorSignIn(d, false); },
+                             true, !d.hasMobile]
+                          : ["userPlus", "Give sign-in access", function () { setDoctorSignIn(d, true); },
+                             false, !d.hasMobile],
                         ["open", "Only this hospital", function () {
                           S.docHospital = d.hospitalId || ""; loadDoctors();
                         }, false, !d.hospitalId],

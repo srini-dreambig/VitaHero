@@ -2874,6 +2874,27 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           WHERE id = ${signInProfileId} LIMIT 1
         `;
         if (provRows.length === 0 || provRows[0].provisioned !== true) {
+          // Before the generic refusal: is this a doctor who is in the
+          // directory but was never given a sign-in? They are entitled to a
+          // better answer than "not registered", because they are registered —
+          // just not as somebody who can get in. One extra query, and only on
+          // the way to a refusal.
+          const inDirectory = await sql`
+            SELECT name FROM vita_hero.doctors
+            WHERE active = true
+              AND RIGHT(REGEXP_REPLACE(COALESCE(phone, ''), '[^0-9]', '', 'g'), 10) = ${norm.last10}
+            LIMIT 1
+          `;
+          if (inDirectory.length > 0) {
+            return json(
+              {
+                error:
+                  `${inDirectory[0].name as string} is in the doctor directory but has not been given sign-in access yet. Ask VitaHero operations to switch it on.`,
+                code: "DIRECTORY_ONLY",
+              },
+              403
+            );
+          }
           return json(
             {
               error: "This number isn't registered. Please contact your school or camp organizer.",

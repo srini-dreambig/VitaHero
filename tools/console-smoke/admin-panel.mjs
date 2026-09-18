@@ -49,15 +49,28 @@ await p.addInitScript(() => {
         isCampPartner: false, active: true, doctorCount: 1 },
     ] },
     "/api/admin/doctors": { canEdit: true, doctors: [
+      // hasMobile and canSignIn are two different facts: the first is whether
+      // the number can receive a code, the second whether they have a sign-in
+      // at all. Conflating them is what let a doctor be added, shown with their
+      // number, and then turned away at the door as unregistered.
       { id: "doc_1", name: "Dr Ananya Rao", specialty: "Paediatrics", hospitalId: "hos_1",
         hospitalName: "Rainbow Hospital", city: "Hyderabad", phone: "+919876543210",
-        canSignIn: true, campCount: 3, rating: 4.9, active: true },
+        hasMobile: true, canSignIn: true, campCount: 3, campsEver: 3, rating: 4.9, active: true },
       { id: "doc_2", name: "Dr Landline", specialty: "Dental", hospitalId: "hos_1",
         hospitalName: "Rainbow Hospital", city: "Hyderabad", phone: "+914023456789",
-        canSignIn: false, campCount: 0, rating: 4.5, active: true },
+        hasMobile: false, canSignIn: false, campCount: 0, campsEver: 0, rating: 4.5, active: true },
       { id: "doc_3", name: "Dr No Number", specialty: "ENT", hospitalId: "",
         hospitalName: "", city: "Guntur", phone: "",
-        canSignIn: false, campCount: 0, rating: 0, active: true },
+        hasMobile: false, canSignIn: false, campCount: 0, campsEver: 0, rating: 0, active: true },
+      // A good mobile and no sign-in: the reported case. Added in the console,
+      // shown with their number, and unable to get in.
+      { id: "doc_4", name: "Dr Meera Iyer", specialty: "Ophthalmology", hospitalId: "hos_2",
+        hospitalName: "Sunrise Eye", city: "Hyderabad", phone: "+919876500011",
+        hasMobile: true, canSignIn: false, campCount: 0, campsEver: 0, rating: 4.2, active: true },
+      // Was on camps, all revoked: a closed door rather than one never opened.
+      { id: "doc_5", name: "Dr Past Tense", specialty: "ENT", hospitalId: "hos_2",
+        hospitalName: "Sunrise Eye", city: "Guntur", phone: "+919876500022",
+        hasMobile: true, canSignIn: false, campCount: 0, campsEver: 2, rating: 4.0, active: true },
     ] },
     "/api/admin/lookup": {
       query: "9876543210", normalized: "+919876543210", isMobile: true,
@@ -193,14 +206,42 @@ const docCells = await p.evaluate(() => {
     .find((r) => r.textContent.includes("Dr Ananya Rao"));
   return row ? [...row.querySelectorAll("td")].map((td) => td.textContent.trim()) : [];
 });
-// Doctor | Specialty | Hospital | City | Mobile | Camps | Rating | Status | actions
-check("how many camps a doctor is on is shown", docCells[5] === "3");
-check("a doctor's rating is shown", docCells[6] === "4.9");
+// Doctor | Specialty | Hospital | City | Mobile | Sign-in | Camps | Rating | Status | actions
+check("how many camps a doctor is on is shown", docCells[6] === "3");
+check("a doctor's rating is shown", docCells[7] === "4.9");
 check("a doctor's mobile is shown", /\+919876543210/.test(docTable));
 // The heart of it: two doctors who cannot sign in, said plainly.
 check("a landline is called a landline, not a fallback",
   /Not a mobile/.test(docTable) && !/via hospital/.test(docTable));
 check("a doctor with no number at all is flagged too", /No mobile/.test(docTable));
+
+// ── the sign-in column ────────────────────────────────────────
+// The reported bug, as a column. A doctor was added with the mobile the form
+// demanded, the table showed that mobile, and the app then said the number was
+// not registered. The number and the sign-in were never the same fact.
+const signInCell = async (name) => (await p.evaluate((n) => {
+  const row = [...document.querySelectorAll("tbody tr")]
+    .find((r) => r.textContent.includes(n));
+  return row ? [...row.querySelectorAll("td")].map((td) => td.textContent.trim()) : [];
+}, name))[5];
+check("a doctor who can get in says so", /Can sign in/.test(await signInCell("Dr Ananya Rao")));
+check("a doctor with a good mobile and no sign-in is not left looking fine",
+  /Referral only/.test(await signInCell("Dr Meera Iyer")));
+check("and a doctor whose camps were all revoked reads differently again",
+  /Access ended/.test(await signInCell("Dr Past Tense")));
+// Opening the menu re-renders the table, so the click and the read have to be
+// two steps: in one evaluate the row object is the one that was just replaced.
+await p.evaluate(() => {
+  [...document.querySelectorAll("tbody tr")]
+    .find((r) => r.textContent.includes("Dr Meera Iyer"))
+    .querySelector(".menuw button").click();
+});
+await p.waitForTimeout(200);
+check("giving a doctor sign-in access is one action on their row",
+  await p.evaluate(() => [...document.querySelectorAll(".menu button")]
+    .some((b) => /Give sign-in access/.test(b.textContent))));
+await p.evaluate(() => document.body.click());
+await p.waitForTimeout(150);
 
 // ── filtering and searching ───────────────────────────────────
 await p.evaluate(() => {

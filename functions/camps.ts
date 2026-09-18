@@ -2040,10 +2040,17 @@ export async function assignCampStaff(
 /**
  * May this clinician sign in at all?
  *
- * For a screener or physician, access *is* the camp assignment. Once every
- * assignment has been revoked there is nothing for them to open and no reason
- * for them to hold a session, so the OTP is refused at the door rather than
- * letting them in to an empty app.
+ * Once every assignment has been revoked there is nothing for them to open and
+ * no reason for them to hold a session, so the OTP is refused at the door
+ * rather than letting them in to an empty app.
+ *
+ * The case this originally got wrong is the one before any of that: a doctor
+ * who has never been on a camp. Treating them the same as a revoked one meant
+ * a doctor added to the directory this morning was turned away as though their
+ * access had ended — and "My camps" already has a proper empty state telling
+ * them a school will assign them. So: never assigned lets them in, revoked
+ * does not. The distinction is the difference between "not yet" and "no
+ * longer", and only one of those is a closed door.
  *
  * Deliberately does not apply to ops or school administrators: their job
  * outlives any one camp.
@@ -2055,10 +2062,12 @@ export async function canClinicianSignIn(
 ): Promise<boolean> {
   if (role !== "SCREENER" && role !== "PHYSICIAN") return true;
   const rows = await sql`
-    SELECT 1 FROM vita_hero.camp_staff
-    WHERE profile_id = ${profileId} AND active = true LIMIT 1
+    SELECT COUNT(*) FILTER (WHERE active) AS live, COUNT(*)::int AS ever
+    FROM vita_hero.camp_staff WHERE profile_id = ${profileId}
   `;
-  return rows.length > 0;
+  const live = Number(rows[0]?.live) || 0;
+  const ever = Number(rows[0]?.ever) || 0;
+  return live > 0 || ever === 0;
 }
 
 /**

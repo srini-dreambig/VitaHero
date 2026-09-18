@@ -1328,3 +1328,75 @@ describe("every admin route the console calls is actually reachable", () => {
     });
   }
 });
+
+// ── What the door says ─────────────────────────────────────
+//
+// Nothing tested /api/auth/phone/send at all, which is how "This number isn't
+// registered" came to be the answer given to a doctor who had just been added
+// to the directory, with a mobile the form insisted on. The three answers are
+// different and the difference is the whole point: unknown, in the directory
+// but not given access, and in.
+describe("requesting a sign-in code", () => {
+  const send = (phone: string) =>
+    call("/api/auth/phone/send", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phone }),
+    });
+
+  test("a number nobody has heard of is told so, plainly", async () => {
+    handlers = [];
+    const res = await send("9876543210");
+    expect(res.status).toBe(403);
+    const b = (await res.json()) as { code?: string; error?: string };
+    expect(b.code).toBe("NOT_PROVISIONED");
+  });
+
+  test("a doctor in the directory with no sign-in is not called unregistered", async () => {
+    handlers = [
+      // No profile for them...
+      { match: /FROM vita_hero\.profiles/i, rows: [] },
+      // ...but they are right there in the directory.
+      { match: /FROM vita_hero\.doctors/i, rows: [{ name: "Dr Meera Iyer" }] },
+    ];
+    const res = await send("9876500011");
+    expect(res.status).toBe(403);
+    const b = (await res.json()) as { code?: string; error?: string };
+    // Being told to contact your camp organizer when you are in the directory
+    // sends somebody to argue with a person who cannot help them. This says
+    // which switch is off and who can flip it.
+    expect(b.code).toBe("DIRECTORY_ONLY");
+    expect(b.error).toContain("Dr Meera Iyer");
+    expect(b.error).toContain("sign-in access");
+  });
+
+  test("a provisioned doctor with no camps yet gets a code", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PHYSICIAN" }] },
+      // Never assigned to anything: live 0, ever 0. This is "not yet", and the
+      // app has a screen that says so — it is not a closed door.
+      { match: /FROM vita_hero\.camp_staff/i, rows: [{ live: 0, ever: 0 }] },
+      { match: /FROM vita_hero\.phone_otps/i, rows: [] },
+    ];
+    const res = await send("9876500011");
+    // Not 200: this test environment has no SMS provider, so the handler gets
+    // as far as trying to send and reports honestly that it could not. That is
+    // a delivery problem, and a different thing from the door being shut —
+    // which is exactly what is being asserted here.
+    expect(res.status).not.toBe(403);
+    const b = (await res.json()) as { code?: string; note?: string };
+    expect(b.code).toBeUndefined();
+    expect(b.note).toContain("could not deliver");
+  });
+
+  test("a doctor whose camps were all revoked still gets a closed door", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PHYSICIAN" }] },
+      { match: /FROM vita_hero\.camp_staff/i, rows: [{ live: 0, ever: 3 }] },
+    ];
+    const res = await send("9876500011");
+    expect(res.status).toBe(403);
+    const b = (await res.json()) as { code?: string };
+    expect(b.code).toBe("NO_ACTIVE_CAMP");
+  });
+});

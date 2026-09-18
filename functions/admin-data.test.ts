@@ -179,6 +179,11 @@ suite("looking a number up, filtering, and clearing demo data", () => {
     await upsertDoctor(sql, OPS, {
       id: "doc_a", name: "Dr Ananya Rao", specialty: "Paediatrics",
       hospitalId: "h_rainbow", city: "Hyderabad", phone: "98765 43210",
+      // Referral-only, because the lookup test below gives this same number to
+      // a guardian. A number can only open the door for one person, so a
+      // doctor with a sign-in could not share it — which is the rule, not a
+      // workaround for it.
+      canSignIn: false,
     });
     await upsertDoctor(sql, OPS, {
       id: "doc_m", name: "Dr Meera Iyer", specialty: "Ophthalmology",
@@ -220,15 +225,25 @@ suite("looking a number up, filtering, and clearing demo data", () => {
     expect(r.doctors.map((d) => d.id)).toEqual(["doc_m"]);
   });
 
-  test("every doctor says whether they could actually sign in", async () => {
+  test("every doctor says whether their number can receive a code", async () => {
     await sql`UPDATE vita_hero.doctors SET phone = '04023456789' WHERE id = 'doc_m'`;
     const r = await listDoctors(sql, OPS, "");
     const byId = Object.fromEntries(r.doctors.map((d) => [d.id, d]));
-    expect(byId.doc_a.canSignIn).toBe(true);
+    expect(byId.doc_a.hasMobile).toBe(true);
     // A landline left over from before the rule: still in the directory, and
     // now visibly unable to receive a code rather than looking fine.
-    expect(byId.doc_m.canSignIn).toBe(false);
+    expect(byId.doc_m.hasMobile).toBe(false);
     await sql`UPDATE vita_hero.doctors SET phone = '+919000011111' WHERE id = 'doc_m'`;
+  });
+
+  test("and whether they actually have a sign-in, which is a different fact", async () => {
+    const byId = Object.fromEntries(
+      (await listDoctors(sql, OPS, "")).doctors.map((d) => [d.id, d]));
+    // Both have perfectly good mobiles. Only one of them can get in, and the
+    // column that used to be here reported the first and implied the second.
+    expect(byId.doc_a.hasMobile).toBe(true);
+    expect(byId.doc_a.canSignIn).toBe(false);
+    expect(byId.doc_m.canSignIn).toBe(true);
   });
 
   // ── the cross-entity lookup ────────────────────────────────

@@ -6,7 +6,7 @@
 // has to add the hospital that is actually next to the school — and there was
 // nowhere to do it. This is that surface.
 
-import { Sql, isOpsRole, normalizeMobile, normalizePhone } from "./common";
+import { Sql, isOpsRole, normalizeMobile, normalizePhone, profileIdForPhone } from "./common";
 import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 
@@ -108,6 +108,96 @@ export async function deleteHospital(sql: Sql, actor: Actor, id: string) {
 
 // ─── Doctors ────────────────────────────────────────────────
 
+/**
+ * Who a doctor is when they sign in.
+ *
+ * A directory entry and a sign-in were two different things that looked like
+ * one. The form demands a mobile and says "it is how they receive a code and
+ * sign in"; adding the doctor then wrote a row into `doctors` and nothing
+ * else, so the number the form had just insisted on was not registered
+ * anywhere the OTP route looks. The doctor typed it in and was told to contact
+ * their camp organizer.
+ *
+ * So: the sign-in is now a real, explicit part of adding a doctor — a field on
+ * the form, on by default, that provisions this profile. Unticking it is for a
+ * referral-only entry: a hospital's consultant a family is sent to, who has no
+ * business in the console.
+ *
+ * `school_id` stays null. A directory doctor belongs to the programme rather
+ * than to one school, and assignDoctorToCamp scopes them to a school when they
+ * are actually put on a camp there.
+ */
+async function grantDoctorSignIn(
+  sql: Sql,
+  actor: Actor,
+  name: string,
+  e164: string,
+  last10: string
+) {
+  const profileId = profileIdForPhone(last10);
+  const existing = await sql`
+    SELECT role FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1`;
+  const role = existing.length ? String(existing[0].role || "") : "";
+
+  // A number belongs to one person. Quietly turning a parent into a physician
+  // would hand somebody the console and lose a family their records.
+  if (role === "PARENT") {
+    throw new ApiError(
+      409,
+      `${e164} is already registered as a parent. A number can only belong to one person.`,
+      "PHONE_IS_PARENT"
+    );
+  }
+  // Ops and school administrators outrank this; never demote them.
+  if (role === "ADMIN" || role === "SUPERADMIN" || role === "SCHOOL_ADMIN") {
+    return { profileId, role, provisioned: true, demoted: false };
+  }
+
+  await sql`
+    INSERT INTO vita_hero.profiles
+      (id, user_id, phone, name, auth_provider, role, provisioned, school_id,
+       is_logged_in, onboarding_complete, created_by)
+    VALUES
+      (${profileId}, ${profileId}, ${e164}, ${name}, 'PHONE', 'PHYSICIAN',
+       true, NULL, false, true, ${actor.profileId})
+    ON CONFLICT (id) DO UPDATE SET
+      name = ${name}, phone = ${e164}, role = 'PHYSICIAN', provisioned = true
+  `;
+  return { profileId, role: "PHYSICIAN", provisioned: true, demoted: false };
+}
+
+/**
+ * Take the sign-in away again.
+ *
+ * Refused while they are on a camp: revoking here would lock a physician out
+ * of a camp they are supposed to be reviewing, and the camp screen would still
+ * list them as staff. Take them off the camps first — that is the surface
+ * where the consequence is visible.
+ */
+async function revokeDoctorSignIn(sql: Sql, last10: string, name: string) {
+  const profileId = profileIdForPhone(last10);
+  const rows = await sql`
+    SELECT role FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1`;
+  if (rows.length === 0) return { profileId, removed: false };
+  if (String(rows[0].role || "") !== "PHYSICIAN") return { profileId, removed: false };
+
+  const live = await sql`
+    SELECT COUNT(*)::int AS c FROM vita_hero.camp_staff
+    WHERE profile_id = ${profileId} AND active = true`;
+  const n = Number(live[0]?.c) || 0;
+  if (n > 0) {
+    throw new ApiError(
+      409,
+      `${name} is on ${n} active camp${n === 1 ? "" : "s"}. Take them off those camps before removing their sign-in.`,
+      "DOCTOR_ON_CAMP"
+    );
+  }
+  await sql`
+    UPDATE vita_hero.profiles SET provisioned = false, is_logged_in = false,
+      session_token = NULL WHERE id = ${profileId}`;
+  return { profileId, removed: true };
+}
+
 export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string, search = "") {
   // Digits are matched against the number itself, so a phone can be found by
   // the last few digits the way someone reads them off a screen, and with or
@@ -121,7 +211,15 @@ export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string, se
   const rows = await sql`
     SELECT d.*, h.name AS hospital_name,
       (SELECT COUNT(*)::int FROM vita_hero.camp_staff cs
-         WHERE cs.doctor_id = d.id AND cs.active) AS camp_count
+         WHERE cs.doctor_id = d.id AND cs.active) AS camp_count,
+      -- Whether this doctor can actually get in, rather than whether their
+      -- number looks like it could. A correlated subquery keeps the whole list
+      -- to one round trip, which matters on a Worker.
+      (SELECT p.provisioned FROM vita_hero.profiles p
+         WHERE p.id = 'ph_' || RIGHT(REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', '', 'g'), 10)
+           AND p.role = 'PHYSICIAN' LIMIT 1) AS sign_in,
+      (SELECT COUNT(*)::int FROM vita_hero.camp_staff cs2
+         WHERE cs2.doctor_id = d.id) AS camps_ever
     FROM vita_hero.doctors d
     LEFT JOIN vita_hero.hospitals h ON h.id = d.hospital_id
     WHERE (${!hospitalId} OR d.hospital_id = ${hospitalId || ""})
@@ -143,12 +241,19 @@ export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string, se
       hospitalName: (r.hospital_name as string) || (r.hospital as string) || "",
       city: (r.city as string) || "",
       phone: (r.phone as string) || "",
-      // Whether this doctor could actually be put on a camp. The directory
-      // requires a mobile now, but rows entered before that rule — or with a
-      // switchboard number — are still there, and this is what makes them
-      // visible instead of leaving them to fail at assignment time.
-      canSignIn: normalizeMobile((r.phone as string) || "") !== null,
+      // Two different facts that used to be one, which is how a doctor came
+      // to be added, shown with their number in the sign-in column, and then
+      // told at the door that the number was not registered.
+      //
+      // hasMobile: the number can receive a code at all. A landline or a blank
+      //   cannot, so they can never be put on a camp either.
+      // canSignIn: they actually have a sign-in. This is what the OTP route
+      //   checks, and therefore the only honest thing to show in a column
+      //   headed "Sign-in".
+      hasMobile: normalizeMobile((r.phone as string) || "") !== null,
+      canSignIn: r.sign_in === true,
       campCount: (r.camp_count as number) || 0,
+      campsEver: (r.camps_ever as number) || 0,
       rating: Number(r.rating) || 0,
       active: r.active !== false,
     })),
@@ -208,6 +313,12 @@ export async function upsertDoctor(sql: Sql, actor: Actor, body: Record<string, 
   }
   const phone = norm.e164;
 
+  // On unless somebody says otherwise. The form asks for a mobile on the
+  // grounds that it is how this person signs in, so adding them and leaving
+  // them unable to sign in is the surprising outcome, not the safe one.
+  // Untick it for a referral-only entry.
+  const wantsSignIn = body.canSignIn !== false;
+
   const id = String(body.id || "").trim() || `doc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
   await sql`
     INSERT INTO vita_hero.doctors (id, name, specialty, hospital, hospital_id, city, phone, rating, active)
@@ -218,7 +329,27 @@ export async function upsertDoctor(sql: Sql, actor: Actor, body: Record<string, 
       hospital_id = EXCLUDED.hospital_id, city = EXCLUDED.city, phone = EXCLUDED.phone,
       rating = EXCLUDED.rating, active = EXCLUDED.active
   `;
-  return { id, name, phone };
+
+  // Deliberately after the directory row and deliberately able to throw: a
+  // number that already belongs to a parent must stop the sign-in, and the
+  // person adding the doctor has to be told, rather than finding out when the
+  // parent is locked out of their child's results.
+  const signIn = wantsSignIn
+    ? await grantDoctorSignIn(sql, actor, name, phone, norm.last10)
+    : await revokeDoctorSignIn(sql, norm.last10, name);
+
+  return {
+    id,
+    name,
+    phone,
+    canSignIn: wantsSignIn,
+    // What to tell whoever just pressed Save. Half of this feature is saying
+    // out loud which number now opens the door.
+    signInHint: wantsSignIn
+      ? `${name} signs in with ${phone}. They will see their camps once a school assigns them to one.`
+      : `${name} is a referral entry only and cannot sign in.`,
+    profileId: signIn.profileId,
+  };
 }
 
 export async function deleteDoctor(sql: Sql, actor: Actor, id: string) {
