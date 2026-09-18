@@ -52,36 +52,46 @@ export const PORTAL_HTML = `<!doctype html>
     --info:#1FA2DD;  --info-bg:#D6EFFA;    /* HeroBlue */
     --mute:#94A3B8;  --mute-bg:#EEF4F8;    /* FlagNeutral */
     --purple:#8B5CF6;
-    --sh:0 1px 2px rgba(15,23,42,.05),0 1px 3px rgba(15,23,42,.04);
-    --sh-lg:0 4px 6px -2px rgba(15,23,42,.05),0 12px 24px -8px rgba(15,23,42,.14);
-    /* The app rounds cards at 18-22dp and controls at 12-14dp. */
-    --r:12px;
-    --r-lg:18px;
+    /* Flatter than the app on purpose. A phone screen shows one card at a
+       time and a drop shadow separates it from the wallpaper; a console shows
+       twenty rows, six tiles and a nav at once, and twenty shadows read as
+       noise. Separation here is a hairline, and elevation is kept for the
+       things that genuinely float — a menu over the page. */
+    --sh:0 1px 1px rgba(15,23,42,.04);
+    --sh-lg:0 8px 24px -8px rgba(15,23,42,.18),0 2px 6px -2px rgba(15,23,42,.08);
+    /* Console density. The app rounds cards at 18-22dp because it is held at
+       arm's length and touched; a console is read at a desk with a mouse, so
+       the chrome shrinks and the data takes the space it gives up. */
+    --r:6px;
+    --r-lg:8px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
     margin:0;background:var(--bg);color:var(--ink);
-    font:14px/1.55 "Host Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font:13px/1.45 "Host Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  h1,h2,h3,h4{margin:0;line-height:1.25;letter-spacing:-.011em}
-  h1{font-size:23px;font-weight:680}
-  h2{font-size:16px;font-weight:650}
-  h3{font-size:14px;font-weight:650}
-  h4{font-size:12px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3)}
-  p{margin:0 0 12px}
+  h1,h2,h3,h4{margin:0;line-height:1.25;letter-spacing:-.014em}
+  h1{font-size:18px;font-weight:660}
+  h2{font-size:14px;font-weight:640}
+  h3{font-size:13px;font-weight:640}
+  h4{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3)}
+  p{margin:0 0 10px}
   a{color:var(--brand-dk)}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em}
+  /* Tabular figures wherever a number is read down a column rather than in a
+     sentence: without them a 1 is narrower than a 7 and the column wobbles. */
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;
+    font-variant-numeric:tabular-nums}
 
   /* ── shell ── */
   /* minmax(0,...) rather than a bare 1fr: a grid track's automatic minimum is
      min-content, so a bare 1fr lets one wide child — a roster table, the
      collapsed nav strip — push the whole shell past the viewport instead of
      scrolling inside itself. */
-  .shell{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+  .shell{display:grid;grid-template-columns:214px minmax(0,1fr);min-height:100vh}
   .nav{background:var(--nav);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
-  .brand{display:flex;align-items:center;gap:10px;padding:18px 18px 16px;font-weight:700;font-size:15px;letter-spacing:-.02em}
+  .brand{display:flex;align-items:center;gap:10px;padding:14px 14px 12px;font-weight:700;font-size:14px;letter-spacing:-.02em}
   /* The wordmark as the brand actually sets it: "vita" orange, "hero" blue,
      lowercase, tight. Previously a gradient square stood in for the logo. */
   .wm{font-weight:700;letter-spacing:-.02em;font-size:17px;line-height:1}
@@ -98,11 +108,11 @@ export const PORTAL_HTML = `<!doctype html>
   .navscroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:8px}
   .navscroll::-webkit-scrollbar{width:6px}
   .navscroll::-webkit-scrollbar-thumb{background:#2C3E4E;border-radius:3px}
-  .navsec{padding:6px 10px}
+  .navsec{padding:4px 8px}
   .navsec + .navsec{border-top:1px solid #1B2836;margin-top:2px}
   /* A sub-item is indented and quieter than the section it sits under; the
      marker is what carries the selected state at a glance. */
-  .navi.sub{padding-left:12px;font-size:13px;font-weight:500;gap:8px}
+  .navi.sub{padding-left:11px;font-size:12px;font-weight:500;gap:8px}
   .navi.sub .dotix{width:5px;height:5px;border-radius:50%;background:#3C4F60;flex:none;
     transition:background .12s,transform .12s}
   .navi.sub:hover .dotix{background:#5D707E}
@@ -110,16 +120,16 @@ export const PORTAL_HTML = `<!doctype html>
   .navi .n{margin-left:auto;background:#2C3E4E;color:#CBD5E1;border-radius:9px;
     padding:0 6px;font-size:11px;font-weight:650;line-height:17px}
   .navi.sub.on .n{background:var(--nav-ac);color:#0F172A}
-  .navsec h4{color:#5D707E;padding:10px 8px 6px;font-size:10.5px}
+  .navsec h4{color:#5D707E;padding:8px 8px 5px;font-size:10px}
   .navi{
-    display:flex;align-items:center;gap:9px;width:100%;text-align:left;
-    background:none;border:none;color:var(--nav-tx);font:inherit;font-weight:500;
-    padding:8px 10px;border-radius:6px;cursor:pointer;margin-bottom:1px;
+    display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+    background:none;border:none;color:var(--nav-tx);font:inherit;font-size:12.5px;font-weight:500;
+    padding:6px 9px;border-radius:5px;cursor:pointer;margin-bottom:1px;
   }
   .navi:hover{background:var(--nav-2);color:#fff}
   .navi.on{background:var(--nav-2);color:#fff;font-weight:600}
   .navi.on .ic{color:var(--nav-ac)}
-  .ic{width:16px;text-align:center;flex:none;opacity:.9}
+  .ic{width:15px;height:15px;display:flex;align-items:center;justify-content:center;flex:none;opacity:.9}
   .navfoot{margin-top:auto;padding:14px;border-top:1px solid #223140;font-size:12.5px;color:var(--nav-tx)}
   .navfoot b{display:block;color:#fff;font-weight:600;font-size:13px}
   .navfoot .role{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#5D707E;margin-top:1px}
@@ -129,21 +139,26 @@ export const PORTAL_HTML = `<!doctype html>
 
   .main{min-width:0;display:flex;flex-direction:column}
   .bar{
-    background:var(--card);border-bottom:1px solid var(--line);padding:14px 26px;
-    display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:10;min-height:60px;
+    background:var(--card);border-bottom:1px solid var(--line);padding:9px 18px;
+    display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10;min-height:46px;
   }
   .bar .grow{flex:1;min-width:0}
-  .crumb{font-size:12.5px;color:var(--ink-3);margin-bottom:2px}
+  .crumb{font-size:11.5px;color:var(--ink-3);margin-bottom:1px}
   .crumb button{background:none;border:none;color:var(--ink-3);font:inherit;padding:0;cursor:pointer;text-decoration:underline}
   .crumb button:hover{color:var(--brand-dk)}
-  .content{padding:24px 26px 64px;flex:1}
+  .content{padding:16px 18px 56px;flex:1}
 
   /* ── controls ── */
   button,.btn{
-    font:inherit;font-weight:550;cursor:pointer;border:1px solid var(--line);
-    background:var(--card);color:var(--ink);padding:7px 13px;border-radius:6px;
+    font:inherit;font-size:12.5px;font-weight:550;cursor:pointer;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);padding:5px 10px;border-radius:5px;
     transition:background .12s,border-color .12s;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:6px;line-height:1.3;
   }
+  /* An icon inside a button never shrinks below its box and never sets the
+     line height — otherwise a row of buttons with and without icons no longer
+     shares a baseline. */
+  button svg,.btn svg{flex:none;display:block}
   button:hover:not(:disabled){background:var(--sunk);border-color:#CFD9E0}
   button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
   button:disabled{opacity:.45;cursor:not-allowed}
@@ -155,36 +170,40 @@ export const PORTAL_HTML = `<!doctype html>
   button.dang:hover:not(:disabled){background:var(--err-bg)}
   button.lnk{border:none;background:none;color:var(--brand-dk);padding:2px 3px;text-decoration:underline;font-weight:500}
   button.lnk:hover:not(:disabled){background:none;color:var(--brand)}
-  button.sm{padding:4px 9px;font-size:12.5px}
-  button.big{padding:10px 18px;font-size:15px}
+  button.sm{padding:3px 8px;font-size:12px}
+  button.big{padding:8px 15px;font-size:12.5px}
+  /* Icon-only: square, quiet until hovered. The row-action affordance. */
+  button.ibtn{padding:4px;border-color:transparent;background:none;color:var(--ink-3);border-radius:5px}
+  button.ibtn:hover:not(:disabled){background:var(--sunk);color:var(--ink);border-color:var(--line)}
+  button.ibtn.on{background:var(--sunk);color:var(--ink);border-color:var(--line)}
 
-  label{display:block;font-size:12.5px;font-weight:600;margin-bottom:5px;color:var(--ink-2)}
+  label{display:block;font-size:11.5px;font-weight:600;margin-bottom:4px;color:var(--ink-2)}
   input[type=text],input[type=tel],input[type=email],input[type=number],input[type=date],select,textarea{
-    font:inherit;width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:6px;
+    font:inherit;font-size:12.5px;width:100%;padding:5px 8px;border:1px solid var(--line);border-radius:5px;
     background:var(--card);color:var(--ink);
   }
-  textarea{min-height:80px;resize:vertical;line-height:1.5}
-  .fld{margin-bottom:14px}
-  .hint{font-size:12px;color:var(--ink-3);margin-top:4px;line-height:1.45}
-  .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 14px}
-  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 14px}
+  textarea{min-height:66px;resize:vertical;line-height:1.5}
+  .fld{margin-bottom:11px}
+  .hint{font-size:11.5px;color:var(--ink-3);margin-top:3px;line-height:1.45}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 12px}
   @media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
 
   .chips{display:flex;flex-wrap:wrap;gap:7px}
   .chip{
-    display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;
-    border:1px solid var(--line);border-radius:18px;padding:5px 12px 5px 9px;cursor:pointer;
+    display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;
+    border:1px solid var(--line);border-radius:14px;padding:3px 10px 3px 8px;cursor:pointer;
     user-select:none;background:var(--card);
   }
   .chip input{margin:0;accent-color:var(--brand)}
   .chip.on{background:var(--brand-sf);border-color:#EFC49C}
 
   /* ── surfaces ── */
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:16px}
-  .card-b{padding:18px 20px}
-  .card-h{padding:14px 20px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:12px}
+  .card-b{padding:13px 15px}
+  .card-h{padding:9px 15px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:10px}
   .card-h h2{flex:1;min-width:0}
-  .card-f{padding:12px 20px;border-top:1px solid var(--line-2);background:var(--sunk);border-radius:0 0 var(--r) var(--r)}
+  .card-f{padding:9px 15px;border-top:1px solid var(--line-2);background:var(--sunk);border-radius:0 0 var(--r) var(--r)}
 
   .tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
   /* Same scrolling, none of the chrome — for a table already sitting inside a
@@ -192,50 +211,103 @@ export const PORTAL_HTML = `<!doctype html>
      render() everywhere else, because a table that escapes its container
      scrolls the whole page sideways and takes the sticky nav with it. */
   .tws{overflow-x:auto;max-width:100%}
-  table{border-collapse:collapse;width:100%;font-size:13.5px}
-  th,td{text-align:left;padding:9px 14px;border-bottom:1px solid var(--line-2);vertical-align:middle}
-  th{background:var(--sunk);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2);font-weight:650;white-space:nowrap}
+  table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
+  th,td{text-align:left;padding:5px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+  /* Sticky header. A roster runs to hundreds of rows and the whole point of a
+     dense table is that you scroll it; a column you can no longer name is a
+     column you have to scroll back up to read. */
+  th{position:sticky;top:0;z-index:2;background:var(--sunk);font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.07em;color:var(--ink-2);font-weight:650;white-space:nowrap;padding-top:6px;padding-bottom:6px;
+    border-bottom:1px solid var(--line)}
+  tbody td{height:var(--row)}
   tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:#F7FAFC}
   tbody tr.click{cursor:pointer}
-  tbody tr.click:hover{background:var(--sunk)}
+  tbody tr.click:hover td{background:var(--sunk)}
+  /* A whole row dimmed to say "retired" must not dim the buttons that bring it
+     back — the one thing you came to the row to do. */
+  tbody tr.muted td{color:var(--ink-3)}
+  tbody tr.muted td button{color:var(--ink)}
   .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  /* The actions column: fixed to the right, never the reason a table scrolls. */
+  th.act,td.act{text-align:right;width:1%;white-space:nowrap;padding-left:6px}
+  td.act .row{justify-content:flex-end;gap:4px;flex-wrap:nowrap}
 
-  .pill{display:inline-block;font-size:11px;font-weight:650;letter-spacing:.03em;text-transform:uppercase;
-    padding:2px 7px;border-radius:4px;white-space:nowrap}
+  .pill{display:inline-block;font-size:10px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;
+    padding:1px 6px;border-radius:3px;white-space:nowrap;line-height:1.6}
   .pill.ok{background:var(--ok-bg);color:var(--ok)}
   .pill.warn{background:var(--warn-bg);color:var(--warn)}
   .pill.err{background:var(--err-bg);color:var(--err)}
   .pill.info{background:var(--info-bg);color:var(--info)}
   .pill.mute{background:var(--mute-bg);color:var(--mute)}
   .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:650;background:var(--sunk);
-    border:1px solid var(--line);border-radius:5px;padding:2px 8px;letter-spacing:.05em;font-size:12.5px}
+    border:1px solid var(--line);border-radius:4px;padding:1px 6px;letter-spacing:.04em;font-size:11.5px}
 
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:1px;background:var(--line);
-    border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:18px;box-shadow:var(--sh)}
-  .stat{background:var(--card);padding:13px 16px}
-  .stat b{display:block;font-size:21px;font-weight:680;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.2}
-  .stat span{display:block;font-size:11.5px;color:var(--ink-3);margin-top:2px;line-height:1.35}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:12px;box-shadow:var(--sh)}
+  /* Label above the figure, flipped with flex order rather than by rewriting
+     every call site: the markup stays number-then-label, which is the sensible
+     reading order for a screen reader, while the eye gets the caption first. */
+  .stat{background:var(--card);padding:9px 12px;display:flex;flex-direction:column}
+  .stat b{order:2;font-size:19px;font-weight:660;letter-spacing:-.025em;font-variant-numeric:tabular-nums;line-height:1.15}
+  .stat span{order:1;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.055em;
+    color:var(--ink-3);margin-bottom:3px;line-height:1.3}
   .stat.ok b{color:var(--ok)} .stat.warn b{color:var(--warn)}
   .stat.err b{color:var(--err)} .stat.info b{color:var(--info)}
 
-  .msg{border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:13.5px;border:1px solid transparent}
+  .msg{border-radius:5px;padding:7px 11px;margin-bottom:11px;font-size:12.5px;border:1px solid transparent}
   .msg.err{background:var(--err-bg);color:var(--err);border-color:#F0D2CE}
   .msg.ok{background:var(--ok-bg);color:var(--ok);border-color:#C6E3D8}
   .msg.warn{background:var(--warn-bg);color:var(--warn);border-color:#EEDFB6}
   .msg.info{background:var(--info-bg);color:var(--info);border-color:#C3E2F0}
 
-  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:20px;overflow-x:auto}
-  .tab{border:none;background:none;padding:9px 14px;font-weight:600;font-size:13.5px;color:var(--ink-3);
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px;overflow-x:auto}
+  .tab{border:none;background:none;padding:6px 11px;font-weight:600;font-size:12.5px;color:var(--ink-3);
     border-bottom:2px solid transparent;border-radius:0;white-space:nowrap}
   .tab:hover{background:none;color:var(--ink)}
   .tab.on{color:var(--brand-dk);border-bottom-color:var(--brand)}
   .tab .n{font-size:11px;background:var(--mute-bg);color:var(--mute);border-radius:9px;padding:1px 6px;margin-left:5px;font-weight:650}
   .tab.on .n{background:var(--brand-sf);color:var(--brand-dk)}
 
-  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .muted{color:var(--ink-3)}
-  .empty{text-align:center;padding:44px 20px;color:var(--ink-3)}
-  .empty h3{color:var(--ink);margin-bottom:6px}
+  .empty{text-align:center;padding:32px 18px;color:var(--ink-3)}
+  .empty h3{color:var(--ink);margin-bottom:5px}
+
+  /* ── toolbar above a table ──
+     One strip: what the table is, then search, then the actions. It keeps the
+     table itself free of chrome so the rows start at the top of the card. */
+  .tbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+  .tbar .sep{width:1px;height:18px;background:var(--line)}
+  .tbar input[type=text]{width:auto;min-width:210px}
+  .tbar .ttl{font-size:13px;font-weight:640;letter-spacing:-.014em}
+  .tbar .cnt{font-size:11px;font-weight:600;color:var(--ink-3);background:var(--sunk);
+    border:1px solid var(--line);border-radius:9px;padding:0 7px;line-height:17px}
+
+  /* ── row action menu ──
+     Anchored to the button that opened it and closed by a capture-phase
+     listener on the document, so a click anywhere else — including on another
+     row's menu button — dismisses it before that click does anything. */
+  .menuw{position:relative;display:inline-flex}
+  /* Fixed, not absolute, and placed by render().
+     A table lives inside .tw, which scrolls horizontally — and a box with
+     overflow-x:auto and overflow-y:visible computes to overflow-y:auto, so an
+     absolutely positioned menu on the last row was clipped away to nothing.
+     The button looked pressed and no menu appeared. Fixed positioning takes it
+     out of that scroller entirely; render() then puts it under its button. */
+  .menu{position:fixed;z-index:60;min-width:186px;visibility:hidden;
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+    box-shadow:var(--sh-lg);padding:4px;text-align:left}
+  .menu button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:none;
+    background:none;border-radius:4px;padding:5px 8px;font-size:12.5px;font-weight:500;color:var(--ink)}
+  .menu button:hover:not(:disabled){background:var(--sunk);border-color:transparent}
+  .menu button svg{color:var(--ink-3);flex:none}
+  .menu button.dang{color:var(--err)}
+  .menu button.dang svg{color:var(--err)}
+  .menu button.dang:hover:not(:disabled){background:var(--err-bg)}
+  .menu .sepm{height:1px;background:var(--line-2);margin:4px 2px}
+  .menu h5{margin:0;padding:5px 8px 3px;font-size:10px;font-weight:650;text-transform:uppercase;
+    letter-spacing:.07em;color:var(--ink-3)}
 
   /* ── sign-in ── */
   .sin{max-width:392px;margin:9vh auto;padding:0 20px}
@@ -252,16 +324,16 @@ export const PORTAL_HTML = `<!doctype html>
     padding:10px 14px;border-radius:0;font:inherit}
   .pitem:hover{background:var(--sunk)}
   .pitem.on{background:var(--brand-sf);box-shadow:inset 3px 0 0 var(--brand)}
-  .pitem b{display:block;font-weight:600;font-size:13.5px}
+  .pitem b{display:block;font-weight:600;font-size:12.5px}
   .pitem .sub{font-size:12px;color:var(--ink-3);display:flex;gap:6px;align-items:center;margin-top:2px}
 
   .chk{border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
   .chk-h{background:var(--sunk);padding:9px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-2)}
-  .chk-h b{flex:1;font-size:13.5px}
+  .chk-h b{flex:1;font-size:12.5px}
   .chk-b{padding:14px}
   .flagline{font-size:12.5px;padding:8px 14px;border-top:1px solid var(--line-2);background:var(--card)}
 
-  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13.5px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px}
   .kv dt{color:var(--ink-3)}
   .kv dd{margin:0;font-weight:550}
 
@@ -405,6 +477,13 @@ export const PORTAL_HTML = `<!doctype html>
     trash: "M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6M10 11v6M14 11v6",
     search: "M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3",
     phone: "M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2 4.2 2 2 0 0 1 4 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.1a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z",
+    pencil: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z",
+    archive: "M21 8v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8M2 3h20v5H2zM10 12h4",
+    restore: "M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5",
+    more: "M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM12 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2ZM12 20a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z",
+    open: "M15 3h6v6M10 14 21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6",
+    ban: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM4.9 4.9l14.2 14.2",
+    x: "M18 6 6 18M6 6l12 12",
   };
 
   /**
@@ -495,6 +574,10 @@ export const PORTAL_HTML = `<!doctype html>
       accessDays: 30, oversightTab: "partners", partners: null, childTrail: null,
       childQuery: "", screenData: null, reviewEdit: null, symptoms: null,
       smsStatus: null, saved: null, search: "", showAll: false, dragOver: false,
+      // Which row action menu is open, by id. One field rather than a flag per
+      // row, so opening a second menu closes the first without either knowing
+      // about the other.
+      menu: "",
     };
   }
   var S = freshState();
@@ -538,6 +621,41 @@ export const PORTAL_HTML = `<!doctype html>
     return function (d) { if (token === (S.scope || 0)) fn(d); };
   }
   function set(p) { for (var k in p) S[k] = p[k]; render(); }
+
+  /**
+   * A row action menu.
+   *
+   * Every destructive thing this console can do to a school or a hospital used
+   * to live somewhere else: buried behind a tab, or — for schools — behind a
+   * "Manage" button that had no click handler at all and had never done
+   * anything. This is where a row's actions live now.
+   *
+   * "items" are [iconName, label, fn] triples, plus "-" for a divider, and a
+   * fourth truthy element to mark an item destructive. Nothing here decides
+   * whether an action is allowed: the caller passes only the items that actor
+   * may use, and the server checks again regardless.
+   */
+  function rowMenu(id, items, label) {
+    var open = S.menu === id;
+    return el("div", { class: "menuw" },
+      el("button", {
+        class: "ibtn" + (open ? " on" : ""), title: label || "Actions",
+        "aria-haspopup": "menu", "aria-expanded": open ? "true" : "false",
+        onclick: function (e) {
+          // The row underneath usually opens something on click. Without this
+          // the menu button would open the row instead of the menu.
+          e.stopPropagation();
+          set({ menu: open ? "" : id });
+        },
+      }, icon("more", 15)),
+      open ? el("div", { class: "menu", role: "menu" }, items.map(function (it) {
+        if (it === "-") return el("div", { class: "sepm" });
+        return el("button", {
+          class: it[3] ? "dang" : "", role: "menuitem", disabled: !!it[4],
+          onclick: function (e) { e.stopPropagation(); S.menu = ""; it[2](); render(); },
+        }, icon(it[0], 14), it[1]);
+      })) : null);
+  }
 
   /**
    * The one form slot, and whose it is.
@@ -897,7 +1015,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "tag" }, "Kids health & wellness")),
       el("div", { class: "card" }, el("div", { class: "card-b" },
         el("h2", { style: "margin-bottom:4px" }, "Sign in"),
-        el("p", { class: "muted", style: "font-size:13px" }, "For school staff, screening teams and VitaHero operations."),
+        el("p", { class: "muted", style: "font-size:12.5px" }, "For school staff, screening teams and VitaHero operations."),
         el("div", { class: "modes" },
           el("button", { class: S.signMode === "otp" ? "on" : "", onclick: function () { set({ signMode: "otp", error: "" }); } }, "Staff sign-in"),
           el("button", { class: S.signMode === "key" ? "on" : "", onclick: function () { set({ signMode: "key", error: "" }); } }, "Ops key")),
@@ -1069,7 +1187,7 @@ export const PORTAL_HTML = `<!doctype html>
         o.upcoming.length === 0
           ? el("div", { class: "empty" },
               el("h3", null, "No camps scheduled"),
-              el("p", { style: "font-size:13.5px" }, "Open a school and schedule one to get started."))
+              el("p", { style: "font-size:12.5px" }, "Open a school and schedule one to get started."))
           : el("table", null,
               el("thead", null, el("tr", null,
                 el("th", null, "Camp"), isOps() ? el("th", null, "School") : null, el("th", null, "Date"),
@@ -1208,7 +1326,7 @@ export const PORTAL_HTML = `<!doctype html>
         var flagged = r.watch + r.alert;
         return el("div", { style: "margin-bottom:12px" },
           el("div", { class: "row", style: "justify-content:space-between;margin-bottom:5px" },
-            el("b", { style: "font-size:13px" }, r.checkType),
+            el("b", { style: "font-size:12.5px" }, r.checkType),
             el("span", { class: "muted", style: "font-size:12px" },
               flagged + " of " + r.total + " flagged"
               + (r.notMeasured ? " · " + r.notMeasured + " not measured" : ""))),
@@ -1363,30 +1481,73 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   // ══════════════════════════════════════ schools
+  /**
+   * Archive or reopen a school straight from its row in the list.
+   *
+   * The same endpoint the danger zone inside the school uses. Deleting is not
+   * done from here on purpose: a delete is refused outright once a school
+   * holds screening records, and which case this is depends on a footprint the
+   * list has never loaded. "Delete…" opens the school at the panel where
+   * that check lives, rather than asking the question here and failing there.
+   */
+  function setSchoolArchived(s, next) {
+    var msg = next
+      ? "Archive " + s.name + "?\\n\\nIt stops running: parents no longer see it, no camp can be scheduled, and its staff are signed out. Every record is kept and you can reopen it."
+      : "Reopen " + s.name + "?\\n\\nIts staff can sign in again and camps can be scheduled.";
+    if (!confirm(msg)) return;
+    run(api("/api/admin/schools/" + s.id + "/archive", { method: "POST", body: { archived: next } }),
+      function (r) {
+        S.notice = (next ? "Archived " : "Reopened ") + r.school.name + ".";
+        loadSchools();
+      });
+  }
+
   function viewSchools() {
+    var rows = S.schools || [];
     return el("div", null,
-      el("div", { class: "row", style: "margin-bottom:16px" },
+      el("div", { class: "tbar" },
+        // No title here: the page header above already says "Schools", and
+        // saying it twice is how a dense screen starts feeling cluttered.
+        rows.length
+          ? el("span", { class: "cnt" }, rows.length + (rows.length === 1 ? " school" : " schools"))
+          : null,
         el("div", { style: "flex:1" }),
-        isOps() ? el("button", { class: "pri", onclick: function () { set({ view: "newSchool", form: null, error: "" }); } }, "Add school") : null),
-      S.schools.length === 0
+        isOps() ? el("button", { class: "pri", onclick: function () { set({ view: "newSchool", form: null, error: "" }); } },
+          icon("plus", 14), " Add school") : null),
+      rows.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No schools yet"),
-            el("p", { style: "font-size:13.5px" }, "Add the first school to begin onboarding students."),
-            isOps() ? el("button", { class: "pri", onclick: function () { set({ view: "newSchool" }); } }, "Add school") : null))
+            el("p", { style: "font-size:12.5px" }, "Add the first school to begin onboarding students."),
+            isOps() ? el("button", { class: "pri", onclick: function () { set({ view: "newSchool" }); } },
+              icon("plus", 14), " Add school") : null))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null,
               el("th", null, "School"), el("th", null, "Partner code"), el("th", null, "Year"),
-              el("th", { class: "num" }, "Students"), el("th", { class: "num" }, "Staff"), el("th", null, "Status"), el("th", null, ""))),
-            el("tbody", null, S.schools.map(function (s) {
-              return el("tr", { class: "click", onclick: function () { openSchool(s.id); } },
+              el("th", { class: "num" }, "Students"), el("th", { class: "num" }, "Staff"),
+              el("th", null, "Status"), el("th", { class: "act" }, ""))),
+            el("tbody", null, rows.map(function (s) {
+              var archived = s.active === false || s.status === "ARCHIVED";
+              return el("tr", { class: "click" + (archived ? " muted" : ""),
+                  onclick: function () { openSchool(s.id); } },
                 el("td", null, el("b", null, s.name),
-                  el("div", { class: "muted", style: "font-size:12.5px" }, [s.city, s.district].filter(Boolean).join(" \\u00b7 "))),
+                  el("div", { class: "muted", style: "font-size:11.5px" },
+                    [s.city, s.district].filter(Boolean).join(" \\u00b7 "))),
                 el("td", null, el("span", { class: "code" }, s.partnerCode)),
                 el("td", null, s.academicYear || el("span", { class: "muted" }, "\\u2014")),
                 el("td", { class: "num" }, s.studentCount),
                 el("td", { class: "num" }, s.adminCount),
                 el("td", null, statusPill(s.active && s.status === "ACTIVE" ? "ACTIVE" : s.status)),
-                el("td", null, el("button", { class: "sm" }, "Manage")));
+                el("td", { class: "act" }, isOps()
+                  ? rowMenu("sch:" + s.id, [
+                      ["open", "Open school", function () { openSchool(s.id); }],
+                      ["settings", "School settings", function () { openSchool(s.id, "programme"); }],
+                      "-",
+                      archived
+                        ? ["restore", "Reopen school", function () { setSchoolArchived(s, false); }]
+                        : ["archive", "Archive school\\u2026", function () { setSchoolArchived(s, true); }],
+                      ["trash", "Delete school\\u2026", function () { openSchool(s.id, "programme"); }, true],
+                    ], "Manage " + s.name)
+                  : null));
             }))))
     );
   }
@@ -1542,7 +1703,7 @@ export const PORTAL_HTML = `<!doctype html>
 
     function stat(n, label) {
       return el("div", { class: "row", style: "gap:6px" },
-        el("b", null, String(n)), el("span", { class: "muted", style: "font-size:13px" }, label));
+        el("b", null, String(n)), el("span", { class: "muted", style: "font-size:12.5px" }, label));
     }
 
     return el("div", { class: "card", style: "margin-top:24px;border-color:#f0c9c9" },
@@ -1558,7 +1719,7 @@ export const PORTAL_HTML = `<!doctype html>
 
         el("div", { class: "fld" },
           el("label", null, archived ? "Reopen" : "Archive"),
-          el("p", { class: "muted", style: "font-size:13px;margin:0 0 8px" },
+          el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 8px" },
             archived
               ? "This school is closed. Reopening lets its staff sign in and camps be scheduled again."
               : "Stops the school running and signs its staff out. Nothing recorded about a child is touched, and this can be undone."),
@@ -1570,7 +1731,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("label", null, "Delete permanently"),
           d.canDelete
             ? el("div", null,
-                el("p", { class: "muted", style: "font-size:13px;margin:0 0 8px" },
+                el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 8px" },
                   "No child has been screened here, so there is nothing clinical to lose. This removes the school, its classes, its roster batches and its draft camps. Students keep their own records and stop belonging to a school."),
                 deleteConfirmField(d, s.name, destroy))
             : el("div", { class: "msg err", style: "margin:0" }, d.reason))));
@@ -1618,7 +1779,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Classes and sections")),
         el("div", { class: "card-b" },
-          el("p", { class: "muted", style: "font-size:13px" },
+          el("p", { class: "muted", style: "font-size:12.5px" },
             "Every class in the school for one year. Roster uploads and camps are checked against this list."),
           el("div", { class: "g3" },
             el("div", { class: "fld" }, el("label", null, "Academic year"),
@@ -1658,7 +1819,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", { class: "card", style: "margin-top:16px" },
       el("div", { class: "card-h" }, el("h2", null, "Start a new academic year")),
       el("div", { class: "card-b" },
-        el("p", { class: "muted", style: "font-size:13px" },
+        el("p", { class: "muted", style: "font-size:12.5px" },
           "Moves every student up one class, using this school's own class list. Students in the final class are marked as having left — their guardians keep access to the history."),
         el("div", { class: "g2" },
           el("div", { class: "fld" }, el("label", null, "From"),
@@ -1742,7 +1903,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Add someone")),
         el("div", { class: "card-b" },
-          el("p", { class: "muted", style: "font-size:13px" },
+          el("p", { class: "muted", style: "font-size:12.5px" },
             "They sign in here with this mobile number and a one-time code. Use a number not already registered as a parent."),
           el("div", { class: "g3" },
             el("div", { class: "fld" }, el("label", null, "Name"),
@@ -1942,7 +2103,7 @@ export const PORTAL_HTML = `<!doctype html>
       r.students.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No students yet"),
-            el("p", { style: "font-size:13.5px" },
+            el("p", { style: "font-size:12.5px" },
               "Import the school's roster as a CSV, or add children one at a time. "
               + "Everything else \u2014 camps, consent, screening \u2014 works from this list.")))
         : el("div", { class: "tw" }, el("table", null,
@@ -2016,14 +2177,14 @@ export const PORTAL_HTML = `<!doctype html>
         ondragleave: function () { set({ dragOver: false }); },
         ondrop: function (e) { e.preventDefault(); S.dragOver = false; handle(e.dataTransfer.files && e.dataTransfer.files[0]); } },
         el("p", { style: "font-size:15px;font-weight:600;margin-bottom:4px" }, "Drop your roster CSV here"),
-        el("p", { class: "muted", style: "font-size:13px" }, "or choose a file from your computer"),
+        el("p", { class: "muted", style: "font-size:12.5px" }, "or choose a file from your computer"),
         input = el("input", { type: "file", accept: ".csv,text/csv", style: "display:none",
           onchange: function (e) { handle(e.target.files[0]); } }),
         el("button", { class: "pri", disabled: S.busy, onclick: function () { input.click(); } }, S.busy ? "Checking\\u2026" : "Choose file"),
         el("div", { style: "margin-top:12px" }, el("button", { class: "lnk", onclick: dlTemplate }, "Download the template"))),
       el("div", { class: "card", style: "margin-top:16px" }, el("div", { class: "card-b" },
         el("h3", { style: "margin-bottom:8px" }, "What the file needs"),
-        el("ul", { style: "font-size:13px;margin:0;padding-left:17px;color:var(--ink-2);line-height:1.7" },
+        el("ul", { style: "font-size:12.5px;margin:0;padding-left:17px;color:var(--ink-2);line-height:1.7" },
           el("li", null, el("b", null, "Required: "), "student name, guardian mobile, class, and either a date of birth or an age"),
           el("li", null, el("b", null, "Strongly recommended: "), "admission or roll number \\u2014 without it, renaming a student later creates a duplicate"),
           el("li", null, el("b", null, "Dates: "), "DD/MM/YYYY. Ambiguous dates are flagged, not guessed"),
@@ -2097,7 +2258,7 @@ export const PORTAL_HTML = `<!doctype html>
         r.create + " added, " + r.update + " updated, " + r.unchanged + " already up to date."),
       el("div", { class: "card" }, el("div", { class: "card-b" },
         el("h3", { style: "margin-bottom:6px" }, "What happens next"),
-        el("p", { class: "muted", style: "font-size:13px;margin:0" },
+        el("p", { class: "muted", style: "font-size:12.5px;margin:0" },
           "These students are on the roll for " + r.academicYear + ". Guardians see nothing yet \\u2014 schedule a camp, then request consent."))),
       el("div", { class: "row" },
         el("button", { class: "pri", onclick: function () { set({ upload: null, notice: "" }); loadSchoolTab(); } }, "Back to roster"),
@@ -2151,7 +2312,7 @@ export const PORTAL_HTML = `<!doctype html>
       shown.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "Nothing here"),
-            el("p", { style: "font-size:13.5px" }, "Referrals appear once a camp is released with flagged results.")))
+            el("p", { style: "font-size:12.5px" }, "Referrals appear once a camp is released with flagged results.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"), el("th", null, "For"),
               el("th", null, "Urgency"), el("th", null, "Due"), el("th", null, "Guardian"),
@@ -2259,7 +2420,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (!d.camps.length) {
       return el("div", { class: "card" }, el("div", { class: "empty" },
         el("h3", null, "No camps yet for " + (d.academicYear || "this year")),
-        el("p", { style: "font-size:13.5px" }, d.note || "")));
+        el("p", { style: "font-size:12.5px" }, d.note || "")));
     }
     var c = d.coverage, ref = d.referrals, imp = d.improvement;
     return el("div", null,
@@ -2338,7 +2499,7 @@ export const PORTAL_HTML = `<!doctype html>
         "Guardians can ask for a detail about their child to be corrected. A guardian cannot change a record themselves — you accept or reject, and either way it is recorded."),
       S.corrections.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
-            el("h3", null, "No requests"), el("p", { style: "font-size:13.5px" }, "Nothing to review.")))
+            el("h3", null, "No requests"), el("p", { style: "font-size:12.5px" }, "Nothing to review.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Field"),
               el("th", null, "Currently"), el("th", null, "Should be"), el("th", null, "Guardian"),
@@ -2403,7 +2564,7 @@ export const PORTAL_HTML = `<!doctype html>
       q.threads.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No questions"),
-            el("p", { style: "font-size:13.5px" }, "Nothing waiting.")))
+            el("p", { style: "font-size:12.5px" }, "Nothing waiting.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Family"), el("th", null, "Child"),
               el("th", null, "Last message"), el("th", { class: "num" }, "Waiting"),
@@ -2447,7 +2608,7 @@ export const PORTAL_HTML = `<!doctype html>
             return el("div", { style: "margin-bottom:12px;padding-left:" + (m.side === "SCHOOL" ? "28px" : "0") },
               el("div", { class: "muted", style: "font-size:12px" },
                 (m.side === "SCHOOL" ? "You \u00b7 " : "") + (m.name || "") + " \u00b7 " + fmtDate(m.at)),
-              el("div", { style: "font-size:13.5px;white-space:pre-wrap" }, m.body));
+              el("div", { style: "font-size:12.5px;white-space:pre-wrap" }, m.body));
           }))),
       t.status === "CLOSED"
         ? el("div", { class: "msg info" }, "This question is closed. The family can open a new one if they need to.")
@@ -2626,7 +2787,7 @@ export const PORTAL_HTML = `<!doctype html>
                 el("dt", null, "Year"), el("dd", null, c.academicYear || "\u2014"),
                 el("dt", null, "Period"), el("dd", null, (c.startsOn || "\u2014") + " to " + (c.endsOn || "\u2014")),
                 el("dt", null, "Notes"), el("dd", null, c.notes || "\u2014"))
-            : el("p", { class: "muted", style: "font-size:13.5px;margin:0" },
+            : el("p", { class: "muted", style: "font-size:12.5px;margin:0" },
                 "No contract yet. Nothing can be invoiced until VitaHero operations sets one.")),
         isOps() ? el("div", { class: "card-f" }, el("div", { class: "row" },
           el("button", { onclick: function () {
@@ -2642,7 +2803,7 @@ export const PORTAL_HTML = `<!doctype html>
         !invs
           ? el("div", { class: "empty" }, "Loading\u2026")
           : invs.length === 0
-            ? el("div", { class: "empty" }, el("p", { style: "font-size:13.5px;margin:0" }, "None raised."))
+            ? el("div", { class: "empty" }, el("p", { style: "font-size:12.5px;margin:0" }, "None raised."))
             : el("table", null,
                 el("thead", null, el("tr", null, el("th", null, "Number"), el("th", null, "Year"),
                   el("th", { class: "num" }, "Amount"), el("th", null, "Status"), el("th", null, ""))),
@@ -2674,7 +2835,7 @@ export const PORTAL_HTML = `<!doctype html>
       S.camps.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No camps yet"),
-            el("p", { style: "font-size:13.5px" }, "A camp is what turns your roster into health records.")))
+            el("p", { style: "font-size:12.5px" }, "A camp is what turns your roster into health records.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Camp"), el("th", null, "Date"), el("th", null, "Classes"),
               el("th", { class: "num" }, "Children"), el("th", { class: "num" }, "Consented"),
@@ -2829,7 +2990,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "Team on this camp")),
         staff.length === 0
           ? el("div", { class: "empty" },
-              el("p", { style: "font-size:13.5px;margin:0" }, "Nobody assigned yet. Add screeners and a physician under the school's People tab, then assign them here."))
+              el("p", { style: "font-size:12.5px;margin:0" }, "Nobody assigned yet. Add screeners and a physician under the school's People tab, then assign them here."))
           : el("table", null, el("tbody", null, staff.map(function (s) {
               // Access is ended, not deleted: the assignment is how we know who
               // screened whom, and it survives the camp.
@@ -2875,7 +3036,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { style: "flex:1" }, el("h2", null, "Photographs")),
         el("span", { class: "pill " + (c.photosEnabled ? "warn" : "") }, c.photosEnabled ? "On" : "Off")),
       el("div", { class: "card-b" },
-        el("p", { class: "muted", style: "font-size:13px;margin:0 0 10px" },
+        el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 10px" },
           c.photosEnabled
             ? "A screener can attach a photograph to a finding, but only for a child whose guardian said yes to photographs specifically. Every photograph opened is recorded against the person who opened it."
             : "Off, which is right for almost every camp. Turn this on only where a picture changes a clinical decision \\u2014 a skin lesion, a squint, a caries pattern."),
@@ -2926,7 +3087,7 @@ export const PORTAL_HTML = `<!doctype html>
   function assignStaffRow(c) {
     if (!loadOnce("staff", "/api/admin/schools/" + c.schoolId + "/staff",
         function (r) { return (r && r.staff) || []; })) {
-      return el("span", { class: "muted", style: "font-size:13px" }, "Loading team\\u2026");
+      return el("span", { class: "muted", style: "font-size:12.5px" }, "Loading team\\u2026");
     }
     var assigned = S.camp.staff.map(function (s) { return s.profileId; });
     var avail = S.staff.filter(function (s) { return assigned.indexOf(s.profileId) < 0; });
@@ -2979,7 +3140,7 @@ export const PORTAL_HTML = `<!doctype html>
         avail.length
           ? sel = el("select", { style: "max-width:280px" }, avail.map(function (s) {
               return el("option", { value: s.profileId }, s.name + " — " + (s.role === "PHYSICIAN" ? "Physician" : "Screener")); }))
-          : el("span", { class: "muted", style: "font-size:13px" },
+          : el("span", { class: "muted", style: "font-size:12.5px" },
               S.staff.length ? "Everyone at this school is already on this camp." : "No screeners or physicians yet."),
         avail.length
           ? el("button", { disabled: S.busy, onclick: function () {
@@ -2994,7 +3155,7 @@ export const PORTAL_HTML = `<!doctype html>
         docs.length
           ? docSel = el("select", { style: "max-width:280px" }, docs.map(function (d) {
               return el("option", { value: d.id }, d.name + " — " + d.specialty); }))
-          : el("span", { class: "muted", style: "font-size:13px" },
+          : el("span", { class: "muted", style: "font-size:12.5px" },
               !S.doctors ? "Loading doctors…" : "No directory doctor with a mobile number to add."),
         docs.length
           ? el("button", { disabled: S.busy, onclick: function () {
@@ -3184,7 +3345,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "card" }, el("div", { class: "empty" },
           offline
             ? el("div", null, el("h3", null, "No camp downloaded"),
-                el("p", { style: "font-size:13.5px" },
+                el("p", { style: "font-size:12.5px" },
                   "This device is offline and has no pack for this camp. Reconnect and download it before the camp starts."))
             : "Loading\\u2026")));
     }
@@ -3234,7 +3395,7 @@ export const PORTAL_HTML = `<!doctype html>
               }))),
         el("div", null, selected ? screeningPanel() : el("div", { class: "card" }, el("div", { class: "empty" },
           el("h3", null, "Choose a child"),
-          el("p", { style: "font-size:13.5px" }, "Pick someone from the list to record their check-up."))))));
+          el("p", { style: "font-size:12.5px" }, "Pick someone from the list to record their check-up."))))));
   }
 
   function campDayBar(pack, queued, offline) {
@@ -3418,7 +3579,7 @@ export const PORTAL_HTML = `<!doctype html>
           statusPill(d.consentStatus)),
         el("div", { class: "card-b" },
           el("div", { class: "row", style: "margin-bottom:4px" },
-            el("span", { class: "muted", style: "font-size:13px" }, "Attendance:"),
+            el("span", { class: "muted", style: "font-size:12.5px" }, "Attendance:"),
             el("button", { class: "sm" + (d.attendance === "PRESENT" ? " pri" : ""), onclick: function () { mark("PRESENT"); } }, "Present"),
             el("button", { class: "sm" + (d.attendance === "ABSENT" ? " pri" : ""), onclick: function () { mark("ABSENT"); } }, "Absent"),
             el("button", { class: "sm" + (d.attendance === "REFUSED" ? " pri" : ""), onclick: function () { mark("REFUSED"); } }, "Refused")))),
@@ -3441,7 +3602,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("h3", { style: "margin-bottom:8px" }, "Recorded"),
         S.saved.map(function (s) {
           return el("div", { class: "row", style: "margin-bottom:5px" }, flagPill(s.flag),
-            el("b", { style: "font-size:13px" }, s.checkType),
+            el("b", { style: "font-size:12.5px" }, s.checkType),
             el("span", { class: "muted", style: "font-size:12.5px" }, s.rationale));
         }),
         el("p", { class: "muted", style: "font-size:12.5px;margin:10px 0 0" },
@@ -3510,7 +3671,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { style: "flex:1" }, el("h2", null, "Photographs")),
         el("span", { class: "pill warn" }, "Consented")),
       el("div", { class: "card-b" },
-        el("p", { class: "muted", style: "font-size:13px;margin:0 0 10px" },
+        el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 10px" },
           "Only where a picture changes the decision. Four per child, 220 KB each. The guardian and this camp's clinical team can see them; the school office cannot. Every time one is opened, it is recorded."),
         (S.photos || []).length
           ? el("table", null, el("tbody", null, (S.photos || []).map(function (ph) {
@@ -3522,7 +3683,7 @@ export const PORTAL_HTML = `<!doctype html>
                   el("button", { class: "sm", onclick: function () { open(ph.id); } }, "View"),
                   el("button", { class: "sm dang", onclick: function () { remove(ph.id); } }, "Delete"))));
             })))
-          : el("p", { class: "muted", style: "font-size:13px;margin:0" }, "None attached."),
+          : el("p", { class: "muted", style: "font-size:12.5px;margin:0" }, "None attached."),
         S.photoOpen
           ? el("div", { style: "margin-top:12px" },
               el("img", { src: "data:" + S.photoOpen.mime + ";base64," + S.photoOpen.base64,
@@ -3605,14 +3766,14 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       el("div", { class: "row", style: "margin-bottom:14px" },
         el("div", { style: "flex:1" },
-          el("span", { class: "muted", style: "font-size:13px" },
+          el("span", { class: "muted", style: "font-size:12.5px" },
             pending.length + " awaiting review \\u00b7 " + (c.approved || 0) + " approved \\u00b7 " + (c.released || 0) + " released")),
         el("button", { class: "pri", disabled: S.busy || !(c.approved > 0), onclick: release },
           "Release " + (c.approved || 0) + " to guardians")),
       c.released ? el("div", { class: "msg ok" }, c.released + " results are already with guardians.") : null,
       S.queue.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
-            el("h3", null, "Nothing to review"), el("p", { style: "font-size:13.5px" }, "Results appear here once the screening team records them.")))
+            el("h3", null, "Nothing to review"), el("p", { style: "font-size:12.5px" }, "Results appear here once the screening team records them.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"),
               el("th", { class: "num" }, "Refer"), el("th", { class: "num" }, "Watch"),
@@ -3669,10 +3830,10 @@ export const PORTAL_HTML = `<!doctype html>
               el("div", { class: "chk-b" },
                 el("div", { class: "row", style: "margin-bottom:8px" },
                   el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Measured"),
-                  el("b", { style: "font-size:13.5px" }, f.rationale || "\\u2014")),
+                  el("b", { style: "font-size:12.5px" }, f.rationale || "\\u2014")),
                 f.screenerNote ? el("div", { class: "row", style: "margin-bottom:8px" },
                   el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Note"),
-                  el("span", { style: "font-size:13px" }, f.screenerNote)) : null,
+                  el("span", { style: "font-size:12.5px" }, f.screenerNote)) : null,
                 el("div", { class: "row" },
                   el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Your call"),
                   ["GOOD","WATCH","ALERT","NOT_MEASURED"].map(function (fl) {
@@ -3706,7 +3867,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (!S.myCamps.length) {
       return el("div", { class: "card" }, el("div", { class: "empty" },
         el("h3", null, "No camps assigned"),
-        el("p", { style: "font-size:13.5px" }, "A school administrator assigns you to a camp. Once they do, it appears here with its list of children.")));
+        el("p", { style: "font-size:12.5px" }, "A school administrator assigns you to a camp. Once they do, it appears here with its list of children.")));
     }
     return el("div", { class: "tw" }, el("table", null,
       el("thead", null, el("tr", null, el("th", null, "Camp"), el("th", null, "School"), el("th", null, "Date"),
@@ -3912,7 +4073,7 @@ export const PORTAL_HTML = `<!doctype html>
     var noneYet = el("div", { class: "card" },
       el("div", { class: "empty" },
         el("h3", null, "No referrals have reached a partner yet"),
-        el("p", { style: "font-size:13.5px" },
+        el("p", { style: "font-size:12.5px" },
           "A referral is attributed here once a family books through the app.")));
 
     // The referrals that never reached a partner at all. Reported next to the
@@ -3933,7 +4094,7 @@ export const PORTAL_HTML = `<!doctype html>
         }))));
 
     return el("div", null,
-      el("p", { class: "muted", style: "margin:0 0 14px;font-size:13px" }, d.note),
+      el("p", { class: "muted", style: "margin:0 0 14px;font-size:12.5px" }, d.note),
       d.notBooked.total ? ownDoctor : null,
       used.length === 0 ? noneYet : usedTable,
       unused.length ? neverUsed : null);
@@ -3999,11 +4160,11 @@ export const PORTAL_HTML = `<!doctype html>
 
     var nothing = el("div", { class: "empty" },
       el("h3", null, "Nothing in this window"),
-      el("p", { style: "font-size:13.5px" },
+      el("p", { style: "font-size:12.5px" },
         "No one has opened a child's record in this period."));
 
     return el("div", null,
-      el("p", { class: "muted", style: "margin:0 0 12px;font-size:13px" }, d.note),
+      el("p", { class: "muted", style: "margin:0 0 12px;font-size:12.5px" }, d.note),
       window_,
       d.byActor.length ? byPerson : null,
       el("div", { class: "card" },
@@ -4036,7 +4197,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Retention")),
         el("div", { class: "card-b" },
-          el("p", { class: "muted", style: "font-size:13.5px;margin-top:0" }, d.note),
+          el("p", { class: "muted", style: "font-size:12.5px;margin-top:0" }, d.note),
           el("div", { class: "kpis", style: "margin-top:14px" },
             Object.keys(d).filter(function (k) {
               return typeof d[k] === "number";
@@ -4137,7 +4298,34 @@ export const PORTAL_HTML = `<!doctype html>
     function retire(kind, id, name) {
       if (!confirm("Retire " + name + "?\\n\\nIt stops appearing to families, but referrals already written to it keep their record.")) return;
       run(api("/api/admin/" + kind + "/" + encodeURIComponent(id), { method: "DELETE" }), function () {
-        S.notice = "Retired."; loadHospitals();
+        S.notice = "Retired " + name + "."; loadHospitals();
+      });
+    }
+
+    /**
+     * Bring a retired hospital or doctor back.
+     *
+     * Retiring was a one-way door: nothing in the console set active back to
+     * true, so a hospital retired by mistake could only be recovered by
+     * someone with database access. There is no restore endpoint to add — the
+     * upsert already writes active — so this re-sends the record it has with
+     * that one field set.
+     *
+     * Retiring a hospital also retires its doctors, and this deliberately does
+     * not undo that: which of them are still there is a question only the
+     * person restoring it can answer, so they come back one at a time.
+     */
+    function restore(kind, row) {
+      var body = kind === "hospitals"
+        ? { id: row.id, name: row.name, city: row.city, district: row.district,
+            address: row.address, lat: row.lat, lng: row.lng, phone: row.phone,
+            isCampPartner: row.isCampPartner, active: true }
+        : { id: row.id, name: row.name, specialty: row.specialty,
+            hospitalId: row.hospitalId, city: row.city, phone: row.phone || "", active: true };
+      if (!confirm("Restore " + row.name + "?\\n\\nIt starts appearing to families again."
+        + (kind === "hospitals" ? "\\n\\nIts doctors stay retired until you restore them too." : ""))) return;
+      run(api("/api/admin/" + kind, { method: "POST", body: body }), function () {
+        S.notice = "Restored " + row.name + "."; loadHospitals();
       });
     }
 
@@ -4209,9 +4397,11 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       el("div", { class: "msg info" },
         "This is what a family sees when a doctor refers their child onward. A hospital marked as a camp partner is shown first."),
-      el("div", { class: "row", style: "margin-bottom:14px" },
-        searchBox = el("input", { value: S.hosQuery, placeholder: "Search by name or city",
-          style: "max-width:280px",
+      el("div", { class: "tbar" },
+        el("span", { class: "ttl" }, "Hospitals"),
+        hs.length ? el("span", { class: "cnt" }, String(hs.length)) : null,
+        el("div", { class: "sep" }),
+        searchBox = el("input", { type: "text", value: S.hosQuery, placeholder: "Search by name or city",
           oninput: function (e) { S.hosQuery = e.target.value; } }),
         el("button", { onclick: loadHospitals }, icon("search", 14), " Search"),
         el("div", { style: "flex:1" }),
@@ -4226,11 +4416,11 @@ export const PORTAL_HTML = `<!doctype html>
       hs.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No hospitals"),
-            el("p", { style: "font-size:13.5px" }, "Add the hospitals your families can actually reach.")))
+            el("p", { style: "font-size:12.5px" }, "Add the hospitals your families can actually reach.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Hospital"), el("th", null, "City"),
               el("th", null, "Phone"), el("th", { class: "num" }, "Doctors"),
-              el("th", null, "Role"), el("th", null, ""))),
+              el("th", null, "Status"), el("th", { class: "act" }, ""))),
             el("tbody", null, hs.map(function (h) {
               return el("tr", { class: h.active ? "" : "muted" },
                 el("td", null, el("b", null, h.name),
@@ -4238,33 +4428,47 @@ export const PORTAL_HTML = `<!doctype html>
                 el("td", null, [h.city, h.district].filter(Boolean).join(" \u00b7 ")),
                 el("td", { class: "mono" }, h.phone || "\u2014"),
                 el("td", { class: "num" }, h.doctorCount),
-                el("td", null, h.isCampPartner
-                  ? el("span", { class: "pill warn" }, "Camp partner")
-                  : el("span", { class: "muted" }, "\u2014")),
-                el("td", { style: "text-align:right" }, canEdit
-                  ? el("div", { class: "row" },
-                      el("button", { class: "sm", onclick: function () {
+                // Retired outranks camp partner: a retired hospital is not a
+                // partner of anything. This cell is also the only place the row
+                // still says it is retired, now that the actions sit in a menu.
+                el("td", null, h.active === false
+                  ? el("span", { class: "pill mute" }, "Retired")
+                  : h.isCampPartner
+                    ? el("span", { class: "pill warn" }, "Camp partner")
+                    : el("span", { class: "pill ok" }, "Active")),
+                el("td", { class: "act" }, canEdit
+                  ? rowMenu("hos:" + h.id, [
+                      // active travels with the edit: the upsert treats a
+                      // body without it as active, so editing a retired
+                      // hospital's phone number used to quietly un-retire it.
+                      ["pencil", "Edit hospital", function () {
                         set({ hosForm: {
                           id: h.id, name: h.name, city: h.city, district: h.district,
                           address: h.address, phone: h.phone,
                           lat: h.lat === null ? "" : h.lat, lng: h.lng === null ? "" : h.lng,
-                          isCampPartner: h.isCampPartner } });
-                      } }, "Edit"),
-                      h.active ? el("button", { class: "sm dang", onclick: function () {
-                        retire("hospitals", h.id, h.name);
-                      } }, "Retire") : el("span", { class: "muted", style: "font-size:12.5px" }, "Retired"))
+                          isCampPartner: h.isCampPartner, active: h.active !== false } });
+                      }],
+                      "-",
+                      h.active
+                        ? ["ban", "Retire hospital\\u2026", function () { retire("hospitals", h.id, h.name); }, true]
+                        : ["restore", "Restore hospital", function () { restore("hospitals", h); }],
+                    ], "Manage " + h.name)
                   : null));
             })))),
 
-      el("h3", { style: "margin:22px 0 10px" }, "Doctors"),
+      el("div", { class: "tbar", style: "margin-top:18px" },
+        el("span", { class: "ttl" }, "Doctors"),
+        S.doctors && (S.doctors.doctors || []).length
+          ? el("span", { class: "cnt" }, String(S.doctors.doctors.length)) : null),
       !S.doctors
         ? el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"))
         : (S.doctors.doctors || []).length === 0
           ? el("div", { class: "card" }, el("div", { class: "empty" },
-              el("p", { style: "font-size:13.5px;margin:0" }, "None yet.")))
+              el("p", { style: "font-size:12.5px;margin:0" }, "None yet.")))
           : el("div", { class: "tw" }, el("table", null,
               el("thead", null, el("tr", null, el("th", null, "Doctor"), el("th", null, "Specialty"),
-                el("th", null, "Hospital"), el("th", null, "Phone"), el("th", null, ""))),
+                el("th", null, "Hospital"), el("th", null, "Phone"), el("th", null, "Status"),
+                el("th", { class: "act" }, ""))),
               el("tbody", null, (S.doctors.doctors || []).map(function (d) {
                 return el("tr", { class: d.active ? "" : "muted" },
                   el("td", null, el("b", null, d.name)),
@@ -4277,15 +4481,21 @@ export const PORTAL_HTML = `<!doctype html>
                     ? d.phone
                     : el("span", { class: "muted", style: "font-family:inherit" },
                         d.hospitalName ? "via hospital" : "\u2014")),
-                  el("td", { style: "text-align:right" }, canEdit
-                    ? el("div", { class: "row" },
-                        el("button", { class: "sm", onclick: function () {
+                  el("td", null, d.active === false
+                    ? el("span", { class: "pill mute" }, "Retired")
+                    : el("span", { class: "pill ok" }, "Active")),
+                  el("td", { class: "act" }, canEdit
+                    ? rowMenu("doc:" + d.id, [
+                        ["pencil", "Edit doctor", function () {
                           set({ docForm: { id: d.id, name: d.name, specialty: d.specialty,
-                            hospitalId: d.hospitalId, city: d.city, phone: d.phone || "" } });
-                        } }, "Edit"),
-                        d.active ? el("button", { class: "sm dang", onclick: function () {
-                          retire("doctors", d.id, d.name);
-                        } }, "Retire") : el("span", { class: "muted", style: "font-size:12.5px" }, "Retired"))
+                            hospitalId: d.hospitalId, city: d.city, phone: d.phone || "",
+                            active: d.active !== false } });
+                        }],
+                        "-",
+                        d.active
+                          ? ["ban", "Retire doctor\\u2026", function () { retire("doctors", d.id, d.name); }, true]
+                          : ["restore", "Restore doctor", function () { restore("doctors", d); }],
+                      ], "Manage " + d.name)
                     : null));
               })))));
   }
@@ -4491,7 +4701,7 @@ export const PORTAL_HTML = `<!doctype html>
     } catch (renderErr) {
       body = el("div", { class: "card" }, el("div", { class: "card-b" },
         el("h2", { style: "margin-bottom:4px" }, "This screen could not be drawn"),
-        el("p", { class: "muted", style: "font-size:13.5px" },
+        el("p", { class: "muted", style: "font-size:12.5px" },
           "The data it was given is not the shape it expected. Nothing has been " +
           "lost \u2014 reloading usually clears it. If it keeps happening, send " +
           "this line to VitaHero support."),
@@ -4528,6 +4738,8 @@ export const PORTAL_HTML = `<!doctype html>
       box.appendChild(tb);
     }
 
+    placeMenu(root);
+
     if (wasId) {
       var again = document.getElementById(wasId);
       if (again && again !== document.activeElement) {
@@ -4539,6 +4751,32 @@ export const PORTAL_HTML = `<!doctype html>
     }
   }
 
+  /**
+   * Put the open row menu under the button that opened it.
+   *
+   * The menu is position:fixed so that a scrolling table cannot clip it, which
+   * means nothing places it but this. It is rendered hidden and revealed here,
+   * so it is never painted at the top-left corner first.
+   *
+   * Right-aligned to the button, and flipped above it when there is not enough
+   * room below — the last row of a table is exactly where a row menu is most
+   * likely to open, and it is the row that has no space underneath.
+   */
+  function placeMenu(root) {
+    var m = root.querySelector(".menu");
+    if (!m) return;
+    var btn = m.parentNode.querySelector("button");
+    if (!btn) return;
+    var r = btn.getBoundingClientRect();
+    var w = m.offsetWidth, h = m.offsetHeight;
+    var left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8));
+    var below = window.innerHeight - r.bottom;
+    var top = (below < h + 12 && r.top > h + 12) ? r.top - h - 4 : r.bottom + 4;
+    m.style.left = left + "px";
+    m.style.top = Math.max(8, top) + "px";
+    m.style.visibility = "visible";
+  }
+
   // ── boot ──
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("/admin/sw.js", { scope: "/admin" }).catch(function () {});
@@ -4548,6 +4786,28 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.camp && !S.forceOffline && queueLoad(S.camp.camp.id).length) syncQueue(S.camp.camp.id);
   });
   window.addEventListener("offline", render);
+
+  // A menu closes when you click away from it or press Escape. Capture phase,
+  // so the click that dismisses the menu is seen here before it reaches
+  // whatever is underneath — otherwise dismissing a menu over a table row
+  // would also open that row.
+  document.addEventListener("click", function (e) {
+    if (!S.menu) return;
+    var n = e.target;
+    while (n && n !== document) {
+      if (n.className && String(n.className).indexOf("menuw") >= 0) return;
+      n = n.parentNode;
+    }
+    S.menu = ""; render();
+  }, true);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && S.menu) { S.menu = ""; render(); }
+  });
+  // A fixed menu does not travel with the button it belongs to, so scrolling
+  // would leave it stranded over unrelated rows. Close it instead.
+  window.addEventListener("scroll", function () {
+    if (S.menu) { S.menu = ""; render(); }
+  }, true);
 
   var saved = loadAuth();
   if (saved) {

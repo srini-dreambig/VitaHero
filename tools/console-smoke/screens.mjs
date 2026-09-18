@@ -87,7 +87,10 @@ const click = async (name) => {
   await p.waitForTimeout(280);
 };
 
-check("the console boots signed in", /schools/.test(await text()));
+// Case-insensitive: the stat tile captions are rendered in small caps by
+// CSS, and innerText reports text as rendered. What this asserts is that
+// the overview came up at all, which the casing has no bearing on.
+check("the console boots signed in", /schools/i.test(await text()));
 check("operations sees the library in the menu",
   (await p.locator("nav").innerText()).includes("Library"));
 
