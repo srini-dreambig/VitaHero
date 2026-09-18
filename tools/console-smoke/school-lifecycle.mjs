@@ -13,7 +13,7 @@ import { go } from "./nav.mjs";
 // no child has been screened, and is refused in words rather than by a button
 // that fails when pressed.
 
-const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html";
+const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/admin";
 let failures = 0;
 const check = (l, c) => { console.log((c ? "PASS  " : "FAIL  ") + l); if (!c) failures++; };
 

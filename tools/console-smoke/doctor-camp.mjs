@@ -10,7 +10,7 @@ import { go } from "./nav.mjs";
 // states visible, because "can this doctor still open my school's data" is not
 // a question anyone should have to infer.
 
-const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html";
+const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/admin";
 let failures = 0;
 const check = (l, c) => { console.log((c ? "PASS  " : "FAIL  ") + l); if (!c) failures++; };
 

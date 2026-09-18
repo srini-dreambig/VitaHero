@@ -51,16 +51,16 @@ if ! node --check "$work/app.js"; then
 fi
 
 port=8099
-python3 -m http.server "$port" --directory "$work" --bind 127.0.0.1 >/dev/null 2>&1 &
+python3 "$here/serve.py" "$work" "$port" >/dev/null 2>&1 &
 srv=$!
 for _ in $(seq 1 40); do
-  curl -sf --noproxy '*' "http://127.0.0.1:$port/portal.html" >/dev/null && break
+  curl -sf --noproxy '*' "http://127.0.0.1:$port/admin" >/dev/null && break
   sleep 0.25
 done
 
 status=0
 for f in "$here"/screens.mjs "$here"/photo-gating.mjs "$here"/phone.mjs "$here"/dashboard.mjs "$here"/oversight.mjs "$here"/doctor-camp.mjs "$here"/navigation.mjs "$here"/actions.mjs "$here"/school-lifecycle.mjs "$here"/manage.mjs "$here"/admin-panel.mjs "$here"/state.mjs; do
   echo "── $(basename "$f")"
-  PW_DIR="$pwdir" PORTAL_URL="http://127.0.0.1:$port/portal.html" node "$f" || status=1
+  PW_DIR="$pwdir" PORTAL_URL="http://127.0.0.1:$port/admin" node "$f" || status=1
 done
 exit $status

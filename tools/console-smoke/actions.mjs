@@ -11,7 +11,7 @@ import { go } from "./nav.mjs";
 // telling the operator to walk to Setup. Each of those was found by the
 // founder, not by a test, so the rule gets tests.
 
-const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html";
+const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/admin";
 let failures = 0;
 const check = (l, c) => { console.log((c ? "PASS  " : "FAIL  ") + l); if (!c) failures++; };
 

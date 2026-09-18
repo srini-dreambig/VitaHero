@@ -10,7 +10,7 @@ const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/inde
 // into a card with no scroller of their own. This measures the symptom rather
 // than either cause, so a third way of reintroducing it fails here too.
 
-const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html";
+const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/admin";
 const PHONE = { width: 390, height: 844 };
 
 let failures = 0;

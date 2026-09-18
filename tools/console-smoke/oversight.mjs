@@ -10,7 +10,7 @@ import { go } from "./nav.mjs";
 // flatter: a partner nobody has used, a referral that never reached one, a
 // read of a child's record.
 
-const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html";
+const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/admin";
 let failures = 0;
 const check = (l, c) => { console.log((c ? "PASS  " : "FAIL  ") + l); if (!c) failures++; };
 

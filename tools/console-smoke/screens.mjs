@@ -5,7 +5,7 @@ import { go } from "./nav.mjs";
 // contracts and invoices, the reading library — rendered in a real browser
 // against a stubbed API. A screen that throws on render fails here.
 
-const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html";
+const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/admin";
 
 let failures = 0;
 function check(label, cond) {

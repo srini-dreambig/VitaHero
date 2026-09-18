@@ -1304,6 +1304,8 @@ describe("every admin route the console calls is actually reachable", () => {
     ["GET", "/api/admin/doctors"],
     ["GET", "/api/admin/lookup?phone=9876543210"],
     ["GET", "/api/admin/demo-data"],
+    ["GET", "/api/admin/guardians"],
+    ["GET", "/api/admin/reset"],
     ["GET", "/api/admin/partners"],
     ["GET", "/api/admin/retention"],
     ["GET", "/api/admin/access-log?days=30"],

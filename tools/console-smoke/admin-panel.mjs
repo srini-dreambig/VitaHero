@@ -16,7 +16,7 @@ import { go } from "./nav.mjs";
 //     sign-in code and can never be put on a camp.
 //   - A number could only be looked for in the one list you thought to open.
 
-const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html";
+const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/admin";
 let failures = 0;
 const check = (l, c) => { console.log((c ? "PASS  " : "FAIL  ") + l); if (!c) failures++; };
 
@@ -68,6 +68,23 @@ await p.addInitScript(() => {
           detail: "Paediatrics · Rainbow Hospital · Hyderabad", schoolId: "" },
       ],
     },
+    "/api/admin/guardians": { canInvite: true,
+      schools: [{ id: "sch_1", name: "Silver Oaks" }],
+      guardians: [
+        { profileId: "ph_1", name: "Rahul Sharma", phone: "+919876543210", email: "",
+          children: 2, childNames: "Aarav Sharma, Diya Sharma", schoolNames: "Silver Oaks",
+          schoolId: "sch_1", usingApp: true, invitedAt: "2026-01-04", joinedAt: "2026-01-05",
+          consents: 2, asked: 2, canSignIn: true },
+        { profileId: "ph_2", name: "Landline Parent", phone: "+914023456789", email: "",
+          children: 1, childNames: "Ishaan Rao", schoolNames: "Silver Oaks",
+          schoolId: "sch_1", usingApp: false, invitedAt: "", joinedAt: "",
+          consents: 0, asked: 1, canSignIn: false },
+      ] },
+    "/api/admin/reset": { total: 462, phrase: "DELETE EVERYTHING",
+      counts: { schools: 2, camps: 3, children: 400, guardians: 40, findings: 12,
+                referrals: 4, photos: 0, staff: 1, questions: 0 },
+      keeps: ["Operations sign-ins, including yours", "The reading library",
+              "The hospital and doctor directory"] },
     "/api/admin/demo-data": {
       empty: false, removable: 2, blocked: 1, articles: 4,
       items: [
@@ -262,6 +279,86 @@ check("removing sends one delete", !!purged);
 // goes when the other button is pressed.
 check("the reading library is left alone unless asked for",
   !!purged && purged.body.articles === false);
+
+// ── parents ───────────────────────────────────────────────────
+//
+// Guardians are the largest group of people the programme touches and the only
+// one that had no list: they were reachable only through the roster of a school
+// you already had to know the name of.
+await go(p, "Parents");
+const parents = await p.locator(".rec").first().evaluate((n) => n.textContent);
+check("a parent's row names the children behind them", /Aarav Sharma/.test(parents));
+check("and the school they belong to", /Silver Oaks/.test(parents));
+check("and whether they are actually on the app", /On the app/i.test(parents));
+
+const second = await p.locator(".rec").nth(1).evaluate((n) => n.textContent);
+// The point of showing it at all: this parent can never receive an invitation,
+// however many are sent, and that is a different problem from not having
+// opened one yet.
+check("a parent whose number cannot receive a code is called out",
+  /Not a mobile/i.test(second) && !/\+914023456789/.test(second));
+
+await p.evaluate(() => {
+  const i = document.getElementById("parentq");
+  i.value = "aarav";
+  i.dispatchEvent(new Event("input", { bubbles: true }));
+});
+await p.evaluate(() => [...document.querySelectorAll("button")]
+  .find((x) => x.textContent.trim() === "Search").click());
+await p.waitForTimeout(400);
+let pc = await calls();
+const searched2 = pc.filter((x) => x.path === "/api/admin/guardians").pop();
+check("a parent can be searched for by their child's name",
+  !!searched2 && /q=aarav/.test(searched2.search));
+
+// ── emptying the programme ────────────────────────────────────
+await go(p, "Oversight");
+await go(p, "Empty the programme");
+const reset = await p.locator(".content").evaluate((n) => n.textContent);
+check("the reset says exactly what would go, counted", /462/.test(reset)
+  && /Children/.test(reset) && /400/.test(reset));
+check("and what would stay", /Operations sign-ins/.test(reset)
+  && /reading library/i.test(reset));
+
+// By id, not by text: the tab that reaches this screen carries the same words
+// and is never disabled, so matching on text finds the wrong control.
+const guard = await p.evaluate(() => {
+  const btn = document.getElementById("resetgo");
+  return { present: !!btn, disabled: btn ? btn.disabled : null };
+});
+check("the button is there but refuses to be pressed until the words are typed",
+  guard.present === true && guard.disabled === true);
+
+// Something close, but not the phrase.
+await p.evaluate(() => {
+  const i = document.getElementById("resetconfirm");
+  i.value = "delete";
+  i.dispatchEvent(new Event("input", { bubbles: true }));
+});
+await p.waitForTimeout(250);
+check("a near miss does not unlock it",
+  await p.evaluate(() => document.getElementById("resetgo").disabled === true));
+
+await p.evaluate(() => {
+  const i = document.getElementById("resetconfirm");
+  i.value = "delete everything";
+  i.dispatchEvent(new Event("input", { bubbles: true }));
+});
+await p.waitForTimeout(250);
+check("the exact words unlock it, whatever case they are typed in",
+  await p.evaluate(() => document.getElementById("resetgo").disabled === false));
+
+await p.evaluate(() => document.getElementById("resetgo").click());
+await p.waitForTimeout(400);
+pc = await calls();
+const wiped = pc.find((x) => x.path === "/api/admin/reset" && x.method === "POST");
+check("and it sends the words for the server to check again",
+  !!wiped && /delete everything/i.test(String(wiped.body.confirm)));
+
+// The safeguard that matters most: this is not a button on the demo screen.
+await go(p, "Demonstration data");
+check("emptying the programme is not reachable from the demonstration-data screen",
+  await p.evaluate(() => document.getElementById("resetgo") === null));
 
 check("admin panel: no page errors", errs.length === 0);
 if (errs.length) console.log(errs.join("\n"));

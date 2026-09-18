@@ -10,7 +10,7 @@ import { go } from "./nav.mjs";
 // What is checked here is that the context appears and disappears with it —
 // a stale section is worse than a tab strip.
 
-const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html";
+const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/admin";
 let failures = 0;
 const check = (l, c) => { console.log((c ? "PASS  " : "FAIL  ") + l); if (!c) failures++; };
 
@@ -241,51 +241,57 @@ await run("SCHOOL_ADMIN", { billing: false });
 
   await p3.goto(URL, { waitUntil: "networkidle" });
   await p3.waitForTimeout(500);
-  const hash = () => p3.evaluate(() => location.hash);
+  // The address, with the mount point taken off — what a person would read.
+const at = () => p3.evaluate(() => location.pathname.replace(/^\/admin/, "") || "/");
 
-  check("the address says where you are", /#\/overview$/.test(await hash()));
+  // /admin is the overview, the way a site's root is its front page — it is
+  // not rewritten to /admin/overview just to spell it out. What matters is
+  // that it is a path: no "#" anywhere in it.
+  check("the address says where you are, with no fragment in it",
+    /^\/(overview)?$/.test(await at())
+    && (await p3.evaluate(() => location.hash)) === "");
 
   await go(p3, "Hospitals");
-  check("and it changes when you go somewhere else", /#\/hospitals$/.test(await hash()));
+  check("and it changes when you go somewhere else", /^\/hospitals$/.test(await at()));
 
   await go(p3, "Schools");
   await p3.getByText("Silver Oaks").first().click();
   await p3.waitForTimeout(600);
   check("a school has its own address, down to the screen",
-    /#\/schools\/sch_1\/roster$/.test(await hash()));
+    /^\/schools\/sch_1\/roster$/.test(await at()));
 
   await go(p3, "Classes");
   check("and so does each screen inside it",
-    /#\/schools\/sch_1\/classes$/.test(await hash()));
+    /^\/schools\/sch_1\/classes$/.test(await at()));
 
   // Back through: classes -> roster -> schools -> hospitals.
   await p3.goBack(); await p3.waitForTimeout(500);
   check("the back button goes back a screen, not out of the console",
-    /#\/schools\/sch_1\/roster$/.test(await hash()));
+    /^\/schools\/sch_1\/roster$/.test(await at()));
   await p3.goBack(); await p3.waitForTimeout(500);
   await p3.goBack(); await p3.waitForTimeout(500);
-  check("and keeps going back", /#\/hospitals$/.test(await hash()));
+  check("and keeps going back", /^\/hospitals$/.test(await at()));
   const onScreen = await p3.locator(".content").innerText();
   check("and the screen follows the address, not just the address bar",
     /hospital/i.test(onScreen));
 
   await p3.goForward(); await p3.waitForTimeout(500);
-  check("forward works too", /#\/schools$/.test(await hash()));
+  check("forward works too", /^\/schools$/.test(await at()));
 
   // The whole point: a link somebody sends you.
-  await p3.goto(URL + "#/schools/sch_1/classes", { waitUntil: "networkidle" });
+  await p3.goto(URL + "/schools/sch_1/classes", { waitUntil: "networkidle" });
   await p3.waitForTimeout(700);
   const deep = await p3.evaluate(() => ({
-    hash: location.hash,
+    path: location.pathname.replace(/^\/admin/, ""),
     crumb: document.querySelector(".bar").textContent,
     seg: [...document.querySelectorAll(".seg button.on")].map((n) => n.textContent.trim()),
   }));
   check("a link opens the screen it names, not the overview",
-    /#\/schools\/sch_1\/classes$/.test(deep.hash)
+    /^\/schools\/sch_1\/classes$/.test(deep.path)
     && /Silver Oaks/.test(deep.crumb) && deep.seg.includes("Classes"));
 
   // A nonsense address should land somewhere usable rather than blank.
-  await p3.goto(URL + "#/schools/sch_nope/roster", { waitUntil: "networkidle" });
+  await p3.goto(URL + "/schools/sch_nope/roster", { waitUntil: "networkidle" });
   await p3.waitForTimeout(700);
   const rubbish = await p3.evaluate(() => document.querySelector(".content").textContent);
   check("an address that names nothing still lands somewhere usable",

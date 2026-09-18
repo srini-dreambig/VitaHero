@@ -746,6 +746,10 @@ export const PORTAL_HTML = `<!doctype html>
       // progress, the reviewer's draft, the symptom history.
       inFlight: 0, scope: 0, syncing: false,
       accessDays: 30, oversightTab: "partners", partners: null, childTrail: null,
+      // The reset: what it would take, and the words typed back. Held apart
+      // from every other form on purpose — nothing else on the screen can
+      // populate this field.
+      resetPlan: null, resetConfirm: "",
       childQuery: "", screenData: null, reviewEdit: null, symptoms: null,
       smsStatus: null, saved: null, search: "", showAll: false, dragOver: false,
       // How the schools list is being looked at. Filtering and sorting happen
@@ -753,6 +757,10 @@ export const PORTAL_HTML = `<!doctype html>
       // is tens of rows, and a round trip to re-sort tens of rows is a round
       // trip spent to feel slower.
       schoolFilter: "all", schoolQuery: "", schoolSort: "name",
+      // Guardians. The largest group of people the programme touches, and the
+      // only one that had no list of its own — they were reachable only
+      // through the roster of a school you already had to know the name of.
+      parents: null, parentQuery: "", parentSchool: "", parentOnApp: "",
       // Which school's row is opened out. One at a time: two open rows and the
       // list stops being a list.
       schoolOpen: "",
@@ -1919,6 +1927,114 @@ export const PORTAL_HTML = `<!doctype html>
           icon("open", 13), " Open school"),
         isOps() ? el("button", { class: "sm", onclick: function () { openSchool(s.id, "programme"); } },
           icon("settings", 13), " Settings") : null));
+  }
+
+  function parentQueryString() {
+    var q = [];
+    if (S.parentQuery) q.push("q=" + encodeURIComponent(S.parentQuery));
+    if (S.parentSchool) q.push("school_id=" + encodeURIComponent(S.parentSchool));
+    if (S.parentOnApp) q.push("on_app=" + encodeURIComponent(S.parentOnApp));
+    return q.length ? "?" + q.join("&") : "";
+  }
+
+  function loadParents() {
+    run(api("/api/admin/guardians" + parentQueryString()), function (d) {
+      S.parents = d; S.view = "parents";
+    });
+  }
+
+  /**
+   * The parents.
+   *
+   * One row per guardian: who they are, the number an invitation and every
+   * one-time code goes to, the children behind them, and whether they have
+   * ever actually opened the app — which is the question the office asks most
+   * and the one the console could not answer without opening a school first.
+   */
+  function viewParents() {
+    var d = S.parents;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+    var rows = d.guardians || [];
+    var onApp = rows.filter(function (g) { return g.usingApp; }).length;
+    var unreachable = rows.filter(function (g) { return !g.canSignIn; }).length;
+
+    function reload(patch) { for (var k in patch) S[k] = patch[k]; loadParents(); }
+
+    return el("div", null,
+      el("div", { class: "tbar" },
+        quickFilter([
+          ["", "All", null, rows.length],
+          ["yes", "On the app", "check", onApp],
+          ["no", "Not yet", "clock", rows.length - onApp],
+        ], S.parentOnApp || "", function (k) { reload({ parentOnApp: k }); }),
+        el("div", { class: "sep" }),
+        el("input", { type: "text", id: "parentq", value: S.parentQuery || "",
+          placeholder: "Name, number, email or a child's name",
+          oninput: function (e) { S.parentQuery = e.target.value; },
+          onkeydown: function (e) { if (e.key === "Enter") loadParents(); } }),
+        (d.schools || []).length
+          ? el("select", { style: "width:auto", onchange: function (e) { reload({ parentSchool: e.target.value }); } },
+              [el("option", { value: "", selected: !S.parentSchool }, "All schools")].concat(
+                d.schools.map(function (s) {
+                  return el("option", { value: s.id, selected: S.parentSchool === s.id }, s.name);
+                })))
+          : null,
+        el("button", { onclick: loadParents }, icon("search", 14), " Search"),
+        el("div", { style: "flex:1" }),
+        // Said on the toolbar because it is a number somebody has to act on:
+        // these guardians cannot receive a code, so no invitation will ever
+        // land however many times it is sent.
+        unreachable
+          ? el("span", { class: "pill err" }, unreachable + " cannot receive a code")
+          : null,
+        el("span", { class: "cnt" }, rows.length + (rows.length === 1 ? " parent" : " parents"))),
+
+      rows.length === 0
+        ? el("div", { class: "card" }, el("div", { class: "empty" },
+            el("h3", null, "No parents"),
+            el("p", { style: "font-size:12.5px" },
+              S.parentQuery || S.parentSchool || S.parentOnApp
+                ? "Nothing matches. Change the filter or clear the search."
+                : "Guardians appear here once a school's roster has been imported.")))
+        : el("div", { class: "recs" }, rows.map(parentRow)));
+  }
+
+  function parentRow(g) {
+    return el("div", { class: "recw" }, el("div", {
+      class: "rec" + (g.usingApp ? "" : " muted"),
+      style: "grid-template-columns:28px minmax(200px,1.4fr) minmax(150px,1fr) "
+        + "minmax(180px,1.2fr) minmax(120px,.8fr) minmax(110px,.7fr) 96px",
+      onclick: function () { if (g.schoolId) openSchool(g.schoolId); },
+    },
+      el("span", { class: "rt" }, icon("users", 15)),
+
+      el("div", { class: "rcol" },
+        el("div", { class: "rname" }, g.name || "\\u2014"),
+        el("div", { class: "rsub" }, g.email || (g.joinedAt ? "since " + g.joinedAt : "\\u2014"))),
+
+      el("div", { class: "rcol" },
+        el("span", { class: "ml" }, "Mobile"),
+        g.canSignIn
+          ? el("span", { class: "mn mono", style: "font-size:12.5px" }, g.phone)
+          : el("span", { class: "pill err" }, g.phone ? "Not a mobile" : "No number")),
+
+      el("div", { class: "rcol" },
+        el("span", { class: "ml" }, g.children === 1 ? "Child" : "Children"),
+        el("span", { class: "dv", title: g.childNames || "" },
+          g.childNames ? truncate(g.childNames, 34) : "\\u2014")),
+
+      el("div", { class: "rcol" },
+        el("span", { class: "ml" }, "School"),
+        el("span", { class: "dv", title: g.schoolNames || "" },
+          g.schoolNames ? truncate(g.schoolNames, 22) : "\\u2014")),
+
+      metric(null, "Consent given", (g.consents || 0) + " of " + (g.asked || 0),
+        g.asked ? "" : "off"),
+
+      el("div", { class: "rcol", style: "text-align:right" },
+        g.usingApp
+          ? el("span", { class: "pill ok" }, "On the app")
+          : el("span", { class: "pill mute" }, g.invitedAt ? "Invited" : "Not invited"))));
   }
 
   function viewNewSchool() {
@@ -4394,6 +4510,10 @@ export const PORTAL_HTML = `<!doctype html>
       run(api("/api/admin/retention"), function (d) { S.retention = d; });
     } else if (t === "demo" && !S.demo) {
       run(api("/api/admin/demo-data"), function (d) { S.demo = d; });
+    } else if (t === "reset" && !S.resetPlan) {
+      // Always re-counted on arrival rather than cached: the number somebody
+      // is about to confirm has to be the number as it is now.
+      run(api("/api/admin/reset"), function (d) { S.resetPlan = d; S.resetConfirm = ""; });
     }
   }
 
@@ -4411,7 +4531,13 @@ export const PORTAL_HTML = `<!doctype html>
       // to hold a single thing, and it hid that thing: somebody looking for
       // where to clear the demonstration data had to guess which of four words
       // it was behind. A group of one is named after its screen.
-      ["maint", "Demonstration data", [isOps() ? ["demo", "Demonstration data"] : null]],
+      // Two groups of one rather than one group of two. Grouping them under
+      // "Data" would have hidden both behind a word that names neither, and
+      // put them in the same segmented control where they sit a few pixels
+      // apart — one refuses to touch anything real, the other exists to remove
+      // exactly that, and they should not be neighbours.
+      ["demo", "Demonstration data", [isOps() ? ["demo", "Demonstration data"] : null]],
+      ["reset", "Empty the programme", [isOps() ? ["reset", "Empty the programme"] : null]],
     ];
   }
 
@@ -4431,6 +4557,7 @@ export const PORTAL_HTML = `<!doctype html>
           : S.oversightTab === "child" ? tabChildTrail()
           : S.oversightTab === "phone" ? tabPhoneLookup()
           : S.oversightTab === "demo" ? tabDemoData()
+          : S.oversightTab === "reset" ? tabReset()
           : tabPartners();
       }));
   }
@@ -5140,6 +5267,92 @@ export const PORTAL_HTML = `<!doctype html>
    * screening records is never deleted by this — it is listed with the reason
    * and left exactly where it is.
    */
+  /**
+   * Emptying the programme.
+   *
+   * Arranged so nobody arrives here by accident and nobody presses it without
+   * having read what goes: the counts are fetched and shown first, the phrase
+   * has to be typed exactly, and the button stays disabled until it is. A
+   * separate screen from the demonstration-data one because that refuses to
+   * touch anything real and this exists to remove exactly that.
+   */
+  function tabReset() {
+    var d = S.resetPlan;
+    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
+
+    var typed = (S.resetConfirm || "").trim().toUpperCase() === d.phrase;
+
+    function wipe() {
+      if (!typed) return;
+      run(api("/api/admin/reset", { method: "POST", body: { confirm: S.resetConfirm } }),
+        function (r) {
+          S.notice = "The programme is empty. Removed " + r.total
+            + (r.total === 1 ? " record." : " records.");
+          S.resetPlan = null; S.resetConfirm = "";
+          // Everything on screen and everything cached is about to be wrong.
+          S.schools = []; S.parents = null; S.overview = null; S.analytics = null;
+          loadOversightTab();
+        });
+    }
+
+    var rows = [
+      ["Schools", d.counts.schools], ["Camps", d.counts.camps],
+      ["Children", d.counts.children], ["Parents", d.counts.guardians],
+      ["Screening findings", d.counts.findings], ["Referrals", d.counts.referrals],
+      ["Photographs", d.counts.photos], ["School staff", d.counts.staff],
+      ["Question threads", d.counts.questions],
+    ];
+
+    return el("div", null,
+      el("div", { class: "msg err" },
+        el("b", null, "This empties the programme. "),
+        "Every school, camp, child, parent, screening, referral, photograph and "
+        + "question below is removed, real records included. It cannot be undone, "
+        + "and no footprint check stands in its way \\u2014 that is what this "
+        + "screen is for."),
+
+      el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, "What would go"),
+          el("span", { class: "pill err" }, d.total + (d.total === 1 ? " record" : " records"))),
+        el("div", { class: "card-b" },
+          el("div", { class: "dgrid" }, rows.map(function (r) {
+            return el("div", null,
+              el("span", { class: "ml" }, r[0]),
+              el("span", { class: "mn" + (r[1] ? " err" : " off") }, String(r[1])));
+          })))),
+
+      el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, "What stays")),
+        el("div", { class: "card-b" },
+          el("ul", { style: "margin:0;padding-left:18px;font-size:12.5px;line-height:1.7" },
+            (d.keeps || []).map(function (k) { return el("li", null, k); })))),
+
+      d.total === 0
+        ? el("div", { class: "card" }, el("div", { class: "empty" },
+            el("h3", null, "Already empty"),
+            el("p", { style: "font-size:12.5px" }, "There is nothing left to remove.")))
+        : el("div", { class: "card" },
+            el("div", { class: "card-h" }, el("h2", null, "Confirm")),
+            el("div", { class: "card-b" },
+              el("div", { class: "fld" },
+                el("label", null, "Type " + d.phrase + " to enable the button"),
+                el("input", { type: "text", id: "resetconfirm", value: S.resetConfirm || "",
+                  placeholder: d.phrase, autocomplete: "off",
+                  oninput: function (e) { set({ resetConfirm: e.target.value }); } })),
+              el("div", { class: "hint" },
+                "The server asks for the same words again and refuses without them, "
+                + "so a mis-click here cannot empty anything.")),
+            el("div", { class: "card-f" },
+              // An id, because the tab that reaches this screen carries the
+              // same words. Anything looking for "the button that empties the
+              // programme" by its text finds the tab first, and the tab is
+              // never disabled.
+              el("button", { id: "resetgo", class: "dang",
+                disabled: !typed || S.busy, onclick: wipe },
+                icon("trash", 14), " ",
+                S.busy ? "Removing\\u2026" : "Empty the programme"))));
+  }
+
   function tabDemoData() {
     var d = S.demo;
     if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
@@ -5217,6 +5430,12 @@ export const PORTAL_HTML = `<!doctype html>
           isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
           isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
           isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
+          // Parents sit beside Schools rather than inside one. A guardian
+          // belongs to the programme, not to a school: they move between
+          // schools, they have children at more than one, and the question
+          // asked about them at the office — "is this parent on the app" — is
+          // never scoped to a school you already know.
+          canManage() ? navItem("users", "Parents", "parents", function () { loadParents(); }) : null,
           isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null)),
       el("div", { class: "navfoot" },
         el("b", null, S.auth.name),
@@ -5253,6 +5472,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.view === "camp" && S.camp) return S.camp.camp.title;
     if (S.view === "mycamps") return "My camps";
     if (S.view === "library") return "Reading for families";
+    if (S.view === "parents") return "Parents";
     if (S.view === "hospitals") return "Hospitals & doctors";
     if (S.view === "oversight") return "Oversight";
     return "VitaHero";
@@ -5292,15 +5512,29 @@ export const PORTAL_HTML = `<!doctype html>
   // did nothing, a refresh dropped you back at the overview, and a bookmark
   // was useless.
   //
-  // Hash routing rather than paths, because the worker serves this one page at
-  // /admin and would have to learn to serve it for every sub-path too. The
-  // hash never reaches the server, so nothing on that side has to change.
+  // Real paths, not a fragment. /admin/schools/sch_oak/roster is an address
+  // somebody can read, send, bookmark and reason about; #/schools/... is a
+  // fragment the server never sees and that looks like a workaround because it
+  // is one. The worker answers the whole /admin tree with this same page, and
+  // the service worker serves the cached shell for any of those addresses, so
+  // a refresh and an offline deep link both land where they say.
+  var BASE = "/admin";
+
+  /** The console's own path, with the mount point taken off the front. */
+  function pathFromLocation() {
+    var p = location.pathname || BASE;
+    if (p.indexOf(BASE) === 0) p = p.slice(BASE.length);
+    // [/] rather than an escaped slash: this file is a template literal, and a
+    // backslash in it is consumed before the browser ever sees the regex.
+    return p.replace(/[/]+$/, "") || "/overview";
+  }
 
   /** Where we are, as a path. The one place that decides what a screen's address is. */
   function currentPath() {
     if (S.view === "school" && S.school) return "/schools/" + S.school.id + "/" + S.schoolTab;
     if (S.view === "camp" && S.camp) return "/camps/" + S.camp.camp.id + "/" + S.campTab;
     if (S.view === "oversight") return "/oversight/" + (S.oversightTab || "partners");
+    if (S.view === "parents") return "/parents";
     if (S.view === "newSchool") return "/schools/new";
     if (S.view === "schools") return "/schools";
     if (S.view === "hospitals") return "/hospitals";
@@ -5328,7 +5562,9 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.inFlight > 0) return;
     shownPath = want;
     try {
-      if (("#" + want) !== location.hash) history.pushState(null, "", "#" + want);
+      if (want !== pathFromLocation()) {
+        history.pushState(null, "", BASE + want + location.search);
+      }
     } catch (e) {
       // A sandboxed frame can refuse history. The console still works; only
       // the address bar stops keeping up.
@@ -5343,7 +5579,7 @@ export const PORTAL_HTML = `<!doctype html>
    * since deleted, should land you somewhere usable.
    */
   function applyPath(path) {
-    var parts = String(path || "").replace(/^#/, "").split("/").filter(Boolean);
+    var parts = String(path || "").split("/").filter(Boolean);
     var head = parts[0] || "overview";
     shownPath = "/" + parts.join("/");
 
@@ -5353,6 +5589,7 @@ export const PORTAL_HTML = `<!doctype html>
       return openSchool(parts[1], parts[2]);
     }
     if (head === "camps" && parts[1]) return openCamp(parts[1], parts[2]);
+    if (head === "parents") return loadParents();
     if (head === "hospitals") return loadHospitals();
     if (head === "library") return loadLibrary();
     if (head === "my-camps") return loadMyCamps();
@@ -5396,6 +5633,7 @@ export const PORTAL_HTML = `<!doctype html>
       else if (S.view === "hospitals") body = viewHospitals();
       else if (S.view === "oversight") body = viewOversight();
       else if (S.view === "schools") body = viewSchools();
+      else if (S.view === "parents") body = viewParents();
       else body = viewOverview();
     } catch (renderErr) {
       body = brokenScreen(renderErr);
@@ -5482,9 +5720,9 @@ export const PORTAL_HTML = `<!doctype html>
   // pushState, so this only ever runs when the person navigated.
   window.addEventListener("popstate", function () {
     if (!S.auth) return;
-    var path = location.hash.replace(/^#/, "");
+    var path = pathFromLocation();
     if (path === shownPath) return;
-    applyPath(path || "/overview");
+    applyPath(path);
   });
 
   // A menu closes when you click away from it or press Escape. Capture phase,
@@ -5515,7 +5753,7 @@ export const PORTAL_HTML = `<!doctype html>
     // A link, a bookmark or a refresh lands where it says. boot() is still what
     // fills the overview, so it is only skipped when the address names
     // somewhere else.
-    var opening = location.hash.replace(/^#/, "");
+    var opening = pathFromLocation();
     if (opening && opening !== "/overview") applyPath(opening);
     else boot();
   }
@@ -5555,7 +5793,10 @@ self.addEventListener("fetch", function (e) {
   // API calls must never be served stale — a cached participant list would
   // show a screener consent that has since been withdrawn.
   if (url.pathname.indexOf("/api/") === 0) return;
-  if (url.pathname !== "/admin" && url.pathname !== "/admin/") return;
+  // Any console address, not just the root. A deep link opened with no signal
+  // is answered from the cached shell, which then reads the path and draws the
+  // screen it names — the whole point of the shell being cached at all.
+  if (url.pathname !== "/admin" && url.pathname.indexOf("/admin/") !== 0) return;
   e.respondWith(
     fetch(e.request).then(function (res) {
       // Only a good response replaces the cached shell. Caching whatever came

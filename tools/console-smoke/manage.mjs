@@ -19,7 +19,7 @@ const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/inde
 // scroller. A menu that renders but cannot be seen is the same as no menu, and
 // nothing else in this suite would notice.
 
-const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html";
+const URL = process.env.PORTAL_URL || "http://127.0.0.1:8099/admin";
 let failures = 0;
 const check = (l, c) => { console.log((c ? "PASS  " : "FAIL  ") + l); if (!c) failures++; };
 

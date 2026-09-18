@@ -182,8 +182,10 @@ import {
   inviteGuardians,
   campPeople,
   lookupPhone,
+  listGuardians,
 } from "./directory";
 import { previewDemoData, purgeDemoData } from "./demo";
+import { previewReset, resetProgramme } from "./reset";
 import { migrate, SCHEMA_VERSION } from "./migrate";
 import { servePrivacyPage, serveDataDeletionPage } from "./pages";
 import { PORTAL_HTML, SERVICE_WORKER_JS, portalShellEtag } from "./portal";
@@ -1982,7 +1984,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }));
       }
 
-      if (path === "/admin" || path === "/admin/") {
+      // The console owns everything under /admin.
+      //
+      // Its screens have real addresses now — /admin/schools/sch_oak/roster —
+      // and a refresh, a bookmark or a pasted link asks the server for that
+      // path. Only /admin itself used to answer, so every one of those was a
+      // 404 and the address bar could only hold a fragment the server never
+      // sees. The same page answers for all of them and reads the path itself;
+      // /admin/sw.js is handled above and is the one exception.
+      if (path === "/admin" || path === "/admin/" || path.startsWith("/admin/")) {
         // no-cache means "check with me first", not "do not store". Paired with
         // a validator, a console that has not changed since the last visit is
         // answered with an empty 304 instead of 259 KiB of HTML, and a deploy
@@ -2392,7 +2402,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           || path === "/api/admin/doctors" || path.startsWith("/api/admin/doctors/")
           || path === "/api/admin/invites" || path === "/api/admin/invites/send"
           || path === "/api/admin/camp-people"
-          || path === "/api/admin/lookup" || path === "/api/admin/demo-data") {
+          || path === "/api/admin/lookup" || path === "/api/admin/demo-data"
+          || path === "/api/admin/guardians" || path === "/api/admin/reset") {
         const actor = await resolveActor(request, sql, env);
         if (!actor) {
           return json({ error: "Administrator sign-in required", code: "ADMIN_REQUIRED" }, 401);
@@ -2439,6 +2450,26 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           // the function checks that itself rather than trusting this route.
           if (path === "/api/admin/lookup" && method === "GET") {
             return json(await lookupPhone(sql, actor, url.searchParams.get("phone") || ""));
+          }
+
+          if (path === "/api/admin/guardians" && method === "GET") {
+            return json(await listGuardians(sql, actor, {
+              q: url.searchParams.get("q") || "",
+              schoolId: url.searchParams.get("school_id") || "",
+              onApp: url.searchParams.get("on_app") || "",
+            }));
+          }
+
+          // Emptying the programme. Its own endpoint, not an option on the
+          // demonstration-data one: that refuses to touch anything real, and
+          // this exists to remove exactly that.
+          if (path === "/api/admin/reset") {
+            if (method === "GET") return json(await previewReset(sql, actor));
+            if (method === "POST") {
+              const b = await readBody();
+              return json(await resetProgramme(sql, actor, String(b.confirm || "")));
+            }
+            return json({ error: "Method not allowed" }, 405);
           }
 
           // Demonstration data: look before you leap, then leap.

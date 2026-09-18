@@ -52,7 +52,7 @@ async function session(photosEnabled) {
         headers: { "Content-Type": "application/json" } });
     };
   }, photosEnabled);
-  await p.goto(process.env.PORTAL_URL || "http://127.0.0.1:8099/portal.html");
+  await p.goto(process.env.PORTAL_URL || "http://127.0.0.1:8099/admin");
   await p.waitForTimeout(500);
   await p.getByText("Annual check-up").first().click();
   await p.waitForTimeout(400);

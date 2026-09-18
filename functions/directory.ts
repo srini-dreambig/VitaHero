@@ -517,3 +517,94 @@ function roleLabel(role: string): string {
   };
   return m[role] || role || "Person";
 }
+
+/**
+ * Every guardian in the programme, or in one school.
+ *
+ * Guardians were only ever reachable through a school's roster: to answer
+ * "is this parent on the app", "how many children has she", "which school",
+ * you had to already know the school. They are the largest group of people
+ * the programme touches and the only one with no list of its own.
+ *
+ * Operations sees every school; a school administrator sees theirs, whatever
+ * they ask for. The scope is decided here, not by the caller.
+ */
+export async function listGuardians(
+  sql: Sql,
+  actor: Actor,
+  opts: { q?: string; schoolId?: string; onApp?: string } = {}
+) {
+  const ops = isOpsRole(actor.role);
+  const scope = ops ? (opts.schoolId || "") : (actor.schoolId || "");
+  if (!ops && !scope) return { guardians: [], schools: [], canInvite: false };
+
+  const q = (opts.q || "").trim().toLowerCase();
+  const digits = searchDigits(q);
+  // "yes" and "no" narrow to guardians who have or have not signed in; empty
+  // leaves both. A string rather than a boolean because it arrives from a
+  // query string, where an absent value and false look the same.
+  const onApp = opts.onApp === "yes" ? true : opts.onApp === "no" ? false : null;
+
+  const rows = await sql`
+    SELECT p.id, p.name, p.phone, p.is_logged_in, p.email,
+           TO_CHAR(p.invited_at, 'YYYY-MM-DD') AS invited_at,
+           TO_CHAR(p.created_at, 'YYYY-MM-DD') AS created_at,
+           (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.profile_id = p.id) AS children,
+           (SELECT STRING_AGG(k.name, ', ' ORDER BY k.name)
+              FROM vita_hero.kids k WHERE k.profile_id = p.id) AS child_names,
+           (SELECT STRING_AGG(DISTINCT s.name, ', ')
+              FROM vita_hero.school_enrollments e
+              JOIN vita_hero.schools s ON s.id = e.school_id
+              WHERE e.profile_id = p.id AND e.status = 'ACTIVE') AS school_names,
+           (SELECT MIN(e.school_id) FROM vita_hero.school_enrollments e
+              WHERE e.profile_id = p.id AND e.status = 'ACTIVE') AS school_id,
+           (SELECT COUNT(*)::int FROM vita_hero.camp_participants cp
+              WHERE cp.profile_id = p.id
+                AND UPPER(COALESCE(cp.consent_status, '')) IN ('GRANTED','PAPER')) AS consents,
+           (SELECT COUNT(*)::int FROM vita_hero.camp_participants cp
+              WHERE cp.profile_id = p.id) AS asked
+    FROM vita_hero.profiles p
+    WHERE p.role = 'PARENT'
+      AND (${scope === ""} OR EXISTS (
+            SELECT 1 FROM vita_hero.school_enrollments e
+            WHERE e.profile_id = p.id AND e.school_id = ${scope} AND e.status = 'ACTIVE'))
+      AND (${onApp === null} OR p.is_logged_in = ${onApp === true})
+      AND (${q === ""}
+           OR LOWER(p.name) LIKE ${"%" + q + "%"}
+           OR LOWER(COALESCE(p.email, '')) LIKE ${"%" + q + "%"}
+           OR (${digits !== ""} AND REGEXP_REPLACE(COALESCE(p.phone, ''), '[^0-9]', '', 'g') LIKE ${"%" + digits + "%"})
+           OR EXISTS (SELECT 1 FROM vita_hero.kids k
+                      WHERE k.profile_id = p.id AND LOWER(k.name) LIKE ${"%" + q + "%"}))
+    ORDER BY p.is_logged_in, p.name
+    LIMIT 500
+  `;
+
+  // The schools to filter by, so the console does not have to fetch a second
+  // list to draw one dropdown.
+  const schools = ops
+    ? await sql`SELECT id, name FROM vita_hero.schools WHERE active ORDER BY name`
+    : [];
+
+  return {
+    canInvite: true,
+    schools: schools.map((r) => ({ id: r.id as string, name: (r.name as string) || "" })),
+    guardians: rows.map((r) => ({
+      profileId: r.id as string,
+      name: (r.name as string) || "",
+      phone: (r.phone as string) || "",
+      email: (r.email as string) || "",
+      children: (r.children as number) || 0,
+      childNames: (r.child_names as string) || "",
+      schoolNames: (r.school_names as string) || "",
+      schoolId: (r.school_id as string) || "",
+      usingApp: r.is_logged_in === true,
+      invitedAt: (r.invited_at as string) || "",
+      joinedAt: (r.created_at as string) || "",
+      consents: (r.consents as number) || 0,
+      asked: (r.asked as number) || 0,
+      // A guardian whose number cannot receive a code can never use the app,
+      // which is a different problem from one who simply has not yet.
+      canSignIn: normalizeMobile((r.phone as string) || "") !== null,
+    })),
+  };
+}
