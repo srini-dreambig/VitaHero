@@ -750,6 +750,10 @@ export const PORTAL_HTML = `<!doctype html>
       // from every other form on purpose — nothing else on the screen can
       // populate this field.
       resetPlan: null, resetConfirm: "",
+      // The two parts of a reset that are a choice. Both on by default: a
+      // button called "Empty the programme", behind the words DELETE
+      // EVERYTHING, should mean it unless you say otherwise.
+      resetDirectory: true, resetLibrary: true,
       childQuery: "", screenData: null, reviewEdit: null, symptoms: null,
       smsStatus: null, saved: null, search: "", showAll: false, dragOver: false,
       // How the schools list is being looked at. Filtering and sorting happen
@@ -5284,15 +5288,35 @@ export const PORTAL_HTML = `<!doctype html>
 
     function wipe() {
       if (!typed) return;
-      run(api("/api/admin/reset", { method: "POST", body: { confirm: S.resetConfirm } }),
-        function (r) {
-          S.notice = "The programme is empty. Removed " + r.total
-            + (r.total === 1 ? " record." : " records.");
-          S.resetPlan = null; S.resetConfirm = "";
-          // Everything on screen and everything cached is about to be wrong.
-          S.schools = []; S.parents = null; S.overview = null; S.analytics = null;
-          loadOversightTab();
-        });
+      run(api("/api/admin/reset", { method: "POST", body: {
+        confirm: S.resetConfirm,
+        directory: S.resetDirectory !== false,
+        library: S.resetLibrary !== false,
+      } }), function (r) {
+        // Says what was kept as well as what went. Somebody who unticked the
+        // directory and then finds doctors still listed should be able to see
+        // that it was their own choice rather than wonder whether it failed.
+        var kept = [];
+        if (r.kept && r.kept.directory) kept.push("the hospital and doctor directory");
+        if (r.kept && r.kept.library) kept.push("the reading library");
+        S.notice = "The programme is empty. Removed " + r.total
+          + (r.total === 1 ? " record" : " records")
+          + (kept.length ? ", and kept " + kept.join(" and ") : "") + ".";
+        S.resetPlan = null; S.resetConfirm = "";
+        // Everything on screen and everything cached is about to be wrong.
+        S.schools = []; S.parents = null; S.overview = null;
+        S.analytics = null; S.hospitals = null; S.doctors = null; S.library = null;
+        loadOversightTab();
+      });
+    }
+
+    function option(key, label, detail, n) {
+      var on = S[key] !== false;
+      return el("label", { class: "chip" + (on ? " on" : ""), style: "margin-right:8px" },
+        el("input", { type: "checkbox", checked: on,
+          onchange: function (e) { var p = {}; p[key] = e.target.checked; set(p); } }),
+        label, el("span", { class: "cnt", style: "margin-left:6px" }, String(n)),
+        detail ? el("span", { class: "muted", style: "margin-left:6px;font-weight:500" }, detail) : null);
     }
 
     var rows = [
@@ -5321,8 +5345,27 @@ export const PORTAL_HTML = `<!doctype html>
               el("span", { class: "mn" + (r[1] ? " err" : " off") }, String(r[1])));
           })))),
 
+      // Reference data rather than programme records, so it is a choice — but
+      // a visible one with its own count. It used to be excluded silently,
+      // which is how somebody emptied the programme and then found six doctors
+      // still listed with no way to tell whether that was meant.
       el("div", { class: "card" },
-        el("div", { class: "card-h" }, el("h2", null, "What stays")),
+        el("div", { class: "card-h" }, el("h2", null, "Also remove")),
+        el("div", { class: "card-b" },
+          el("div", { class: "row" },
+            option("resetDirectory", "Hospitals & doctors",
+              d.optional.directory.hospitals + " hospitals, "
+              + d.optional.directory.doctors + " doctors",
+              d.optional.directory.total),
+            option("resetLibrary", "Reading library", "articles a guardian is shown",
+              d.optional.library.total)),
+          el("div", { class: "hint" },
+            "Both are reference data a new programme might want to keep, so they "
+            + "can be left. Untick one and it survives \\u2014 and the message "
+            + "afterwards will say so."))),
+
+      el("div", { class: "card" },
+        el("div", { class: "card-h" }, el("h2", null, "What stays whatever you choose")),
         el("div", { class: "card-b" },
           el("ul", { style: "margin:0;padding-left:18px;font-size:12.5px;line-height:1.7" },
             (d.keeps || []).map(function (k) { return el("li", null, k); })))),

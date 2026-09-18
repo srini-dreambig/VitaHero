@@ -83,8 +83,11 @@ await p.addInitScript(() => {
     "/api/admin/reset": { total: 462, phrase: "DELETE EVERYTHING",
       counts: { schools: 2, camps: 3, children: 400, guardians: 40, findings: 12,
                 referrals: 4, photos: 0, staff: 1, questions: 0 },
-      keeps: ["Operations sign-ins, including yours", "The reading library",
-              "The hospital and doctor directory"] },
+      // The directory and the library are a choice, counted apart from the
+      // total: that is what goes no matter what is ticked.
+      optional: { directory: { hospitals: 2, doctors: 6, total: 8 },
+                  library: { articles: 4, total: 4 } },
+      keeps: ["Operations sign-ins, including yours — otherwise you would be locked out mid-reset"] },
     "/api/admin/demo-data": {
       empty: false, removable: 2, blocked: 1, articles: 4,
       items: [
@@ -317,8 +320,26 @@ await go(p, "Empty the programme");
 const reset = await p.locator(".content").evaluate((n) => n.textContent);
 check("the reset says exactly what would go, counted", /462/.test(reset)
   && /Children/.test(reset) && /400/.test(reset));
-check("and what would stay", /Operations sign-ins/.test(reset)
-  && /reading library/i.test(reset));
+check("and the operations sign-in is the one thing that always stays",
+  /Operations sign-ins/.test(reset) && /locked out/.test(reset));
+// The point of this change: the directory used to be excluded silently, so
+// somebody emptied the programme and then found the doctors still listed with
+// no way to tell whether that was a decision or a fault.
+check("the directory and the library are offered as choices, with their counts",
+  /Hospitals & doctors/.test(reset) && /Reading library/.test(reset)
+  && /2 hospitals, 6 doctors/.test(reset));
+const ticked = await p.evaluate(() =>
+  [...document.querySelectorAll(".card input[type=checkbox]")].map((c) => c.checked));
+check("and both are ticked to begin with, so the button means what it says",
+  ticked.length === 2 && ticked.every(Boolean));
+
+// Untick the directory and it must travel as a decision, not be assumed.
+await p.evaluate(() => {
+  const c = [...document.querySelectorAll(".card input[type=checkbox]")][0];
+  c.checked = false;
+  c.dispatchEvent(new Event("change", { bubbles: true }));
+});
+await p.waitForTimeout(250);
 
 // By id, not by text: the tab that reaches this screen carries the same words
 // and is never disabled, so matching on text finds the wrong control.
@@ -354,6 +375,8 @@ pc = await calls();
 const wiped = pc.find((x) => x.path === "/api/admin/reset" && x.method === "POST");
 check("and it sends the words for the server to check again",
   !!wiped && /delete everything/i.test(String(wiped.body.confirm)));
+check("and it sends the choice about the directory rather than assuming it",
+  !!wiped && wiped.body.directory === false && wiped.body.library === true);
 
 // The safeguard that matters most: this is not a button on the demo screen.
 await go(p, "Demonstration data");

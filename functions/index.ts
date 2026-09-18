@@ -2467,7 +2467,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (method === "GET") return json(await previewReset(sql, actor));
             if (method === "POST") {
               const b = await readBody();
-              return json(await resetProgramme(sql, actor, String(b.confirm || "")));
+              return json(await resetProgramme(sql, actor, String(b.confirm || ""), {
+                directory: b.directory !== false,
+                library: b.library !== false,
+              }));
             }
             return json({ error: "Method not allowed" }, 405);
           }
