@@ -1420,9 +1420,25 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Camps needing attention")),
         o.upcoming.length === 0
-          ? el("div", { class: "empty" },
-              el("h3", null, "No camps scheduled"),
-              el("p", { style: "font-size:12.5px" }, "Open a school and schedule one to get started."))
+          // What to do next depends on whether there is anything to do it to.
+          // "Open a school and schedule one" was the advice on a programme
+          // with no schools in it — the first sentence the product says to a
+          // new operator, describing a step they cannot take.
+          ? (isOps() && !o.schools
+              ? el("div", { class: "empty" },
+                  el("h3", null, "Nothing set up yet"),
+                  el("p", { style: "font-size:12.5px" },
+                    "A programme starts with a school. Add one, import its roster, "
+                    + "and camps are scheduled from there."),
+                  el("button", { class: "pri", style: "margin-top:10px", onclick: function () {
+                    S.view = "schools"; S.schoolQuery = ""; render(); loadSchools();
+                  } }, "Add the first school"))
+              : el("div", { class: "empty" },
+                  el("h3", null, "No camps scheduled"),
+                  el("p", { style: "font-size:12.5px" },
+                    isOps()
+                      ? "Open a school and schedule one to get started."
+                      : "Schedule one from the Camps tab of your school.")))
           : el("table", null,
               el("thead", null, el("tr", null,
                 el("th", null, "Camp"), isOps() ? el("th", null, "School") : null, el("th", null, "Date"),
@@ -1492,7 +1508,11 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "ftrack" },
             el("div", { class: "ffill", style: "width:" + w + "%" }),
             el("div", { class: "ftx" },
-              el("span", { class: "stg" }, st.stage), st.label,
+              // B7, C8, D6 tie a row back to the pathway document the
+              // programme is run against — which operations has and a school
+              // office does not. A head teacher reading "B7" learns nothing
+              // and wonders what they missed.
+              isOps() ? el("span", { class: "stg" }, st.stage) : null, st.label,
               el("span", { class: "fn" }, st.count))),
           el("div", { class: "fpc" }, pctText(st.pct))),
         lost > 0 ? el("div", { class: "flost" },
@@ -3426,7 +3446,16 @@ export const PORTAL_HTML = `<!doctype html>
       el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ form: null, error: "" }); } }, "\\u2190 Back to camps"),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       offered.length === 0
-        ? el("div", { class: "msg warn" }, "This school has no agreed checks yet. Set them under Programme first.")
+        // The classes warning below this one offers two buttons that take you
+        // there. This one said "set them under Programme first" and left the
+        // operator to find Programme, which is a segment inside a group two
+        // levels away.
+        ? el("div", { class: "msg warn" },
+            el("div", null, "This school has no agreed checks yet, so there is nothing a camp could screen for."),
+            el("div", { class: "row", style: "margin-top:8px" },
+              el("button", { class: "sm pri", onclick: function () {
+                S.form = null; S.schoolTab = "programme"; S.error = ""; render(); loadSchoolTab();
+              } }, "Set the agreed checks")))
         : null,
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "Schedule a camp")),
         el("div", { class: "card-b" },

@@ -59,7 +59,7 @@ for _ in $(seq 1 40); do
 done
 
 status=0
-for f in "$here"/screens.mjs "$here"/photo-gating.mjs "$here"/phone.mjs "$here"/dashboard.mjs "$here"/oversight.mjs "$here"/doctor-camp.mjs "$here"/navigation.mjs "$here"/actions.mjs "$here"/school-lifecycle.mjs "$here"/manage.mjs "$here"/admin-panel.mjs "$here"/sign-in.mjs "$here"/state.mjs; do
+for f in "$here"/screens.mjs "$here"/photo-gating.mjs "$here"/phone.mjs "$here"/dashboard.mjs "$here"/oversight.mjs "$here"/doctor-camp.mjs "$here"/navigation.mjs "$here"/actions.mjs "$here"/school-lifecycle.mjs "$here"/manage.mjs "$here"/admin-panel.mjs "$here"/sign-in.mjs "$here"/first-run.mjs "$here"/state.mjs; do
   echo "── $(basename "$f")"
   PW_DIR="$pwdir" PORTAL_URL="http://127.0.0.1:$port/admin" node "$f" || status=1
 done
