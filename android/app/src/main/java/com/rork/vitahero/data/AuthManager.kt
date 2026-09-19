@@ -63,6 +63,22 @@ class AuthManager(private val app: Application) {
     private val _parentName = MutableStateFlow("Parent")
     val parentName: StateFlow<String> = _parentName.asStateFlow()
 
+    /**
+     * Which product this sign-in opens: PARENT, PHYSICIAN or SCREENER.
+     *
+     * Seeded from disk rather than from a default, so a doctor reopening the
+     * app goes straight to their camps instead of watching the family home
+     * screen for as long as a school's wifi takes to answer /auth/me. It is a
+     * hint for drawing the right screen and never a permission — every
+     * clinician endpoint is scoped by the session on the server.
+     */
+    private val _role = MutableStateFlow(SessionStore.role(app))
+    val role: StateFlow<String> = _role.asStateFlow()
+
+    /** The school a staff sign-in belongs to, or "" for a parent. */
+    private val _schoolId = MutableStateFlow("")
+    val schoolId: StateFlow<String> = _schoolId.asStateFlow()
+
     init {
         // One place decides what a rejected token means. Every read in the app
         // reports one here; before this, none of them did, and an ended session
@@ -194,6 +210,12 @@ class AuthManager(private val app: Application) {
         _email.value = profile.email ?: ""
         _parentName.value = profile.name.ifBlank { "Parent" }
         _phone.value = profile.phone ?: ""
+        // Kept on disk beside the token so the next launch draws the right
+        // home screen before anything is asked of the network.
+        val role = profile.role.ifBlank { "PARENT" }
+        _role.value = role
+        _schoolId.value = profile.school_id ?: ""
+        SessionStore.saveRole(app, role)
         ApiService.sessionToken = token
     }
 

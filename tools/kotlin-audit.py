@@ -881,6 +881,37 @@ for f in FILES:
         if m.group(1) not in visible:
             resolve_problems.append(f"{rel(f)} names {m.group(1)}, which is not imported or declared")
 
+# ── a backing field is declared where it is used ─────────────
+#
+# The check above only judges type-shaped names, because a lowercase one can
+# be an inherited member, an extension, a local, or a receiver's property, and
+# this cannot tell which. An underscore name is the exception: by Kotlin
+# convention `_role` is a private backing field, it is never inherited and
+# never an extension, so a file that reads one and does not declare one is
+# simply broken.
+#
+# Written after exactly that shipped. logout() reset _role and _schoolId, the
+# declarations were lost somewhere between edits, and the parser and every
+# check here passed it: the parse only asks whether the file is well-formed,
+# and the resolver approximation skipped the name for being lowercase. The
+# compiler found it on the first CI run, three errors in, on a branch that had
+# already been pushed to main.
+backing_problems = []
+for f in FILES:
+    body = strip_literals(f.read_text())
+    declared = set(re.findall(r"\b(?:val|var)\s+(_\w+)", body))
+    declared |= set(re.findall(r"(_\w+)\s*:\s*\w", body))  # constructor params
+    for m in re.finditer(r"(?<![\w.$])(_\w+)", body):
+        if m.group(1) not in declared:
+            backing_problems.append(
+                f"{rel(f)} uses {m.group(1)}, which it never declares"
+            )
+
+for x in sorted(set(backing_problems)):
+    fail(x)
+if not backing_problems:
+    print("  ok  every backing field is declared in the file that uses it")
+
 for x in sorted(set(resolve_problems)):
     fail(x)
 if not resolve_problems:
