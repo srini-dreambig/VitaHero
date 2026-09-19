@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.play.publisher)
 }
 
 import java.util.Properties
@@ -84,6 +85,93 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+}
+
+// ─── Publishing to Google Play ──────────────────────────────
+//
+// Gradle Play Publisher. `./gradlew :app:publishReleaseBundle` builds the
+// signed bundle and uploads it; the credentials come from the environment, not
+// from this file and not from the repository.
+//
+// The upload is deliberately awkward to do by accident:
+//
+//   * There is no default track. PLAY_TRACK must be set, so nobody reaches
+//     production by running the command they used for a test build. The three
+//     that matter are "internal", "beta" and "production".
+//   * A release is a draft unless PLAY_RELEASE_STATUS says otherwise, so an
+//     upload lands in the console for a human to look at and roll out.
+//   * With no credentials the configuration still loads and every other task
+//     — assemble, test, lint — works as before. Only the publish tasks fail,
+//     and they fail saying which variable is missing rather than with a stack
+//     trace about a null file.
+//
+// Set up, once:
+//   1. Play Console → Users and permissions → invite a service account with
+//      "Release apps to testing tracks" (and "Release to production" only if
+//      you want that from here).
+//   2. Google Cloud → that service account → Keys → create a JSON key.
+//   3. Keep the JSON out of the repository. Locally, point
+//      ANDROID_PUBLISHER_CREDENTIALS at the file; in CI, put its *contents* in
+//      a secret and write it to a file in the job.
+//
+// The first upload of an app must still be made by hand in the Play Console:
+// the API cannot create a listing, only add releases to one that exists.
+val playCredentialsPath: String = buildConfigProp("ANDROID_PUBLISHER_CREDENTIALS")
+val playTrack: String = buildConfigProp("PLAY_TRACK")
+val playStatus: String = buildConfigProp("PLAY_RELEASE_STATUS")
+
+play {
+    enabled.set(playCredentialsPath.isNotEmpty())
+    if (playCredentialsPath.isNotEmpty()) {
+        serviceAccountCredentials.set(file(playCredentialsPath))
+    }
+    // "internal" is here so configuring the project works with nothing set,
+    // not as a default anybody should rely on: the check below refuses to
+    // publish at all unless PLAY_TRACK says which track was meant. A default
+    // that quietly picks a track is how a test build reaches production.
+    track.set(playTrack.ifEmpty { "internal" })
+    releaseStatus.set(
+        when (playStatus.lowercase()) {
+            "completed" -> com.github.triplet.gradle.androidpublisher.ReleaseStatus.COMPLETED
+            "inprogress", "in_progress" -> com.github.triplet.gradle.androidpublisher.ReleaseStatus.IN_PROGRESS
+            "halted" -> com.github.triplet.gradle.androidpublisher.ReleaseStatus.HALTED
+            else -> com.github.triplet.gradle.androidpublisher.ReleaseStatus.DRAFT
+        }
+    )
+    // Play takes app bundles; an APK is for sideloading and testing.
+    defaultToAppBundles.set(true)
+    // What to do when the version code being uploaded is already on Play.
+    // AUTO silently bumps it, which means the number in build.gradle.kts and
+    // the number in the store stop agreeing and nobody finds out until they
+    // try to match a crash report to a build. FAIL says so instead, and the
+    // fix is to bump versionCode deliberately.
+    resolutionStrategy.set(com.github.triplet.gradle.androidpublisher.ResolutionStrategy.FAIL)
+}
+
+/**
+ * Refuse a publish that is missing what it needs, before Gradle builds a bundle
+ * for twenty minutes and then cannot upload it.
+ */
+// Read here, at configuration time, and captured by value.
+//
+// The obvious version calls buildConfigProp() inside doFirst, which reaches
+// through `project` while the task is running. That works today only because
+// org.gradle.configuration-cache is false in gradle.properties; the day
+// somebody turns it on, the build fails with a configuration-cache violation
+// pointing at a publish guard rather than at anything to do with publishing.
+val playKeystoreSet: Boolean = buildConfigProp("VITAHERO_KEYSTORE").isNotEmpty()
+
+tasks.matching { it.name.startsWith("publish") && it.name.contains("Release") }.configureEach {
+    doFirst {
+        val missing = buildList {
+            if (playCredentialsPath.isEmpty()) add("ANDROID_PUBLISHER_CREDENTIALS (path to the service account JSON)")
+            if (playTrack.isEmpty()) add("PLAY_TRACK (internal, beta or production)")
+            if (!playKeystoreSet) add("VITAHERO_KEYSTORE (the upload keystore)")
+        }
+        check(missing.isEmpty()) {
+            "Cannot publish to Play. Set:\n  " + missing.joinToString("\n  ")
+        }
     }
 }
 

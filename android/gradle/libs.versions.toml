@@ -18,6 +18,8 @@ mlkitImageLabeling = "17.0.9"
 workManager = "2.10.1"
 firebaseBom = "33.5.1"
 googleServices = "4.4.2"
+# Gradle Play Publisher. 4.1.1 is the newest on Maven Central (2026-08-11).
+playPublisher = "4.1.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -58,3 +60,4 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
+play-publisher = { id = "com.github.triplet.play", version.ref = "playPublisher" }

@@ -221,13 +221,71 @@ https://kidhero-health-sync-backend.rork.app/admin
 
 ---
 
+## Publishing from the command line
+
+Gradle Play Publisher is wired into the Android build, so a release goes up
+with one command instead of a browser. It changes nothing about how the app is
+built; it adds tasks that upload what the build produces.
+
+### Once, to set it up
+
+1. **Play Console → Users and permissions → Invite new user.** Invite a Google
+   Cloud service account, and give it *Release apps to testing tracks*. Add
+   *Release to production* only if you intend to publish to production from a
+   terminal.
+2. **Google Cloud Console → that service account → Keys → Add key → JSON.**
+   Download it.
+3. **Keep it out of the repository.** `.gitignore` covers the usual filenames,
+   but the safe place is outside the checkout entirely.
+
+The very first release of an app still has to be uploaded by hand. The Play API
+can add a release to a listing that exists; it cannot create the listing.
+
+### Every release after that
+
+```bash
+cd android
+export VITAHERO_KEYSTORE=/path/to/vitahero-upload-key.jks
+export VITAHERO_KEYSTORE_PASSWORD=...
+export VITAHERO_KEY_ALIAS=vitahero
+export VITAHERO_KEY_PASSWORD=...
+export ANDROID_PUBLISHER_CREDENTIALS=/path/to/play-service-account.json
+export PLAY_TRACK=internal          # internal | beta | production
+./gradlew :app:publishReleaseBundle
+```
+
+It builds the signed bundle and uploads it. Some deliberate awkwardness:
+
+- **`PLAY_TRACK` has no working default.** The publish refuses to run without
+  it, so nobody reaches production by repeating the command they used for a
+  test build.
+- **A release is a draft** unless you set `PLAY_RELEASE_STATUS=completed`. The
+  upload lands in the console for a person to look at and roll out.
+- **A version code already on Play is an error**, not a silent bump. Bump
+  `versionCode` in `android/app/build.gradle.kts` deliberately instead.
+- **Nothing publishes without credentials.** With `ANDROID_PUBLISHER_CREDENTIALS`
+  unset, every other task — assemble, test, lint — behaves exactly as before,
+  and only the publish tasks stop, naming what is missing.
+
+The store listing, screenshots and description stay in the Play Console. This
+uploads builds, not marketing copy.
+
+### Promoting and rolling out
+
+```bash
+./gradlew :app:promoteArtifact --from-track internal --promote-track production
+```
+
+Staged rollout is `--release-status inProgress --user-fraction 0.2`, raised as
+you go.
+
 ## What I can automate next
 
-After you complete the manual Play Console steps above, tell me to continue and I will:
-
-1. Build and publish a new signed Play AAB with the updated VitaHero launcher icon (currently queued).
-2. Promote the release from internal testing → closed testing → production (or to a specific track you choose).
-3. Update the staged rollout fraction (e.g., 20% → 50% → 100%).
+1. A GitHub Actions workflow so a tagged commit builds and uploads on its own.
+   That runs on GitHub's runners, which have the Android SDK and unrestricted
+   network — this environment has neither, which is why the build itself cannot
+   be produced here.
+2. Promotion between tracks and staged-rollout bumps as part of that workflow.
 
 ---
 

@@ -7,3 +7,15 @@ node_modules
 functions/node_modules
 !functions/package.json
 .gradle-home/
+
+# Google Play service account credentials.
+#
+# The key that can publish to the store. Never in the repository — set
+# ANDROID_PUBLISHER_CREDENTIALS to its path locally, and keep its contents in a
+# CI secret. The upload keystore is here for the same reason, and was in the
+# repository once already.
+play-service-account*.json
+*play-publisher*.json
+android/local.properties
+*.jks
+*.keystore
