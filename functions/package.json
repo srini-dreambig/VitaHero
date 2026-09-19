@@ -9,7 +9,8 @@
   "devDependencies": {
     "@types/pg": "^8.23.1",
     "pg": "^8.23.0",
-    "typescript": "6"
+    "typescript": "6",
+    "wrangler": "4"
   },
   "scripts": {
     "test": "bun test",

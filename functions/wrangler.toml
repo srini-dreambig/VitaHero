@@ -1,0 +1,51 @@
+# The VitaHero backend, as a Worker you own.
+#
+# There was no wrangler config in this repository at all: the worker has only
+# ever been deployed by Rork's platform, from rork.json, to
+# kidhero-health-sync-backend.rork.app — their domain, their Cloudflare
+# account. This file is what makes it deployable to yours instead.
+#
+# What it serves is both halves of the programme: /api/* for the Android app
+# and /admin for the console, which is a single HTML string built by portal.ts
+# with no build step.
+#
+# Deliberately absent:
+#
+#   account_id — supplied as the CLOUDFLARE_ACCOUNT_ID secret, so which
+#     account this deploys to is not a fact committed to a public repository.
+#   nodejs_compat — the worker is WebCrypto and fetch throughout, and the Neon
+#     driver is the HTTP one. Turning on a compatibility flag that nothing
+#     needs changes the runtime for no reason.
+#   every secret below — set once with `wrangler secret put`, stored by
+#     Cloudflare, and never passed through a build.
+
+name = "vitahero-backend"
+main = "index.ts"
+compatibility_date = "2026-09-01"
+
+# Sent to Cloudflare's dashboard so a slow route is attributable.
+[observability]
+enabled = true
+
+# Not secrets: these are public facts about the deployment, and keeping them
+# here means a redeploy cannot silently lose them the way a dashboard edit can.
+[vars]
+# Which SMS gateway. Leave unset to infer from whichever credentials exist.
+# SMS_PROVIDER = "textbee"
+APP_PLAY_URL = "https://play.google.com/store/apps/details?id=kallam.healthcare"
+# Comma-separated SHA-256 signing-cert fingerprints, for Android App Links.
+# This is the APP SIGNING key's fingerprint from Play Console, not the upload
+# key's — Play re-signs, so the upload key's fingerprint verifies nothing on a
+# user's phone. Same value as the Firebase registration.
+# ANDROID_CERT_SHA256 = ""
+
+# ─── Secrets, set once per environment ──────────────────────
+#
+#   wrangler secret put DATABASE_URL          # Neon connection string
+#   wrangler secret put ADMIN_API_KEY         # bootstrap console sign-in
+#   wrangler secret put INVITE_SIGNING_KEY    # HMAC key for invite tokens
+#   wrangler secret put TEXTBEE_API_KEY       # or the TWILIO_* trio
+#   wrangler secret put TEXTBEE_DEVICE_ID
+#
+# FIREBASE_API_KEY is optional: index.ts falls back to the project's public
+# web key, which ships inside the app anyway. Set it only if that key rotates.
