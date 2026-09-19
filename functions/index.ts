@@ -193,15 +193,31 @@ import { servePrivacyPage, serveDataDeletionPage } from "./pages";
 import { PORTAL_HTML, SERVICE_WORKER_JS, portalShellEtag } from "./portal";
 
 const NEON_AUTH = "https://ep-super-tree-afp87aw4.neonauth.c-2.us-west-2.aws.neon.tech/neondb/auth";
-const APP_ORIGIN = "https://kidhero.rork.app";
-const APP_CALLBACK_URL = "https://kidhero.rork.app/auth/callback";
+/**
+ * The Origin header sent to Neon Auth when a request carries none of its own.
+ *
+ * Only that. Every place that builds a link a person will open — the invite
+ * SMS, the landing page — uses the incoming request's own origin, so those
+ * follow the deployment rather than this constant.
+ */
+const APP_ORIGIN = "https://vitahero.kallam.workers.dev";
 const OTP_EXPIRY_MINUTES = 5;
 const OTP_MAX_ATTEMPTS = 5;
 
 // ── Closed-app configuration ──
 // VitaHero is a closed, admin-provisioned app: parents log in by phone only and
 // must have been imported by an admin first. Public self-signup is disabled.
-const ANDROID_PACKAGE = "com.rork.vitahero";
+/**
+ * The applicationId, which is what Android verifies an App Link against.
+ *
+ * Not the Kotlin namespace. This said com.rork.vitahero — the package the
+ * source lives in — while the app installs as kallam.healthcare, so the
+ * assetlinks.json this worker serves named an app nobody has. App Link
+ * verification fails on a mismatch, silently, and every invite link opens a
+ * browser instead of the app. The Play listing URL below was wrong the same
+ * way, pointing at a listing that does not exist.
+ */
+const ANDROID_PACKAGE = "kallam.healthcare";
 const INVITE_EXPIRY_DAYS = 30;
 const INVITE_RESEND_COOLDOWN_HOURS = 24;
 const IMPORT_MAX_ROWS = 2000;

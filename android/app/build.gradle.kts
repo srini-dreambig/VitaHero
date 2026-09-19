@@ -34,7 +34,25 @@ android {
         versionName = "1.0"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
-        buildConfigField("String", "RORK_FUNCTIONS_URL", "\"${buildConfigProp("RORK_FUNCTIONS_URL", "EXPO_PUBLIC_RORK_FUNCTIONS_URL")}\"")
+        //
+        // One source of truth for where the backend is. Two things need it and
+        // they must agree: the code, through BuildConfig, and the App Link
+        // intent filter in the manifest, which needs the bare host. They were
+        // separate literals before, and separately wrong — the code pointed at
+        // Rork's worker and the manifest at Rork's web domain, so a build
+        // could be pointed at our own backend and still hand every invite link
+        // to a browser, because the host it verifies against was somebody
+        // else's.
+        //
+        // Override with RORK_FUNCTIONS_URL in local.properties, an environment
+        // variable, or -PRORK_FUNCTIONS_URL to aim a build at staging.
+        val backendUrl = buildConfigProp("RORK_FUNCTIONS_URL", "EXPO_PUBLIC_RORK_FUNCTIONS_URL")
+            .ifEmpty { "https://vitahero.kallam.workers.dev" }
+            .trimEnd('/')
+        val backendHost = java.net.URI(backendUrl).host
+            ?: error("RORK_FUNCTIONS_URL is not a URL with a host: $backendUrl")
+        buildConfigField("String", "RORK_FUNCTIONS_URL", "\"$backendUrl\"")
+        manifestPlaceholders["inviteHost"] = backendHost
         buildConfigField("String", "RORK_API_BASE_URL", "\"${buildConfigProp("RORK_API_BASE_URL", "EXPO_PUBLIC_RORK_API_BASE_URL")}\"")
         buildConfigField("String", "RORK_AUTH_URL", "\"${buildConfigProp("RORK_AUTH_URL", "EXPO_PUBLIC_RORK_AUTH_URL")}\"")
         buildConfigField("String", "PROJECT_ID", "\"${buildConfigProp("PROJECT_ID", "EXPO_PUBLIC_PROJECT_ID")}\"")

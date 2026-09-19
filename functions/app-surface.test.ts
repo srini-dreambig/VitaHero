@@ -277,3 +277,47 @@ describe("the app's clinician form writes what the clinical rules read", () => {
     });
   }
 });
+
+// ── the worker and the app agree on what the app is called ──
+//
+// Android verifies an App Link by fetching /.well-known/assetlinks.json from
+// the link's host and checking that it names the package of the app claiming
+// it. The worker serves that file with ANDROID_PACKAGE in it.
+//
+// That constant said com.rork.vitahero — the package the Kotlin lives in —
+// while the app installs as kallam.healthcare. Two plausible-looking names
+// for the same app, and nothing compared them. So verification failed for
+// every install, silently, and every invite link opened a browser instead of
+// the app. The Play listing URL the worker falls back to was wrong the same
+// way, pointing at a listing that does not exist.
+describe("the worker names the app the way Android does", () => {
+  const gradle = readFileSync("../android/app/build.gradle.kts", "utf8");
+  const worker = readFileSync("./index.ts", "utf8");
+
+  /** The id the app actually installs under — not `namespace`, which is the Kotlin package. */
+  const applicationId = gradle.match(/applicationId\s*=\s*"([^"]+)"/)?.[1];
+  const androidPackage = worker.match(/const ANDROID_PACKAGE\s*=\s*"([^"]+)"/)?.[1];
+
+  test("assetlinks names the applicationId, not the source package", () => {
+    expect(applicationId, "applicationId not found in build.gradle.kts").toBeTruthy();
+    expect(androidPackage, "ANDROID_PACKAGE not found in index.ts").toBeTruthy();
+    expect(
+      androidPackage,
+      `the worker serves assetlinks.json for "${androidPackage}" but the app installs as ` +
+        `"${applicationId}" — App Link verification fails on a mismatch, and it fails quietly: ` +
+        `invite links open a browser and nobody is told why`
+    ).toBe(applicationId);
+  });
+
+  test("and the namespace is deliberately not the applicationId", () => {
+    // Guards the fix as much as the bug. If these two ever become the same
+    // string, the test above stops proving anything, because picking either
+    // one would pass.
+    const namespace = gradle.match(/namespace\s*=\s*"([^"]+)"/)?.[1];
+    expect(namespace).toBeTruthy();
+    expect(
+      namespace,
+      "namespace and applicationId are now equal, so the check above no longer distinguishes them"
+    ).not.toBe(applicationId);
+  });
+});

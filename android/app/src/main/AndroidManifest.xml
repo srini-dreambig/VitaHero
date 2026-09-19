@@ -72,7 +72,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="https" android:host="kidhero.rork.app" android:pathPrefix="/i/" />
+                <data android:scheme="https" android:host="${inviteHost}" android:pathPrefix="/i/" />
             </intent-filter>
 
         </activity>
