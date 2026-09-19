@@ -233,7 +233,21 @@ data class AppNotification(
     val unread: Boolean
 )
 
-enum class NotificationType { CAMP, CHECKUP, DIET, REWARD }
+/**
+ * What a notification is about.
+ *
+ * CONSENT, RESULT and REFERRAL are the school programme: a permission request
+ * waiting on this guardian, a released set of camp results, and a follow-up a
+ * physician suggested. The feed used to carry none of them — it read the
+ * family's own saved camps and nothing else — so the three things the
+ * programme actually does to a family happened in silence unless the parent
+ * caught the SMS, and only an urgent result sends one.
+ *
+ * An unknown value from the server falls back to CAMP rather than throwing
+ * (see BackendDataLoader), so an older build shows these with a calendar icon
+ * instead of crashing on them.
+ */
+enum class NotificationType { CAMP, CHECKUP, DIET, REWARD, CONSENT, RESULT, REFERRAL }
 
 /**
  * A measurement as a parent should see it.

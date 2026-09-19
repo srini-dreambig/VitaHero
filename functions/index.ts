@@ -4624,11 +4624,109 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           ((profileRows[0]?.read_notification_ids as string[]) || [])
         );
 
-        const camps = await sql`
-          SELECT title, school, date, time, status FROM vita_hero.camps
-          WHERE profile_id = ${session.profileId} AND status = 'UPCOMING'
-          ORDER BY date LIMIT 5
-        `;
+        // The three things the school programme does to a family, none of
+        // which this feed used to mention.
+        //
+        // It read vita_hero.camps — the parent app's own saved camps — and
+        // nothing else, so a consent request, a released result and an open
+        // referral all happened in silence. A parent who did not catch the SMS
+        // (and only an URGENT release sends one) had a notifications screen
+        // that stayed empty while their child's results sat waiting. Everything
+        // the admin side produces is in school_camps and its tables, so that is
+        // what this now reads.
+        //
+        // Four independent reads, so they go together: each is a round trip to
+        // Neon from a worker that may be an ocean away from it.
+        const [consents, released, referrals, camps] = await Promise.all([
+          sql`
+            SELECT p.camp_id, p.kid_id, k.name AS kid_name, sc.title, sc.date,
+                   s.name AS school_name, sc.consent_deadline
+            FROM vita_hero.camp_participants p
+            JOIN vita_hero.kids k ON k.id = p.kid_id
+            JOIN vita_hero.school_camps sc ON sc.id = p.camp_id
+            JOIN vita_hero.schools s ON s.id = sc.school_id
+            WHERE p.profile_id = ${session.profileId}
+              AND p.consent_status = 'PENDING'
+              AND sc.active = true AND sc.status IN ('SCHEDULED','IN_PROGRESS')
+            ORDER BY sc.date LIMIT 5
+          `,
+          sql`
+            SELECT r.school_camp_id, r.kid_id, k.name AS kid_name, sc.title,
+                   TO_CHAR(r.recorded_at, 'YYYY-MM-DD') AS released_on,
+                   -- Urgency lives on the participant row, not on the result.
+                   COALESCE(p.urgency, 'NONE') AS urgency
+            FROM vita_hero.camp_kid_results r
+            JOIN vita_hero.kids k ON k.id = r.kid_id
+            JOIN vita_hero.school_camps sc ON sc.id = r.school_camp_id
+            LEFT JOIN vita_hero.camp_participants p
+              ON p.camp_id = r.school_camp_id AND p.kid_id = r.kid_id
+            WHERE r.profile_id = ${session.profileId}
+            ORDER BY r.recorded_at DESC LIMIT 5
+          `,
+          sql`
+            SELECT rf.id, rf.kid_id, k.name AS kid_name, rf.specialty, rf.urgency
+            FROM vita_hero.referrals rf
+            JOIN vita_hero.kids k ON k.id = rf.kid_id
+            WHERE rf.profile_id = ${session.profileId} AND rf.status = 'OPEN'
+            ORDER BY CASE rf.urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END
+            LIMIT 5
+          `,
+          sql`
+            SELECT title, school, date, time, status FROM vita_hero.camps
+            WHERE profile_id = ${session.profileId} AND status = 'UPCOMING'
+            ORDER BY date LIMIT 5
+          `,
+        ]);
+        // Deliberately not wrapped in a catch that returns empty lists. A
+        // query naming a column that does not exist would then produce a feed
+        // that is merely empty — which is exactly how the programme went
+        // unmentioned here in the first place, and is indistinguishable from a
+        // family with nothing waiting. A broken query should be a 500 that
+        // somebody sees.
+
+
+        // Consent first: it is the only one with a deadline, and the only one
+        // where nothing else can happen until the parent acts.
+        for (const c of consents) {
+          const id = `consent_${c.camp_id}_${c.kid_id}`;
+          const by = (c.consent_deadline as string) || "";
+          items.push({
+            id,
+            title: "Permission needed",
+            body: `${c.kid_name} is on the list for ${c.title} at ${c.school_name}`
+              + (by ? `. Please reply by ${by}.` : "."),
+            time: (c.date as string) || "",
+            type: "CONSENT",
+            unread: !readIds.has(id),
+          });
+        }
+
+        for (const r of released) {
+          const id = `result_${r.school_camp_id}_${r.kid_id}`;
+          const urgent = String(r.urgency || "") === "URGENT";
+          items.push({
+            id,
+            title: urgent ? "Result needs attention" : "Check-up results ready",
+            body: `${r.kid_name}'s results from ${r.title} are ready to read.`,
+            time: (r.released_on as string) || "",
+            type: "RESULT",
+            unread: !readIds.has(id),
+          });
+        }
+
+        for (const rf of referrals) {
+          const id = `referral_${rf.id}`;
+          items.push({
+            id,
+            title: "Follow-up suggested",
+            body: `${rf.kid_name} was referred to ${rf.specialty || "a specialist"}.`
+              + " You can book an appointment from the app.",
+            time: new Date().toISOString().split("T")[0],
+            type: "REFERRAL",
+            unread: !readIds.has(id),
+          });
+        }
+
         for (const c of camps) {
           const id = `camp_${c.title}_${c.date}`;
           items.push({

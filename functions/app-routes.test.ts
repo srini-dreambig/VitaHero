@@ -111,7 +111,10 @@ describe("the app and the worker are the same product", () => {
       // 404 with "Not found" is the worker's answer for a URL that matches no
       // route at all. Anything else — 401, 403, 400, a 500 from a stub that
       // returns no rows — means the route exists and the app is talking to it.
-      const dead = r.status === 404 && /not found/i.test(r.error);
+      // Exactly the worker's unmatched-route answer. A handler that ran and
+      // replied "Camp not found" or "That child is not on this camp's list"
+      // is a route that exists, which is what is being asked here.
+      const dead = r.status === 404 && r.error === "Not found";
       expect(dead, `${c.method} ${c.path} (called from ${c.where}) hits no route`).toBe(false);
     });
   }

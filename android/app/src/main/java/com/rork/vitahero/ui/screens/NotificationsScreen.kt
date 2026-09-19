@@ -16,7 +16,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.AssignmentTurnedIn
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.MedicalServices
 import androidx.compose.material.icons.outlined.Restaurant
@@ -99,6 +101,11 @@ private fun NotificationRow(n: AppNotification) {
         NotificationType.CHECKUP -> Icons.Outlined.MedicalServices to HeroPurple
         NotificationType.DIET -> Icons.Outlined.Restaurant to HeroOrange
         NotificationType.REWARD -> Icons.Outlined.WorkspacePremium to HeroYellow
+        // The school programme. Consent is the only one with a deadline, so it
+        // is the one that reads as a task rather than as news.
+        NotificationType.CONSENT -> Icons.Outlined.AssignmentTurnedIn to HeroOrange
+        NotificationType.RESULT -> Icons.Outlined.Description to HeroBlue
+        NotificationType.REFERRAL -> Icons.Outlined.MedicalServices to HeroPurple
     }
     HeroCard(
         Modifier.fillMaxWidth(),

@@ -12,7 +12,7 @@
 // the result through the field names the app's @Serializable classes declare,
 // parsed out of the Kotlin at test time so they cannot drift.
 
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test, mock } from "bun:test";
 import { readFileSync } from "node:fs";
 import pg from "pg";
 import type { Sql } from "./common";
@@ -30,6 +30,37 @@ import { DESIGNED_CHECKS } from "./clinical";
 
 const URL = process.env.TEST_DATABASE_URL;
 const suite = URL ? describe : describe.skip;
+
+/**
+ * The worker, wired to the same Postgres this test builds.
+ *
+ * Everything else here calls the functions directly, which is how a route can
+ * be right in isolation and unreachable in production. The notification feed
+ * is checked through worker.fetch instead — a real HTTP request, the real
+ * router, the real session lookup, the real database — because "does the app
+ * get the data" is a question about the whole path, not about one function.
+ */
+let live: Sql | null = null;
+mock.module("@neondatabase/serverless", () => ({
+  neon: () => {
+    const proxy: any = (strings: TemplateStringsArray | string, ...v: unknown[]) => {
+      if (!live) throw new Error("database not ready");
+      return (live as any)(strings, ...v);
+    };
+    proxy.query = (t: string, pr: unknown[]) => {
+      if (!live) throw new Error("database not ready");
+      return live.query(t, pr);
+    };
+    return proxy;
+  },
+}));
+const { default: worker } = await import("./index");
+const ENV = {
+  DATABASE_URL: "postgres://live",
+  ADMIN_API_KEY: "test-admin-key",
+  TWILIO_ACCOUNT_SID: "",
+  TWILIO_AUTH_TOKEN: "",
+};
 function URL2(base: string, db: string): string {
   const u = new globalThis.URL(base);
   u.pathname = "/" + db;
@@ -87,6 +118,7 @@ let DOC: Actor;
 let campId = "";
 let kidId = "";
 let guardianId = "";
+let token = "";
 
 suite("what the admin side releases is what the app can read", () => {
   beforeAll(async () => {
@@ -99,6 +131,7 @@ suite("what the admin side releases is what the app can read", () => {
     client = new pg.Client({ connectionString: URL2(URL, "vh_payloads") });
     await client.connect();
     sql = neonShim(client);
+    live = sql;
     await migrate(sql, SCHEMA_STEPS, []);
 
     // ── the admin panel's half, in order ──
@@ -130,6 +163,17 @@ suite("what the admin side releases is what the app can read", () => {
     kidId = parts.participants[0].kidId;
     const g = await sql`SELECT profile_id FROM vita_hero.kids WHERE id = ${kidId}`;
     guardianId = g[0].profile_id as string;
+
+    // A real session row in the real table, so the notification request
+    // authenticates the way the app's does rather than through a back door.
+    // The worker refuses a token shorter than 30 characters before it even
+    // looks, which is worth knowing about when a test says 401.
+    token = "tok_payloads_test_" + "x".repeat(32);
+    await sql`
+      INSERT INTO vita_hero.sessions (token, profile_id, expires_at, device)
+      VALUES (${token}, ${guardianId}, ${new Date(Date.now() + 86_400_000).toISOString()}, 'test')`;
+    await sql`UPDATE vita_hero.profiles SET session_token = ${token}, is_logged_in = true
+              WHERE id = ${guardianId}`;
   });
   afterAll(async () => { if (client) await client.end(); });
 
@@ -210,6 +254,33 @@ suite("what the admin side releases is what the app can read", () => {
     // app lists them with `key = { it.checkType }`.
     expect(res.findings.map((f) => f.checkType).sort())
       .toEqual([...DESIGNED_CHECKS].sort());
+  });
+
+  test("the notification feed carries what the programme did to this family", async () => {
+    // It used to read vita_hero.camps — the family's own saved camps — and
+    // nothing else, so a consent request, a released result and an open
+    // referral all happened in silence. Only an URGENT release sends an SMS, so
+    // a parent with a routine finding had a notifications screen that stayed
+    // empty while their child's results sat waiting.
+    const res = await worker.fetch(
+      new Request("https://api.test/api/notifications", {
+        headers: { Authorization: `Bearer ${token}` },
+      }), ENV as never);
+    expect(res.status).toBe(200);
+    // A bare array, which is what the app's List<NotificationDto> expects.
+    const items = (await res.json()) as Array<{ type: string; body: string }>;
+    expect(Array.isArray(items), "the feed is no longer a plain array").toBe(true);
+    const types = items.map((n) => n.type);
+
+    // Consent was granted in the test above, so it is no longer pending; the
+    // result and the referral are what this family has now.
+    expect(types, "a released result is never mentioned").toContain("RESULT");
+    const result = items.find((n) => n.type === "RESULT")!;
+    expect(result.body).toContain("Aarav Sharma");
+
+    // The physician's vision finding opens a referral, which is the one thing
+    // a parent is actually asked to act on.
+    expect(types, "an open referral is never mentioned").toContain("REFERRAL");
   });
 
   test("and it reaches the app's own health tabs, not just the result list", async () => {
