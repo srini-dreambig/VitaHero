@@ -1,0 +1,98 @@
+# Compile the app.
+#
+# This exists because nothing in this repository has ever compiled the Android
+# source. The agent environment it is developed in has no Android SDK, and
+# dl.google.com — which serves both the SDK and, by redirect, every
+# maven.google.com artifact — is refused at that environment's network gateway.
+# So the Kotlin has been held to a parser and a static audit: they prove syntax,
+# name resolution, named arguments and lambda arity, and they cannot prove a
+# single type.
+#
+# A GitHub runner has the SDK and an open network. This is where the type
+# checking actually happens, on every push, so a type error is found by a job
+# rather than by a person waiting on a release.
+name: Android build
+
+on:
+  push:
+    branches: ["main", "claude/**"]
+    paths: ["android/**", ".github/workflows/android-build.yml"]
+  pull_request:
+    paths: ["android/**"]
+  workflow_dispatch:
+
+jobs:
+  checks:
+    name: Backend and static checks
+    runs-on: ubuntu-latest
+
+    # Without TEST_DATABASE_URL the migration and chain suites call
+    # describe.skip and the run goes green having tested no SQL at all. A
+    # throwaway Postgres costs one service container and means the schema
+    # steps are actually executed.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vitahero_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        working-directory: functions
+        run: bun install --frozen-lockfile
+
+      - name: Types
+        working-directory: functions
+        run: bunx tsc --noEmit
+
+      - name: Tests
+        working-directory: functions
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/vitahero_test
+        run: bun test
+
+      - name: Kotlin static audit
+        run: python3 tools/kotlin-audit.py
+
+  compile:
+    name: Compile Kotlin
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The vendor matters. android/gradle/gradle-daemon-jvm.properties pins
+      # the daemon to a JetBrains JDK 21; given anything else, Gradle goes to
+      # api.foojay.io to fetch one. Matching it here means no download and no
+      # dependency on that service being up.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Not assembleRelease: R8 and resource shrinking add minutes and catch
+      # nothing a compile does not. What is wanted here is the type checker.
+      - name: Compile
+        working-directory: android
+        run: ./gradlew :app:compileReleaseKotlin --stacktrace
+
+      # No :app:testReleaseUnitTest step. There is no android/app/src/test —
+      # a task that runs zero tests and passes reads on the summary page as
+      # though something was checked. Add the step with the first test.

@@ -1,0 +1,113 @@
+# Build the signed bundle and upload it to Google Play.
+#
+# Manual only. There is no push trigger and there will not be one: a release to
+# a store is a decision, and the Gradle config is already built around making it
+# hard to reach production by accident — no default track, and a draft release
+# unless somebody says otherwise. This mirrors that rather than routing around
+# it.
+#
+# Before the first run:
+#
+#   1. Upload one bundle by hand in the Play Console. The Publisher API can add
+#      a release to a listing; it cannot create the listing.
+#   2. Play Console → Users and permissions → invite a service account with
+#      "Release apps to testing tracks" (and production only if you want that
+#      from here). Google Cloud → that account → Keys → JSON key.
+#   3. Add these repository secrets:
+#
+#        PLAY_SERVICE_ACCOUNT_JSON   the whole JSON key file, pasted
+#        UPLOAD_KEYSTORE_BASE64      base64 -w0 of the .jks
+#        UPLOAD_KEYSTORE_PASSWORD
+#        UPLOAD_KEY_ALIAS
+#        UPLOAD_KEY_PASSWORD
+#
+# On the keystore: the one this repository used was committed to git history at
+# releases/vitahero-upload-key.jks with its passwords in a plaintext file beside
+# it. Anything in git history is compromised. Rotate the upload key with Play
+# App Signing before using this, and put the new one in secrets only — never
+# back in the tree.
+name: Publish to Google Play
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: "Play track"
+        required: true
+        type: choice
+        default: internal
+        options: [internal, alpha, beta, production]
+      status:
+        description: "Release status — draft lands in the console for a human to roll out"
+        required: true
+        type: choice
+        default: draft
+        options: [draft, inProgress, completed]
+
+jobs:
+  publish:
+    name: "${{ inputs.track }} (${{ inputs.status }})"
+    runs-on: ubuntu-latest
+    # A track, not a branch. GitHub asks for an approval before the job starts
+    # if the environment has reviewers on it, which is the check worth having
+    # on the production track.
+    environment: play-${{ inputs.track }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Written outside the workspace so a stray `git add -A` in a later step
+      # cannot pick them up, and removed again whatever happens.
+      - name: Write credentials
+        id: creds
+        env:
+          PLAY_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          KEYSTORE_B64: ${{ secrets.UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$PLAY_JSON"     || { echo "::error::PLAY_SERVICE_ACCOUNT_JSON is not set"; exit 1; }
+          test -n "$KEYSTORE_B64"  || { echo "::error::UPLOAD_KEYSTORE_BASE64 is not set"; exit 1; }
+          dir="$(mktemp -d)"
+          umask 077
+          printf '%s' "$PLAY_JSON" > "$dir/play.json"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$dir/upload.jks"
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+
+      - name: Build and upload
+        working-directory: android
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ steps.creds.outputs.dir }}/play.json
+          VITAHERO_KEYSTORE: ${{ steps.creds.outputs.dir }}/upload.jks
+          VITAHERO_KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          VITAHERO_KEY_ALIAS: ${{ secrets.UPLOAD_KEY_ALIAS }}
+          VITAHERO_KEY_PASSWORD: ${{ secrets.UPLOAD_KEY_PASSWORD }}
+          PLAY_TRACK: ${{ inputs.track }}
+          PLAY_RELEASE_STATUS: ${{ inputs.status }}
+        run: ./gradlew :app:publishReleaseBundle --stacktrace
+
+      # Kept for matching a crash report to a build. The bundle is signed with
+      # the upload key, not the app signing key, so it is not installable as-is
+      # — it is evidence, not a release.
+      - name: Keep the bundle
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-${{ inputs.track }}
+          path: android/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Shred credentials
+        if: always()
+        run: rm -rf "${{ steps.creds.outputs.dir }}"
