@@ -1107,6 +1107,35 @@ export const PORTAL_HTML = `<!doctype html>
     return m[role()] || "";
   }
 
+  // ── academic years ──
+  //
+  // A typed year arrives as "2026-27", "2026-2027", "26-27" or "2026/27", and
+  // a roster filed under one of those is invisible to a camp built under
+  // another. The set is small and knowable, so it is a list.
+  function academicYears() {
+    var now = new Date(), y = now.getFullYear();
+    // An Indian school year starts in June; before that, the current year is
+    // still the one that began last June.
+    if (now.getMonth() < 5) y -= 1;
+    var out = [];
+    for (var i = -2; i <= 2; i++) {
+      out.push((y + i) + "-" + String((y + i + 1) % 100).padStart(2, "0"));
+    }
+    return out;
+  }
+
+  function yearSelect(value, onchange) {
+    var years = academicYears();
+    // A year already on the record that falls outside the window stays
+    // selectable, so editing an old school does not silently re-file it.
+    if (value && years.indexOf(value) < 0) years = [value].concat(years);
+    return el("select", { onchange: onchange },
+      [el("option", { value: "" }, "\u2014 current year \u2014")].concat(
+        years.map(function (y) {
+          return el("option", { value: y, selected: value === y }, y);
+        })));
+  }
+
   // ── csv ──
   function parseCsv(text) {
     var rows = [], row = [], f = "", q = false, i = 0;
@@ -2078,7 +2107,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "card-b" },
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Academic year"),
-              el("input", { type: "text", value: f.academicYear, oninput: b("academicYear"), placeholder: "Blank uses the current year" })),
+              yearSelect(f.academicYear, b("academicYear"))),
             el("div", { class: "fld" }, el("label", null, "How often camps run"),
               el("select", { onchange: b("campCadence") }, CADENCE.map(function (c) {
                 return el("option", { value: c[0], selected: f.campCadence === c[0] }, c[1]); })))),
@@ -2147,7 +2176,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "Programme")),
         el("div", { class: "card-b" },
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Academic year"), el("input", { type: "text", value: f.academicYear, oninput: b("academicYear") })),
+            el("div", { class: "fld" }, el("label", null, "Academic year"), yearSelect(f.academicYear, b("academicYear"))),
             el("div", { class: "fld" }, el("label", null, "How often camps run"),
               el("select", { onchange: b("campCadence"), disabled: !isOps() }, CADENCE.map(function (c) {
                 return el("option", { value: c[0], selected: f.campCadence === c[0] }, c[1]); })))),
@@ -2280,7 +2309,7 @@ export const PORTAL_HTML = `<!doctype html>
             "Every class in the school for one year. Roster uploads and camps are checked against this list."),
           el("div", { class: "g3" },
             el("div", { class: "fld" }, el("label", null, "Academic year"),
-              el("input", { type: "text", value: g.year, oninput: function (e) { g.year = e.target.value; }, placeholder: "2026-27" })),
+              yearSelect(g.year, function (e) { g.year = e.target.value; })),
             el("div", { class: "fld" }, el("label", null, "Classes"),
               el("input", { type: "text", value: g.grades, oninput: function (e) { g.grades = e.target.value; } })),
             el("div", { class: "fld" }, el("label", null, "Sections"),
@@ -2320,9 +2349,9 @@ export const PORTAL_HTML = `<!doctype html>
           "Moves every student up one class, using this school's own class list. Students in the final class are marked as having left — their guardians keep access to the history."),
         el("div", { class: "g2" },
           el("div", { class: "fld" }, el("label", null, "From"),
-            el("input", { type: "text", value: f.fromYear, oninput: function (e) { f.fromYear = e.target.value; } })),
+            yearSelect(f.fromYear, function (e) { f.fromYear = e.target.value; })),
           el("div", { class: "fld" }, el("label", null, "To"),
-            el("input", { type: "text", value: f.toYear, oninput: function (e) { f.toYear = e.target.value; } }))),
+            yearSelect(f.toYear, function (e) { f.toYear = e.target.value; }))),
         f.plan
           ? el("div", null,
               el("table", { style: "margin-bottom:12px" }, el("tbody", null, f.plan.map(function (x) {
@@ -2473,6 +2502,16 @@ export const PORTAL_HTML = `<!doctype html>
     var classes = (S.classes || []).map(function (c) {
       return c.grade + (c.section ? " \u00b7 " + c.section : "");
     });
+    // Distinct grades, and the sections that exist inside the chosen one —
+    // offering B for a class that only has A and C is how a child ends up in
+    // a section the school does not have.
+    var grades = [], seen = {};
+    (S.classes || []).forEach(function (c) {
+      if (c.grade && !seen[c.grade]) { seen[c.grade] = true; grades.push(c.grade); }
+    });
+    var sections = (S.classes || [])
+      .filter(function (c) { return c.grade === f.grade && c.section; })
+      .map(function (c) { return c.section; });
     function save() {
       run(api("/api/admin/schools/" + S.school.id + "/roster/student", { method: "POST",
         body: {
@@ -2508,16 +2547,32 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "fld" }, el("label", null, "Date of birth"),
             el("input", { value: f.dob, oninput: b("dob"), placeholder: "14/03/2016" }))),
         el("div", { class: "g3" },
+          // The school's own classes, chosen rather than typed.
+          //
+          // A datalist sat here, which suggests and then accepts anything: the
+          // same class arrived as "Class 4", "4", "IV" and "class 4", and a
+          // camp built for "Class 4" then missed the children in "4". These are
+          // a closed set the school itself defined under Classes, so they are a
+          // dropdown. A school that has not set its classes up yet falls back
+          // to typing, because it still has to be able to add a child.
           el("div", { class: "fld" }, el("label", null, "Class"),
-            el("input", { value: f.grade, oninput: b("grade"), placeholder: "Class 4",
-              list: "vh-classes" }),
-            classes.length
-              ? el("datalist", { id: "vh-classes" }, (S.classes || []).map(function (c) {
-                  return el("option", { value: c.grade });
-                }))
-              : null),
+            grades.length
+              ? el("select", { onchange: function (e) {
+                  f.grade = e.target.value; f.section = ""; render(); } },
+                  [el("option", { value: "" }, "\u2014 choose \u2014")].concat(
+                    grades.map(function (g) {
+                      return el("option", { value: g, selected: f.grade === g }, g);
+                    })))
+              : el("input", { value: f.grade, oninput: b("grade"), placeholder: "Class 4" })),
           el("div", { class: "fld" }, el("label", null, "Section"),
-            el("input", { value: f.section, oninput: b("section"), placeholder: "B" })),
+            sections.length
+              ? el("select", { onchange: b("section") },
+                  [el("option", { value: "" }, "\u2014 none \u2014")].concat(
+                    sections.map(function (x) {
+                      return el("option", { value: x, selected: f.section === x }, x);
+                    })))
+              : el("input", { value: f.section, oninput: b("section"), placeholder: "B",
+                  disabled: grades.length > 0 && !f.grade })),
           el("div", { class: "fld" }, el("label", null, "Sex"),
             el("select", { onchange: b("gender") },
               el("option", { value: "" }, "\u2014"),
@@ -3254,7 +3309,7 @@ export const PORTAL_HTML = `<!doctype html>
               el("input", { type: "number", step: "0.01", value: f.rateRupees, oninput: b("rateRupees") }))),
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Academic year"),
-              el("input", { value: f.academicYear, oninput: b("academicYear") })),
+              yearSelect(f.academicYear, b("academicYear"))),
             el("div", { class: "fld" }, el("label", null, "Notes"),
               el("input", { value: f.notes, oninput: b("notes") }))),
           el("div", { class: "g2" },
@@ -3379,7 +3434,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("div", { class: "fld" }, el("label", null, "Camp name"), el("input", { type: "text", value: f.title, oninput: b("title") })),
             el("div", { class: "fld" }, el("label", null, "Date"), el("input", { type: "date", value: f.date, oninput: b("date") }))),
           el("div", { class: "g3" },
-            el("div", { class: "fld" }, el("label", null, "Start time"), el("input", { type: "text", value: f.time, oninput: b("time"), placeholder: "09:00" })),
+            el("div", { class: "fld" }, el("label", null, "Start time"), el("input", { type: "time", value: f.time, oninput: b("time") })),
             el("div", { class: "fld" }, el("label", null, "Venue"), el("input", { type: "text", value: f.venue, oninput: b("venue"), placeholder: "School hall" })),
             el("div", { class: "fld" }, el("label", null, "Consent deadline"),
               el("input", { type: "date", value: f.consentDeadline, oninput: b("consentDeadline") }))),
@@ -3952,6 +4007,10 @@ export const PORTAL_HTML = `<!doctype html>
         status: person.status,
         checks: person.checks,
         excludedByConsent: pack.camp.checks.filter(function (ct) { return person.checks.indexOf(ct) < 0; }),
+        // Carried from the pack so a camp worked offline looks the same as one
+        // worked online. The server checks it again on sync either way.
+        specialty: pack.camp.specialty || "",
+        otherSpecialties: pack.camp.otherSpecialties || [],
         findings: (queuedEntry && queuedEntry.findings)
           ? queuedEntry.findings.map(function (f) { return { checkType: f.checkType, detail: f.detail, flag: "", note: f.note || "" }; })
           : person.findings,
@@ -4098,6 +4157,21 @@ export const PORTAL_HTML = `<!doctype html>
 
       d.excludedByConsent && d.excludedByConsent.length
         ? el("div", { class: "msg info" }, "Consent excludes: " + d.excludedByConsent.join(", ") + ".") : null,
+      // Whose round this is. A doctor scoped to their specialty is not being
+      // shown a shortened camp — the rest belongs to another clinician — and
+      // a form that simply omitted the other checks would read like the camp
+      // had forgotten them.
+      d.specialty
+        ? el("div", { class: "msg ok" },
+            el("b", null, d.specialty + ": "),
+            (d.checks || []).join(", ") || "nothing to record here",
+            d.otherSpecialties && d.otherSpecialties.length
+              ? el("span", { class: "muted" },
+                  " \u00b7 " + d.otherSpecialties.join(", ")
+                  + (d.otherSpecialties.length === 1 ? " is" : " are")
+                  + " another clinician's at this camp.")
+              : null)
+        : null,
 
       S.saved ? el("div", { class: "card" }, el("div", { class: "card-b" },
         el("h3", { style: "margin-bottom:8px" }, "Recorded"),
@@ -4857,6 +4931,20 @@ export const PORTAL_HTML = `<!doctype html>
         loadHospitals();
       });
     }
+    // What choosing this specialty means, said where the choice is made.
+    function specialtyHint(name) {
+      var list = (S.doctors && S.doctors.specialties) || [];
+      var sp = null;
+      for (var i = 0; i < list.length; i++) if (list[i].name === name) sp = list[i];
+      if (!sp) return "The specialty decides which checks this doctor records at a camp.";
+      if (sp.canScreen) {
+        return "At a camp this doctor is given the " + sp.checks.join(" and ")
+          + " form" + (sp.checks.length > 1 ? "s" : "") + ", and no others.";
+      }
+      return "VitaHero has no screening form for this specialty yet"
+        + (sp.planned && sp.planned.length ? " (" + sp.planned.join(", ") + " is planned)" : "")
+        + ", so they can be referred to but not put on a camp.";
+    }
     function saveDoctor() {
       run(api("/api/admin/doctors", { method: "POST", body: S.docForm }), function (d) {
         // The hint, not just "Saved." Half of this is saying out loud which
@@ -4942,8 +5030,24 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Name"),
               el("input", { value: g.name, oninput: db("name") })),
+            // A dropdown, not a text box. This value decides which screening
+            // form the doctor is handed at a camp, so "Eye specialist" and
+            // "Ophthalmology" cannot be two different specialties — and the
+            // list comes from the server, which is the same list the screening
+            // forms are built from.
             el("div", { class: "fld" }, el("label", null, "Specialty"),
-              el("input", { value: g.specialty, oninput: db("specialty"), placeholder: "Ophthalmology" }))),
+              // Re-rendered on change, because the hint below is the point:
+              // choosing a specialty has to say what it means before the
+              // doctor is saved, not after they turn up at a camp.
+              el("select", { onchange: function (e) { g.specialty = e.target.value; render(); } },
+                [el("option", { value: "" }, "\u2014 choose a specialty \u2014")].concat(
+                  ((S.doctors && S.doctors.specialties) || []).map(function (sp) {
+                    return el("option", { value: sp.name, selected: g.specialty === sp.name },
+                      sp.name + (sp.canScreen
+                        ? " \u00b7 " + sp.checks.join(", ")
+                        : " \u00b7 referral only"));
+                  }))),
+              el("div", { class: "hint", style: "margin-top:6px" }, specialtyHint(g.specialty)))),
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Hospital"),
               el("select", { onchange: db("hospitalId") },

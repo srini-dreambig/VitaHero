@@ -121,7 +121,7 @@ suite("a doctor added in the console can sign in", () => {
 
   test("a referral-only entry is added without a sign-in, and is labelled as one", async () => {
     await upsertDoctor(sql, OPS, {
-      name: "Dr Referral Only", specialty: "Cardiology", phone: "9876500022",
+      name: "Dr Referral Only", specialty: "Dermatology", phone: "9876500022",
       canSignIn: false,
     });
     const door = await doorOpensFor("9876500022");

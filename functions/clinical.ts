@@ -51,6 +51,111 @@ export function isCheckType(v: string): v is CheckType {
   return (CHECK_TYPES as readonly string[]).includes(v);
 }
 
+// ─── Specialties ────────────────────────────────────────────
+
+/**
+ * What each specialty screens for.
+ *
+ * Derived from the check list above rather than written out separately, which
+ * is the whole point: a specialty exists in this product because there is a
+ * screen a doctor of that specialty records something on. An ophthalmologist
+ * at a camp does vision. A dentist does the dental check. Neither of them
+ * should be handed the other's form, and until now every clinician was handed
+ * all of them.
+ *
+ * Keeping it a map from specialty to *check types* — not to designed checks —
+ * means a specialty gains its screen automatically on the day that screen is
+ * built. ENT is here with nothing to record today; when the ENT screen moves
+ * out of PLANNED_CHECKS, the ENT doctor's form fills itself in, and nobody has
+ * to remember this file exists.
+ */
+const SPECIALTY_CHECKS: Record<string, readonly CheckType[]> = {
+  Paediatrics: ["Height & weight", "Haemoglobin", "Immunisation review"],
+  Ophthalmology: ["Vision"],
+  Dentistry: ["Dental"],
+  ENT: ["ENT"],
+  Dermatology: ["Skin"],
+  Orthopaedics: ["Spine"],
+  // The generalist a school fields when it has one doctor for the day.
+  "General physician": CHECK_TYPES,
+};
+
+/** Every specialty the directory offers, in the order a dropdown shows them. */
+export const SPECIALTIES = Object.keys(SPECIALTY_CHECKS);
+
+/**
+ * Names the same specialty has gone by.
+ *
+ * "Dental" was seeded as a specialty when the specialty field was free text
+ * and nothing read it. It means Dentistry, and a doctor entered that way keeps
+ * working rather than being rejected by a validation rule written afterwards.
+ */
+const ALIASES: Record<string, string> = {
+  dental: "Dentistry",
+  dentist: "Dentistry",
+  ophthalmologist: "Ophthalmology",
+  optometry: "Ophthalmology",
+  eye: "Ophthalmology",
+  pediatrics: "Paediatrics",
+  paediatrician: "Paediatrics",
+  "general medicine": "General physician",
+  "general practitioner": "General physician",
+  gp: "General physician",
+  orthopedics: "Orthopaedics",
+  dermatologist: "Dermatology",
+  skin: "Dermatology",
+};
+
+/**
+ * The canonical spelling of a specialty, or "" if it is not one we know.
+ *
+ * Case and spacing are forgiven; an unknown specialty is not, because the
+ * value decides which screening form a doctor is given. A free-text specialty
+ * cannot do that — "Eye specialist" and "Ophthalmology" would be two different
+ * specialties to a computer and the same one to everybody else.
+ */
+export function normaliseSpecialty(v: string): string {
+  const raw = String(v || "").trim();
+  if (!raw) return "";
+  const exact = SPECIALTIES.find((s) => s.toLowerCase() === raw.toLowerCase());
+  if (exact) return exact;
+  return ALIASES[raw.toLowerCase()] || "";
+}
+
+export function isSpecialty(v: string): boolean {
+  return normaliseSpecialty(v) !== "";
+}
+
+/**
+ * The checks a doctor of this specialty can actually record today.
+ *
+ * Filtered to the designed checks, so a specialty whose screen has not been
+ * built yet returns nothing rather than offering a bare Normal/Abnormal
+ * dropdown with a clinical-sounding label — the same reasoning that split
+ * DESIGNED_CHECKS from PLANNED_CHECKS in the first place.
+ */
+export function screeningChecksFor(specialty: string): string[] {
+  const name = normaliseSpecialty(specialty);
+  if (!name) return [];
+  return (SPECIALTY_CHECKS[name] || []).filter((c) => isDesignedCheck(c));
+}
+
+/** Every specialty, with what it screens — what a dropdown needs to explain itself. */
+export function specialtyOptions() {
+  return SPECIALTIES.map((name) => {
+    const checks = screeningChecksFor(name);
+    return {
+      name,
+      checks,
+      // False for a specialty whose screen does not exist yet. Such a doctor
+      // is a perfectly good referral entry and has nothing to record at a camp,
+      // and saying so here is what stops them being assigned to one.
+      canScreen: checks.length > 0,
+      planned: (SPECIALTY_CHECKS[name] || []).filter((c) => !isDesignedCheck(c)),
+    };
+  });
+}
+
 // ─── WHO 2007 growth reference (as used by IAP) ─────────────
 
 interface Ref { age: number; p50: number }

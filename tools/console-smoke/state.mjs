@@ -95,8 +95,14 @@ async function open() {
   // Classes fills the shared form slot with { year, grades, sections }.
   await go(p, "Classes");
   await p.waitForTimeout(500);
-  const year = await p.locator("#root input[type=text]").first().inputValue();
+  // A dropdown now, not a text box: "2026-27", "2026-2027" and "26-27" were
+  // three filings of the same year, and a roster under one was invisible to a
+  // camp built under another. What is asserted is unchanged — the form opens
+  // holding the school's own year.
+  const year = await p.locator("#root select").first().inputValue();
   check("the classes form is filled in from the school", year === "2026-27");
+  check("and the year is chosen from a list, not typed",
+    (await p.locator("#root select").first().locator("option").count()) > 1);
 
   // Leave without saving, and open a form of an entirely different shape.
   await go(p, "Staff");

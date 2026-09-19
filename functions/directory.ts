@@ -7,6 +7,7 @@
 // nowhere to do it. This is that surface.
 
 import { Sql, isOpsRole, normalizeMobile, normalizePhone, profileIdForPhone } from "./common";
+import { SPECIALTIES, normaliseSpecialty, screeningChecksFor, specialtyOptions } from "./clinical";
 import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 
@@ -233,10 +234,18 @@ export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string, se
   `;
   return {
     canEdit: isOpsRole(actor.role),
+    // The dropdown's contents come from the server, so the list the console
+    // offers is the list the server accepts and the one the screening forms
+    // are built from. Three copies of it would drift within a release.
+    specialties: specialtyOptions(),
     doctors: rows.map((r) => ({
       id: r.id as string,
       name: r.name as string,
       specialty: (r.specialty as string) || "",
+      // What this doctor would be handed at a camp. Empty means their
+      // specialty has no screening screen in the app yet — a fine referral
+      // entry, and nothing for them to do on a camp day.
+      screens: screeningChecksFor((r.specialty as string) || ""),
       hospitalId: (r.hospital_id as string) || "",
       hospitalName: (r.hospital_name as string) || (r.hospital as string) || "",
       city: (r.city as string) || "",
@@ -264,8 +273,25 @@ export async function upsertDoctor(sql: Sql, actor: Actor, body: Record<string, 
   opsOnly(actor, "The doctor directory");
   const name = String(body.name || "").trim();
   if (name.length < 2) throw new ApiError(400, "A doctor needs a name", "NAME_REQUIRED");
-  const specialty = String(body.specialty || "").trim();
-  if (!specialty) throw new ApiError(400, "Which specialty?", "SPECIALTY_REQUIRED");
+  // A chosen value, not a typed one.
+  //
+  // The specialty used to be free text that nothing read, so it could be
+  // "Eye specialist", "ophthalmology" or "Opthalmology" and all three were
+  // different specialties to a computer and the same one to everybody else.
+  // It decides which screening form this doctor is handed at a camp now, so
+  // it has to be one of the specialties the product actually has screens for
+  // — which is why the console shows a dropdown and why this refuses anything
+  // outside it rather than trusting the dropdown to have been used.
+  const rawSpecialty = String(body.specialty || "").trim();
+  if (!rawSpecialty) throw new ApiError(400, "Which specialty?", "SPECIALTY_REQUIRED");
+  const specialty = normaliseSpecialty(rawSpecialty);
+  if (!specialty) {
+    throw new ApiError(
+      400,
+      `"${rawSpecialty}" is not one of the specialties VitaHero screens for. Choose one of: ${SPECIALTIES.join(", ")}.`,
+      "BAD_SPECIALTY"
+    );
+  }
 
   const hospitalId = String(body.hospitalId || "").trim();
   let hospitalName = "";

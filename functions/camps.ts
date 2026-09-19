@@ -30,7 +30,9 @@ import {
   Urgency,
   draftRecommendation,
   isCheckType,
+  normaliseSpecialty,
   proposeFlag,
+  screeningChecksFor,
   summariseForApp,
   worstUrgency,
 } from "./clinical";
@@ -167,6 +169,18 @@ export interface CampAccess {
   canSchedule: boolean;
   canScreen: boolean;
   canReview: boolean;
+  /**
+   * The checks this person may record, or null for "all of them".
+   *
+   * Null is ops, a school administrator, and a screener: a generalist doing
+   * the whole round. A doctor assigned from the directory is scoped to their
+   * specialty — an ophthalmologist gets the vision form and not the dental
+   * one — because handing every clinician every form is how a dentist ends up
+   * entering a haemoglobin reading they did not take.
+   */
+  checkScope: string[] | null;
+  /** The specialty that scope came from, for saying so on screen. */
+  specialty: string;
 }
 
 /**
@@ -192,14 +206,14 @@ export async function assertCampAccess(
   const schoolId = camp.school_id as string;
 
   if (isOpsRole(actor.role)) {
-    return { camp, canSchedule: true, canScreen: true, canReview: true };
+    return { camp, canSchedule: true, canScreen: true, canReview: true, checkScope: null, specialty: "" };
   }
   if (actor.role === "SCHOOL_ADMIN" && actor.schoolId === schoolId) {
-    return { camp, canSchedule: true, canScreen: true, canReview: false };
+    return { camp, canSchedule: true, canScreen: true, canReview: false, checkScope: null, specialty: "" };
   }
 
   const staff = await sql`
-    SELECT staff_role, active FROM vita_hero.camp_staff
+    SELECT staff_role, active, doctor_id FROM vita_hero.camp_staff
     WHERE camp_id = ${campId} AND profile_id = ${actor.profileId} LIMIT 1
   `;
   if (staff.length === 0) {
@@ -215,11 +229,27 @@ export async function assertCampAccess(
     );
   }
   const staffRole = staff[0].staff_role as string;
+
+  // doctor_id is set only when this person was put on the camp from the
+  // directory, which is also the only place a specialty is recorded. Looked up
+  // separately rather than joined: camp access must not depend on the
+  // directory existing, and this costs a second round trip only for the one
+  // case that needs it.
+  const doctorId = (staff[0].doctor_id as string) || "";
+  let specialty = "";
+  if (doctorId) {
+    const d = await sql`SELECT specialty FROM vita_hero.doctors WHERE id = ${doctorId} LIMIT 1`;
+    specialty = normaliseSpecialty(String(d[0]?.specialty || ""));
+  }
   return {
     camp,
     canSchedule: false,
     canScreen: staffRole === "SCREENER" || staffRole === "PHYSICIAN",
     canReview: staffRole === "PHYSICIAN",
+    // A screener is the school's own generalist and has no specialty; a
+    // directory doctor does, and it decides which forms they see.
+    checkScope: specialty ? screeningChecksFor(specialty) : null,
+    specialty,
   };
 }
 
@@ -841,7 +871,14 @@ export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, k
     : JSON.parse(String(p.consent_checks || "[]"));
 
   // Partial consent narrows what may be recorded (B4).
-  const allowed = consentChecks.length > 0 ? campChecks.filter((c) => consentChecks.includes(c)) : campChecks;
+  const consented = consentChecks.length > 0 ? campChecks.filter((c) => consentChecks.includes(c)) : campChecks;
+
+  // And the clinician's specialty narrows it again. An ophthalmologist at this
+  // camp records the vision check; the dental one is somebody else's round and
+  // showing it to them invites a reading nobody took.
+  const allowed = access.checkScope
+    ? consented.filter((c) => access.checkScope!.includes(c))
+    : consented;
 
   return {
     child: {
@@ -865,7 +902,13 @@ export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, k
     attendance: (p.attendance as string) || "UNKNOWN",
     status: (p.status as string) || "NOT_SCREENED",
     checks: allowed,
-    excludedByConsent: campChecks.filter((c) => !allowed.includes(c)),
+    excludedByConsent: campChecks.filter((c) => !consented.includes(c)),
+    // What this camp offers that belongs to another specialty. Named rather
+    // than hidden: a doctor who cannot see the dental check needs to know it
+    // is somebody else's to do, not that the camp forgot it.
+    otherSpecialties: consented.filter((c) => !allowed.includes(c)),
+    // Whose round this is, so the screen can say so.
+    specialty: access.specialty,
     findings: findings.map((f) => ({
       checkType: f.check_type as string,
       detail: (f.detail as Record<string, unknown>) || {},
@@ -915,7 +958,16 @@ function evaluateChild(
   participant: Record<string, unknown>,
   campChecks: string[],
   incoming: Record<string, unknown>[],
-  actorId: string
+  actorId: string,
+  /**
+   * The clinician's own round, or null for a generalist.
+   *
+   * A parameter rather than a lookup, because this function is also the offline
+   * queue's path: the rules a camp day is judged by must not depend on whether
+   * there was signal in the hall, and a doctor's specialty is one of those
+   * rules now.
+   */
+  scope: { checks: string[] | null; specialty: string } = { checks: null, specialty: "" }
 ): EvaluatedFinding[] {
   const consent = (participant.consent_status as string) || "PENDING";
   if (consent !== "GRANTED" && consent !== "PAPER") {
@@ -954,6 +1006,19 @@ function evaluateChild(
         403,
         `Consent does not cover "${checkType}" for this child`,
         "CHECK_NOT_CONSENTED"
+      );
+    }
+    // Enforced here and not only by the form that hides it. The screening form
+    // is offline-capable and posts a queue, so "the UI did not offer it" is
+    // not a control — a stale pack on somebody's tablet would carry the whole
+    // camp's checks and be accepted on sync.
+    if (scope.checks && !scope.checks.includes(checkType)) {
+      throw new ApiError(
+        403,
+        scope.specialty
+          ? `"${checkType}" is not part of ${scope.specialty}. Another clinician at this camp records it.`
+          : `"${checkType}" is not yours to record at this camp`,
+        "CHECK_NOT_MY_SPECIALTY"
       );
     }
     const detail = (raw.detail as Record<string, unknown>) || {};
@@ -1109,7 +1174,8 @@ export async function saveScreening(
   const p = byKid.get(kidId);
   if (!p) throw new ApiError(404, "That child is not on this camp's list", "NOT_ON_CAMP");
 
-  const findings = evaluateChild(campId, kidId, p, campCheckList(access.camp), incoming, actor.profileId);
+  const findings = evaluateChild(campId, kidId, p, campCheckList(access.camp), incoming,
+    actor.profileId, { checks: access.checkScope, specialty: access.specialty });
   await writeScreenings(sql, actor, campId, [{ kidId, findings, attendance: "" }]);
 
   return {
@@ -1177,6 +1243,15 @@ export async function campPack(sql: Sql, actor: Actor, campId: string) {
       venue: (camp.venue as string) || "",
       schoolName: (camp.school_name as string) || "",
       checks: campChecks,
+      // The pack is what a camp day runs on with no signal, so it carries the
+      // same specialty scope the online form uses. Without it, downloading a
+      // camp would quietly widen a doctor back out to every check and the sync
+      // would then reject half of what they had recorded — at the end of the
+      // day, with the children gone home.
+      specialty: access.specialty,
+      otherSpecialties: access.checkScope
+        ? campChecks.filter((c) => !access.checkScope!.includes(c))
+        : [],
     },
     participants: participants.map((p) => {
       const consentChecks: string[] = Array.isArray(p.consent_checks)
@@ -1197,8 +1272,12 @@ export async function campPack(sql: Sql, actor: Actor, campId: string) {
         status: (p.status as string) || "NOT_SCREENED",
         previousHeightCm: (p.prev_height as number) || null,
         previousWeightKg: (p.prev_weight as number) || null,
-        // Partial consent narrows the checks for this child.
-        checks: consentChecks.length > 0 ? campChecks.filter((c) => consentChecks.includes(c)) : campChecks,
+        // Partial consent narrows the checks for this child, and the
+        // clinician's specialty narrows them again.
+        checks: (consentChecks.length > 0
+          ? campChecks.filter((c) => consentChecks.includes(c))
+          : campChecks
+        ).filter((c) => !access.checkScope || access.checkScope.includes(c)),
         findings: byKid.get(p.kid_id as string) || [],
       };
     }),
@@ -1255,7 +1334,8 @@ export async function saveScreeningBulk(
 
       const incoming = Array.isArray(entry.findings) ? (entry.findings as Record<string, unknown>[]) : [];
       const findings = incoming.length > 0
-        ? evaluateChild(campId, kidId, p, campChecks, incoming, actor.profileId)
+        ? evaluateChild(campId, kidId, p, campChecks, incoming, actor.profileId,
+            { checks: access.checkScope, specialty: access.specialty })
         : [];
 
       // An entry that says nothing is not a capture. It used to be dropped
@@ -2108,6 +2188,19 @@ export async function assignDoctorToCamp(
     );
   }
 
+  // A specialty with no screening screen has nothing for them to do on the
+  // day. Refused here rather than discovered by a doctor standing in a school
+  // hall with an empty form: a dermatologist is a good referral entry and not
+  // a camp clinician, because VitaHero has no skin check to record yet.
+  const mine = screeningChecksFor(String(doc.specialty || ""));
+  if (mine.length === 0) {
+    throw new ApiError(
+      400,
+      `${doc.name as string} is ${String(doc.specialty || "a doctor")} and VitaHero has no screening form for that yet, so there would be nothing for them to record at this camp.`,
+      "SPECIALTY_NOT_SCREENED"
+    );
+  }
+
   const profileId = `ph_${norm.last10}`;
   const existing = await sql`SELECT role FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1`;
   if (existing.length > 0 && (existing[0].role as string) === "PARENT") {
@@ -2145,7 +2238,8 @@ export async function assignDoctorToCamp(
       phone: norm.e164,
       role: "PHYSICIAN",
     },
-    signInHint: `${doc.name as string} signs in to the app with ${norm.e164}.`,
+    signInHint: `${doc.name as string} signs in at the console with ${norm.e164}, and records ${mine.join(" and ")} at this camp.`,
+    screens: mine,
   };
 }
 

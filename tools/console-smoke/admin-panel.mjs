@@ -48,7 +48,16 @@ await p.addInitScript(() => {
         address: "", phone: "", lat: null, lng: null,
         isCampPartner: false, active: true, doctorCount: 1 },
     ] },
-    "/api/admin/doctors": { canEdit: true, doctors: [
+    "/api/admin/doctors": { canEdit: true,
+      // Served by the server so the dropdown, the validator and the screening
+      // forms cannot be three lists that drift apart within a release.
+      specialties: [
+        { name: "Paediatrics", checks: ["Height & weight", "Haemoglobin"], canScreen: true, planned: ["Immunisation review"] },
+        { name: "Ophthalmology", checks: ["Vision"], canScreen: true, planned: [] },
+        { name: "Dentistry", checks: ["Dental"], canScreen: true, planned: [] },
+        { name: "Dermatology", checks: [], canScreen: false, planned: ["Skin"] },
+      ],
+      doctors: [
       // hasMobile and canSignIn are two different facts: the first is whether
       // the number can receive a code, the second whether they have a sign-in
       // at all. Conflating them is what let a doctor be added, shown with their
@@ -242,6 +251,59 @@ check("giving a doctor sign-in access is one action on their row",
     .some((b) => /Give sign-in access/.test(b.textContent))));
 await p.evaluate(() => document.body.click());
 await p.waitForTimeout(150);
+
+// ── the specialty is chosen, not typed ────────────────────────
+//
+// It used to be free text that nothing read, so "Ophthalmology", "ophthalmology"
+// and "Eye specialist" were three specialties to a computer and one to
+// everybody else. It decides which screening form a doctor is handed at a camp
+// now, so it has to be a choice from the list the server accepts.
+await p.evaluate(() => {
+  [...document.querySelectorAll("button")]
+    .find((b) => /Add doctor/i.test(b.textContent)).click();
+});
+await p.waitForTimeout(300);
+
+const specialtyField = await p.evaluate(() => {
+  const fld = [...document.querySelectorAll(".fld")]
+    .find((f) => /Specialty/i.test(f.querySelector("label")?.textContent || ""));
+  if (!fld) return { found: false };
+  const sel = fld.querySelector("select");
+  return {
+    found: true,
+    isSelect: !!sel,
+    hasTextBox: !!fld.querySelector("input[type=text], input:not([type])"),
+    options: sel ? [...sel.options].map((o) => o.textContent) : [],
+  };
+});
+check("the doctor form has a specialty field", specialtyField.found);
+check("and it is a dropdown rather than a text box",
+  specialtyField.isSelect && !specialtyField.hasTextBox);
+check("whose options come from the server's list",
+  specialtyField.options.some((o) => /Ophthalmology/.test(o)));
+// The dropdown says what choosing it means, so nobody has to find out at the camp.
+check("each option names the checks that specialty screens",
+  specialtyField.options.some((o) => /Ophthalmology.*Vision/.test(o)));
+check("and a specialty with no screening form says so",
+  specialtyField.options.some((o) => /Dermatology.*referral only/i.test(o)));
+
+await p.evaluate(() => {
+  const sel = [...document.querySelectorAll(".fld")]
+    .find((f) => /Specialty/i.test(f.querySelector("label")?.textContent || ""))
+    .querySelector("select");
+  sel.value = "Dermatology";
+  sel.dispatchEvent(new Event("change", { bubbles: true }));
+});
+await p.waitForTimeout(250);
+check("choosing one explains what it means before the doctor is saved",
+  /no screening form for this specialty yet/i.test(
+    await p.evaluate(() => document.body.innerText)));
+
+await p.evaluate(() => {
+  [...document.querySelectorAll("button")]
+    .find((b) => /^Cancel$/.test(b.textContent.trim())).click();
+});
+await p.waitForTimeout(300);
 
 // ── filtering and searching ───────────────────────────────────
 await p.evaluate(() => {
