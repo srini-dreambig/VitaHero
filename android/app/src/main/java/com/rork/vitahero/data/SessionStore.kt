@@ -24,6 +24,7 @@ object SessionStore {
     private const val KEY_RESCHEDULE = "needs_notification_reschedule"
     private const val KEY_LOCALE = "locale_code"
     private const val KEY_DARK_THEME = "dark_theme"
+    private const val KEY_ROLE = "session_role"
 
     /**
      * Built once, not on every call.
@@ -64,6 +65,22 @@ object SessionStore {
     fun clearToken(context: Context) {
         prefs(context).edit().remove(KEY_TOKEN).apply()
     }
+
+    /**
+     * Which product this sign-in opens: PARENT, PHYSICIAN or SCREENER.
+     *
+     * Kept beside the token so a relaunch draws the right home screen straight
+     * away. Without it a doctor sees the family home for as long as the
+     * profile takes to come back, which on a school's wifi is not a flicker.
+     * It is a hint, never a permission: the server decides what the token can
+     * actually reach.
+     */
+    fun saveRole(context: Context, role: String) {
+        prefs(context).edit().putString(KEY_ROLE, role).apply()
+    }
+
+    fun role(context: Context): String =
+        prefs(context).getString(KEY_ROLE, "PARENT") ?: "PARENT"
 
     fun setOnboardingComplete(context: Context, complete: Boolean) {
         prefs(context).edit().putBoolean(KEY_ONBOARDING, complete).apply()

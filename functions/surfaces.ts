@@ -20,7 +20,22 @@
 /** The two products. Anything unrecognised is the app: that is what is in the wild. */
 export type Surface = "app" | "console";
 
-export const APP_ROLES = ["PARENT"];
+/**
+ * Who the app admits.
+ *
+ * Parents, and the clinicians who screen their children at a camp. The app was
+ * parents-only and turned a doctor away at the door, on the reasoning that a
+ * doctor's work belongs in the console. That was the wrong call for the people
+ * doing it: a dentist at a school camp has a phone in their pocket, not a
+ * laptop on the desk, and the console is not what they will open in a school
+ * hall.
+ *
+ * What a clinician sees in the app is not a parent's screen with different
+ * data on it — it is their assigned camps, the children on those camps, and
+ * the screening forms their own specialty covers. A parent sees their own
+ * children and nothing else. Same door, different building behind it.
+ */
+export const APP_ROLES = ["PARENT", "PHYSICIAN", "SCREENER"];
 export const CONSOLE_ROLES = [
   "SCHOOL_ADMIN", "SCREENER", "PHYSICIAN", "ADMIN", "SUPERADMIN",
 ];

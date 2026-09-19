@@ -561,6 +561,17 @@ data class AuthProfile(
     val email: String? = null,
     val phone: String? = null,
     val auth_provider: String = "",
+    /**
+     * PARENT, PHYSICIAN or SCREENER.
+     *
+     * The server has always sent this and the app has always thrown it away,
+     * which is why everyone who signed in became a parent: AuthManager set
+     * _parentName from the name and there was nothing else to set. A doctor
+     * arriving at a camp needs their camps, not somebody's growth charts.
+     */
+    val role: String = "PARENT",
+    /** The school a clinician was scoped to when they were put on a camp. */
+    val school_id: String? = null,
 )
 
 @kotlinx.serialization.Serializable

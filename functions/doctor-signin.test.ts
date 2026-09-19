@@ -251,27 +251,27 @@ suite("a doctor added in the console can sign in", () => {
 
   // ── which product the sign-in is for ──
   //
-  // Granting doctors a sign-in is only half an answer, and on its own it is a
-  // worse bug than the one it fixed. A parent and a doctor do different jobs on
-  // different products: the family app shows a parent their own child's
-  // results, the console shows a doctor the findings of a camp they were
-  // assigned to. The app does not model a role at all — everyone who gets in is
-  // `_parentName`, defaulted to the word "Parent" — so a doctor let in there is
-  // greeted as a parent of nobody.
-  test("a doctor's sign-in is a console sign-in, and not a way into the family app", async () => {
+  // Granting doctors a sign-in is only half an answer. A parent and a doctor do
+  // different jobs, and for a while the answer to that was to keep the doctor
+  // out of the family app altogether and send them to the console. That was
+  // wrong about where the work happens: a dentist screening a school camp has a
+  // phone in their pocket and a queue of children in front of them, not a
+  // laptop. So the app admits them — to their own camps, their own rosters and
+  // the screening forms their specialty covers, never to a parent's screens.
+  //
+  // What the door still refuses is a school administrator or VitaHero
+  // operations: those jobs have no screen in the app at all.
+  test("a doctor's sign-in opens both products, because they work on both", async () => {
     const d = await find("Dr Meera Iyer");
     expect(d.canSignIn).toBe(true);
     const at = await doorOpensFor(d.phone);
     expect(at.role).toBe("PHYSICIAN");
 
     const CONSOLE = "https://vitahero.example/admin";
-    // Their own product: through.
+    // Reviewing a camp's findings at a desk.
     expect(surfaceRefusal("console", at.role!, CONSOLE)).toBeNull();
-    // The family app: turned round, by role, with somewhere to go.
-    const wrong = surfaceRefusal("app", at.role!, CONSOLE)!;
-    expect(wrong.code).toBe("WRONG_SURFACE_APP");
-    expect(wrong.error).toMatch(/registered as a doctor/i);
-    expect(wrong.error).toContain(CONSOLE);
+    // Screening the children in the school hall, on the phone in their hand.
+    expect(surfaceRefusal("app", at.role!, CONSOLE)).toBeNull();
   });
 
   test("and a backfilled doctor is the same, not a special case", async () => {
@@ -280,8 +280,20 @@ suite("a doctor added in the console can sign in", () => {
     const at = await doorOpensFor("9876500077");
     expect(at.open).toBe(true);
     expect(at.role).toBe("PHYSICIAN");
-    expect(surfaceRefusal("app", at.role!, "https://x/admin")!.code).toBe("WRONG_SURFACE_APP");
+    expect(surfaceRefusal("app", at.role!, "https://x/admin")).toBeNull();
     expect(surfaceRefusal("console", at.role!, "https://x/admin")).toBeNull();
+  });
+
+  test("a school administrator is still turned round at the app, with somewhere to go", async () => {
+    // The door opening for clinicians is not the door opening for everyone.
+    // There is no school-administrator screen in the family app, so sending
+    // them the console address is the whole of the useful answer.
+    const CONSOLE = "https://vitahero.example/admin";
+    const wrong = surfaceRefusal("app", "SCHOOL_ADMIN", CONSOLE)!;
+    expect(wrong.code).toBe("WRONG_SURFACE_APP");
+    expect(wrong.error).toMatch(/registered as a school administrator/i);
+    expect(wrong.error).toContain(CONSOLE);
+    expect(surfaceRefusal("console", "SCHOOL_ADMIN", CONSOLE)).toBeNull();
   });
 
   test("a parent is the mirror image: the app is theirs, the console is not", async () => {

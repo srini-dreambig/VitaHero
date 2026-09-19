@@ -291,6 +291,11 @@ class AuthManager(private val app: Application) {
         _userId.value = ""
         _email.value = ""
         _phone.value = ""
+        // A shared phone in a school office: the next person to open this must
+        // not land in the product the last one was using.
+        _role.value = "PARENT"
+        _schoolId.value = ""
+        SessionStore.saveRole(app, "PARENT")
     }
 
     fun clearSession() {

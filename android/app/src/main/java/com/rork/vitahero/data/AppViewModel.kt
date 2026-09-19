@@ -40,6 +40,26 @@ class AppViewModel(
     val sessionToken: StateFlow<String?> get() = auth.sessionToken
 
     /**
+     * PARENT, PHYSICIAN or SCREENER — which product this sign-in opens.
+     *
+     * Navigation reads it to pick a start destination. It is a hint for
+     * drawing the right screen, never a permission: every clinician endpoint
+     * is scoped by the session on the server.
+     */
+    val role: StateFlow<String> get() = auth.role
+
+    /**
+     * The signed-in person's own name, as the profile gives it.
+     *
+     * Held under a neutral name because it is not always a parent behind it:
+     * the clinician screens put it under "My camps", and `auth.parentName` is
+     * private, so the only way for a caller to read it was to not compile.
+     * Its fallback is still the word "Parent" — a caller showing it to a
+     * clinician checks for that rather than printing it.
+     */
+    val signedInName: StateFlow<String> get() = auth.parentName
+
+    /**
      * True when the app could not reach the server on its last try.
      *
      * Screens use this to say so instead of drawing an empty, confident-looking

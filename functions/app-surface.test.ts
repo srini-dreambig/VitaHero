@@ -144,45 +144,52 @@ describe("the app can show what a camp screens for", () => {
 // tests used `cavities` and `leftEye`, the findings all came back
 // NOT_MEASURED, and the assertions passed anyway because they only counted
 // rows.
+const PORTAL_SRC = readFileSync("./portal.ts", "utf8");
+const CLINICAL_SRC = readFileSync("./clinical.ts", "utf8");
+
+/**
+ * The detail keys the console's capture form binds for one check.
+ *
+ * Module scope, because two gates read it: the console's own fields against
+ * the clinical rules, and the app's fields against the console's. Two copies
+ * of this would be two things to keep in step.
+ */
+function consoleFormKeys(checkType: string): string[] {
+  const start = PORTAL_SRC.indexOf(`if (ct === "${checkType}")`);
+  expect(start, `no capture form for ${checkType}`).toBeGreaterThan(0);
+  // Bounded by the next check, or by the generic fallback the form falls
+  // through to for a check with no designed screen — reading past it picks
+  // up that fallback's "outcome" and reports it against the last check.
+  const rest = PORTAL_SRC.slice(start + 10);
+  const ends = [rest.indexOf("if (ct ==="), rest.indexOf('el("label", null, "Result")')]
+    .filter((i) => i >= 0);
+  const block = rest.slice(0, ends.length ? Math.min(...ends) : rest.length);
+  const keys = new Set<string>();
+  for (const m of block.matchAll(/bind\("(\w+)"/g)) keys.add(m[1]);
+  // Checkboxes assign directly rather than through bind().
+  for (const m of block.matchAll(/\bd\.(\w+) = e\.target\.checked/g)) keys.add(m[1]);
+  // The clinician's free-text note, which is stored as screener_note and is
+  // deliberately not an input to any rule.
+  keys.delete("__note");
+  return [...keys];
+}
+
+/** The detail keys the rule for one check actually reads. */
+function clinicalRuleKeys(checkType: string): string[] {
+  const start = CLINICAL_SRC.indexOf(`case "${checkType}":`);
+  expect(start, `no clinical rule for ${checkType}`).toBeGreaterThan(0);
+  const end = CLINICAL_SRC.indexOf("\n    case ", start + 10);
+  const block = CLINICAL_SRC.slice(start, end >= 0 ? end : undefined);
+  const keys = new Set<string>();
+  for (const m of block.matchAll(/\bd\.(\w+)/g)) keys.add(m[1]);
+  return [...keys];
+}
+
 describe("the console's form writes what the clinical rules read", () => {
-  const portal = readFileSync("./portal.ts", "utf8");
-  const clinical = readFileSync("./clinical.ts", "utf8");
-
-  /** The detail keys the form binds for one check, read off the form itself. */
-  function formKeys(checkType: string): string[] {
-    const start = portal.indexOf(`if (ct === "${checkType}")`);
-    expect(start, `no capture form for ${checkType}`).toBeGreaterThan(0);
-    // Bounded by the next check, or by the generic fallback the form falls
-    // through to for a check with no designed screen — reading past it picks
-    // up that fallback's "outcome" and reports it against the last check.
-    const rest = portal.slice(start + 10);
-    const ends = [rest.indexOf("if (ct ==="), rest.indexOf('el("label", null, "Result")')]
-      .filter((i) => i >= 0);
-    const block = rest.slice(0, ends.length ? Math.min(...ends) : rest.length);
-    const keys = new Set<string>();
-    for (const m of block.matchAll(/bind\("(\w+)"/g)) keys.add(m[1]);
-    // Checkboxes assign directly rather than through bind().
-    for (const m of block.matchAll(/\bd\.(\w+) = e\.target\.checked/g)) keys.add(m[1]);
-    // The clinician's free-text note, which is stored as screener_note and is
-    // deliberately not an input to any rule.
-    keys.delete("__note");
-    return [...keys];
-  }
-
-  /** The detail keys the rule for one check actually reads. */
-  function ruleKeys(checkType: string): string[] {
-    const start = clinical.indexOf(`case "${checkType}":`);
-    expect(start, `no clinical rule for ${checkType}`).toBeGreaterThan(0);
-    const block = clinical.slice(start, clinical.indexOf("\n    case ", start + 10));
-    const keys = new Set<string>();
-    for (const m of block.matchAll(/\bd\.(\w+)/g)) keys.add(m[1]);
-    return [...keys];
-  }
-
   for (const check of DESIGNED_CHECKS) {
     test(`${check}: every field the form offers is one the rules read`, () => {
-      const form = formKeys(check);
-      const rule = ruleKeys(check);
+      const form = consoleFormKeys(check);
+      const rule = clinicalRuleKeys(check);
       expect(form.length, `${check} form binds nothing`).toBeGreaterThan(0);
       expect(rule.length, `${check} rule reads nothing`).toBeGreaterThan(0);
 
@@ -195,6 +202,77 @@ describe("the console's form writes what the clinical rules read", () => {
         orphaned,
         `${check}: the form writes ${orphaned.join(", ")}, which no clinical rule reads — ` +
           `a clinician fills it in and it is thrown away. The rule reads: ${rule.join(", ")}`
+      ).toEqual([]);
+    });
+  }
+});
+
+// ── and the clinician's form in the app writes them too ─────
+//
+// The same silent failure, now on a second surface. A dentist at a camp fills
+// the form on their phone; the keys travel up as a finding's `detail`; the
+// rules read them by name. Get one name wrong and the child's dental check is
+// stored, released and shown to their parent as NOT MEASURED, with nothing
+// failing anywhere on the way.
+//
+// The console's form has had this gate since the day the bug was found in it.
+// The app's form is newer, has never been compiled, and is the one a doctor
+// will actually be holding.
+describe("the app's clinician form writes what the clinical rules read", () => {
+  const screen = readFileSync(
+    `${APP}/ui/screens/ClinicianScreeningScreen.kt`, "utf8"
+  );
+
+  /** The `when (check)` arm for one check, as the composable writes it. */
+  function armOf(checkType: string): string {
+    const start = screen.indexOf(`"${checkType}" ->`);
+    expect(start, `the app's form has no arm for ${checkType}`).toBeGreaterThan(0);
+    // Bounded by the next arm, or by the else branch that tells a clinician a
+    // check has no form yet. Without the bound the last arm swallows it.
+    const rest = screen.slice(start + checkType.length + 5);
+    const ends = [rest.search(/\n\s{8}"[^"]+" ->/), rest.search(/\n\s{8}else ->/)]
+      .filter((i) => i >= 0);
+    return rest.slice(0, ends.length ? Math.min(...ends) : rest.length);
+  }
+
+  /**
+   * The detail keys one arm binds.
+   *
+   * Every field helper takes the key as its argument after `fields`, so the
+   * key is read off the call rather than from a list kept alongside it — a
+   * list is a second place to forget.
+   */
+  function appKeys(checkType: string): string[] {
+    const keys = new Set<string>();
+    for (const m of armOf(checkType).matchAll(/\bfields,\s*"(\w+)"/g)) keys.add(m[1]);
+    return [...keys];
+  }
+
+  for (const check of DESIGNED_CHECKS) {
+    test(`${check}: the app's fields are the ones the rules read`, () => {
+      const app = appKeys(check);
+      const rule = clinicalRuleKeys(check);
+      expect(app.length, `${check} has no fields in the app's form`).toBeGreaterThan(0);
+
+      const orphaned = app.filter((k) => !rule.includes(k));
+      expect(
+        orphaned,
+        `${check}: the app writes ${orphaned.join(", ")}, which no clinical rule reads — ` +
+          `a doctor fills it in at the camp and it is thrown away. The rule reads: ${rule.join(", ")}`
+      ).toEqual([]);
+    });
+
+    test(`${check}: the app offers every field the console does`, () => {
+      // Not a style point. A doctor screening on their phone and a screener
+      // typing into the console are recording the same child's check, and the
+      // rules do not know which one it came from: a missing field on the
+      // phone is a measurement that is simply never taken at a camp the
+      // doctor worked, and the flag comes out of the rule regardless.
+      const app = appKeys(check);
+      const missing = consoleFormKeys(check).filter((k) => !app.includes(k));
+      expect(
+        missing,
+        `${check}: the console captures ${missing.join(", ")} and the app does not`
       ).toEqual([]);
     });
   }

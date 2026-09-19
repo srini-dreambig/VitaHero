@@ -1337,9 +1337,8 @@ describe("every admin route the console calls is actually reachable", () => {
 // different and the difference is the whole point: unknown, in the directory
 // but not given access, and in.
 describe("requesting a sign-in code", () => {
-  // A doctor's sign-in is a console sign-in: that is their job. The surface
-  // is named here rather than left out, because leaving it out means the
-  // family app, and a doctor has no business there.
+  // The surface is named here rather than left out, because leaving it out
+  // means the family app, and these cases are about the console's door.
   const send = (phone: string) =>
     call("/api/auth/phone/send", {
       method: "POST",
@@ -1394,11 +1393,13 @@ describe("requesting a sign-in code", () => {
 
   // ── the two products ──
   //
-  // The reported failure was a doctor being told their number was not
-  // registered. Fixing that by provisioning doctors opened a worse one: the
-  // family app and the console share this endpoint, so a doctor could now sign
-  // in to the family app, which has no notion of a role and greets everyone as
-  // "Parent". They are different jobs. The door has to know which is which.
+  // The family app and the console share this endpoint, and the jobs behind
+  // them are not the same. A clinician works on both: findings reviewed at a
+  // desk, children screened in a school hall with a phone in hand — so the app
+  // admits them, to their camps and their specialty's forms, never to a
+  // parent's screens. A school administrator works on neither half of that:
+  // there is no screen for them in the app at all, so the door names the
+  // console rather than leaving them at "this number isn't registered".
   const sendAs = (phone: string, surface?: string) =>
     call("/api/auth/phone/send", {
       method: "POST",
@@ -1406,15 +1407,28 @@ describe("requesting a sign-in code", () => {
       body: JSON.stringify(surface ? { phone, surface } : { phone }),
     });
 
-  test("a doctor at the family app is turned round, with the console address", async () => {
+  test("a doctor at the family app is let in, because that is where the screening happens", async () => {
     handlers = [
       { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PHYSICIAN" }] },
+      { match: /FROM vita_hero\.camp_staff/i, rows: [{ live: 2, ever: 2 }] },
+      { match: /FROM vita_hero\.phone_otps/i, rows: [] },
+    ];
+    const res = await sendAs("9876500011", "app");
+    // Not 403: the door is theirs. (Not 200 either — no SMS provider here.)
+    expect(res.status).not.toBe(403);
+    const b = (await res.json()) as { code?: string };
+    expect(b.code).toBeUndefined();
+  });
+
+  test("a school administrator at the family app is turned round, with the console address", async () => {
+    handlers = [
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "SCHOOL_ADMIN" }] },
     ];
     const res = await sendAs("9876500011", "app");
     expect(res.status).toBe(403);
     const b = (await res.json()) as { code?: string; error?: string };
     expect(b.code).toBe("WRONG_SURFACE_APP");
-    expect(b.error).toMatch(/registered as a doctor/i);
+    expect(b.error).toMatch(/registered as a school administrator/i);
     expect(b.error).toContain("/admin");
   });
 
@@ -1431,7 +1445,7 @@ describe("requesting a sign-in code", () => {
 
   test("and neither is sent a code they could not use", async () => {
     handlers = [
-      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PHYSICIAN" }] },
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "SCHOOL_ADMIN" }] },
     ];
     calls = [];
     await sendAs("9876500011", "app");
@@ -1468,7 +1482,7 @@ describe("requesting a sign-in code", () => {
         otp: "123456", expires_at: new Date(Date.now() + 600_000).toISOString(), attempts: 0,
       }] },
       { match: /FROM vita_hero\.profiles/i, rows: [{
-        id: "ph_9876500011", provisioned: true, role: "PHYSICIAN", name: "Dr Meera Iyer",
+        id: "ph_9876500011", provisioned: true, role: "SCHOOL_ADMIN", name: "Anita Rao",
       }] },
     ];
     const res = await call("/api/auth/phone/verify", {
@@ -1489,5 +1503,83 @@ describe("requesting a sign-in code", () => {
     expect(res.status).toBe(403);
     const b = (await res.json()) as { code?: string };
     expect(b.code).toBe("NO_ACTIVE_CAMP");
+  });
+});
+
+// ── the clinician's own app ────────────────────────────────
+//
+// A dentist assigned to a school camp opens the VitaHero app on their phone,
+// not the console on a laptop they did not bring. Everything they then do goes
+// through the /api/admin routes, because that is where camp work lives — so
+// those routes have to admit a session minted at the app's door, and refuse a
+// parent's, with nothing in between.
+//
+// This is the join between the two halves. The app screens are Kotlin and no
+// test here can run them; what is asserted is the contract they depend on.
+describe("a clinician working from the app", () => {
+  /** A session row as authenticateSession reads it: role comes from profiles. */
+  const session = (role: string, schoolId: string | null = null) => ({
+    match: /FROM vita_hero\.sessions/i,
+    rows: [{
+      id: "ph_9876500011", user_id: "u1", name: "Dr Meera Iyer",
+      role, school_id: schoolId,
+    }],
+  });
+  const asDoctor = { Authorization: "Bearer " + "t".repeat(40) };
+
+  test("their camps come back from the same route the console uses", async () => {
+    handlers = [
+      session("PHYSICIAN"),
+      { match: /FROM vita_hero\.camp_staff/i, rows: [{
+        id: "camp1", school_id: "sch1", school_name: "Kendriya Vidyalaya",
+        title: "Annual dental camp", date: "2026-10-02", status: "SCHEDULED",
+        staff_role: "SCREENER", participant_count: 120, screened_count: 14,
+      }] },
+    ];
+    const res = await call("/api/admin/my-camps", { headers: asDoctor });
+    expect(res.status).toBe(200);
+    const b = (await res.json()) as { camps: Record<string, unknown>[] };
+    expect(b.camps).toHaveLength(1);
+    // The field names the Kotlin DTO declares. Rename one on either side and
+    // the app draws an empty card with no error anywhere.
+    expect(b.camps[0].id).toBe("camp1");
+    expect(b.camps[0].title).toBe("Annual dental camp");
+    expect(b.camps[0].schoolName).toBe("Kendriya Vidyalaya");
+    expect(b.camps[0].staffRole).toBe("SCREENER");
+    expect(b.camps[0].participants).toBe(120);
+    expect(b.camps[0].screened).toBe(14);
+  });
+
+  test("only the camps they were assigned to, never the whole programme", async () => {
+    // A physician is not an ops role, so the query is the one filtered by
+    // camp_staff.profile_id — asserted on the SQL, because a stub will happily
+    // return rows for either branch.
+    handlers = [session("PHYSICIAN")];
+    calls = [];
+    await call("/api/admin/my-camps", { headers: asDoctor });
+    const q = calls.find((c) => /school_camps/i.test(c.text))!;
+    expect(q.text).toMatch(/camp_staff/i);
+    expect(q.params).toContain("ph_9876500011");
+  });
+
+  test("a parent's session cannot reach camp work, whatever route it tries", async () => {
+    handlers = [session("PARENT")];
+    for (const path of [
+      "/api/admin/my-camps",
+      "/api/admin/camps/camp1/participants",
+      "/api/admin/camps/camp1/screening/kid1",
+    ]) {
+      const res = await call(path, { headers: asDoctor });
+      expect(res.status).toBe(401);
+      expect(((await res.json()) as { code?: string }).code).toBe("ADMIN_REQUIRED");
+    }
+  });
+
+  test("and an unsigned request is refused before any query runs", async () => {
+    handlers = [];
+    calls = [];
+    const res = await call("/api/admin/camps/camp1/participants");
+    expect(res.status).toBe(401);
+    expect(calls.some((c) => /camp_participants/i.test(c.text))).toBe(false);
   });
 });

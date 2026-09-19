@@ -26,25 +26,32 @@ describe("which door is whose", () => {
     expect(r.error).toMatch(/app on your phone/i);
   });
 
-  test("a doctor belongs in the console, and is told so by name", () => {
+  test("a doctor is admitted to both, because they work in both", () => {
+    // The app is where a camp day actually happens: a dentist in a school hall
+    // has a phone, not a laptop. The console is where the same person reviews
+    // and releases afterwards.
+    expect(surfaceRefusal("app", "PHYSICIAN", CONSOLE)).toBeNull();
     expect(surfaceRefusal("console", "PHYSICIAN", CONSOLE)).toBeNull();
-    const r = surfaceRefusal("app", "PHYSICIAN", CONSOLE)!;
-    expect(r.code).toBe("WRONG_SURFACE_APP");
-    // The whole point. "This number isn't registered" sent a doctor off to
-    // argue with a camp organizer about a number that was registered fine.
-    expect(r.error).toMatch(/registered as a doctor/i);
-    expect(r.error).toContain(CONSOLE);
   });
 
-  test("so do screeners, school administrators and operations", () => {
-    for (const role of CONSOLE_ROLES) {
+  test("and so is a screener, who only ever works a camp day", () => {
+    expect(surfaceRefusal("app", "SCREENER", CONSOLE)).toBeNull();
+    expect(surfaceRefusal("console", "SCREENER", CONSOLE)).toBeNull();
+  });
+
+  test("an administrator is console-only: there is no app screen for that job", () => {
+    for (const role of ["SCHOOL_ADMIN", "ADMIN", "SUPERADMIN"]) {
       expect(surfaceRefusal("console", role, CONSOLE), role).toBeNull();
-      expect(surfaceRefusal("app", role, CONSOLE)!.code, role).toBe("WRONG_SURFACE_APP");
+      const r = surfaceRefusal("app", role, CONSOLE)!;
+      expect(r.code, role).toBe("WRONG_SURFACE_APP");
+      expect(r.error, role).toContain(CONSOLE);
     }
   });
 
-  test("the two sets do not overlap, which is the point", () => {
-    for (const role of APP_ROLES) expect(CONSOLE_ROLES).not.toContain(role);
+  test("a parent is admitted to the app alone, whoever else is", () => {
+    // Widening the app to clinicians must not widen the console to families.
+    expect(APP_ROLES).toContain("PARENT");
+    expect(CONSOLE_ROLES).not.toContain("PARENT");
   });
 
   test("a revoked sign-in is nobody's, on either surface", () => {

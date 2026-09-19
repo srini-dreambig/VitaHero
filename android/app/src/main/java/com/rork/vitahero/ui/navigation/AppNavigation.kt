@@ -1,6 +1,7 @@
 package com.rork.vitahero.ui.navigation
 
 import android.app.Activity
+import android.net.Uri
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -24,6 +25,9 @@ import com.rork.vitahero.data.PdfReportGenerator
 import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.data.rememberVitaHeroViewModels
 import com.rork.vitahero.ui.components.selectAsState
+import com.rork.vitahero.ui.screens.ClinicianCampsScreen
+import com.rork.vitahero.ui.screens.ClinicianRosterScreen
+import com.rork.vitahero.ui.screens.ClinicianScreeningScreen
 import com.rork.vitahero.ui.screens.AuthScreen
 import com.rork.vitahero.ui.screens.BookingScreen
 import com.rork.vitahero.ui.screens.CampConsentScreen
@@ -58,6 +62,13 @@ object Routes {
     const val AUTH = "auth"
     const val OTP = "otp/{phone}/{name}"
     const val MAIN = "main"
+
+    // The clinician's side of the app. A doctor signing in lands on CLINIC and
+    // never sees MAIN: the family screens are not their product, and a camp
+    // day is a different job from reading your own child's results.
+    const val CLINIC = "clinic"
+    const val CLINIC_ROSTER = "clinic/{campId}/{title}"
+    const val CLINIC_SCREEN = "clinic/{campId}/child/{kidId}"
     const val KID_DETAIL = "kid/{kidId}"
     const val DIET = "diet/{kidId}"
     const val BOOKING = "booking"
@@ -124,12 +135,24 @@ fun AppNavigation(
     val authLoading by appViewModel.authLoading.collectAsState()
     val authError by appViewModel.authError.collectAsState()
 
+    // Which product this sign-in opens.
+    //
+    // The role is restored from disk before the profile comes back, so a
+    // doctor reopening the app does not get the family home screen for the
+    // second or two a school's wifi takes.
+    val role by appViewModel.role.collectAsState()
+    val isClinician = role == "PHYSICIAN" || role == "SCREENER"
+
     var phone by rememberSaveable { mutableStateOf("") }
     var pendingName by rememberSaveable { mutableStateOf("") }
 
-    LaunchedEffect(isLoggedIn) {
+    LaunchedEffect(isLoggedIn, role) {
         if (isLoggedIn) {
-            navController.navigate(Routes.MAIN) {
+            // Keyed on the role as well as the session. The role arrives with
+            // the profile, a moment after isLoggedIn flips, so keying on the
+            // session alone would send a doctor to the family home and leave
+            // them there.
+            navController.navigate(if (isClinician) Routes.CLINIC else Routes.MAIN) {
                 popUpTo(Routes.SPLASH) { inclusive = true }
                 launchSingleTop = true
             }
@@ -165,6 +188,7 @@ fun AppNavigation(
     val pendingConsents by guardianViewModel.pendingConsents.collectAsState()
 
     val startDest = when {
+        isLoggedIn && isClinician -> Routes.CLINIC
         isLoggedIn -> Routes.MAIN
         onboardingComplete -> Routes.AUTH
         else -> Routes.CONSENT
@@ -277,6 +301,61 @@ fun AppNavigation(
                 onResend = { activity?.let { appViewModel.resendPhoneOtp(it, p) } },
                 isVerifying = otpVerifying,
                 error = otpError
+            )
+        }
+
+        // ── The clinician's side ────────────────────────────
+        //
+        // Three screens and no bottom bar: a camp day is a sequence, not a set
+        // of places to browse. My camps → this camp's children → this child's
+        // form, and back out the way you came in.
+        composable(Routes.CLINIC) {
+            val clinicianName by appViewModel.signedInName.collectAsState()
+            ClinicianCampsScreen(
+                clinician = vms.clinician,
+                clinicianName = clinicianName,
+                onOpenCamp = { campId, title ->
+                    navController.navigate("clinic/$campId/${Uri.encode(title)}")
+                },
+                onLogout = {
+                    appViewModel.logout()
+                    navController.navigate(Routes.AUTH) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(
+            Routes.CLINIC_ROSTER,
+            arguments = listOf(
+                navArgument("campId") { type = NavType.StringType },
+                navArgument("title") { type = NavType.StringType },
+            ),
+        ) { backStack ->
+            val campId = backStack.arguments?.getString("campId").orEmpty()
+            val title = backStack.arguments?.getString("title").orEmpty()
+            ClinicianRosterScreen(
+                campTitle = title,
+                campId = campId,
+                clinician = vms.clinician,
+                onOpenChild = { kidId -> navController.navigate("clinic/$campId/child/$kidId") },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            Routes.CLINIC_SCREEN,
+            arguments = listOf(
+                navArgument("campId") { type = NavType.StringType },
+                navArgument("kidId") { type = NavType.StringType },
+            ),
+        ) { backStack ->
+            ClinicianScreeningScreen(
+                campId = backStack.arguments?.getString("campId").orEmpty(),
+                kidId = backStack.arguments?.getString("kidId").orEmpty(),
+                clinician = vms.clinician,
+                onBack = { navController.popBackStack() },
             )
         }
 

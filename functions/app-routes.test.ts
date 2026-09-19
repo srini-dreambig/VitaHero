@@ -27,6 +27,10 @@ function appCalls(): Array<{ method: string; path: string; where: string }> {
   const files = [
     "ApiRepository.kt", "GuardianRepository.kt",
     "LeaderboardService.kt", "FamilySharingService.kt",
+    // The clinician's half of the app. It calls /api/admin routes, which is
+    // exactly why it belongs in this list: those routes were written for a
+    // browser, and nothing else would notice if one moved.
+    "ClinicianRepository.kt",
   ];
   const out = new Map<string, { method: string; path: string; where: string }>();
 

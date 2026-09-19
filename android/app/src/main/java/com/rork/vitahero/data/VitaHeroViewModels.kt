@@ -13,6 +13,8 @@ data class VitaHeroViewModels(
     val booking: BookingViewModel,
     val profile: ProfileViewModel,
     val guardian: GuardianViewModel,
+    /** Only ever used when the signed-in person is a clinician. */
+    val clinician: ClinicianViewModel,
 )
 
 @Composable
@@ -28,5 +30,6 @@ fun rememberVitaHeroViewModels(): VitaHeroViewModels {
         booking = viewModel(factory = factory),
         profile = viewModel(factory = factory),
         guardian = viewModel(factory = factory),
+        clinician = viewModel(factory = factory),
     )
 }
