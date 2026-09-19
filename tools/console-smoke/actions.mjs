@@ -128,7 +128,7 @@ check("inviting one guardian targets only that guardian",
     && x.body.profileIds[0] === "ph_g1"));
 
 // ── the consent screen ──
-await go(p, "All camps");
+await go(p, "Camps");
 await p.waitForTimeout(400);
 await p.getByText("Annual Camp").first().click();
 await p.waitForTimeout(600);

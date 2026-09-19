@@ -1,27 +1,28 @@
 // Going to a screen by name, whatever kind of control happens to reach it.
 //
-// The console has three levels: destinations in the sidebar, groups as tabs
-// inside a destination, and the screens of a group as a segmented control
-// under those tabs. A test should say where it wants to be, not which of the
-// three it has to click this week — every one of these files used to click
-// ".navi" for everything, and all of them broke at once when a school's
-// screens moved out of the sidebar and into tabs.
-//
-// If the screen is inside a group that is not open, the group is opened first.
-// That is the one piece of structure this knows about, and it works it out by
-// looking rather than by being told.
+// The console has two levels: destinations in the sidebar, and the screens of
+// a destination as one row of tabs. It had three — the tabs were groups, with
+// the screens of the open group on a second row — and this file opened a group
+// before looking inside it. That step is gone with the groups, but the shape
+// of the helper is not: a test should say where it wants to be, not which
+// control reaches it this week. Every one of these files used to click ".navi"
+// for everything, and all of them broke at once when a school's screens moved
+// out of the sidebar.
 
 const NAME = (n) => n.textContent.replace(/\d+$/, "").trim();
 
 /**
- * Click the control named `label`, opening its group first if it has one.
+ * Click the control named `label`.
  *
- * In order, because the last step has a side effect: a navigation control on
- * screen, then any button on screen, then — only if neither exists — opening
- * each group in turn to look inside it. Sweeping the groups navigates away
- * from wherever you were, so it must not run while the thing you asked for is
- * sitting in front of you. Doing it in the other order took the billing screen
- * off screen and then went looking for its "Change contract" button.
+ * In order, and the order matters: a navigation control on screen, then any
+ * button on screen, then — only if neither exists — a sweep of the tabs,
+ * which navigates away from wherever you were and so must not run while the
+ * thing you asked for is sitting in front of you. Doing it the other way round
+ * took the billing screen off screen and then went looking for its "Change
+ * contract" button.
+ *
+ * The sweep survives the flattening because a tab can still reveal a button:
+ * asking for "Change contract" finds it by opening Billing.
  */
 export async function go(p, label, opts = {}) {
   const wait = opts.wait || 450;
@@ -29,16 +30,16 @@ export async function go(p, label, opts = {}) {
   if (await click(p, label)) { await p.waitForTimeout(wait); return; }
   if (await click(p, label, true)) { await p.waitForTimeout(wait); return; }
 
-  const groups = await p.$$eval(".tabs .tab", (ns) =>
+  const tabs = await p.$$eval(".tabs .tab", (ns) =>
     ns.map((n) => n.textContent.replace(/\d+$/, "").trim()));
-  for (const g of groups) {
-    await click(p, g);
+  for (const t of tabs) {
+    await click(p, t);
     await p.waitForTimeout(250);
     if (await click(p, label)) { await p.waitForTimeout(wait); return; }
   }
 
   throw new Error(`console-smoke: nothing named "${label}" to click`
-    + (groups.length ? ` (groups on screen: ${groups.join(", ")})` : ""));
+    + (tabs.length ? ` (tabs on screen: ${tabs.join(", ")})` : ""));
 }
 
 /**
@@ -48,7 +49,7 @@ export async function go(p, label, opts = {}) {
 async function click(p, label, anyButton) {
   return p.evaluate(([l, any]) => {
     const name = (n) => n.textContent.replace(/\d+$/, "").trim();
-    const sel = any ? "button" : ".navi, .tabs .tab, .seg button";
+    const sel = any ? "button" : ".navi, .tabs .tab";
     const el = [...document.querySelectorAll(sel)].find((n) => name(n) === l);
     if (!el || el.disabled) return false;
     el.click();
@@ -56,10 +57,6 @@ async function click(p, label, anyButton) {
   }, [label, !!anyButton]);
 }
 
-/** The groups currently on offer, in order. */
-export const groups = (p) =>
-  p.$$eval(".tabs .tab", (ns) => ns.map((n) => n.textContent.replace(/\d+$/, "").trim()));
-
-/** The screens of the group currently open, in order. */
+/** The screens of this destination, in order. */
 export const screens = (p) =>
-  p.$$eval(".seg button", (ns) => ns.map((n) => n.textContent.replace(/\d+$/, "").trim()));
+  p.$$eval(".tabs .tab", (ns) => ns.map((n) => n.textContent.replace(/\d+$/, "").trim()));

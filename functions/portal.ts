@@ -343,20 +343,19 @@ export const PORTAL_HTML = `<!doctype html>
      Two visually different controls on purpose: a second row of tabs reads as
      one long strip and you lose track of which level you are picking from. */
   .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto}
-  .seg{display:inline-flex;gap:2px;background:var(--mute-bg);padding:3px;border-radius:7px;
-    margin:-4px 0 14px;max-width:100%;overflow-x:auto}
-  .seg button{border:none;background:none;font-size:12px;font-weight:550;padding:3px 10px;
-    border-radius:5px;color:var(--ink-2);white-space:nowrap}
-  .seg button:hover:not(:disabled){background:rgba(255,255,255,.65);border-color:transparent}
-  .seg button.on{background:var(--card);box-shadow:var(--sh);color:var(--ink);font-weight:650}
-  .seg .n{font-size:10.5px;background:var(--warn-bg);color:var(--warn);border-radius:8px;
-    padding:0 5px;margin-left:5px;font-weight:650}
   .tab{border:none;background:none;padding:6px 11px;font-weight:600;font-size:12.5px;color:var(--ink-3);
     border-bottom:2px solid transparent;border-radius:0;white-space:nowrap}
   .tab:hover{background:none;color:var(--ink)}
   .tab.on{color:var(--brand-dk);border-bottom-color:var(--brand)}
   .tab .n{font-size:11px;background:var(--mute-bg);color:var(--mute);border-radius:9px;padding:1px 6px;margin-left:5px;font-weight:650}
   .tab.on .n{background:var(--brand-sf);color:var(--brand-dk)}
+  /* Last in the row and not a neighbour of the routine screens beside it. */
+  .tab.dang{color:var(--err)}
+  .tab.dang:hover{color:var(--err)}
+  .tab.dang.on{color:var(--err);border-bottom-color:var(--err)}
+  /* One row, scrolled rather than wrapped: for a camp the order is the day. */
+  .tabs{scrollbar-width:thin;flex-wrap:nowrap}
+  .tabs .tab{white-space:nowrap;flex:0 0 auto}
 
   .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .muted{color:var(--ink-3)}
@@ -2147,7 +2146,7 @@ export const PORTAL_HTML = `<!doctype html>
   function viewSchool() {
     var s = S.school;
     return el("div", null,
-      tabBar(schoolGroups(), S.schoolTab, goSchoolTab),
+      tabBar(schoolTabs(), S.schoolTab, goSchoolTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       safely(function () {
@@ -3527,7 +3526,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat" }, el("b", null, c.screened || 0), el("span", null, "screened")),
         el("div", { class: "stat warn" }, el("b", null, c.awaitingReview || 0), el("span", null, "awaiting review")),
         el("div", { class: "stat ok" }, el("b", null, c.released || 0), el("span", null, "released"))),
-      tabBar(campGroups(), S.campTab, goCampTab),
+      tabBar(campTabs(), S.campTab, goCampTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       safely(function () {
@@ -4636,22 +4635,19 @@ export const PORTAL_HTML = `<!doctype html>
    * answers "who is this?"; Records is what the programme keeps and for how
    * long; Maintenance is the database rather than the programme.
    */
-  function oversightGroups() {
+  function oversightTabs() {
     return [
-      ["partners", "Partners", [["partners", "Hospital partners"]]],
-      ["lookups", "Lookups", [["child", "Look up a child"], ["phone", "Find a number"]]],
-      ["records", "Records", [["access", "Record access"], ["retention", "Retention"]]],
-      // Named after the one screen in it. "Maintenance" was a category invented
-      // to hold a single thing, and it hid that thing: somebody looking for
-      // where to clear the demonstration data had to guess which of four words
-      // it was behind. A group of one is named after its screen.
-      // Two groups of one rather than one group of two. Grouping them under
-      // "Data" would have hidden both behind a word that names neither, and
-      // put them in the same segmented control where they sit a few pixels
-      // apart — one refuses to touch anything real, the other exists to remove
-      // exactly that, and they should not be neighbours.
-      ["demo", "Demonstration data", [isOps() ? ["demo", "Demonstration data"] : null]],
-      ["reset", "Empty the programme", [isOps() ? ["reset", "Empty the programme"] : null]],
+      ["partners", "Hospital partners"],
+      ["child", "Look up a child"],
+      ["phone", "Find a number"],
+      ["access", "Record access"],
+      ["retention", "Retention"],
+      isOps() ? ["demo", "Demonstration data"] : null,
+      // Last, and marked. One of these refuses to touch anything real and the
+      // other exists to remove exactly that; in a single row they are
+      // neighbours, so the one that empties the programme does not get to look
+      // like the one beside it.
+      isOps() ? ["reset", "Empty the programme", 0, true] : null,
     ];
   }
 
@@ -4662,7 +4658,7 @@ export const PORTAL_HTML = `<!doctype html>
 
   function viewOversight() {
     return el("div", null,
-      tabBar(oversightGroups(), S.oversightTab, goOversightTab),
+      tabBar(oversightTabs(), S.oversightTab, goOversightTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       safely(function () {
@@ -5299,49 +5295,29 @@ export const PORTAL_HTML = `<!doctype html>
    * A null leaf is one this person may not see; a group whose leaves are all
    * null does not appear at all.
    */
-  function tabBar(groups, current, go) {
-    var live = [];
-    for (var i = 0; i < groups.length; i++) {
-      var leaves = (groups[i][2] || []).filter(Boolean);
-      if (leaves.length) live.push([groups[i][0], groups[i][1], leaves]);
-    }
+  /**
+   * One row of tabs. Every screen of a destination, on screen at once.
+   *
+   * This was two levels — jobs as tabs, their screens as a segmented control
+   * underneath — which read well on paper and hid things in use: "All camps"
+   * and "Staff" did not exist until you had guessed which of five words they
+   * were behind, and the second row appeared and vanished as you moved, so the
+   * content jumped. A destination's screens are few enough to show, and a tab
+   * you can see beats a tab you can reason about.
+   *
+   * Each tab is [key, label, waitingCount, destructive]. The row scrolls
+   * sideways when it has to rather than wrapping, so the order stays the
+   * order — for a camp that order is the day itself.
+   */
+  function tabBar(tabs, current, go) {
+    var live = (tabs || []).filter(Boolean);
     if (!live.length) return null;
-
-    // Which group holds the screen in front of you. An unrecognised tab lands
-    // on the first group rather than leaving nothing selected.
-    var active = live[0];
-    for (var g = 0; g < live.length; g++) {
-      for (var j = 0; j < live[g][2].length; j++) {
-        if (live[g][2][j][0] === current) active = live[g];
-      }
-    }
-
-    // A group carries the sum of what its screens are waiting on, so work
-    // never hides inside a group you are not looking at.
-    function pending(grp) {
-      var n = 0;
-      for (var k = 0; k < grp[2].length; k++) n += Number(grp[2][k][2]) || 0;
-      return n;
-    }
-
-    return el("div", null,
-      el("div", { class: "tabs" }, live.map(function (grp) {
-        var n = pending(grp);
-        return el("button", {
-          class: "tab" + (grp === active ? " on" : ""),
-          // Already here: do nothing rather than jumping back to the group's
-          // first screen, which would undo the choice you just made below.
-          onclick: grp === active ? function () {} : function () { go(grp[2][0][0]); },
-        }, grp[1], n ? el("span", { class: "n" }, n) : null);
-      })),
-      active[2].length > 1
-        ? el("div", { class: "seg" }, active[2].map(function (lf) {
-            return el("button", {
-              class: lf[0] === current ? "on" : "",
-              onclick: function () { go(lf[0]); },
-            }, lf[1], lf[2] ? el("span", { class: "n" }, lf[2]) : null);
-          }))
-        : null);
+    return el("div", { class: "tabs" }, live.map(function (tb) {
+      return el("button", {
+        class: "tab" + (tb[0] === current ? " on" : "") + (tb[3] ? " dang" : ""),
+        onclick: tb[0] === current ? function () {} : function () { go(tb[0]); },
+      }, tb[1], tb[2] ? el("span", { class: "n" }, tb[2]) : null);
+    }));
   }
 
   /**
@@ -5352,21 +5328,30 @@ export const PORTAL_HTML = `<!doctype html>
    * into a camp. Follow-up is what a camp leaves behind. Settings is the
    * school as an account rather than as a place children are screened.
    */
-  function schoolGroups() {
+  /**
+   * A school's screens, in the order the work happens.
+   *
+   * Roster first because nothing else exists without it, then the classes and
+   * the import history behind it; then camps, which are what a roster is for;
+   * then what a camp produces; then the school's own affairs. Somebody
+   * reading left to right is reading the programme.
+   */
+  function schoolTabs() {
     return [
-      ["students", "Students", [
-        ["roster", "Roster"], ["classes", "Classes"], ["history", "Import history"]]],
-      ["camps", "Camps", [
-        ["camps", "All camps"], ["invites", "App invites"]]],
-      ["followup", "Follow-up", [
-        ["referrals", "Referrals"], ["questions", "Questions"]]],
-      ["reports", "Reports", [
-        ["report", "Camp report"]]],
-      ["settings", "Settings", [
-        ["people", "Staff"], ["programme", "Programme"], ["requests", "Data requests"],
-        // Billing is an operations matter; a school office does not need to
-        // see what its own contract is worth.
-        isOps() ? ["billing", "Billing"] : null]],
+      ["roster", "Roster"],
+      ["classes", "Classes"],
+      ["history", "Import history"],
+      ["camps", "Camps"],
+      ["invites", "App invites"],
+      ["referrals", "Referrals"],
+      ["questions", "Questions"],
+      ["report", "Camp report"],
+      ["people", "Staff"],
+      ["programme", "Programme"],
+      ["requests", "Data requests"],
+      // Billing is an operations matter; a school office does not need to
+      // see what its own contract is worth.
+      isOps() ? ["billing", "Billing"] : null,
     ];
   }
 
@@ -5382,7 +5367,11 @@ export const PORTAL_HTML = `<!doctype html>
    * runs. Grouping a workflow would hide the sequence, which is the only
    * useful thing about it.
    */
-  function campGroups() {
+  /**
+   * A camp's stages, which were already one row: a workflow grouped is a
+   * workflow hidden, and the order is the day itself.
+   */
+  function campTabs() {
     var c = S.camp.camp, can = S.camp.can;
     var stages = [];
     if (can.schedule) {
@@ -5392,7 +5381,7 @@ export const PORTAL_HTML = `<!doctype html>
     }
     if (can.screen) stages.push(["campday", "Camp day", c.awaitingReview]);
     if (can.review) stages.push(["review", "Review", c.awaitingReview]);
-    return stages.map(function (st) { return [st[0], st[1], [st]]; });
+    return stages;
   }
 
   function goCampTab(tab) {

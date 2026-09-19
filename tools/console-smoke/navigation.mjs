@@ -89,31 +89,38 @@ async function run(role, expect) {
     await p.waitForTimeout(600);
   }
 
-  // Five groups of at most four, rather than twelve tabs in a strip or
-  // twenty-eight lines in a sidebar.
+  // One row, every screen on it.
+  //
+  // This used to assert the opposite — five groups of at most four, with the
+  // screens of the open group on a second row. It read well and hid things:
+  // "Staff" did not exist until you had guessed it was behind "Settings", and
+  // the second row appeared and vanished as you moved between groups, so the
+  // content under it jumped. A school has few enough screens to show them all.
   const schoolTabs = await tabs();
-  check(`${role}: a school is grouped into a handful of tabs`,
-    schoolTabs.length >= 4 && schoolTabs.length <= 6);
-  check(`${role}: the groups are the jobs, not the screens`,
-    ["Students", "Camps", "Follow-up", "Settings"].every((t) => schoolTabs.includes(t)));
-
-  // The screens inside the group you are in, as a second control — and only
-  // when the group holds more than one.
-  check(`${role}: the group you are in shows its own screens`,
-    (await segs()).includes("Roster") && (await segs()).includes("Import history"));
-
-  await clickTab("Reports");
-  await p.waitForTimeout(350);
-  check(`${role}: a group holding one screen shows no second row`,
+  check(`${role}: every one of a school's screens is on screen at once`,
+    ["Roster", "Classes", "Import history", "Camps", "App invites", "Referrals",
+     "Questions", "Camp report", "Staff", "Programme", "Data requests"]
+      .every((t) => schoolTabs.includes(t)));
+  check(`${role}: and there is no second row to find them behind`,
     (await segs()).length === 0);
 
-  await clickTab("Settings");
-  await p.waitForTimeout(350);
-  const settings = await segs();
+  // Left to right is the order the work happens: nothing exists before a
+  // roster, camps are what a roster is for, and the rest is what a camp makes.
+  const order = ["Roster", "Camps", "Referrals", "Staff"].map((t) => schoolTabs.indexOf(t));
+  check(`${role}: and they read in the order the work happens`,
+    order.every((v, i) => v >= 0 && (i === 0 || v > order[i - 1])));
+
   check(`${role}: billing is ${expect.billing ? "shown" : "hidden"}`,
-    settings.includes("Billing") === expect.billing);
-  check(`${role}: settings holds the school's own affairs`,
-    settings.includes("Staff") && settings.includes("Programme"));
+    schoolTabs.includes("Billing") === expect.billing);
+
+  // What makes one row workable: it has to fit. A thirteenth screen, or a
+  // label written as a sentence, turns "everything on screen at once" back
+  // into "everything behind a scroll" — which is what the groups were.
+  const fits = await p.evaluate(() => {
+    const t = document.querySelector(".tabs");
+    return t.scrollWidth <= t.clientWidth + 1;
+  });
+  check(`${role}: and the row fits at desk width without scrolling`, fits);
 
   await clickTab("Camps");
   await p.waitForTimeout(400);
@@ -129,7 +136,7 @@ async function run(role, expect) {
   const idx = stages.map((s) => campTabs.indexOf(s));
   check(`${role}: the stages are in the order the day runs`,
     idx.every((v, i) => i === 0 || v > idx[i - 1]));
-  check(`${role}: a camp shows no second row either`, (await segs()).length === 0);
+  check(`${role}: a camp shows one row too`, (await segs()).length === 0);
   check(`${role}: and the sidebar has not changed`, (await nav()).length === menu.length);
 
   check(`${role}: no page errors`, errs.length === 0);
@@ -190,11 +197,14 @@ await run("SCHOOL_ADMIN", { billing: false });
     sidebar: document.querySelectorAll(".navi").length,
   }));
   check("a screen that cannot be drawn says so", state.broke === true);
-  check("and the tabs survive it", state.tabs >= 4);
+  check("and the tabs survive it", state.tabs >= 8);
   check("and the sidebar survives it", state.sidebar > 0);
 
   // And you can actually leave: the whole point of keeping the tabs.
-  await go(p2, "Settings");
+  // "Settings" was the group these screens hid behind, and clicking it landed
+  // on Staff, its first screen. Staff is its own tab now, so the test names
+  // the screen it was always actually going to.
+  await go(p2, "Staff");
   const left = await p2.evaluate(() =>
     !/could not be drawn/.test(document.querySelector(".content").textContent));
   check("and you can move to a screen that works", left === true);
@@ -284,7 +294,7 @@ const at = () => p3.evaluate(() => location.pathname.replace(/^\/admin/, "") || 
   const deep = await p3.evaluate(() => ({
     path: location.pathname.replace(/^\/admin/, ""),
     crumb: document.querySelector(".bar").textContent,
-    seg: [...document.querySelectorAll(".seg button.on")].map((n) => n.textContent.trim()),
+    seg: [...document.querySelectorAll(".tabs .tab.on")].map((n) => n.textContent.trim()),
   }));
   check("a link opens the screen it names, not the overview",
     /^\/schools\/sch_1\/classes$/.test(deep.path)

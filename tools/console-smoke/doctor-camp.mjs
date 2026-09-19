@@ -90,7 +90,7 @@ await go(p, "Schools");
 await p.waitForTimeout(350);
 await p.getByText("Silver Oaks").first().click();
 await p.waitForTimeout(700);
-await go(p, "All camps");
+await go(p, "Camps");
 await p.waitForTimeout(450);
 await p.getByText("Annual Camp").first().click();
 await p.waitForTimeout(600);

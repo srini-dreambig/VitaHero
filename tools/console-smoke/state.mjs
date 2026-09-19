@@ -335,7 +335,7 @@ async function open() {
   await p.waitForTimeout(300);
   await p.getByText("Silver Oaks").first().click();
   await p.waitForTimeout(600);
-  await go(p, "All camps");
+  await go(p, "Camps");
   await p.waitForTimeout(500);
   await p.getByText("Annual Camp").first().click();
   await p.waitForTimeout(700);
@@ -432,7 +432,7 @@ async function open() {
   await p.waitForTimeout(300);
   await p.getByText("Silver Oaks").first().click();
   await p.waitForTimeout(600);
-  await go(p, "All camps");
+  await go(p, "Camps");
   await p.waitForTimeout(500);
   await p.getByText("Annual Camp").first().click();
   await p.waitForTimeout(700);

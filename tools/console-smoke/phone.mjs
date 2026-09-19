@@ -86,6 +86,28 @@ for (const label of ["Schools", "Hospitals", "Library"]) {
   check(label + " actually rendered", drew > 40);
 }
 
+// One row of tabs on a 390px screen: it has to scroll inside itself, exactly
+// like the wide table above, and it must not drag the page sideways with it.
+// The alternative was hiding the same screens behind groups, which is what
+// this flattening undid.
+// Oversight rather than a school: it is the other long row, and it needs no
+// stubbing beyond what this file already has.
+await p.locator(".navi", { hasText: /^Oversight$/ }).first().click();
+await p.waitForTimeout(700);
+const tabRow = await p.evaluate(() => {
+  const t = document.querySelector(".tabs");
+  if (!t) return null;
+  return {
+    count: t.querySelectorAll(".tab").length,
+    scrollsItself: t.scrollWidth > t.clientWidth + 1,
+    overflowX: getComputedStyle(t).overflowX,
+  };
+});
+check("a long tab row is all there on a phone", !!tabRow && tabRow.count >= 6);
+check("and the row scrolls inside its own box",
+  !!tabRow && tabRow.scrollsItself && tabRow.overflowX === "auto");
+check("without dragging the page sideways", (await overflow()) <= 2);
+
 check("no page errors", errs.length === 0);
 if (errs.length) console.log(errs.join("\n"));
 
