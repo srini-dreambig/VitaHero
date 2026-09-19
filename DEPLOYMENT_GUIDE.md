@@ -145,6 +145,47 @@ You **must** run a closed test before Google Play allows production access.
   - Watch the **Android vitals** and **user reviews** in Play Console.
   - Increase to 50%, then 100% if no issues.
 
+### 3. Register your signing certificates with Firebase
+
+**Sign-in does not work without this, on any build Google Play serves.** It is
+not optional and it is not covered by anything above.
+
+The app signs people in with Firebase Phone Auth: `FirebaseOtp.requestCode`
+asks Firebase to send the SMS, and the ID token that comes back is exchanged
+for a VitaHero session. Before Firebase will send that SMS it verifies the app
+is really yours, using Play Integrity — and that check matches the signing
+certificate of the installed app against the fingerprints registered on the
+Firebase Android app. No fingerprint, no SMS.
+
+`android/app/google-services.json` currently has an empty `oauth_client` array,
+which is what a Firebase app with no registered fingerprint looks like. Check
+before assuming: Firebase Console → Project settings → Your apps → the
+`kallam.healthcare` Android app → **SHA certificate fingerprints**.
+
+**The fingerprint that matters is not the upload key.** With Play App Signing,
+Google strips your upload signature and re-signs the bundle with the app
+signing key, so the certificate on a real user's phone is Google's, not the one
+in `releases/`. Register all three:
+
+| Key | Where to find its SHA-1 and SHA-256 | Needed for |
+|---|---|---|
+| App signing key | Play Console → Test and release → Setup → **App signing** | Every build from Play, internal testing included |
+| Upload key | `keytool -list -v -keystore <upload>.jks -alias vitahero` | An AAB or APK you install directly |
+| Debug key | `keytool -list -v -keystore ~/.android/debug.keystore -alias androiddebugkey -storepass android` | Running from Android Studio |
+
+Add SHA-1 **and** SHA-256 for each — Play Integrity uses SHA-256, and some
+older paths still read SHA-1. Then re-download `google-services.json` from
+Firebase and commit it: `oauth_client` should no longer be empty.
+
+Symptoms of getting this wrong, none of which name the real cause: the OTP
+never arrives, a reCAPTCHA web page appears instead of an SMS, or sign-in
+fails with "This app is not authorized to use Firebase Authentication."
+
+Do this **before** the closed test below. Twelve testers who cannot sign in
+are twelve testers who do not count.
+
+---
+
 ---
 
 ## Proposed Play Store listing copy (en-US)
