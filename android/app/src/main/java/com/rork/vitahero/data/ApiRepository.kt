@@ -19,6 +19,14 @@ import java.util.UUID
  */
 class ApiRepository {
 
+    // enrollSchool and registerForCamp are gone.
+    //
+    // A closed programme's roster decides which families are in a school and
+    // which children are screened at a camp. Both calls answered 403
+    // ROSTER_MANAGED, so the only thing keeping them here would have been the
+    // next screen that wanted a button.
+
+
     private companion object {
         /**
          * Which of the two products this is.
@@ -411,49 +419,7 @@ class ApiRepository {
         if (resp.observed()) resp.body<List<MySchoolDto>>() else emptyList()
     }
 
-    suspend fun enrollSchool(partnerCode: String, kidId: String?): Result<SchoolEnrollResponse> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val body = buildMap {
-                put("partner_code", partnerCode.uppercase().trim())
-                if (!kidId.isNullOrBlank()) put("kid_id", kidId)
-            }
-            val resp = http.post("$base/api/schools/enroll") {
-                authHeaders().forEach { (k, v) -> header(k, v) }
-                contentType(ContentType.Application.Json)
-                setBody(body)
-            }
-            if (resp.observed()) {
-                Result.success(resp.body<SchoolEnrollResponse>())
-            } else {
-                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
-                Result.failure(Exception(err?.error ?: "Enrollment failed"))
-            }
-        } catch (e: Exception) {
-            noteTransportFailure(e)
-            Result.failure(e)
-        }
-    }
 
-    suspend fun registerForCamp(schoolCampId: String, kidId: String): Result<CampRegisterResponse> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val resp = http.post("$base/api/school-camps/register") {
-                authHeaders().forEach { (k, v) -> header(k, v) }
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("school_camp_id" to schoolCampId, "kid_id" to kidId))
-            }
-            if (resp.observed()) {
-                Result.success(resp.body<CampRegisterResponse>())
-            } else {
-                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
-                Result.failure(Exception(err?.error ?: "Registration failed"))
-            }
-        } catch (e: Exception) {
-            noteTransportFailure(e)
-            Result.failure(e)
-        }
-    }
 
     suspend fun markNotificationsRead(ids: List<String>) = onIo {
         if (skipNetwork || ids.isEmpty()) return@onIo

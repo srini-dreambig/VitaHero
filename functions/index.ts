@@ -17,6 +17,7 @@ import {
   profileIdForPhone,
   programmeToday,
   rowField,
+  isOpsRole,
   slugify,
 } from "./common";
 import { surfaceOf, surfaceRefusal } from "./surfaces";
@@ -2876,6 +2877,25 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // ── Email/Password Sign-In ───────────────────────
       if (path === "/api/auth/signin" && request.method === "POST") {
         try {
+          // Closed app: a parent signs in with the mobile number their school
+          // holds, and nothing else. Sign-up was already refused here; leaving
+          // sign-in open left a second door into the same building — an email
+          // account outside the roster got a profile through
+          // upsertProfileFromNeonAuth, with no school, no children and no way
+          // for anybody to have put it there on purpose.
+          //
+          // Kept behind the admin key rather than deleted: it is how an
+          // operator signs in to a deployment whose SMS provider is down.
+          const emailAdmin = await requireAdmin(request, sql, env);
+          if (!emailAdmin) {
+            return json(
+              {
+                error: "Sign in with the mobile number your school holds for you.",
+                code: "EMAIL_SIGNIN_DISABLED",
+              },
+              403
+            );
+          }
           const body: Record<string, unknown> = await request.json();
           const email = (body.email as string)?.trim();
           const password = body.password as string;
@@ -4336,6 +4356,21 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
       if (path === "/api/schools/enroll" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
+        // Closed app: a family is in a school because the school's roster says
+        // so, matched on the mobile number it holds. A partner code typed into
+        // the app created an enrolment nobody at the school had approved, and
+        // contradicted what the app itself tells a parent whose list is empty
+        // — "ask the school office". Staff enrol families from the console.
+        if (!isOpsRole(session.role) && session.role !== "SCHOOL_ADMIN") {
+          return json(
+            {
+              error: "Your school adds your family to its list. If your children are missing, "
+                + "ask the school office to check the mobile number they hold for you.",
+              code: "ROSTER_MANAGED",
+            },
+            403
+          );
+        }
         const body: Record<string, unknown> = await request.json();
         const code = ((body.partner_code as string) || "").toUpperCase().trim();
         const kidId = (body.kid_id as string) || null;
@@ -4367,6 +4402,22 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
       if (path === "/api/school-camps/register" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
+        // Same rule, one step further in: who is screened at a camp is the
+        // camp's roster, built by a school administrator from the classes the
+        // camp covers. A parent adding their own child to it produced a
+        // participant the school had not planned for and had not sought
+        // consent for. What a parent does with a camp is answer the consent
+        // request, which is its own endpoint.
+        if (!isOpsRole(session.role) && session.role !== "SCHOOL_ADMIN") {
+          return json(
+            {
+              error: "Your school decides which children are screened at a camp. "
+                + "You will be asked for permission when your child is on the list.",
+              code: "ROSTER_MANAGED",
+            },
+            403
+          );
+        }
         const body: Record<string, unknown> = await request.json();
         const schoolCampId = body.school_camp_id as string;
         const kidId = body.kid_id as string;

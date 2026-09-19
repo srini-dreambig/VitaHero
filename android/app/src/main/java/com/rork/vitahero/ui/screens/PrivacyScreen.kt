@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DeleteOutline
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -41,8 +42,10 @@ import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
+import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
+import androidx.compose.ui.platform.LocalContext
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroOrange
 
@@ -71,6 +74,19 @@ fun PrivacyScreen(
     var withdrawing by rememberSaveable { mutableStateOf(false) }
     var reason by rememberSaveable { mutableStateOf("") }
     var erasing by remember { mutableStateOf<String?>(null) }
+    var exportError by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    // Hoisted rather than written inline: the button takes a no-argument
+    // lambda, and nesting the one-argument callback inside it reads as though
+    // the button itself took a parameter.
+    val startExport: () -> Unit = {
+        guardianViewModel.exportMyData(context.cacheDir) { file ->
+            exportError = file == null
+            // The same chooser a health report uses, so the parent can save
+            // it, mail it, or hand it to a doctor.
+            if (file != null) shareJson(context, file)
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -252,6 +268,49 @@ fun PrivacyScreen(
             }
         }
 
+        // The access right itself.
+        //
+        // /api/me/export has been served since data rights were built, and the
+        // only thing this screen offered was the *history* of rights actions —
+        // a parent could see that they had withdrawn consent, and could not
+        // get the record the withdrawal was about.
+        item {
+            HeroCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconBubble(Icons.Outlined.Download, HeroBlue)
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            t(S.exportTitle),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        t(S.exportSub),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    PrimaryGradientButton(
+                        text = if (busy) t(S.pleaseWait) else t(S.exportAction),
+                        enabled = !busy,
+                        onClick = startExport,
+                    )
+                    if (exportError) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            t(S.exportFailed),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+        }
+
         if (rights.isNotEmpty()) {
             item {
                 Text(
@@ -289,4 +348,24 @@ fun PrivacyScreen(
             }
         }
     }
+}
+
+
+/**
+ * Hand the export to whatever the parent wants to do with it.
+ *
+ * The same FileProvider the health report uses — a data export that can only
+ * be looked at inside the app is not an export.
+ */
+private fun shareJson(context: android.content.Context, file: java.io.File) {
+    val uri = androidx.core.content.FileProvider.getUriForFile(
+        context, "${'$'}{context.packageName}.fileprovider", file
+    )
+    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+        type = "application/json"
+        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+        putExtra(android.content.Intent.EXTRA_SUBJECT, "VitaHero \u2014 my family's data")
+        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    context.startActivity(android.content.Intent.createChooser(intent, "Save or send"))
 }

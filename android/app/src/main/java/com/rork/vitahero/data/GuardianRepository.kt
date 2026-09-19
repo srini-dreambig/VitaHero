@@ -6,6 +6,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import kotlinx.coroutines.Dispatchers
@@ -178,6 +179,16 @@ class GuardianRepository {
             if (includeClosed) mapOf("all" to "1") else emptyMap(),
         ).referrals
 
+    /**
+     * The specialties this family's children are actually waiting to see.
+     *
+     * Served since referrals existed and never asked for, which is why the
+     * booking screen showed the whole directory and left the parent to
+     * remember which specialty the doctor had written down.
+     */
+    suspend fun referralSpecialties(): ReferralSpecialtiesDto =
+        getOr("/api/referral-specialties", ReferralSpecialtiesDto())
+
     suspend fun markReferralBooked(referralId: String): Result<SimpleOkDto> =
         postFor("/api/referrals/$referralId/booked", EmptyBody())
 
@@ -231,6 +242,31 @@ class GuardianRepository {
 
     suspend fun dataRights(): List<DataRightDto> =
         getOr("/api/me/rights", DataRightsDto()).history
+
+    /**
+     * Everything VitaHero holds about this family, as it comes off the server.
+     *
+     * Deliberately raw text rather than a parsed DTO. This is an access
+     * request: what a parent is owed is the record, not this app's reading of
+     * it, and a data class would quietly drop any field it did not know about
+     * — which is precisely the thing an export exists to rule out.
+     *
+     * /api/me/export has been served since data rights were built and nothing
+     * ever called it: the Privacy screen showed the *history* of rights
+     * actions while offering no way to exercise the main one.
+     */
+    suspend fun exportMyData(): String? = io {
+        if (!configured) return@io null
+        try {
+            val resp = http.get("$base/api/me/export") {
+                headers().forEach { (k, v) -> header(k, v) }
+            }
+            if (resp.observed()) resp.bodyAsText() else null
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            null
+        }
+    }
 
     suspend fun requestCorrection(
         kidId: String,

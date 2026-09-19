@@ -283,6 +283,31 @@ suite("what the admin side releases is what the app can read", () => {
     expect(types, "an open referral is never mentioned").toContain("REFERRAL");
   });
 
+  test("a parent can actually download everything held about their family", async () => {
+    // /api/me/export has been served since data rights were built and the app
+    // never called it: the Privacy screen showed the history of rights actions
+    // while offering no way to exercise the main one. Driven through the real
+    // route, because that is what the screen now does.
+    const res = await worker.fetch(
+      new Request("https://api.test/api/me/export", {
+        headers: { Authorization: `Bearer ${token}` },
+      }), ENV as never);
+    expect(res.status).toBe(200);
+    const dump = (await res.json()) as Record<string, unknown>;
+
+    // The things a family would notice were missing.
+    expect(dump.profile).toBeTruthy();
+    expect((dump.children as unknown[]).length).toBe(1);
+    expect((dump.campFindings as unknown[]).length).toBe(DESIGNED_CHECKS.length);
+    expect((dump.consentHistory as unknown[]).length).toBeGreaterThan(0);
+    expect(String(dump.notice)).toMatch(/everything VitaHero holds/i);
+
+    // And the export is itself a data-rights action, logged as one.
+    const logged = await sql`
+      SELECT action FROM vita_hero.data_rights_log WHERE profile_id = ${guardianId}`;
+    expect(logged.map((r) => r.action)).toContain("EXPORT");
+  });
+
   test("and it reaches the app's own health tabs, not just the result list", async () => {
     // The camp result screen lists findings generically. The health tabs —
     // Growth, Dental, Eye, Nutrition — are fed from the kid summary instead,

@@ -240,6 +240,30 @@ data class ArticleResponseDto(val article: ArticleDto = ArticleDto())
 
 // ─── Referrals ──────────────────────────────────────────────
 
+/**
+ * What this family's children were actually referred for.
+ *
+ * /api/referral-specialties has existed since referrals did, and nothing
+ * called it. The booking screen instead offered the whole directory's list of
+ * specialties, so a parent whose child was referred to Ophthalmology had to
+ * remember that and pick it out of everything — the last step of a screening
+ * programme, left to memory.
+ */
+@Serializable
+data class ReferralSpecialtiesDto(
+    val specialties: List<String> = emptyList(),
+    val forChildren: List<ReferralTargetDto> = emptyList(),
+)
+
+@Serializable
+data class ReferralTargetDto(
+    val referralId: String = "",
+    val kidId: String = "",
+    val kidName: String = "",
+    val specialty: String = "",
+    val urgency: String = "ROUTINE",
+)
+
 @Serializable
 data class ReferralDto(
     val id: String = "",

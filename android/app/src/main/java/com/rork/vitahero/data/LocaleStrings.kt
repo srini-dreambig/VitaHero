@@ -242,6 +242,32 @@ object S {
     const val registered = "registered"
     const val selected = "selected"
     const val confirmRegistration = "confirm_registration"
+
+    // A camp's list of children is the school's, not the family's. These
+    // replace the "Register your child" form, which posted a registration the
+    // school had not planned for and had not sought consent for — and which
+    // the server now refuses outright.
+    const val campRosterTitle = "camp_roster_title"
+    const val campRosterOnList = "camp_roster_on_list"
+    const val campRosterNotOnList = "camp_roster_not_on_list"
+    const val campRosterNote = "camp_roster_note"
+
+    // The partner-code form, replaced for the same reason: a code typed into
+    // the app created an enrolment nobody at the school had approved, and
+    // contradicted what the empty Kids list already tells a parent.
+    const val schoolLinkTitle = "school_link_title"
+    const val schoolLinkNote = "school_link_note"
+
+    // Booking, steered by what a child was actually referred for.
+    const val referredTitle = "referred_title"
+    const val referredChip = "referred_chip"
+    const val referredUrgent = "referred_urgent"
+
+    // The access right, which had a server endpoint and no way to reach it.
+    const val exportTitle = "export_title"
+    const val exportSub = "export_sub"
+    const val exportAction = "export_action"
+    const val exportFailed = "export_failed"
     const val linkSchoolPartners = "link_school_partners"
     const val openSchools = "open_schools"
 
@@ -697,6 +723,19 @@ private val en = mapOf(
     S.screeningsIncluded to "Screenings included",
     S.capacity to "Capacity",
     S.registerChild to "Register your child",
+    S.campRosterTitle to "Who is being screened",
+    S.campRosterOnList to "On the school's list",
+    S.campRosterNotOnList to "Not on the list for this camp",
+    S.campRosterNote to "Your school decides which classes a camp covers. If your child is on the list you will be asked for permission before the day \u2014 nothing is checked without it.",
+    S.schoolLinkTitle to "How your school links to you",
+    S.schoolLinkNote to "Your school adds your family to its list using the mobile number it holds for you \u2014 there is no code to enter. If a school is missing here, or your children are, ask the school office to check that number.",
+    S.referredTitle to "Referred after the school check-up",
+    S.referredChip to "%s1 \u2014 %s2",
+    S.referredUrgent to "See soon",
+    S.exportTitle to "Download your family's data",
+    S.exportSub to "Everything VitaHero holds about you and your children \u2014 the school check-up findings, referrals, appointments and the consents you have given \u2014 as one file you can keep or send on.",
+    S.exportAction to "Download my data",
+    S.exportFailed to "Could not prepare the file. Check your connection and try again.",
     S.registered to "Registered",
     S.selected to "Selected",
     S.confirmRegistration to "Confirm registration",

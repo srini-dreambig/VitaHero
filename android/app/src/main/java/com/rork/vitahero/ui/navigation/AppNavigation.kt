@@ -163,7 +163,6 @@ fun AppNavigation(
         if (isLoggedIn) guardianViewModel.refreshAll()
     }
     val pendingConsents by guardianViewModel.pendingConsents.collectAsState()
-    val campsBusy by campsViewModel.busy.collectAsState()
 
     val startDest = when {
         isLoggedIn -> Routes.MAIN
@@ -392,6 +391,10 @@ fun AppNavigation(
             // Leaving the screen clears the last result, so re-opening it does
             // not greet the parent with a confirmation from ten minutes ago.
             DisposableEffect(Unit) { onDispose { bookingViewModel.clearBookingOutcome() } }
+            // What the school check-up referred these children for, so the
+            // screen can steer rather than present the whole directory.
+            val referralTargets by guardianViewModel.referralTargets.collectAsState()
+            LaunchedEffect(Unit) { guardianViewModel.loadReferralTargets() }
             BookingScreen(
                 directory = bookingDirectory,
                 doctors = doctors,
@@ -408,6 +411,7 @@ fun AppNavigation(
                     bookingViewModel.bookAppointment(doctor, kidName, date, time)
                 },
                 onCancel = { bookingViewModel.cancelAppointment(it) },
+                referrals = referralTargets,
                 booking = booking,
                 confirmed = outcome is BookingViewModel.BookingOutcome.Confirmed,
                 refusedMessage = (outcome as? BookingViewModel.BookingOutcome.Refused)?.message,
@@ -523,8 +527,6 @@ fun AppNavigation(
                 availableSchools = availableSchools,
                 kids = kids,
                 onBack = { navController.popBackStack() },
-                onEnroll = { code, kidId -> campsViewModel.enrollInSchool(code, kidId) },
-                busy = campsBusy,
             )
         }
 
@@ -540,16 +542,10 @@ fun AppNavigation(
                     camp = camp,
                     kids = kids,
                     onBack = { navController.popBackStack() },
-                    onRegister = { kidId ->
-                        campsViewModel.registerForCamp(camp, kidId) {
-                            profileViewModel.scheduleAllNotifications()
-                        }
-                    },
                     onBookFollowUp = { navController.navigate(Routes.BOOKING) },
                     onOpenResult = { campId, kidId ->
                         navController.navigate("campResult/$campId/$kidId")
                     },
-                    busy = campsBusy,
                 )
             }
         }

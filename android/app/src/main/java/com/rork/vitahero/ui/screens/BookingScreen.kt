@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.LocalHospital
+import androidx.compose.material.icons.outlined.MedicalServices
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.MyLocation
 import androidx.compose.material.icons.outlined.Verified
@@ -59,6 +60,7 @@ import com.rork.vitahero.data.Appointment
 import com.rork.vitahero.data.BookingDirectory
 import com.rork.vitahero.data.Doctor
 import com.rork.vitahero.data.Hospital
+import com.rork.vitahero.data.ReferralSpecialtiesDto
 import com.rork.vitahero.data.Kid
 import com.rork.vitahero.data.LocationHelper
 import com.rork.vitahero.data.S
@@ -71,6 +73,7 @@ import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.t
+import com.rork.vitahero.ui.components.tf2
 import com.rork.vitahero.ui.theme.HeroBlue
 import com.rork.vitahero.ui.theme.HeroOrange
 import com.rork.vitahero.ui.theme.HeroPurple
@@ -95,6 +98,11 @@ fun BookingScreen(
     onLoadSlots: (String) -> Unit,
     onConfirm: (Doctor, kidName: String, date: String, time: String) -> Unit,
     onCancel: (String) -> Unit,
+    /**
+     * What this family's children were actually referred for, after a school
+     * check-up. Empty for a family booking on their own initiative.
+     */
+    referrals: ReferralSpecialtiesDto = ReferralSpecialtiesDto(),
     /** True while the booking is with the server and no answer has come back. */
     booking: Boolean = false,
     /** Set once the server has accepted or refused. Null before either. */
@@ -348,6 +356,67 @@ fun BookingScreen(
                     }
                 }
                 Spacer(Modifier.height(20.dp))
+
+                // What the school check-up actually asked for.
+                //
+                // /api/referral-specialties has existed since referrals did and
+                // nothing called it, so this screen offered the whole
+                // directory's specialty list and left the parent to remember
+                // which one the doctor had written down. That is the last step
+                // of a screening programme — a child is found to need glasses
+                // and the app's job is to get them in front of an
+                // ophthalmologist, not to present a menu.
+                if (referrals.forChildren.isNotEmpty()) {
+                    Text(
+                        t(S.referredTitle),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        referrals.forChildren.forEach { r ->
+                            val active = filterSpecialty == r.specialty
+                            HeroCard(
+                                Modifier.fillMaxWidth().clickable {
+                                    // Tapping it does the filtering the parent
+                                    // would otherwise have to do from memory.
+                                    filterSpecialty = if (active) null else r.specialty
+                                    viewMode = BookingViewMode.BY_SPECIALTY
+                                    selectedDoctorId = null
+                                    expandedHospitalId = null
+                                }
+                            ) {
+                                Row(
+                                    Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    IconBubble(
+                                        Icons.Outlined.MedicalServices,
+                                        if (r.urgency == "URGENT") HeroOrange else HeroBlue,
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(
+                                        tf2(S.referredChip, r.kidName, r.specialty),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                                        modifier = Modifier.weight(1f),
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    if (r.urgency != "ROUTINE") {
+                                        Text(
+                                            t(S.referredUrgent),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = HeroOrange,
+                                            fontWeight = FontWeight.Bold,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(20.dp))
+                }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ViewModeChip(t(S.viewByHospital), viewMode == BookingViewMode.BY_HOSPITAL) {

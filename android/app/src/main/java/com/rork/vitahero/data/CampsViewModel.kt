@@ -41,35 +41,13 @@ class CampsViewModel(
     fun campById(campId: String): Camp? =
         state.uiState.value.camps.firstOrNull { it.id == campId || it.schoolCampId == campId }
 
-    fun enrollInSchool(partnerCode: String, kidId: String? = null) {
-        write {
-            val locale = state.uiState.value.locale
-            api.enrollSchool(partnerCode, kidId).fold(
-                onSuccess = {
-                    container.fetchAndApplyBackendData(viewModelScope)
-                    state.syncMessage.value = tr(S.schoolLinked, locale).replace("%s", it.schoolName ?: "")
-                },
-                onFailure = { e ->
-                    state.syncMessage.value = e.message ?: tr(S.schoolEnrollFailed, locale)
-                },
-            )
-        }
-    }
-
-    fun registerForCamp(camp: Camp, kidId: String, onScheduled: () -> Unit = {}) {
-        if (!camp.isPartnerCamp) return
-        write {
-            val locale = state.uiState.value.locale
-            api.registerForCamp(camp.schoolCampId.ifBlank { camp.id }, kidId).fold(
-                onSuccess = {
-                    container.fetchAndApplyBackendData(viewModelScope)
-                    onScheduled()
-                    state.syncMessage.value = tr(S.campRegistered, locale)
-                },
-                onFailure = { e ->
-                    state.syncMessage.value = e.message ?: tr(S.campRegisterFailed, locale)
-                },
-            )
-        }
-    }
+    // enrollInSchool and registerForCamp used to live here.
+    //
+    // Both wrote something only a school may decide: which families are in a
+    // school, and which children are screened at a camp. The server refuses
+    // both for a parent now, and keeping the view model functions would leave
+    // two loaded guns for the next screen that needs a button.
+    //
+    // What a parent does with a camp is answer the consent request, which is
+    // GuardianViewModel.recordConsent.
 }

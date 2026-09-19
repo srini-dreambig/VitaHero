@@ -20,11 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.School
-import androidx.compose.material.icons.outlined.VpnKey
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,7 +39,6 @@ import com.rork.vitahero.data.PartnerSchool
 import com.rork.vitahero.data.S
 import com.rork.vitahero.ui.components.HeroCard
 import com.rork.vitahero.ui.components.IconBubble
-import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.components.t
 import com.rork.vitahero.ui.theme.HeroBlue
@@ -54,12 +50,8 @@ fun SchoolsScreen(
     availableSchools: List<PartnerSchool>,
     kids: List<Kid>,
     onBack: () -> Unit,
-    onEnroll: (partnerCode: String, kidId: String?) -> Unit,
     /** True while the link is with the server. */
-    busy: Boolean = false,
 ) {
-    var code by rememberSaveable { mutableStateOf("") }
-    var selectedKidId by rememberSaveable { mutableStateOf(kids.firstOrNull()?.id) }
 
     LazyColumn(
         modifier = Modifier
@@ -101,53 +93,27 @@ fun SchoolsScreen(
         }
 
         item {
+            // How the link is actually made, instead of a form that pretends
+            // the parent makes it.
+            //
+            // This was "Enter partner code": a text field, a child to attach,
+            // and a button that created a school enrolment outright. Nobody at
+            // the school approved it, and it contradicted what the app already
+            // tells a parent with an empty Kids list — that the school adds
+            // families using the number it holds. The server refuses it now,
+            // so the form could only have taught a parent that by failing.
             HeroCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBubble(Icons.Outlined.VpnKey, HeroOrange)
+                        IconBubble(Icons.Outlined.School, HeroOrange)
                         Spacer(Modifier.width(12.dp))
-                        Text(t(S.enterPartnerCode), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text(t(S.schoolLinkTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     }
                     Spacer(Modifier.height(12.dp))
-                    Text(t(S.partnerCodeHint), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = code,
-                        onValueChange = { code = it.uppercase().take(12) },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("OAK2026") },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
-                    )
-                    if (kids.isNotEmpty()) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(t(S.linkChildOptional), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            kids.forEach { kid ->
-                                val selected = selectedKidId == kid.id
-                                Text(
-                                    kid.name,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(50))
-                                        .clickable { selectedKidId = kid.id }
-                                        .background(if (selected) HeroOrange.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant)
-                                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(16.dp))
-                    PrimaryGradientButton(
-                        text = if (busy) t(S.pleaseWait) else t(S.linkSchool),
-                        enabled = code.length >= 4 && !busy,
-                        onClick = { onEnroll(code.trim(), selectedKidId) },
+                    Text(
+                        t(S.schoolLinkNote),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

@@ -82,6 +82,10 @@ class GuardianViewModel(
     private val _dataRights = MutableStateFlow<List<DataRightDto>>(emptyList())
     val dataRights: StateFlow<List<DataRightDto>> = _dataRights.asStateFlow()
 
+    /** What this family's children were referred for, for the booking screen. */
+    private val _referralTargets = MutableStateFlow(ReferralSpecialtiesDto())
+    val referralTargets: StateFlow<ReferralSpecialtiesDto> = _referralTargets.asStateFlow()
+
     private val _inFlight = MutableStateFlow(0)
     val busy: StateFlow<Boolean> = _inFlight
         .map { it > 0 }
@@ -141,6 +145,7 @@ class GuardianViewModel(
         _symptomAdvice.value = ""
         _entitlements.value = EntitlementsDto()
         _dataRights.value = emptyList()
+        _referralTargets.value = ReferralSpecialtiesDto()
     }
 
     init {
@@ -378,6 +383,29 @@ class GuardianViewModel(
 
     fun loadEntitlements(force: Boolean = false) = once("entitlements", force) {
         _entitlements.value = repo.entitlements()
+    }
+
+    /**
+     * Write the family's whole record to a file the parent can keep or send on.
+     *
+     * The export itself is a data-rights action and the server logs it as one,
+     * so this does not run on its own — only when a parent asks. [onReady] gets
+     * the file; a null means the request did not come back, and the screen says
+     * so rather than opening an empty share sheet.
+     */
+    fun exportMyData(cacheDir: java.io.File, onReady: (java.io.File?) -> Unit) {
+        viewModelScope.launch {
+            _inFlight.value++
+            val json = repo.exportMyData()
+            _inFlight.value--
+            if (json.isNullOrBlank()) { onReady(null); return@launch }
+            val f = java.io.File(cacheDir, "vitahero-my-data.json")
+            onReady(runCatching { f.writeText(json); f }.getOrNull())
+        }
+    }
+
+    fun loadReferralTargets(force: Boolean = false) = once("referralTargets", force) {
+        _referralTargets.value = repo.referralSpecialties()
     }
 
     fun loadDataRights(force: Boolean = false) = once("dataRights", force) {

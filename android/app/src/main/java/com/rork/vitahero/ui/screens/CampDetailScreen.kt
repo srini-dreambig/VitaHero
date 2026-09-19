@@ -27,13 +27,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.Camp
@@ -53,14 +52,11 @@ fun CampDetailScreen(
     camp: Camp,
     kids: List<Kid>,
     onBack: () -> Unit,
-    onRegister: (kidId: String) -> Unit,
     /** True while the registration is with the server. */
-    busy: Boolean = false,
     onBookFollowUp: () -> Unit,
     /** Open what a doctor released for one child at this camp. */
     onOpenResult: (campId: String, kidId: String) -> Unit = { _, _ -> },
 ) {
-    var selectedKidId by rememberSaveable { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
     val upcoming = camp.status.isUpcoming
     val accent = if (upcoming) HeroBlue else HeroOrange
     val registered = camp.registeredKidIds
@@ -177,16 +173,24 @@ fun CampDetailScreen(
 
         if (upcoming && camp.isPartnerCamp && kids.isNotEmpty()) {
             item {
-                Text(t(S.registerChild), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                // Who is being screened, not who to sign up.
+                //
+                // This was a "Register your child" form with a list and a
+                // confirm button. A camp's list is built by a school
+                // administrator from the classes the camp covers, so a parent
+                // adding their own child produced a participant the school had
+                // not planned for and had not sought consent for. The server
+                // refuses it now; showing the button anyway would only let a
+                // parent discover that by pressing it.
+                //
+                // The same list is still worth showing — a parent opening a
+                // camp wants to know whether it involves their child — so it
+                // reads rather than acts.
+                Text(t(S.campRosterTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(10.dp))
                 kids.forEach { kid ->
-                    val isRegistered = kid.id in registered
-                    HeroCard(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 10.dp)
-                            .clickable(enabled = !isRegistered) { selectedKidId = kid.id }
-                    ) {
+                    val isOnList = kid.id in registered
+                    HeroCard(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
                         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
@@ -198,23 +202,22 @@ fun CampDetailScreen(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
-                            if (isRegistered) {
-                                Text(t(S.registered), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.Bold)
-                            } else if (selectedKidId == kid.id) {
-                                Text(t(S.selected), style = MaterialTheme.typography.labelSmall, color = HeroBlue, fontWeight = FontWeight.Bold)
-                            }
+                            Text(
+                                if (isOnList) t(S.campRosterOnList) else t(S.campRosterNotOnList),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isOnList) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.End,
+                            )
                         }
                     }
                 }
-                val kid = kids.firstOrNull { it.id == selectedKidId }
-                if (kid != null && kid.id !in registered) {
-                    Spacer(Modifier.height(8.dp))
-                    PrimaryGradientButton(
-                        text = if (busy) t(S.pleaseWait) else t(S.confirmRegistration),
-                        enabled = !busy,
-                        onClick = { onRegister(kid.id) },
-                    )
-                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    t(S.campRosterNote),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Spacer(Modifier.height(16.dp))
             }
         }
