@@ -761,8 +761,11 @@ private val en = mapOf(
     S.weWillSendCode to "We'll send a 6-digit verification code to this number.",
     S.appSubtitle to "Your child's health, in heroic hands",
     S.childrenFromSchool to "Your school adds your children to VitaHero. Ask the school office if one is missing.",
-    S.childrenTracked to "%d children tracked",
-    S.childTracked to "%d child tracked",
+    // %s, not %d: these go through tf(), which substitutes %s and leaves
+    // anything else alone. With %d the Kids screen showed a parent the literal
+    // text "%d children tracked".
+    S.childrenTracked to "%s children tracked",
+    S.childTracked to "%s child tracked",
     S.schoolScreenings to "School screening camps & follow-ups",
     S.noCampsYet to "No camps yet",
     S.noCampsSub to "When your school schedules a health camp, it will appear here.",

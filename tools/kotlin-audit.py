@@ -621,6 +621,60 @@ if not codes:
 
 # ── result ──────────────────────────────────────────────────
 print("\n" + "=" * 60)
+# ── A format string and the helper that fills it ────────────
+#
+# tf(key, arg) substitutes "%s". tf2(key, a, b) substitutes "%s1" and "%s2".
+# String.format(t(key), n) substitutes "%d". Nothing checked that a string was
+# passed to the helper it was written for, so
+#
+#     S.childrenTracked to "%d children tracked"        // in the en map
+#     tf(S.childrenTracked, kids.size.toString())       // on the Kids screen
+#
+# put the literal text "%d children tracked" in front of a parent, under their
+# children's names, on the screen the app opens to. It shipped and was found in
+# a screenshot.
+STRINGS = ROOT / "data/LocaleStrings.kt"
+fmt_problems = []
+if not STRINGS.exists():
+    # A check that silently does nothing is worse than no check: this one
+    # was appended with the wrong path and printed "ok" while the bug it
+    # was written for sat in the file.
+    fail("kotlin-audit: LocaleStrings.kt not found at " + str(STRINGS))
+else:
+    strings_src = STRINGS.read_text()
+    # The English map is the one every locale falls back to, so it is the one
+    # that decides what a missing translation shows.
+    en_start = strings_src.find("private val en = mapOf(")
+    en_end = strings_src.find("private val hi = mapOf(")
+    en_block = strings_src[en_start:en_end] if en_start >= 0 < en_end else ""
+    en_values = dict(re.findall(r'S\.(\w+)\s+to\s+"((?:[^"\\]|\\.)*)"', en_block))
+
+    for f in FILES:
+        body = f.read_text()
+        for helper, needed in (("tf2", ("%s1", "%s2")), ("tf", ("%s",))):
+            for m in re.finditer(r"\b" + helper + r"\(\s*S\.(\w+)", body):
+                key = m.group(1)
+                value = en_values.get(key)
+                if value is None:
+                    continue
+                missing = [n for n in needed if n not in value]
+                if missing:
+                    fmt_problems.append(
+                        f"{rel(f)} calls {helper}(S.{key}), but \"{value}\" has no "
+                        + " or ".join(missing)
+                        + (' — "%d" is for String.format, not this helper'
+                           if "%d" in value else "")
+                    )
+        # Deliberately no mirror check for String.format. It fills %s as
+        # happily as %d — "%s km away" with a pre-formatted "3.4" is correct —
+        # so flagging it reported a working line as broken the first time this
+        # ran. A check that cries wolf is a check people learn to skip.
+
+for x in sorted(set(fmt_problems)):
+    fail(x)
+if not fmt_problems:
+    print("  ok  every format string matches the helper that fills it")
+
 if failures:
     print(f"{len(failures)} PROBLEM(S):")
     for x in failures:
