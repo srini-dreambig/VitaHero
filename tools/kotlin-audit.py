@@ -642,29 +642,47 @@ if not STRINGS.exists():
     fail("kotlin-audit: LocaleStrings.kt not found at " + str(STRINGS))
 else:
     strings_src = STRINGS.read_text()
-    # The English map is the one every locale falls back to, so it is the one
-    # that decides what a missing translation shows.
-    en_start = strings_src.find("private val en = mapOf(")
-    en_end = strings_src.find("private val hi = mapOf(")
-    en_block = strings_src[en_start:en_end] if en_start >= 0 < en_end else ""
-    en_values = dict(re.findall(r'S\.(\w+)\s+to\s+"((?:[^"\\]|\\.)*)"', en_block))
+    # Every locale, not only English.
+    #
+    # It used to read the English map alone, on the reasoning that English is
+    # what a missing translation falls back to. True, and beside the point: a
+    # key that IS translated does not fall back, so a Telugu string written
+    # with %d is a Telugu user seeing "%d" on their screen while every English
+    # tester sees a number. The bug this check exists for would have moved to
+    # the locale with the fewest people looking at it.
+    locale_starts = [
+        (name, strings_src.find(f"private val {name} = mapOf("))
+        for name in ("en", "hi", "te")
+    ]
+    locale_values = {}
+    for i, (name, start) in enumerate(locale_starts):
+        if start < 0:
+            continue
+        end = next((st for _, st in locale_starts[i + 1:] if st >= 0), len(strings_src))
+        locale_values[name] = dict(
+            re.findall(r'S\.(\w+)\s+to\s+"((?:[^"\\]|\\.)*)"', strings_src[start:end])
+        )
 
     for f in FILES:
         body = f.read_text()
         for helper, needed in (("tf2", ("%s1", "%s2")), ("tf", ("%s",))):
             for m in re.finditer(r"\b" + helper + r"\(\s*S\.(\w+)", body):
                 key = m.group(1)
-                value = en_values.get(key)
-                if value is None:
-                    continue
-                missing = [n for n in needed if n not in value]
-                if missing:
-                    fmt_problems.append(
-                        f"{rel(f)} calls {helper}(S.{key}), but \"{value}\" has no "
-                        + " or ".join(missing)
-                        + (' — "%d" is for String.format, not this helper'
-                           if "%d" in value else "")
-                    )
+                for locale, values in locale_values.items():
+                    value = values.get(key)
+                    # Absent means this locale falls back to English, which
+                    # gets a pass of its own.
+                    if value is None:
+                        continue
+                    missing = [n for n in needed if n not in value]
+                    if missing:
+                        fmt_problems.append(
+                            f"{rel(f)} calls {helper}(S.{key}), but the {locale} "
+                            + f"string \"{value}\" has no "
+                            + " or ".join(missing)
+                            + (' — "%d" is for String.format, not this helper'
+                               if "%d" in value else "")
+                        )
         # Deliberately no mirror check for String.format. It fills %s as
         # happily as %d — "%s km away" with a pre-formatted "3.4" is correct —
         # so flagging it reported a working line as broken the first time this
