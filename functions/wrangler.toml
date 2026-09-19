@@ -19,7 +19,12 @@
 #   every secret below — set once with `wrangler secret put`, stored by
 #     Cloudflare, and never passed through a build.
 
-name = "vitahero-backend"
+# Matches the Worker that Workers Builds actually created. It was named
+# "vitahero" in the dashboard, and the dashboard's name wins — so a
+# `wrangler deploy` run against a config saying anything else would not update
+# that Worker, it would stand up a second one beside it, and half your deploys
+# would land on a URL nobody is using.
+name = "vitahero"
 main = "index.ts"
 compatibility_date = "2026-09-01"
 

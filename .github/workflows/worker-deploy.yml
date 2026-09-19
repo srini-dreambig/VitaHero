@@ -22,7 +22,7 @@
 #        npx wrangler secret put TEXTBEE_DEVICE_ID
 #
 # After the first deploy the console is at
-# https://vitahero-backend.<your-subdomain>.workers.dev/admin, and the Android
+# https://vitahero.<your-subdomain>.workers.dev/admin, and the Android
 # app needs RORK_FUNCTIONS_URL pointed at that origin — otherwise it keeps
 # talking to Rork's copy, which is the whole thing you are moving away from.
 name: Deploy worker
