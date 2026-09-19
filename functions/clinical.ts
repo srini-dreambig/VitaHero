@@ -151,6 +151,13 @@ export function specialtyOptions() {
       // is a perfectly good referral entry and has nothing to record at a camp,
       // and saying so here is what stops them being assigned to one.
       canScreen: checks.length > 0,
+      // What this specialty would screen once it exists. Two pieces of work,
+      // not one: somewhere for a clinician to record it, and a health area in
+      // the family's app for them to see it. The app has four — growth,
+      // dental, eye and nutrition — and a finding outside them reaches a
+      // parent as a line of text in the camp result with no flag and no trend,
+      // which is a receipt rather than a result. app-surface.test.ts is the
+      // gate that keeps these two honest about each other.
       planned: (SPECIALTY_CHECKS[name] || []).filter((c) => !isDesignedCheck(c)),
     };
   });

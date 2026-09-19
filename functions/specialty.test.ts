@@ -178,7 +178,7 @@ suite("a doctor's round at a camp", () => {
 
   test("the eye doctor can record what is theirs", async () => {
     const r = await saveScreening(sql, EYE, CAMP, KID, {
-      findings: [{ checkType: "Vision", detail: { leftEye: "6/6", rightEye: "6/6" } }],
+      findings: [{ checkType: "Vision", detail: { leftAcuity: "6/6", rightAcuity: "6/6" } }],
     });
     expect(r.saved.length).toBe(1);
   });
@@ -189,7 +189,7 @@ suite("a doctor's round at a camp", () => {
     // was never a control: a stale pack on somebody's tablet carries the whole
     // camp's checks.
     await expect(saveScreening(sql, EYE, CAMP, KID, {
-      findings: [{ checkType: "Dental", detail: { cavities: 2 } }],
+      findings: [{ checkType: "Dental", detail: { cariesCount: 2 } }],
     })).rejects.toThrow(/not part of Ophthalmology/i);
   });
 
@@ -209,7 +209,7 @@ suite("a doctor's round at a camp", () => {
 
   test("and the queue still takes what is theirs", async () => {
     const r = await saveScreeningBulk(sql, EYE, CAMP, [
-      { kidId: KID, findings: [{ checkType: "Vision", detail: { leftEye: "6/9", rightEye: "6/6" } }] },
+      { kidId: KID, findings: [{ checkType: "Vision", detail: { leftAcuity: "6/9", rightAcuity: "6/6" } }] },
     ]);
     expect(r.rejected.length).toBe(0);
     expect(r.applied).toBe(1);
