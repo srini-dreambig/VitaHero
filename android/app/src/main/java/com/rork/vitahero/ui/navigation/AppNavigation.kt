@@ -26,6 +26,8 @@ import com.rork.vitahero.data.ReportData
 import com.rork.vitahero.data.rememberVitaHeroViewModels
 import com.rork.vitahero.ui.components.selectAsState
 import com.rork.vitahero.ui.screens.ClinicianCampsScreen
+import com.rork.vitahero.ui.screens.ClinicianReviewChildScreen
+import com.rork.vitahero.ui.screens.ClinicianReviewScreen
 import com.rork.vitahero.ui.screens.ClinicianRosterScreen
 import com.rork.vitahero.ui.screens.ClinicianScreeningScreen
 import com.rork.vitahero.ui.screens.AuthScreen
@@ -69,9 +71,17 @@ object Routes {
     const val CLINIC = "clinic"
     const val CLINIC_ROSTER = "clinic/{campId}/{title}"
     const val CLINIC_SCREEN = "clinic/{campId}/child/{kidId}"
+
+    // Review is the step that lets a camp out. It stays a separate route from
+    // the roster because it is a different job with a different permission:
+    // a screener screens, a physician signs off.
+    const val CLINIC_REVIEW = "clinic/{campId}/review/{title}"
+    const val CLINIC_REVIEW_CHILD = "clinic/{campId}/review/child/{kidId}"
     const val KID_DETAIL = "kid/{kidId}"
     const val DIET = "diet/{kidId}"
-    const val BOOKING = "booking"
+    // Optional query arguments, so every existing `bookingRoute()` with no
+    // arguments still matches and falls back to the defaults.
+    const val BOOKING = "booking?specialty={specialty}&kid={kid}"
     const val NOTIFICATIONS = "notifications"
     const val FAMILY_SHARING = "familySharing"
     const val FOOD_RECOGNITION = "foodRecognition/{kidId}/{kidName}"
@@ -87,6 +97,15 @@ object Routes {
     const val RECORD = "record"
     const val SYMPTOMS = "symptoms/{kidId}"
 }
+
+/**
+ * Open the booking screen, optionally carrying the referral that sent us.
+ *
+ * Built here rather than at each call site so the encoding and the argument
+ * names live in one place as the route does.
+ */
+fun bookingRoute(specialty: String = "", kidName: String = ""): String =
+    "booking?specialty=${Uri.encode(specialty)}&kid=${Uri.encode(kidName)}"
 
 /**
  * The destinations that exist precisely because nobody is signed in.
@@ -340,6 +359,9 @@ fun AppNavigation(
                 campId = campId,
                 clinician = vms.clinician,
                 onOpenChild = { kidId -> navController.navigate("clinic/$campId/child/$kidId") },
+                onOpenReview = {
+                    navController.navigate("clinic/$campId/review/${Uri.encode(title)}")
+                },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -359,6 +381,40 @@ fun AppNavigation(
             )
         }
 
+        composable(
+            Routes.CLINIC_REVIEW,
+            arguments = listOf(
+                navArgument("campId") { type = NavType.StringType },
+                navArgument("title") { type = NavType.StringType },
+            ),
+        ) { backStack ->
+            val campId = backStack.arguments?.getString("campId").orEmpty()
+            ClinicianReviewScreen(
+                campId = campId,
+                campTitle = backStack.arguments?.getString("title").orEmpty(),
+                clinician = vms.clinician,
+                onOpenChild = { kidId ->
+                    navController.navigate("clinic/$campId/review/child/$kidId")
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            Routes.CLINIC_REVIEW_CHILD,
+            arguments = listOf(
+                navArgument("campId") { type = NavType.StringType },
+                navArgument("kidId") { type = NavType.StringType },
+            ),
+        ) { backStack ->
+            ClinicianReviewChildScreen(
+                campId = backStack.arguments?.getString("campId").orEmpty(),
+                kidId = backStack.arguments?.getString("kidId").orEmpty(),
+                clinician = vms.clinician,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
         composable(Routes.MAIN) {
             MainScaffold(
                 appViewModel = appViewModel,
@@ -368,7 +424,7 @@ fun AppNavigation(
                 darkTheme = darkTheme,
                 onOpenKid = { navController.navigate("kid/$it") },
                 onOpenDiet = { navController.navigate("diet/$it") },
-                onOpenBooking = { navController.navigate(Routes.BOOKING) },
+                onOpenBooking = { navController.navigate(bookingRoute()) },
                 onOpenNotifications = { navController.navigate(Routes.NOTIFICATIONS) },
                 onOpenFamilySharing = { navController.navigate(Routes.FAMILY_SHARING) },
                 onOpenSchools = { navController.navigate(Routes.SCHOOLS) },
@@ -456,7 +512,13 @@ fun AppNavigation(
             }
         }
 
-        composable(Routes.BOOKING) {
+        composable(
+            Routes.BOOKING,
+            arguments = listOf(
+                navArgument("specialty") { type = NavType.StringType; defaultValue = "" },
+                navArgument("kid") { type = NavType.StringType; defaultValue = "" },
+            ),
+        ) { backStack ->
             val appointments by appViewModel.uiState.selectAsState { it.appointments }
             val bookingCity by appViewModel.uiState.selectAsState { it.bookingCity }
             val bookingDirectory by appViewModel.uiState.selectAsState { it.bookingDirectory }
@@ -475,6 +537,8 @@ fun AppNavigation(
             val referralTargets by guardianViewModel.referralTargets.collectAsState()
             LaunchedEffect(Unit) { guardianViewModel.loadReferralTargets() }
             BookingScreen(
+                initialSpecialty = backStack.arguments?.getString("specialty").orEmpty(),
+                initialKidName = backStack.arguments?.getString("kid").orEmpty(),
                 directory = bookingDirectory,
                 doctors = doctors,
                 kids = kids,
@@ -514,7 +578,7 @@ fun AppNavigation(
                 onBack = { navController.popBackStack() },
                 onCityChange = { bookingViewModel.refreshBookingDirectory(it) },
                 onUseMyLocation = { bookingViewModel.fetchLocationAndRefresh(ctx) },
-                onBookAppointment = { navController.navigate(Routes.BOOKING) },
+                onBookAppointment = { navController.navigate(bookingRoute()) },
             )
         }
 
@@ -545,6 +609,9 @@ fun AppNavigation(
         composable(Routes.REFERRALS) {
             ReferralsScreen(
                 guardianViewModel = guardianViewModel,
+                onFindDoctor = { specialty, kidName ->
+                    navController.navigate(bookingRoute(specialty, kidName))
+                },
                 onBack = { navController.popBackStack() },
             )
         }
@@ -621,7 +688,7 @@ fun AppNavigation(
                     camp = camp,
                     kids = kids,
                     onBack = { navController.popBackStack() },
-                    onBookFollowUp = { navController.navigate(Routes.BOOKING) },
+                    onBookFollowUp = { navController.navigate(bookingRoute()) },
                     onOpenResult = { campId, kidId ->
                         navController.navigate("campResult/$campId/$kidId")
                     },

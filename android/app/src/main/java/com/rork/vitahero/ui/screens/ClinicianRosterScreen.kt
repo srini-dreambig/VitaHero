@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.FactCheck
 import androidx.compose.material.icons.outlined.Groups
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Icon
@@ -39,6 +40,7 @@ import com.rork.vitahero.data.CampChildDto
 import com.rork.vitahero.data.ClinicianViewModel
 import com.rork.vitahero.ui.components.EmptyState
 import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.IconBubble
 import com.rork.vitahero.ui.components.KidAvatar
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.theme.HeroBlue
@@ -60,10 +62,12 @@ fun ClinicianRosterScreen(
     campId: String,
     clinician: ClinicianViewModel,
     onOpenChild: (kidId: String) -> Unit,
+    onOpenReview: () -> Unit,
     onBack: () -> Unit,
 ) {
     val roster by clinician.roster.collectAsState()
     val busy by clinician.busy.collectAsState()
+    val can by clinician.can.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(campId) { clinician.loadRoster(campId) }
@@ -111,6 +115,40 @@ fun ClinicianRosterScreen(
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
             )
             Spacer(Modifier.height(12.dp))
+            // Only a physician sees this, and only once there is something to
+            // sign off. The server decides both: `can.review` comes back with
+            // the roster, and it refuses the queue to anyone else regardless
+            // of what this build chooses to draw.
+            if (can.review && screened > 0) {
+                HeroCard(
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .clickable(onClick = onOpenReview)
+                ) {
+                    Row(
+                        Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        IconBubble(Icons.Outlined.FactCheck, HeroBlue)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Review and send results",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "$screened screened. Nothing reaches a guardian until you "
+                                    + "sign it off.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+            }
         }
 
         if (shown.isEmpty()) {

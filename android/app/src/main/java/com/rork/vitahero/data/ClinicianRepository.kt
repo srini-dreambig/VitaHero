@@ -52,17 +52,24 @@ class ClinicianRepository {
         }
     }
 
-    /** Every child on one camp's list. */
-    suspend fun roster(campId: String): List<CampChildDto> = io {
-        if (!configured) return@io emptyList()
+    /**
+     * Every child on one camp's list, and what this person may do with them.
+     *
+     * The whole answer rather than just the list: the same response carries
+     * whether this clinician may sign results off, and throwing that away
+     * meant the app had to guess at a permission the server had already
+     * stated.
+     */
+    suspend fun roster(campId: String): CampRosterDto = io {
+        if (!configured) return@io CampRosterDto()
         try {
             val resp = http.get("$base/api/admin/camps/$campId/participants") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.observed()) resp.body<CampRosterDto>().participants else emptyList()
+            if (resp.observed()) resp.body<CampRosterDto>() else CampRosterDto()
         } catch (e: Exception) {
             noteTransportFailure(e)
-            emptyList()
+            CampRosterDto()
         }
     }
 
@@ -112,6 +119,98 @@ class ClinicianRepository {
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Could not save"))
+            }
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            Result.failure(e)
+        }
+    }
+
+    // ─── Review and release ─────────────────────────────────
+
+    /** The children this physician still has to sign off, worst first. */
+    suspend fun reviewQueue(campId: String): List<ReviewQueueItemDto> = io {
+        if (!configured) return@io emptyList()
+        try {
+            val resp = http.get("$base/api/admin/camps/$campId/review") {
+                headers().forEach { (k, v) -> header(k, v) }
+            }
+            if (resp.observed()) resp.body<ReviewQueueDto>().queue else emptyList()
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            emptyList()
+        }
+    }
+
+    /**
+     * Everything needed to decide on one child.
+     *
+     * Null means the request did not come back, which the screen says rather
+     * than drawing an empty record a physician might sign off.
+     */
+    suspend fun reviewDetail(campId: String, kidId: String): ReviewDetailDto? = io {
+        if (!configured) return@io null
+        try {
+            val resp = http.get("$base/api/admin/camps/$campId/review/$kidId") {
+                headers().forEach { (k, v) -> header(k, v) }
+            }
+            if (resp.observed()) resp.body<ReviewDetailDto>() else null
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            null
+        }
+    }
+
+    /**
+     * Approve one child's results.
+     *
+     * The server refuses without a recommendation, refuses a child who was
+     * never screened, and refuses one already released. Those refusals are
+     * shown as written: a physician can act on "already released to the
+     * guardian" in a way they cannot act on "something went wrong".
+     */
+    suspend fun approve(
+        campId: String,
+        kidId: String,
+        body: ReviewSubmissionBody,
+    ): Result<Unit> = io {
+        if (!configured) return@io Result.failure(Exception("Backend not configured"))
+        try {
+            val resp = http.post("$base/api/admin/camps/$campId/review/$kidId") {
+                contentType(ContentType.Application.Json)
+                headers().forEach { (k, v) -> header(k, v) }
+                setBody(body)
+            }
+            if (resp.observed()) Result.success(Unit)
+            else {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                Result.failure(Exception(err?.error ?: "Could not approve"))
+            }
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Release every approved child on this camp to their guardians.
+     *
+     * One action for the whole camp, because that is how the server models it:
+     * approved rows become RELEASED together, referrals open, and every urgent
+     * guardian is texted. There is no per-child release to offer.
+     */
+    suspend fun release(campId: String): Result<ReleaseResultDto> = io {
+        if (!configured) return@io Result.failure(Exception("Backend not configured"))
+        try {
+            val resp = http.post("$base/api/admin/camps/$campId/release") {
+                contentType(ContentType.Application.Json)
+                headers().forEach { (k, v) -> header(k, v) }
+            }
+            if (resp.observed()) {
+                Result.success(resp.body<ReleaseResultDto>())
+            } else {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                Result.failure(Exception(err?.error ?: "Could not release"))
             }
         } catch (e: Exception) {
             noteTransportFailure(e)

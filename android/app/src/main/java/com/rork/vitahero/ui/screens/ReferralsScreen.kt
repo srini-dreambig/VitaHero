@@ -52,6 +52,7 @@ import com.rork.vitahero.ui.theme.HeroOrange
 @Composable
 fun ReferralsScreen(
     guardianViewModel: GuardianViewModel,
+    onFindDoctor: (specialty: String, kidName: String) -> Unit,
     onBack: () -> Unit,
 ) {
     val referrals by guardianViewModel.referrals.collectAsState()
@@ -96,6 +97,7 @@ fun ReferralsScreen(
         items(referrals, key = { it.id }) { r ->
             ReferralCard(
                 r,
+                onFindDoctor = { onFindDoctor(r.specialty, r.kidName) },
                 onBooked = { guardianViewModel.markReferralBooked(r.id) },
                 onAttended = { guardianViewModel.markReferralAttended(r.id, "") },
                 onDecline = { guardianViewModel.declineReferral(r.id, "") },
@@ -109,6 +111,7 @@ fun ReferralsScreen(
 @Composable
 private fun ReferralCard(
     r: ReferralDto,
+    onFindDoctor: () -> Unit,
     onBooked: () -> Unit,
     onAttended: () -> Unit,
     onDecline: () -> Unit,
@@ -151,12 +154,28 @@ private fun ReferralCard(
             Spacer(Modifier.height(14.dp))
             when (r.status) {
                 "OPEN" -> {
+                    // The first thing a parent needs is a doctor, not a
+                    // checkbox. This used to lead with "I have booked it",
+                    // which marks the referral handled without an appointment
+                    // existing anywhere — so the console showed a child as
+                    // dealt with while nothing had happened. Booking leads;
+                    // the self-report stays, because a parent may well have
+                    // arranged something on their own.
                     PrimaryGradientButton(
-                        text = if (busy) t(S.pleaseWait) else t(S.referralBooked),
+                        text = t(S.referralFindDoctor),
                         enabled = !busy,
-                        onClick = onBooked,
+                        onClick = onFindDoctor,
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onBooked,
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Text(if (busy) t(S.pleaseWait) else t(S.referralBooked))
+                    }
                     Spacer(Modifier.height(8.dp))
                     OutlinedButton(
                         onClick = onDecline,

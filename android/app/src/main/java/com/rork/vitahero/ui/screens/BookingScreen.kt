@@ -85,6 +85,18 @@ private enum class BookingViewMode { BY_HOSPITAL, BY_SPECIALTY }
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun BookingScreen(
+    /**
+     * The specialty a referral asked for, or "".
+     *
+     * A parent arriving from "take Aarav to an ophthalmologist" used to land
+     * on every hospital in the city and have to remember which specialty the
+     * referral named. The screen could always filter by one — it draws chips
+     * from the open referrals — but nothing carried the answer across, so the
+     * parent did the machine's job.
+     */
+    initialSpecialty: String = "",
+    /** The child that referral was about, so the booking opens on them. */
+    initialKidName: String = "",
     directory: BookingDirectory?,
     doctors: List<Doctor>,
     kids: List<Kid>,
@@ -118,9 +130,15 @@ fun BookingScreen(
     // did not ask for the slots again. What is saved is the id and the label,
     // which restore without needing either type to be Parcelable.
     var selectedDoctorId by rememberSaveable { mutableStateOf<String?>(null) }
-    var selectedKid by rememberSaveable { mutableStateOf(kids.firstOrNull()?.name ?: "") }
+    var selectedKid by rememberSaveable {
+        mutableStateOf(initialKidName.ifBlank { kids.firstOrNull()?.name ?: "" })
+    }
     var selectedSlotLabel by rememberSaveable { mutableStateOf<String?>(null) }
-    var filterSpecialty by rememberSaveable { mutableStateOf<String?>(null) }
+    // rememberSaveable so the filter survives a rotation, seeded from the
+    // referral that sent the parent here.
+    var filterSpecialty by rememberSaveable {
+        mutableStateOf<String?>(initialSpecialty.ifBlank { null })
+    }
     var showExisting by rememberSaveable { mutableStateOf(true) }
     var viewMode by rememberSaveable { mutableStateOf(BookingViewMode.BY_HOSPITAL) }
     var expandedHospitalId by remember { mutableStateOf<String?>(null) }

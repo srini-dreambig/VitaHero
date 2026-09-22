@@ -803,6 +803,17 @@ def strip_literals(src):
                     depth, j = 1, i + 2
                     while j < n and depth:
                         ch = src[j]
+                        # A char literal first. `trim('"')` inside an
+                        # interpolation holds a lone double quote, and reading
+                        # it as the start of a string sent this scan off for
+                        # the rest of the file — which is how three words of
+                        # UI copy got reported as unresolved types.
+                        if ch == "'":
+                            j += 1
+                            while j < n and src[j] != "'":
+                                j += 2 if src[j] == "\\" else 1
+                            j += 1
+                            continue
                         if ch == '"':
                             q = '"""' if src.startswith('"""', j) else '"'
                             j += len(q)

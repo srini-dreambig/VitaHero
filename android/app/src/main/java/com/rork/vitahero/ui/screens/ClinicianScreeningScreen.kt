@@ -37,6 +37,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.ClinicianViewModel
 import com.rork.vitahero.ui.components.HeroCard
+import com.rork.vitahero.ui.components.Notice
 import com.rork.vitahero.ui.components.PrimaryGradientButton
 import com.rork.vitahero.ui.components.StatusBarSpacer
 import com.rork.vitahero.ui.theme.HeroBlue
@@ -363,27 +364,6 @@ private fun ToggleField(label: String, fields: MutableMap<String, String>, key: 
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
-
-@Composable
-private fun Notice(text: String, error: Boolean) {
-    Text(
-        text,
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (error) MaterialTheme.colorScheme.errorContainer
-                else HeroBlue.copy(alpha = 0.10f)
-            )
-            .padding(12.dp),
-        style = MaterialTheme.typography.bodySmall,
-        color =
-            if (error) MaterialTheme.colorScheme.onErrorContainer
-            else MaterialTheme.colorScheme.onSurface,
-    )
-}
-
 
 /** A plain copy of the live field map, taken at the moment Save is pressed. */
 private fun snapshot(

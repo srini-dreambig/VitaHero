@@ -500,6 +500,7 @@ object S {
     const val noReferralsSub = "no_referrals_sub"
     const val referralDueBy = "referral_due_by"
     const val referralBooked = "referral_booked"
+    const val referralFindDoctor = "referral_find_doctor"
     const val referralAttended = "referral_attended"
     const val referralNotGoing = "referral_not_going"
     const val referralClosed = "referral_closed"
@@ -902,6 +903,7 @@ private val en = mapOf(
     S.noReferralsSub to "No doctor has asked you to take your child anywhere.",
     S.referralDueBy to "Best done by %s.",
     S.referralBooked to "I have booked an appointment",
+    S.referralFindDoctor to "Find a doctor",
     S.referralAttended to "We went, and it is done",
     S.referralNotGoing to "We are not going to do this",
     S.referralClosed to "Closed",

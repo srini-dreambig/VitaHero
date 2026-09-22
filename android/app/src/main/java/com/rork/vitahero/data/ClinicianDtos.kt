@@ -23,6 +23,16 @@ data class ClinicianCampDto(
     val staffRole: String = "",
     val participants: Int = 0,
     val screened: Int = 0,
+    /**
+     * Children screened and waiting on a physician.
+     *
+     * The server sends this as `approved`, which is what the column is called
+     * in the shared camp mapper — but for a clinician's own camps the query
+     * behind it counts status = 'SCREENED', which is the queue, not the done
+     * pile. Named here for what it holds.
+     */
+    @kotlinx.serialization.SerialName("approved")
+    val awaitingReview: Int = 0,
     val status: String = "",
 )
 
@@ -46,9 +56,25 @@ data class CampChildDto(
     val status: String = "NOT_SCREENED",
 )
 
+/**
+ * What this person may do on this camp, decided by the server.
+ *
+ * A screener screens; a physician screens and signs off. The app could infer
+ * it from staffRole on the camps list, but inferring a permission the server
+ * already states is how the two come to disagree — and the one that matters
+ * is the server's.
+ */
+@Serializable
+data class CampCanDto(
+    val schedule: Boolean = false,
+    val screen: Boolean = false,
+    val review: Boolean = false,
+)
+
 @Serializable
 data class CampRosterDto(
     val participants: List<CampChildDto> = emptyList(),
+    val can: CampCanDto = CampCanDto(),
 )
 
 @Serializable
@@ -138,4 +164,122 @@ data class ScreeningSubmissionBody(
 data class AttendanceBody(
     val kidId: String = "",
     val attendance: String = "",
+)
+
+// ─── Review: turning findings into something a parent may see ──
+//
+// A camp does not end when the last child is screened. Every finding sits at
+// SCREENED until a physician approves it, and nothing reaches a guardian until
+// the camp is released. Both steps existed only in the web console, which
+// meant the physician who took the readings — standing in the hall, holding
+// the phone they took them on — had to find a laptop to let the work out.
+//
+// The worker already served all of it: the queue, the per-child detail, the
+// approval and the release. These are the shapes those answers already have.
+
+@Serializable
+data class ReviewQueueItemDto(
+    val kidId: String = "",
+    val name: String = "",
+    val grade: String = "",
+    val age: Int? = null,
+    /** Findings the rules flagged. Sorted worst-first by the server. */
+    val alerts: Int = 0,
+    val watches: Int = 0,
+    /** SCREENED (waiting on this physician) or APPROVED (done, awaiting release). */
+    val status: String = "SCREENED",
+    val urgency: String = "NONE",
+    val recommendation: String = "",
+    val reviewed: Boolean = false,
+)
+
+@Serializable
+data class ReviewQueueDto(
+    val queue: List<ReviewQueueItemDto> = emptyList(),
+)
+
+@Serializable
+data class ReviewChildDto(
+    val kidId: String = "",
+    val name: String = "",
+    val grade: String = "",
+    val age: Int? = null,
+    val gender: String = "",
+    val guardianName: String = "",
+)
+
+/** One prior camp where this same check was flagged. */
+@Serializable
+data class PriorFindingDto(
+    val flag: String = "",
+    val date: String = "",
+    val title: String = "",
+)
+
+@Serializable
+data class ReviewFindingDto(
+    val checkType: String = "",
+    /** What was measured. Keys vary by check — see ScreeningSubmissionDto. */
+    val detail: kotlinx.serialization.json.JsonObject =
+        kotlinx.serialization.json.JsonObject(emptyMap()),
+    val flag: String = "NOT_MEASURED",
+    /** What the rules said before anyone overrode it. */
+    val autoFlag: String = "NOT_MEASURED",
+    val rationale: String = "",
+    val urgency: String = "NONE",
+    val screenerNote: String = "",
+    val reviewNote: String = "",
+    /** True when a human has already moved this flag off the rules' answer. */
+    val overridden: Boolean = false,
+    /** The same check flagged at earlier camps. Empty is the common case. */
+    val previous: List<PriorFindingDto> = emptyList(),
+)
+
+@Serializable
+data class RecurringDto(
+    val checkType: String = "",
+    val timesBefore: Int = 0,
+)
+
+@Serializable
+data class ReviewDetailDto(
+    val child: ReviewChildDto = ReviewChildDto(),
+    val status: String = "SCREENED",
+    val findings: List<ReviewFindingDto> = emptyList(),
+    /** Checks flagged at a previous camp too — the server raises urgency for these. */
+    val recurring: List<RecurringDto> = emptyList(),
+    /** NONE, ROUTINE, SOON or URGENT, worked out from the findings. */
+    val suggestedUrgency: String = "NONE",
+    /**
+     * What the guardian will read.
+     *
+     * The server drafts one from the findings when nobody has written one yet,
+     * so the physician edits a sentence rather than facing a blank box at the
+     * end of a long day. recommendationIsDraft says which it is.
+     */
+    val recommendation: String = "",
+    val recommendationIsDraft: Boolean = false,
+)
+
+/** A flag a physician moved off what the rules decided. */
+@Serializable
+data class FindingAdjustmentDto(
+    val checkType: String = "",
+    val flag: String = "",
+    val reviewNote: String = "",
+)
+
+@Serializable
+data class ReviewSubmissionBody(
+    val findings: List<FindingAdjustmentDto> = emptyList(),
+    val urgency: String = "",
+    /** Required by the server: there is no approving without telling the parent something. */
+    val recommendation: String = "",
+)
+
+@Serializable
+data class ReleaseResultDto(
+    val released: Int = 0,
+    val referralsOpened: Int = 0,
+    val urgentNotified: Int = 0,
 )

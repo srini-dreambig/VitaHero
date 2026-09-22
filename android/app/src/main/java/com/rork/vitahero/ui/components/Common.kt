@@ -43,6 +43,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import com.rork.vitahero.ui.theme.HeroBlue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.ui.unit.dp
@@ -396,3 +397,33 @@ fun LoadingPlaceholder(
         }
     }
 }
+
+/**
+ * A line of explanation the screen owes the person, not an error dialog.
+ *
+ * Used where something is true about the record in front of them and the
+ * absence would otherwise read as a bug: a guardian declined a check, another
+ * clinician owns the rest of the round, a save was refused and the server said
+ * why. Lived in the screening screen until the review screens needed the same
+ * shape; two copies of a notice is two places for them to drift apart.
+ */
+@Composable
+fun Notice(text: String, error: Boolean) {
+    Text(
+        text,
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (error) MaterialTheme.colorScheme.errorContainer
+                else HeroBlue.copy(alpha = 0.10f)
+            )
+            .padding(12.dp),
+        style = MaterialTheme.typography.bodySmall,
+        color =
+            if (error) MaterialTheme.colorScheme.onErrorContainer
+            else MaterialTheme.colorScheme.onSurface,
+    )
+}
+

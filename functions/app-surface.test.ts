@@ -321,3 +321,70 @@ describe("the worker names the app the way Android does", () => {
     ).not.toBe(applicationId);
   });
 });
+
+// ── the review contract, name by name ───────────────────────
+//
+// Approving a child is the step that lets findings out to a family, and the
+// app now does it. Every field the physician reads on that screen — the flag
+// the rules gave, what was measured, whether the same check was flagged at an
+// earlier camp — arrives by name from reviewQueue and reviewDetail.
+//
+// kotlinx.serialization fills a missing key with the declared default and says
+// nothing. So a renamed field does not fail: it shows a physician an empty
+// measurement, or a flag of NOT_MEASURED, or "0 alerts" on a child with three,
+// and asks them to sign it off. Nothing on either side errors.
+describe("the review screens read fields the worker sends", () => {
+  const dtos = read("data/ClinicianDtos.kt");
+  const camps = readFileSync("./camps.ts", "utf8");
+
+  /** The wire names of one @Serializable class, honouring @SerialName. */
+  function dtoFields(name: string): string[] {
+    const start = dtos.indexOf(`data class ${name}(`);
+    expect(start, `${name} not found in ClinicianDtos.kt`).toBeGreaterThan(0);
+    const body = dtos.slice(start, dtos.indexOf("\n)", start));
+    const fields: string[] = [];
+    for (const m of body.matchAll(/(?:@\w+\.\w+\.\w+\.SerialName\("(\w+)"\)\s*)?\bval\s+(\w+)\s*:/g)) {
+      fields.push(m[1] || m[2]);
+    }
+    return fields;
+  }
+
+  /** The body of one exported function in camps.ts. */
+  function fn(name: string): string {
+    const start = camps.indexOf(`export async function ${name}(`);
+    expect(start, `${name} not found in camps.ts`).toBeGreaterThan(0);
+    const next = camps.indexOf("\nexport ", start + 10);
+    return camps.slice(start, next >= 0 ? next : undefined);
+  }
+
+  const cases: Array<[string, string]> = [
+    ["ReviewQueueItemDto", "reviewQueue"],
+    ["ReviewChildDto", "reviewDetail"],
+    ["ReviewDetailDto", "reviewDetail"],
+    ["ReviewFindingDto", "reviewDetail"],
+    ["RecurringDto", "reviewDetail"],
+    ["ReleaseResultDto", "releaseCamp"],
+  ];
+
+  for (const [dto, source] of cases) {
+    test(`${dto} names only keys ${source} sends`, () => {
+      const fields = dtoFields(dto);
+      expect(fields.length, `${dto} declares nothing`).toBeGreaterThan(0);
+      const body = fn(source);
+      const missing = fields.filter((f) => !new RegExp(`\\b${f}\\b`).test(body));
+      expect(
+        missing,
+        `${dto} declares ${missing.join(", ")}, which ${source} never sends — ` +
+          `the app will show the Kotlin default and report nothing`
+      ).toEqual([]);
+    });
+  }
+
+  test("a physician cannot approve without telling the guardian something", () => {
+    // The server refuses it, and the app's button is disabled until the box
+    // has text. Both, because either alone is a way to approve in silence.
+    expect(fn("reviewParticipant")).toContain("recommendation");
+    const screen = read("ui/screens/ClinicianReviewChildScreen.kt");
+    expect(screen).toContain("recommendation.isNotBlank()");
+  });
+});

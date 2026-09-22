@@ -1575,6 +1575,32 @@ describe("a clinician working from the app", () => {
     }
   });
 
+  test("a physician reaches the review queue, because that is their job", async () => {
+    handlers = [
+      session("PHYSICIAN"),
+      { match: /FROM vita_hero\.school_camps/i, rows: [{ id: "camp1", school_id: "sch1" }] },
+      { match: /FROM vita_hero\.camp_staff/i, rows: [{ staff_role: "PHYSICIAN", doctor_id: null }] },
+    ];
+    const res = await call("/api/admin/camps/camp1/review", { headers: asDoctor });
+    // 200, not merely "not 403": a 500 would also pass a negative assertion,
+    // and a review queue that errors is no more use than one that refuses.
+    expect(res.status).toBe(200);
+    expect(await res.json()).toHaveProperty("queue");
+  });
+
+  test("a screener on the same camp is refused it", async () => {
+    // They may screen and may not sign off. The app hides the entry point
+    // using the `can.review` the roster returns; this is the half that holds
+    // when a build is stale or somebody calls the route directly.
+    handlers = [
+      session("SCREENER"),
+      { match: /FROM vita_hero\.school_camps/i, rows: [{ id: "camp1", school_id: "sch1" }] },
+      { match: /FROM vita_hero\.camp_staff/i, rows: [{ staff_role: "SCREENER", doctor_id: null }] },
+    ];
+    const res = await call("/api/admin/camps/camp1/review", { headers: asDoctor });
+    expect(res.status).toBe(403);
+  });
+
   test("and an unsigned request is refused before any query runs", async () => {
     handlers = [];
     calls = [];
