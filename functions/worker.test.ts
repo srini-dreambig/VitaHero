@@ -1325,6 +1325,14 @@ describe("every admin route the console calls is actually reachable", () => {
       expect(res.status, `${method} ${path}`).not.toBe(404);
       const body = await res.json().catch(() => ({}));
       expect((body as { error?: string }).error, `${method} ${path}`).not.toBe("Not found");
+
+      // And that it did not fall over on the way.
+      //
+      // This used to stop at "not a 404", which let a handler throw and still
+      // pass: /api/admin/demo-data crashed on an empty count for as long as
+      // this suite has existed, answering 500 while the test read it as
+      // routed. Reaching a handler that dies is not reaching a handler.
+      expect(res.status, `${method} ${path} answered ${res.status}`).toBeLessThan(500);
     });
   }
 });

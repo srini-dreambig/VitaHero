@@ -57,6 +57,24 @@ type Item = {
  * Read-only. The console shows this before offering the button, so nobody is
  * asked to confirm a deletion whose contents they cannot see.
  */
+/**
+ * Read a COUNT(*) that came back without a row.
+ *
+ * A count always returns one row against a real database, so `rows[0].c` was
+ * a fair assumption — right up until something asks this handler a question
+ * without one. The route-reachability suite does exactly that: it drives every
+ * admin URL with no stubbed queries, so every result is empty, and this was
+ * the one handler that threw on it rather than answering. It still answered
+ * 200-not-404, so the test passed while the handler was failing.
+ *
+ * Not a crash anyone has seen in production. It is a handler that assumed its
+ * way out of a shape it could be handed, which is the cheaper half of the same
+ * bug.
+ */
+function count(rows: Record<string, unknown>[]): number {
+  return (rows[0]?.c as number) || 0;
+}
+
 export async function previewDemoData(sql: Sql, actor: Actor) {
   opsOnly(actor);
 
@@ -112,7 +130,7 @@ export async function previewDemoData(sql: Sql, actor: Actor) {
   for (const d of doctors) {
     const id = d.id as string;
     const booked = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.appointments WHERE doctor_id = ${id}`;
-    const used = booked[0].c as number;
+    const used = count(booked);
     items.push({
       kind: "Doctor",
       id,
@@ -125,7 +143,7 @@ export async function previewDemoData(sql: Sql, actor: Actor) {
 
   return {
     items,
-    articles: (articles[0].c as number) || 0,
+    articles: count(articles),
     // What the button will actually do, counted for the confirmation.
     removable: items.filter((i) => i.removable).length,
     blocked: items.filter((i) => !i.removable).length,
