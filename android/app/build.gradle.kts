@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.play.publisher)
 }
 
+import java.net.URI
 import java.util.Properties
 
 val localProperties = Properties().apply {
@@ -49,7 +50,10 @@ android {
         val backendUrl = buildConfigProp("RORK_FUNCTIONS_URL", "EXPO_PUBLIC_RORK_FUNCTIONS_URL")
             .ifEmpty { "https://vitahero.kallam.workers.dev" }
             .trimEnd('/')
-        val backendHost = java.net.URI(backendUrl).host
+        // URI, imported. Not java.net.URI written out: inside a Gradle Kotlin
+        // DSL script `java` is the Java plugin's extension, so the fully
+        // qualified name resolves to that and then fails on `.net`.
+        val backendHost = URI(backendUrl).host
             ?: error("RORK_FUNCTIONS_URL is not a URL with a host: $backendUrl")
         buildConfigField("String", "RORK_FUNCTIONS_URL", "\"$backendUrl\"")
         manifestPlaceholders["inviteHost"] = backendHost
