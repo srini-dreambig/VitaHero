@@ -1518,11 +1518,19 @@ describe("requesting a sign-in code", () => {
 // test here can run them; what is asserted is the contract they depend on.
 describe("a clinician working from the app", () => {
   /** A session row as authenticateSession reads it: role comes from profiles. */
-  const session = (role: string, schoolId: string | null = null) => ({
+  /**
+   * A session row as authenticateSession reads it.
+   *
+   * `surface` is part of the row because clinical writes are app-only: a
+   * session minted at the console's door is refused them whatever the role.
+   * Defaulted to "app" so these tests exercise the path a clinician actually
+   * takes, and set to "console" where that refusal is the thing under test.
+   */
+  const session = (role: string, schoolId: string | null = null, surface = "app") => ({
     match: /FROM vita_hero\.sessions/i,
     rows: [{
       id: "ph_9876500011", user_id: "u1", name: "Dr Meera Iyer",
-      role, school_id: schoolId,
+      role, school_id: schoolId, surface,
     }],
   });
   const asDoctor = { Authorization: "Bearer " + "t".repeat(40) };
@@ -1588,17 +1596,60 @@ describe("a clinician working from the app", () => {
     expect(await res.json()).toHaveProperty("queue");
   });
 
-  test("a screener on the same camp is refused it", async () => {
-    // They may screen and may not sign off. The app hides the entry point
-    // using the `can.review` the roster returns; this is the half that holds
-    // when a build is stale or somebody calls the route directly.
+  test("a screener sees the queue but is refused the approval", async () => {
+    // Reading and deciding are separate permissions. A screener working the
+    // camp can see how much is left; only a physician signs a child off.
     handlers = [
       session("SCREENER"),
       { match: /FROM vita_hero\.school_camps/i, rows: [{ id: "camp1", school_id: "sch1" }] },
       { match: /FROM vita_hero\.camp_staff/i, rows: [{ staff_role: "SCREENER", doctor_id: null }] },
     ];
-    const res = await call("/api/admin/camps/camp1/review", { headers: asDoctor });
+    expect((await call("/api/admin/camps/camp1/review", { headers: asDoctor })).status).toBe(200);
+
+    const approve = await call("/api/admin/camps/camp1/review/kid1", {
+      method: "POST",
+      headers: { ...asDoctor, "Content-Type": "application/json" },
+      body: JSON.stringify({ recommendation: "Fine" }),
+    });
+    expect(approve.status).toBe(403);
+    // The role refusal, not the surface one. Both answer 403, and a test that
+    // only counted the number would pass while proving the wrong thing.
+    expect(((await approve.json()) as { code?: string }).code).not.toBe("APP_ONLY");
+  });
+
+  test("and the console cannot record a finding at all, whoever is holding it", async () => {
+    // Asked for: clinical work happens in the app. A physician signed in to
+    // the console is the right person in the wrong place, and the server is
+    // where that is decided \u2014 not the console's markup.
+    handlers = [
+      session("PHYSICIAN", null, "console"),
+      { match: /FROM vita_hero\.school_camps/i, rows: [{ id: "camp1", school_id: "sch1" }] },
+      { match: /FROM vita_hero\.camp_staff/i, rows: [{ staff_role: "PHYSICIAN", doctor_id: null }] },
+    ];
+    calls = [];
+    const res = await call("/api/admin/camps/camp1/screening/kid1", {
+      method: "POST",
+      headers: { ...asDoctor, "Content-Type": "application/json" },
+      body: JSON.stringify({ findings: [{ checkType: "Dental", detail: { cariesCount: 2 } }] }),
+    });
     expect(res.status).toBe(403);
+    expect(((await res.json()) as { code?: string }).code).toBe("APP_ONLY");
+    // Refused before anything was written, not after.
+    expect(calls.some((c) => /INSERT INTO vita_hero\.camp_findings/i.test(c.text))).toBe(false);
+  });
+
+  test("but the same physician on the app records it", async () => {
+    handlers = [
+      session("PHYSICIAN", null, "app"),
+      { match: /FROM vita_hero\.school_camps/i, rows: [{ id: "camp1", school_id: "sch1" }] },
+      { match: /FROM vita_hero\.camp_staff/i, rows: [{ staff_role: "PHYSICIAN", doctor_id: null }] },
+    ];
+    const res = await call("/api/admin/camps/camp1/screening/kid1", {
+      method: "POST",
+      headers: { ...asDoctor, "Content-Type": "application/json" },
+      body: JSON.stringify({ findings: [{ checkType: "Dental", detail: { cariesCount: 2 } }] }),
+    });
+    expect(res.status).not.toBe(403);
   });
 
   test("and an unsigned request is refused before any query runs", async () => {

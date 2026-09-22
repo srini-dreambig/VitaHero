@@ -170,6 +170,18 @@ export interface CampAccess {
   canScreen: boolean;
   canReview: boolean;
   /**
+   * May look at clinical records: the review queue, a child's findings, the
+   * offline pack.
+   *
+   * Separate from canScreen and canReview because reading and writing are
+   * now different questions. Recording a measurement and signing one off
+   * belong to the clinicians at the camp; seeing what the programme found
+   * belongs to whoever runs it. Collapsing the two took the review queue
+   * away from operations along with the approve button, which is oversight
+   * removed by accident.
+   */
+  canViewClinical: boolean;
+  /**
    * The checks this person may record, or null for "all of them".
    *
    * Null is ops, a school administrator, and a screener: a generalist doing
@@ -205,11 +217,27 @@ export async function assertCampAccess(
   const camp = rows[0];
   const schoolId = camp.school_id as string;
 
+  // Organising a camp and screening at one are different jobs, and only the
+  // second is clinical. Operations and a school's administrator run the
+  // programme — they build the roster, chase consent, read the report — and
+  // they no longer record, sign off or release a finding. Asked for directly:
+  // clinicians only, and only from the app.
+  //
+  // Note this is not the same gate as the surface check in index.ts, and
+  // both are wanted. This one says a school administrator is the wrong
+  // person; that one says the console is the wrong place. A physician using
+  // the console fails the second; an administrator using the app fails this.
   if (isOpsRole(actor.role)) {
-    return { camp, canSchedule: true, canScreen: true, canReview: true, checkScope: null, specialty: "" };
+    return {
+      camp, canSchedule: true, canScreen: false, canReview: false,
+      canViewClinical: true, checkScope: null, specialty: "",
+    };
   }
   if (actor.role === "SCHOOL_ADMIN" && actor.schoolId === schoolId) {
-    return { camp, canSchedule: true, canScreen: true, canReview: false, checkScope: null, specialty: "" };
+    return {
+      camp, canSchedule: true, canScreen: false, canReview: false,
+      canViewClinical: true, checkScope: null, specialty: "",
+    };
   }
 
   const staff = await sql`
@@ -246,6 +274,7 @@ export async function assertCampAccess(
     canSchedule: false,
     canScreen: staffRole === "SCREENER" || staffRole === "PHYSICIAN",
     canReview: staffRole === "PHYSICIAN",
+    canViewClinical: true,
     // A screener is the school's own generalist and has no specialty; a
     // directory doctor does, and it decides which forms they see.
     checkScope: specialty ? screeningChecksFor(specialty) : null,
@@ -654,7 +683,15 @@ export async function listParticipants(
     ORDER BY k.grade, k.section, k.name
   `;
   return {
-    can: { schedule: access.canSchedule, screen: access.canScreen, review: access.canReview },
+    can: {
+      schedule: access.canSchedule,
+      screen: access.canScreen,
+      review: access.canReview,
+      // Reading the clinical record, which is not the same as writing one.
+      // The console shows the queue and a child's findings to whoever runs
+      // the programme; only a camp's clinicians, on the app, change them.
+      viewClinical: access.canViewClinical,
+    },
     photosEnabled: access.camp.photos_enabled === true,
     participants: rows.map((r) => ({
       kidId: r.kid_id as string,
@@ -843,7 +880,7 @@ export async function setAttendance(
 
 export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, kidId: string) {
   const access = await assertCampAccess(sql, actor, campId);
-  assertCan(access.canScreen, "screen children at this camp");
+  assertCan(access.canViewClinical, "see this camp's records");
   // K6. Opening a screening form is a read of a child's medical record, and is
   // logged as one. Best-effort by design — see logRecordAccess.
   await logRecordAccess(sql, actor, {
@@ -1195,7 +1232,7 @@ export async function saveScreening(
  */
 export async function campPack(sql: Sql, actor: Actor, campId: string) {
   const access = await assertCampAccess(sql, actor, campId);
-  assertCan(access.canScreen, "screen children at this camp");
+  assertCan(access.canViewClinical, "see this camp's records");
   const camp = access.camp;
 
   // The roll and the findings already recorded against it are independent, so
@@ -1387,7 +1424,7 @@ export async function campReconciliation(sql: Sql, actor: Actor, campId: string)
 /** D1 — the physician's queue, most severe first. */
 export async function reviewQueue(sql: Sql, actor: Actor, campId: string) {
   const access = await assertCampAccess(sql, actor, campId);
-  assertCan(access.canReview, "review results for this camp");
+  assertCan(access.canViewClinical, "see this camp's records");
 
   const rows = await sql`
     SELECT p.kid_id, p.status, p.urgency, p.recommendation, p.reviewed_at,
@@ -1420,7 +1457,7 @@ export async function reviewQueue(sql: Sql, actor: Actor, campId: string) {
 /** Everything a physician needs to decide on one child. */
 export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId: string) {
   const access = await assertCampAccess(sql, actor, campId);
-  assertCan(access.canReview, "review results for this camp");
+  assertCan(access.canViewClinical, "see this camp's records");
   await logRecordAccess(sql, actor, {
     kidId, campId, schoolId: (access.camp.school_id as string) || "", surface: "CLINICAL_REVIEW",
   });

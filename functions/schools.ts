@@ -27,6 +27,15 @@ export interface Actor {
   name: string;
   role: string;
   schoolId: string | null;
+  /**
+   * Which product this session signed in from: 'app' or 'console'.
+   *
+   * Optional, and absent means neither: a bootstrap API key, or a token
+   * minted before sessions recorded it. Clinical writes require 'app', so
+   * absent is refused — which is the safe direction for a field whose whole
+   * job is to withhold permission.
+   */
+  surface?: string;
 }
 
 /** The check types a camp can offer. Kept here so the portal and the API agree. */

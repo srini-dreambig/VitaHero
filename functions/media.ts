@@ -253,15 +253,21 @@ export async function getFindingPhoto(
       // Clinical staff on that camp only. A school administrator manages the
       // roster; they do not need to see a photograph of a child's body.
       const access = await assertCampAccess(sql, actor, p.camp_id as string);
-      if (!access.canScreen && !access.canReview) {
-        throw new ApiError(403, "You cannot view photos from this camp", "FORBIDDEN");
-      }
+      // The school administrator's own refusal first. They reach this having
+      // legitimate access to the camp, so "you cannot view photos from this
+      // camp" reads as a mistake to report; the answer they need is that
+      // nobody outside the clinical team sees these, by design. Ordering
+      // began to matter when a school administrator stopped carrying
+      // canScreen and started falling into the generic branch above.
       if (actor.role === "SCHOOL_ADMIN") {
         throw new ApiError(
           403,
           "Photographs are visible to the clinical team and the child's guardian only.",
           "CLINICAL_ONLY"
         );
+      }
+      if (!access.canScreen && !access.canReview) {
+        throw new ApiError(403, "You cannot view photos from this camp", "FORBIDDEN");
       }
       viewerId = actor.profileId;
       viewerRole = actor.role;

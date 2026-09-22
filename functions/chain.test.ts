@@ -429,9 +429,31 @@ suite("end to end", () => {
     expect(r.reconciliation.absent).toBe(1);
   });
 
-  test("a screener cannot review or release", async () => {
-    await expect(reviewQueue(sql, screener, campId)).rejects.toThrow(/permission to review/);
+  test("a screener may see the queue but not sign it off", async () => {
+    // Reading and deciding are separate permissions now. A screener working
+    // the camp can see how much is left \u2014 that is the point of a queue \u2014
+    // and cannot approve a child or send a camp to its guardians.
+    const q = await reviewQueue(sql, screener, campId);
+    expect(Array.isArray(q.queue)).toBe(true);
+    await expect(
+      reviewParticipant(sql, screener, campId, q.queue[0].kidId, { recommendation: "Looks fine" })
+    ).rejects.toThrow(/permission to review/);
     await expect(releaseCamp(sql, screener, campId, noSms)).rejects.toThrow(/permission to release/);
+  });
+
+  test("and a school administrator cannot record or sign off anything", async () => {
+    // They build the roster and chase consent. Clinical data is the
+    // clinicians'. Asked for directly, and enforced here rather than only in
+    // the console's markup.
+    const parts = (await listParticipants(sql, admin, campId, {})).participants;
+    await expect(
+      saveScreening(sql, admin, campId, parts[0].kidId, {
+        findings: [{ checkType: "Height & weight", detail: { heightCm: 130, weightKg: 28 } }],
+      })
+    ).rejects.toThrow(/permission to screen/);
+    await expect(releaseCamp(sql, admin, campId, noSms)).rejects.toThrow(/permission to release/);
+    // Still sees the camp, which is their job.
+    expect((await reviewQueue(sql, admin, campId)).queue.length).toBeGreaterThan(0);
   });
 
   test("nothing is visible to the guardian before release", async () => {

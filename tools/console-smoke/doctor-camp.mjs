@@ -38,7 +38,7 @@ await p.addInitScript(() => {
       { profileId: "ph_9800000000", role: "SCREENER", name: "Nurse Latha",
         phone: "+919800000000", active: false, doctorId: "", revokedAt: "2026-09-19T10:00:00Z" },
     ],
-    can: { schedule: true, screen: true, review: true },
+    can: { schedule: true, screen: true, review: true, viewClinical: true },
   };
   const D = {
     "/api/admin/overview": { schools: 1, students: 40, guardians: 40, guardiansActivated: 10,

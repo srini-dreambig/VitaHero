@@ -20,7 +20,7 @@ import {
   isOpsRole,
   slugify,
 } from "./common";
-import { surfaceOf, surfaceRefusal } from "./surfaces";
+import { clinicalSurfaceRefusal, surfaceOf, surfaceRefusal, type Surface } from "./surfaces";
 import {
   Actor,
   ApiError,
@@ -375,9 +375,16 @@ async function ensureSchema(sql: Sql): Promise<void> {
       last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       expires_at TIMESTAMPTZ NOT NULL,
       revoked_at TIMESTAMPTZ,
-      device TEXT DEFAULT ''
+      device TEXT DEFAULT '',
+      -- Which product this sign-in was made from: 'app' or 'console'.
+      --
+      -- Recorded at sign-in rather than read off a header, because a header
+      -- is a claim the caller makes and this is a claim the caller cannot
+      -- make twice. Clinical writes are app-only, and this is what decides.
+      surface TEXT
     )
   `;
+  await sql`ALTER TABLE vita_hero.sessions ADD COLUMN IF NOT EXISTS surface TEXT`;
   await sql`CREATE INDEX IF NOT EXISTS sessions_profile ON vita_hero.sessions(profile_id, revoked_at)`;
   await sql`CREATE INDEX IF NOT EXISTS sessions_expiry ON vita_hero.sessions(expires_at)`;
 
@@ -1198,13 +1205,18 @@ const SESSION_TTL_DAYS = 180;
  * existed are still in the field and are still honoured. It is now a record of
  * the most recent sign-in rather than the only one that works.
  */
-async function mintSession(sql: Sql, profileId: string, device = ""): Promise<string> {
+async function mintSession(
+  sql: Sql,
+  profileId: string,
+  device = "",
+  surface: Surface = "app"
+): Promise<string> {
   const token = generateToken();
   const expires = new Date(Date.now() + SESSION_TTL_DAYS * 86_400_000).toISOString();
   try {
     await sql`
-      INSERT INTO vita_hero.sessions (token, profile_id, expires_at, device)
-      VALUES (${token}, ${profileId}, ${expires}, ${device.slice(0, 200)})
+      INSERT INTO vita_hero.sessions (token, profile_id, expires_at, device, surface)
+      VALUES (${token}, ${profileId}, ${expires}, ${device.slice(0, 200)}, ${surface})
     `;
   } catch {
     // A database that has not run the migration yet: profiles.session_token
@@ -1228,7 +1240,15 @@ async function revokeSession(sql: Sql, token: string): Promise<void> {
 async function authenticateSession(
   sql: Sql,
   token: string
-): Promise<{ profileId: string; userId: string; name: string; role: string; schoolId: string | null } | null> {
+): Promise<{
+  profileId: string;
+  userId: string;
+  name: string;
+  role: string;
+  schoolId: string | null;
+  /** 'app', 'console', or "" for a token minted before the column existed. */
+  surface: string;
+} | null> {
   if (!token || token.length < 30) return null;
 
   const shape = (r: Record<string, unknown>) => ({
@@ -1237,11 +1257,12 @@ async function authenticateSession(
     name: r.name as string,
     role: (r.role as string) || "PARENT",
     schoolId: (r.school_id as string) || null,
+    surface: (r.surface as string) || "",
   });
 
   try {
     const rows = await sql`
-      SELECT p.id, p.user_id, p.name, p.role, p.school_id
+      SELECT p.id, p.user_id, p.name, p.role, p.school_id, s.surface
       FROM vita_hero.sessions s
       JOIN vita_hero.profiles p ON p.id = s.profile_id
       WHERE s.token = ${token} AND s.revoked_at IS NULL AND s.expires_at > NOW()
@@ -1369,6 +1390,7 @@ async function resolveActor(
     name: session.name,
     role: session.role,
     schoolId: session.schoolId,
+    surface: session.surface,
   };
 }
 
@@ -1744,7 +1766,10 @@ async function upsertProfileFromNeonAuth(
   role?: string
 ): Promise<{ profileId: string; sessionToken: string }> {
   const profileId = `na_${user.id.slice(0, 24)}`;
-  const sessionToken = await mintSession(sql, profileId, provider);
+  // Neon Auth is the console's door — email, password and social sign-in.
+  // The app signs in by phone and nothing else, so a session minted here is
+  // a console session and cannot write clinical data.
+  const sessionToken = await mintSession(sql, profileId, provider, "console");
 
   const existing = await sql`
     SELECT id FROM vita_hero.profiles WHERE id = ${profileId} LIMIT 1
@@ -2247,7 +2272,21 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             return json({ error: "Method not allowed" }, 405);
           }
 
+          // Clinical writes are app-only.
+          //
+          // Everything that records a measurement, signs one off, or sends a
+          // camp to its guardians is refused unless this session was minted
+          // at the app's door. Reads are untouched: the console still shows
+          // the queue, a child's record and the camp report, because seeing
+          // what a programme found is oversight, not data entry.
+          const appOnly = (): Response | null => {
+            const refusal = clinicalSurfaceRefusal(actor.surface);
+            return refusal ? json(refusal, 403) : null;
+          };
+
           if (section === "attendance" && method === "POST") {
+            const blocked = appOnly();
+            if (blocked) return blocked;
             const b = await readBody();
             return json(await setAttendance(sql, actor, campId, String(b.kidId || ""), String(b.attendance || "")));
           }
@@ -2257,6 +2296,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
 
           if (section === "screening-bulk" && method === "POST") {
+            const blocked = appOnly();
+            if (blocked) return blocked;
             const b = await readBody();
             return json(await saveScreeningBulk(sql, actor, campId,
               cappedList(b.entries, MAX_SYNC_ENTRIES, "entries")));
@@ -2265,7 +2306,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (section === "screening") {
             if (!third) return json({ error: "Which child?" }, 400);
             if (method === "GET") return json(await getScreeningForm(sql, actor, campId, third));
-            if (method === "POST") return json(await saveScreening(sql, actor, campId, third, await readBody()));
+            if (method === "POST") {
+              const blocked = appOnly();
+              if (blocked) return blocked;
+              return json(await saveScreening(sql, actor, campId, third, await readBody()));
+            }
             return json({ error: "Method not allowed" }, 405);
           }
 
@@ -2273,12 +2318,16 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             if (!third && method === "GET") return json(await reviewQueue(sql, actor, campId));
             if (third && method === "GET") return json(await reviewDetail(sql, actor, campId, third));
             if (third && method === "POST") {
+              const blocked = appOnly();
+              if (blocked) return blocked;
               return json(await reviewParticipant(sql, actor, campId, third, await readBody(), smsSender));
             }
             return json({ error: "Method not allowed" }, 405);
           }
 
           if (section === "release" && method === "POST") {
+            const blocked = appOnly();
+            if (blocked) return blocked;
             return json(await releaseCamp(sql, actor, campId, smsSender));
           }
 
@@ -3135,7 +3184,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           new URL(request.url).origin + "/admin");
         if (verifyWrongDoor) return json(verifyWrongDoor, 403);
 
-        const sessionToken = await mintSession(sql, profileId, "PHONE");
+        const sessionToken = await mintSession(sql, profileId, "PHONE", surfaceOf(body.surface));
         await sql`
           UPDATE vita_hero.profiles
           SET session_token = ${sessionToken}, is_logged_in = true, phone = ${phone},
@@ -3222,7 +3271,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           new URL(request.url).origin + "/admin");
         if (fbWrongDoor) return json(fbWrongDoor, 403);
 
-        const sessionToken = await mintSession(sql, profileId, "FIREBASE_PHONE");
+        const sessionToken = await mintSession(sql, profileId, "FIREBASE_PHONE", surfaceOf(body.surface));
         await sql`
           UPDATE vita_hero.profiles
           SET session_token = ${sessionToken}, is_logged_in = true, phone = ${fbPhone},

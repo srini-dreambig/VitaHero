@@ -413,7 +413,7 @@ suite("photographs, questions, library and billing", () => {
         { checkType: "Skin", flag: "WATCH" },
       ],
     }, noSms);
-    await releaseCamp(sql, OPS, campId, noSms);
+    await releaseCamp(sql, physician, campId, noSms);
 
     const after = await guardianPhotos(sql, guardianIds[1], kidIds[1]);
     expect(after.photos.length).toBeGreaterThan(0);

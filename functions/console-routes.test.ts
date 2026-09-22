@@ -94,9 +94,17 @@ describe("the console and the worker are the same product", () => {
 
   test("portal.ts was actually parsed", () => {
     expect(calls.length).toBeGreaterThan(50);
-    // The screens a camp day depends on, spot-checked.
-    expect(calls).toContain("/api/admin/camps/sample/screening/sample");
-    expect(calls).toContain("/api/admin/camps/sample/release");
+    // Spot-checks that the parse found real routes, not that the console can
+    // reach every one of them.
+    expect(calls).toContain("/api/admin/camps/sample/participants");
+    expect(calls).toContain("/api/admin/camps/sample/review");
+  });
+
+  test("and it does not release a camp", () => {
+    // Releasing results to guardians is the app's, and so is approving.
+    // Asserted as an absence: the console kept the queue, which is how a
+    // programme is watched, and lost the two buttons that change it.
+    expect(calls).not.toContain("/api/admin/camps/sample/release");
   });
 
   // The two calls the parser cannot resolve, driven by hand.

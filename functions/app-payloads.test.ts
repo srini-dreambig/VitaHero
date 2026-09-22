@@ -25,6 +25,7 @@ import { commitRoster } from "./roster";
 import {
   createCamp, buildCampRoster, listParticipants, recordConsent, pendingConsents,
   setAttendance, saveScreening, reviewParticipant, releaseCamp, guardianCampResult,
+  addStaffMember, assignCampStaff,
 } from "./camps";
 import { DESIGNED_CHECKS } from "./clinical";
 
@@ -141,7 +142,14 @@ suite("what the admin side releases is what the app can read", () => {
     });
     const schoolId = school.school.id;
     ADMIN = { profileId: "ph_head", name: "Asha Rao", role: "SCHOOL_ADMIN", schoolId };
-    DOC = { profileId: "ph_doc", name: "Dr Rao", role: "SCHOOL_ADMIN", schoolId };
+    // A real physician on the school's staff, not a school administrator
+    // wearing the name. Clinical work belongs to the clinicians now, so a
+    // test that screens as an administrator is testing a path the programme
+    // no longer has.
+    const doc = await addStaffMember(sql, OPS, schoolId, {
+      name: "Dr Rao", phone: "9123455001", role: "PHYSICIAN",
+    });
+    DOC = { profileId: doc.staff.profileId, name: "Dr Rao", role: "PHYSICIAN", schoolId };
     await setClasses(sql, OPS, schoolId, { grades: ["Class 5"], sections: ["A"] });
 
     await commitRoster(sql, ADMIN, schoolId, {
@@ -158,6 +166,7 @@ suite("what the admin side releases is what the app can read", () => {
     });
     campId = camp.camp.id;
     await buildCampRoster(sql, ADMIN, campId);
+    await assignCampStaff(sql, ADMIN, campId, { profileId: DOC.profileId, role: "PHYSICIAN" });
 
     const parts = await listParticipants(sql, ADMIN, campId, {});
     kidId = parts.participants[0].kidId;
@@ -201,8 +210,8 @@ suite("what the admin side releases is what the app can read", () => {
     await recordConsent(sql, campId, kidId, "GRANTED", {
       actorId: guardianId, source: "APP", checks: [...DESIGNED_CHECKS],
     });
-    await setAttendance(sql, ADMIN, campId, kidId, "PRESENT");
-    await saveScreening(sql, ADMIN, campId, kidId, {
+    await setAttendance(sql, DOC, campId, kidId, "PRESENT");
+    await saveScreening(sql, DOC, campId, kidId, {
       findings: [
         { checkType: "Height & weight", detail: { heightCm: 132, weightKg: 28 } },
         { checkType: "Vision", detail: { leftAcuity: "6/18", rightAcuity: "6/6" } },
@@ -213,14 +222,14 @@ suite("what the admin side releases is what the app can read", () => {
     // A physician's approval carries the words a parent actually reads. The
     // server refuses to release without them, which is the right rule and the
     // reason this is spelled out rather than passed as an empty object.
-    await reviewParticipant(sql, OPS, campId, kidId, {
+    await reviewParticipant(sql, DOC, campId, kidId, {
       approve: true,
       recommendation: "Aarav's distance vision needs an eye test within a month, "
         + "and the dental cavities need a dentist. Everything else looked fine.",
     });
     // No SMS in a test: the sender is a parameter precisely so the release
     // path can be exercised without texting anybody.
-    await releaseCamp(sql, OPS, campId, async () => ({ ok: true }));
+    await releaseCamp(sql, DOC, campId, async () => ({ ok: true }));
 
     const res = await guardianCampResult(sql, guardianId, campId, kidId);
     const fields = dtoFields("CampResultDto");

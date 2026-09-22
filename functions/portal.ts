@@ -4358,21 +4358,18 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.reviewKid) return reviewPanel();
     if (!S.queue) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var c = S.camp.camp;
-    function release() {
-      if (!confirm("Release " + (c.approved || 0) + " approved results to guardians? This cannot be undone.")) return;
-      run(api("/api/admin/camps/" + c.id + "/release", { method: "POST" }), function (r) {
-        S.notice = "Released " + r.released + " results" + (r.urgentNotified ? ", " + r.urgentNotified + " urgent families texted" : "") + ".";
-        refreshCamp("review");
-      });
-    }
     var pending = S.queue.filter(function (q) { return q.status === "SCREENED"; });
     return el("div", null,
       el("div", { class: "row", style: "margin-bottom:14px" },
         el("div", { style: "flex:1" },
           el("span", { class: "muted", style: "font-size:12.5px" },
             pending.length + " awaiting review \\u00b7 " + (c.approved || 0) + " approved \\u00b7 " + (c.released || 0) + " released")),
-        el("button", { class: "pri", disabled: S.busy || !(c.approved > 0), onclick: release },
-          "Release " + (c.approved || 0) + " to guardians")),
+        // No release button. Sending a camp to its guardians happens in the
+        // app, on the phone the clinician screened with, and the server
+        // refuses it from here whoever is signed in. A button that always
+        // answers 403 is worse than no button.
+        el("span", { class: "muted", style: "font-size:12px" },
+          "Approving and releasing happen in the VitaHero app.")),
       c.released ? el("div", { class: "msg ok" }, c.released + " results are already with guardians.") : null,
       S.queue.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
@@ -4406,13 +4403,6 @@ export const PORTAL_HTML = `<!doctype html>
     var d = S.reviewData;
     if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var e = S.reviewEdit;
-    function approve() {
-      var findings = d.findings.map(function (f) { return { checkType: f.checkType, flag: e.flags[f.checkType] }; });
-      run(api("/api/admin/camps/" + S.camp.camp.id + "/review/" + encodeURIComponent(d.child.kidId), { method: "POST",
-        body: { findings: findings, recommendation: e.recommendation, urgency: e.urgency } }), function () {
-        S.notice = d.child.name + " approved."; S.reviewKid = null; S.reviewData = null; refreshCamp("review");
-      });
-    }
     return el("div", null,
       el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ reviewKid: null, reviewData: null, error: "" }); } }, "\\u2190 Back to the queue"),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
@@ -4457,11 +4447,10 @@ export const PORTAL_HTML = `<!doctype html>
               ? "Drafted from the findings. Edit it \\u2014 this is what the parent reads in the app."
               : "Previously saved. Edit if anything has changed.")),
           el("div", { class: "row" },
-            el("button", { class: "pri big", disabled: S.busy, onclick: approve },
-              S.busy ? "Saving\\u2026" : d.status === "APPROVED" ? "Update approval" : "Approve this child"),
-            el("button", { onclick: function () { set({ reviewKid: null, reviewData: null }); } }, "Cancel")),
+            el("button", { onclick: function () { set({ reviewKid: null, reviewData: null }); } }, "Close")),
           el("div", { class: "hint", style: "margin-top:8px" },
-            "Approving does not notify anyone. Results reach guardians only when you release the camp."))));
+            "This record is read-only here. The physician who screened this child "
+            + "approves it in the VitaHero app, and the camp is released from there too."))));
   }
 
   // ══════════════════════════════════════ my camps (screener / physician)
@@ -5379,8 +5368,14 @@ export const PORTAL_HTML = `<!doctype html>
       stages.push(["people", "Parents & children"]);
       stages.push(["consent", "Consent", c.pendingConsent]);
     }
+    // Camp day is where findings are recorded, and recording happens in the
+    // app now. can.screen is false for everyone who uses this console, so the
+    // stage does not appear; it is still driven by the server rather than
+    // deleted, because the rule lives there and not in this markup.
     if (can.screen) stages.push(["campday", "Camp day", c.awaitingReview]);
-    if (can.review) stages.push(["review", "Review", c.awaitingReview]);
+    // Review stays, read-only: seeing what a camp found is how a programme is
+    // run. The approving and the releasing are elsewhere.
+    if (can.viewClinical) stages.push(["review", "Review", c.awaitingReview]);
     return stages;
   }
 

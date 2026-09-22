@@ -276,7 +276,7 @@ async function open() {
         consentDeadline: "", venue: "", time: "", description: "", releasedAt: "", resultSummary: "",
       },
       staff: [],
-      can: { schedule: true, screen: true, review: true },
+      can: { schedule: true, screen: true, review: true, viewClinical: true },
     };
     const participants = [
       { kidId: "k1", name: "Asha One", grade: "Class 4", section: "A", studentRef: "1",
@@ -393,7 +393,7 @@ async function open() {
       staff: [],
       // A screener's view: no scheduling, no review — so the camp opens on the
       // camp-day tab, which is where captures are made.
-      can: { schedule: false, screen: true, review: false },
+      can: { schedule: false, screen: true, review: false, viewClinical: true },
     };
     const D = {
       "/api/admin/overview": { schools: 1, students: 1, guardians: 1, guardiansActivated: 1,

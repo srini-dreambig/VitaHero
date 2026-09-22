@@ -58,7 +58,7 @@ await p.addInitScript(() => {
         screened: 0, awaitingReview: 0, approved: 0, released: 0, urgent: 0, photosEnabled: false,
         academicYear: "2026-27", sections: [], capacity: 200, consentDeadline: "", venue: "",
         time: "", description: "", releasedAt: "", resultSummary: "" },
-      staff: [], can: { schedule: true, screen: true, review: true },
+      staff: [], can: { schedule: true, screen: true, review: true, viewClinical: true },
     },
     "/api/admin/camps/cmp_1/participants": { participants: [
       { kidId: "k1", name: "Rahul Sharma", grade: "Class 4", section: "B",

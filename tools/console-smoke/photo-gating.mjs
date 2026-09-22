@@ -33,7 +33,7 @@ async function session(photosEnabled) {
         upcoming: [{ id: "cmp_1", title: "Annual check-up", schoolName: "Silver Oaks",
           date: "2027-09-10", participants: 2, consented: 2, status: "IN_PROGRESS" }] },
       "/api/admin/schools": { schools: [] },
-      "/api/admin/camps/cmp_1/participants": { can: { schedule: true, screen: true, review: true },
+      "/api/admin/camps/cmp_1/participants": { can: { schedule: true, screen: true, review: true, viewClinical: true },
         photosEnabled: photos, participants: PARTS },
       "/api/admin/camps/cmp_1/photos/k1": { photos: [{ id: "ph_1", checkType: "Skin",
         mime: "image/png", bytes: 4096, caption: "Patch on left forearm",
@@ -41,7 +41,7 @@ async function session(photosEnabled) {
       "/api/admin/camps/cmp_1/screening/k1": form(PARTS[0], true),
       "/api/admin/camps/cmp_1/screening/k2": form(PARTS[1], false),
       "/api/admin/camps/cmp_1": { camp: CAMP, staff: [],
-        can: { schedule: true, screen: true, review: true } },
+        can: { schedule: true, screen: true, review: true, viewClinical: true } },
       "/api/admin/schools/sch_1/staff": { staff: [] },
     };
     window.fetch = async (url) => {

@@ -46,7 +46,7 @@ async function run(role, expect) {
           photosEnabled: false, academicYear: "2026-27", sections: [], capacity: 200,
           consentDeadline: "", venue: "", time: "", description: "", releasedAt: "",
           resultSummary: "" },
-        staff: [], can: { schedule: true, screen: true, review: true },
+        staff: [], can: { schedule: true, screen: false, review: false, viewClinical: true },
       },
     };
     const real = window.fetch;
@@ -129,10 +129,20 @@ async function run(role, expect) {
 
   // A camp is a sequence, so its stages stay one row in the order the day
   // runs. Grouping a workflow would hide the only useful thing about it.
-  const stages = ["Setup", "Parents & children", "Consent", "Camp day", "Review"];
+  //
+  // No "Camp day". Recording a measurement happens in the app, on the phone
+  // the clinician is holding at the camp, and the stage is driven by the
+  // server's can.screen — which is false for everyone who opens this console.
+  // Review survives it because reading what a camp found is how a programme
+  // is run; the approving and the releasing are in the app too.
+  const stages = ["Setup", "Parents & children", "Consent", "Review"];
   const campTabs = await tabs();
   check(`${role}: the camp's stages are all present`,
     stages.every((s) => campTabs.includes(s)));
+  // Stated as an absence, because "we stopped listing it" and "the server
+  // stopped offering it" look identical from a list of what is present.
+  check(`${role}: and there is no Camp day stage to record from`,
+    !campTabs.includes("Camp day"));
   const idx = stages.map((s) => campTabs.indexOf(s));
   check(`${role}: the stages are in the order the day runs`,
     idx.every((v, i) => i === 0 || v > idx[i - 1]));

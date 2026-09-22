@@ -96,3 +96,36 @@ export function surfaceRefusal(
     code: "WRONG_SURFACE_CONSOLE",
   };
 }
+
+/**
+ * Clinical work happens on the phone, and only on the phone.
+ *
+ * Asked for directly: "I don't want it from Admin panel, it must be only from
+ * app for now." Recording a measurement, approving a child's findings and
+ * releasing a camp are now refused unless the session making the request was
+ * minted at the app's door.
+ *
+ * Checked against the session rather than a header, because a header is a
+ * claim the caller makes about itself and a session is a fact about how they
+ * signed in. The console's own sign-in is Neon Auth (email, password, social);
+ * the app's is a phone OTP. A console user cannot obtain an app session
+ * without a provisioned mobile and the code sent to it.
+ *
+ * "" is a token minted before sessions recorded this, and is refused: the only
+ * clients holding one are console users, since the app's clinical screens have
+ * never shipped. One sign-in fixes it.
+ *
+ * The bootstrap ADMIN_API_KEY has no session at all, so it is refused here
+ * too. It exists to stand a programme up, not to record a child's eyesight.
+ */
+export function clinicalSurfaceRefusal(
+  surface: string | undefined
+): { error: string; code: string } | null {
+  if (surface === "app") return null;
+  return {
+    error:
+      "Screening, approval and release happen in the VitaHero app, on the phone the " +
+      "clinician is holding at the camp. The console cannot record them.",
+    code: "APP_ONLY",
+  };
+}

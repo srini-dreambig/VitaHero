@@ -227,15 +227,17 @@ export async function symptomHistoryForClinician(
 ) {
   if (!isOpsRole(actor.role)) {
     const access = await assertCampAccess(sql, actor, campId);
-    if (!access.canScreen && !access.canReview) {
-      throw new ApiError(403, "You cannot read this child's history", "FORBIDDEN");
-    }
+    // Named refusal before the generic one, as in media.ts: a school
+    // administrator has the camp, just not this, and should be told which.
     if (actor.role === "SCHOOL_ADMIN") {
       throw new ApiError(
         403,
         "Illness history is visible to the clinical team and the child's guardian only.",
         "CLINICAL_ONLY"
       );
+    }
+    if (!access.canScreen && !access.canReview) {
+      throw new ApiError(403, "You cannot read this child's history", "FORBIDDEN");
     }
   }
   const rows = await sql`
