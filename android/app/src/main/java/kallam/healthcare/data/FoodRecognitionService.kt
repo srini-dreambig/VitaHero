@@ -80,16 +80,36 @@ object FoodRecognitionService {
     private const val MAX_UPLOAD_DIM = 1024
     private const val JPEG_QUALITY = 80
 
-    suspend fun analyseBitmap(bitmap: Bitmap): List<DetectedFood> = withContext(Dispatchers.IO) {
-        val remote = runCatching { analyseRemote(bitmap) }.getOrNull()
-        if (!remote.isNullOrEmpty()) return@withContext remote
+    /**
+     * Label a meal photograph.
+     *
+     * `allowRemote` is the guardian's answer, not a feature flag. With it, the
+     * photograph goes to the backend's vision endpoint first and falls back to
+     * the on-device labeller; without it the photograph never leaves the
+     * handset and ML Kit does the work alone.
+     *
+     * The default is false on purpose. This used to try remote first with no
+     * question asked, so a photograph of a family's dinner table left the
+     * phone before anything local ran — and a caller that forgets to pass this
+     * should get the private version, not the other way round.
+     */
+    suspend fun analyseBitmap(
+        bitmap: Bitmap,
+        kidId: String = "",
+        allowRemote: Boolean = false,
+    ): List<DetectedFood> = withContext(Dispatchers.IO) {
+        if (allowRemote && kidId.isNotBlank()) {
+            val remote = runCatching { analyseRemote(bitmap, kidId) }.getOrNull()
+            if (!remote.isNullOrEmpty()) return@withContext remote
+        }
         mapLabelsToFoods(runMlKitLabeling(bitmap))
     }
 
     /** AI vision via the backend worker. Returns null when unavailable so we fall back. */
-    private suspend fun analyseRemote(bitmap: Bitmap): List<DetectedFood>? {
+    private suspend fun analyseRemote(bitmap: Bitmap, kidId: String): List<DetectedFood>? {
         if (!ApiService.isConfigured || ApiService.sessionToken.isNullOrBlank()) return null
-        val response = ApiRepositoryProvider.repository.recognizeFood(encodeJpeg(bitmap)) ?: return null
+        val response = ApiRepositoryProvider.repository
+            .recognizeFood(kidId, encodeJpeg(bitmap)) ?: return null
         return response.items
             .filter { it.name.isNotBlank() }
             .map {

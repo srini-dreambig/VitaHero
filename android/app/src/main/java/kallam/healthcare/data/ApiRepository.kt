@@ -353,12 +353,25 @@ class ApiRepository {
         } else null
     }
 
-    suspend fun recognizeFood(imageBase64: String, mime: String = "image/jpeg"): FoodRecognitionResponseDto? = onIo {
+    /**
+     * Send a meal photograph for labelling.
+     *
+     * The child's id goes with it because the server's consent is per child —
+     * a route handed a photograph with no idea whose meal it was could not
+     * check anything. A 403 here means the guardian has not agreed, and the
+     * caller falls back to labelling on the handset rather than failing.
+     */
+    suspend fun recognizeFood(
+        kidId: String,
+        imageBase64: String,
+        mime: String = "image/jpeg",
+    ): FoodRecognitionResponseDto? = onIo {
         if (skipNetwork) return@onIo null
         val resp = http.post("$base/api/food-recognition") {
             authHeaders().forEach { (k, v) -> header(k, v) }
             contentType(ContentType.Application.Json)
             setBody(mapOf(
+                "kid_id" to kidId,
                 "image_base64" to imageBase64,
                 "mime" to mime,
             ))

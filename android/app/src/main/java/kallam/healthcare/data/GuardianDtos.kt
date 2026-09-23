@@ -406,3 +406,23 @@ data class BadgeDto(
 
 @Serializable
 data class BadgesDto(val badges: List<BadgeDto> = emptyList())
+
+
+// ─── Meal photographs ───────────────────────────────────────
+
+/**
+ * Whether this child's meal photographs may leave the device.
+ *
+ * `asked` and `granted` are separate because "not yet asked" is not "no".
+ * The screen asks on the first photograph rather than assuming either way,
+ * and the server refuses the upload on both.
+ */
+@Serializable
+data class MealPhotoConsentDto(
+    val kidId: String = "",
+    val asked: Boolean = false,
+    val granted: Boolean = false,
+)
+
+@Serializable
+data class MealPhotoConsentBody(val kidId: String, val granted: Boolean)

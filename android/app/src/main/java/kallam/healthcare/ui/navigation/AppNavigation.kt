@@ -828,6 +828,7 @@ fun AppNavigation(
             FoodRecognitionScreen(
                 kidName = kidName,
                 kidId = kidId,
+                guardianViewModel = guardianViewModel,
                 onBack = { navController.popBackStack() },
                 onLogDetectedFood = { id, name, kcal ->
                     kidsViewModel.addMealItem(

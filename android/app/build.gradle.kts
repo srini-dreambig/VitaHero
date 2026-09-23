@@ -31,8 +31,14 @@ android {
         applicationId = "kallam.healthcare"
         minSdk = 26
         targetSdk = 36
-        versionCode = 3
-        versionName = "1.0"
+        // versionCode is what Play orders releases by and can never repeat or
+        // go backwards; versionName is what a person reads. 3 was the last
+        // number a build was ever made under, and no build under it was ever
+        // uploaded — this is the first upload, and everything since then is
+        // in it: one sign-in door, the clinician's review and release, the
+        // dietician, server-side badges, the printable consent slip.
+        versionCode = 4
+        versionName = "1.1.0"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //

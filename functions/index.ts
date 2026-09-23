@@ -150,6 +150,9 @@ import {
   photoAccessTrail,
   setCampPhotos,
   guardianPhotos,
+  ensureMealPhotoSchema,
+  mealPhotoConsent,
+  setMealPhotoConsent,
 } from "./media";
 import {
   ensureMessageSchema,
@@ -1719,6 +1722,7 @@ export const SCHEMA_STEPS = [
   ensureSymptomSchema,
   ensureOversightSchema,
   ensureBadgeSchema,
+  ensureMealPhotoSchema,
   ensureDieticianSchema,
   ensureDoctorSignInBackfill,
 ];
@@ -3663,6 +3667,28 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
       }
 
+      // ── Meal photographs: asked once, per child, revocable ──
+      if (path === "/api/me/meal-photo-consent") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          if (request.method === "GET") {
+            return json(await mealPhotoConsent(
+              sql, session.profileId, url.searchParams.get("kid_id") || ""
+            ));
+          }
+          if (request.method === "POST") {
+            const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+            return json(await setMealPhotoConsent(
+              sql, session.profileId, String(b.kidId || ""), b.granted === true
+            ));
+          }
+          return json({ error: "Method not allowed" }, 405);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return serverError(e, "api");
+        }
+      }
+
       // ── The parent's side of a diet plan ────────────────
       if (path === "/api/me/diet-plan" && request.method === "GET") {
         if (!session) return json({ error: "Unauthorized" }, 401);
@@ -4354,9 +4380,37 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       }
 
       // ── Food recognition (AI vision) ──────────────────
+      // Meal photographs leave the device only where a guardian said they may.
+      //
+      // The kid id is required, and it is required for a reason: the consent
+      // is per child, and a route that took a photograph with no idea whose
+      // meal it was could not have checked anything. Refusing here is not the
+      // feature failing — the app falls back to labelling on the handset,
+      // which is what an unanswered or refused question should get you.
       if (path === "/api/food-recognition" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
+        const kidId = String(body.kid_id || "").trim();
+        if (!kidId) {
+          return json({ error: "Missing kid_id", code: "KID_REQUIRED" }, 400);
+        }
+        try {
+          const consent = await mealPhotoConsent(sql, session.profileId, kidId);
+          if (!consent.granted) {
+            return json(
+              {
+                error: consent.asked
+                  ? "This child's meal photographs are kept on the device."
+                  : "Ask the guardian before sending this child's meal photographs.",
+                code: "MEAL_PHOTO_CONSENT_REQUIRED",
+              },
+              403
+            );
+          }
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return serverError(e, "api");
+        }
         const imageBase64 = String(body.image_base64 || "").trim();
         if (!imageBase64) return json({ error: "Missing image_base64" }, 400);
         const mime = String(body.mime || "image/jpeg");

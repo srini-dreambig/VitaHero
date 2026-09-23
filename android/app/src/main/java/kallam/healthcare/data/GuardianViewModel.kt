@@ -142,6 +142,7 @@ class GuardianViewModel(
         loaded.clear()
         _pendingConsents.value = emptyList()
         _dietPlans.value = emptyMap()
+        _mealPhotoConsent.value = emptyMap()
         _result.value = null
         _photos.value = emptyList()
         _openPhoto.value = null
@@ -202,6 +203,35 @@ class GuardianViewModel(
         loadReferrals(force = force)
         loadQuestions(force)
         loadEntitlements(force)
+    }
+
+    // ── meal photographs ──
+    //
+    // Per child, because the consent is per child. Absent means not asked.
+    private val _mealPhotoConsent = MutableStateFlow<Map<String, MealPhotoConsentDto>>(emptyMap())
+    val mealPhotoConsent: StateFlow<Map<String, MealPhotoConsentDto>> =
+        _mealPhotoConsent.asStateFlow()
+
+    fun loadMealPhotoConsent(kidId: String, force: Boolean = false) =
+        once("mealphoto:$kidId", force) {
+            _mealPhotoConsent.update { it + (kidId to repo.mealPhotoConsent(kidId)) }
+        }
+
+    /**
+     * Answer the question, either way.
+     *
+     * Written through the server rather than held locally: the server is what
+     * refuses the upload, so a yes that only this handset knew about would be
+     * a yes that did nothing, and a no that only this handset knew about would
+     * be worse.
+     */
+    fun setMealPhotoConsent(kidId: String, granted: Boolean) {
+        viewModelScope.launch {
+            repo.setMealPhotoConsent(kidId, granted).fold(
+                onSuccess = { d -> _mealPhotoConsent.update { it + (kidId to d) } },
+                onFailure = { e -> say(e.message ?: "That could not be saved.") },
+            )
+        }
     }
 
     // ─── The diet plan ──────────────────────────────────────

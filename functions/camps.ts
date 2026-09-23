@@ -1871,36 +1871,95 @@ export async function releaseCamp(
     WHERE id = ${campId}
   `;
 
-  // D4 — urgent cases are told now, not left to be discovered in the app.
-  const urgent = await sql`
-    SELECT p.profile_id, k.name, pr.phone
+  // Everybody is told their child's results exist.
+  //
+  // This used to text only the urgent cases and leave everyone else to
+  // discover the result by opening the app. That is defensible in a pilot
+  // where the school also tells parents in the playground, and it stops being
+  // defensible at any size: most parents never open the app again after
+  // consenting, so for most children the result was screened, reviewed,
+  // approved, released — and read by nobody.
+  //
+  // The wording follows the finding rather than being one message for all.
+  // Telling a parent whose child is fine that something "needs a doctor's
+  // attention" is a frightening lie; telling a parent whose child is not that
+  // "results are ready" buries the one sentence that mattered.
+  //
+  // The URGENT_ESCALATED guard stays and now covers everyone: a camp released
+  // twice — which happens, because approving a straggler and releasing again
+  // is the normal way to finish one — must not text the same family twice.
+  const toTell = await sql`
+    SELECT p.kid_id, p.profile_id, p.urgency, k.name, pr.phone
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
     LEFT JOIN vita_hero.profiles pr ON pr.id = p.profile_id
-    WHERE p.camp_id = ${campId} AND p.urgency = 'URGENT' AND COALESCE(pr.phone,'') <> ''
+    WHERE p.camp_id = ${campId} AND p.status = 'RELEASED'
+      AND COALESCE(pr.phone,'') <> ''
       AND NOT EXISTS (
         SELECT 1 FROM vita_hero.consent_log cl
-        WHERE cl.camp_id = p.camp_id AND cl.kid_id = p.kid_id AND cl.action = 'URGENT_ESCALATED'
+        WHERE cl.camp_id = p.camp_id AND cl.kid_id = p.kid_id
+          AND cl.action IN ('URGENT_ESCALATED','RESULT_NOTIFIED')
       )
   `;
-  // Every urgent parent is still texted — an SMS is one subrequest each and
-  // there is no bulk endpoint — but eight at a time rather than strictly one
-  // after another, so a camp with a bad day does not run out of wall clock
-  // before the last parent is told.
-  let urgentNotified = 0;
-  for (const group of chunk(urgent, 8)) {
+
+  const messageFor = (name: string, urgency: string): string =>
+    urgency === "URGENT"
+      ? `VitaHero: ${name}'s school health check-up found something that needs a doctor's attention soon. Please open the VitaHero app for details.`
+      : `VitaHero: ${name}'s school health check-up results are ready. Open the VitaHero app to read them.`;
+
+  // An SMS is one subrequest each and there is no bulk endpoint, so these go
+  // eight at a time rather than strictly one after another — a camp of four
+  // hundred would otherwise run out of wall clock before the last parent is
+  // told.
+  const landedAll: Record<string, unknown>[] = [];
+  for (const group of chunk(toTell, 8)) {
     const sent = await Promise.all(
-      group.map((u) =>
-        sendSms(
+      group.map(async (u) => {
+        const ok = await sendSms(
           u.phone as string,
-          `VitaHero: ${u.name}'s school health check-up found something that needs a doctor's attention soon. Please open the VitaHero app for details.`
-        ).catch(() => false)
-      )
+          messageFor(u.name as string, String(u.urgency || "NONE"))
+        ).catch(() => false);
+        return ok ? u : null;
+      })
     );
-    urgentNotified += sent.filter(Boolean).length;
+    landedAll.push(...(sent.filter(Boolean) as Record<string, unknown>[]));
+  }
+  const notified = landedAll.length;
+  const urgentNotified = landedAll.filter((u) => u.urgency === "URGENT").length;
+
+  // Written for exactly the rows that sent, against the child they were about.
+  //
+  // Three things have to be right here or a camp of four hundred gets texted
+  // twice. The kid_id must be the real one, because the guard above matches on
+  // it — a blank would make that NOT EXISTS unsatisfiable and every re-release
+  // would text everybody again. It must be the rows that actually landed, not
+  // a count of them, because a failed text should be retried by the next
+  // release rather than recorded as delivered. And it covers the urgent ones
+  // too: a child who became urgent without ever being escalated at review has
+  // no URGENT_ESCALATED row to stop them.
+  if (landedAll.length > 0) {
+    await insertRows(
+      sql,
+      `INSERT INTO vita_hero.consent_log
+         (id, camp_id, kid_id, profile_id, action, source, actor_id, note)
+       VALUES %VALUES%`,
+      landedAll.map((u, i) => [
+        `cl_${Date.now().toString(36)}_${i}_${Math.random().toString(36).slice(2, 6)}`,
+        campId,
+        u.kid_id as string,
+        (u.profile_id as string) || "",
+        "RESULT_NOTIFIED",
+        "SMS",
+        actor.profileId,
+        u.urgency === "URGENT" ? "Urgent result" : "Results ready",
+      ])
+      // A failed audit write must not fail a release that has already
+      // happened. The cost of swallowing it is that the next release texts
+      // these families again, which is the safer of the two directions.
+    ).catch(() => undefined);
   }
 
-  return { released: plan.length, referralsOpened, urgentNotified };
+  return { released: plan.length, referralsOpened, notified, urgentNotified };
 }
 // ─── Guardian-facing (parent app) ───────────────────────────
 

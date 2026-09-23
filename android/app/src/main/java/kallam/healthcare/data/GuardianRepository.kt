@@ -143,6 +143,22 @@ class GuardianRepository {
     suspend fun dietPlan(kidId: String): DietPlanDto? =
         getOr("/api/me/diet-plan", GuardianDietPlanDto(), mapOf("kid_id" to kidId)).plan
 
+    // ─── Meal photographs ───────────────────────────────────
+
+    /**
+     * Whether this child's meal photographs may be sent for labelling.
+     *
+     * The fallback is an unasked, ungranted answer, which is the safe reading
+     * of a call that did not land: the screen asks, and until it has an answer
+     * the photograph stays on the handset.
+     */
+    suspend fun mealPhotoConsent(kidId: String): MealPhotoConsentDto =
+        getOr("/api/me/meal-photo-consent", MealPhotoConsentDto(kidId = kidId),
+            mapOf("kid_id" to kidId))
+
+    suspend fun setMealPhotoConsent(kidId: String, granted: Boolean): Result<MealPhotoConsentDto> =
+        postFor("/api/me/meal-photo-consent", MealPhotoConsentBody(kidId, granted))
+
     // ─── Photographs ────────────────────────────────────────
 
     suspend fun photos(kidId: String): List<FindingPhotoDto> =

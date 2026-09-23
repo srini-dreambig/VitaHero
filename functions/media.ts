@@ -368,3 +368,66 @@ export async function guardianPhotos(sql: Sql, profileId: string, kidId: string)
     })),
   };
 }
+
+// ─── Meal photographs, taken at home ────────────────────────
+//
+// A different picture and a different question from the clinical one above.
+//
+// A camp photograph is taken by a clinician, of a finding, under a consent the
+// school asked for. A meal photograph is taken by a child in their own
+// kitchen, and until now it went through nothing at all: the app sent every
+// one of them to a third-party vision endpoint before it tried the on-device
+// labeller, so a photograph of a family's dinner table left the phone by
+// default and nobody was ever asked.
+//
+// The gate does not switch the feature off. Refusing means the photo never
+// leaves the device — ML Kit labels it on the handset and the meal is still
+// logged, just less precisely. So the choice a guardian is offered is between
+// two working versions of the feature, which is the only kind of consent
+// question worth asking.
+
+export async function ensureMealPhotoSchema(sql: Sql): Promise<void> {
+  await sql`
+    CREATE TABLE IF NOT EXISTS vita_hero.meal_photo_consent (
+      kid_id TEXT PRIMARY KEY,
+      profile_id TEXT NOT NULL,
+      granted BOOLEAN NOT NULL,
+      decided_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+}
+
+/**
+ * May this child's meal photographs be sent off the device?
+ *
+ * Absent means not yet asked, which is not the same as no — the screen asks,
+ * rather than assuming. Both absent and an explicit no stop the upload.
+ */
+export async function mealPhotoConsent(sql: Sql, profileId: string, kidId: string) {
+  const owned = await sql`
+    SELECT id FROM vita_hero.kids WHERE id = ${kidId} AND profile_id = ${profileId} LIMIT 1`;
+  if (owned.length === 0) throw new ApiError(404, "No such child", "NOT_FOUND");
+  const rows = await sql`
+    SELECT granted FROM vita_hero.meal_photo_consent WHERE kid_id = ${kidId} LIMIT 1`;
+  return {
+    kidId,
+    asked: rows.length > 0,
+    granted: rows.length > 0 && rows[0].granted === true,
+  };
+}
+
+/** Record the answer. Revocable: a guardian may change their mind either way. */
+export async function setMealPhotoConsent(
+  sql: Sql, profileId: string, kidId: string, granted: boolean,
+) {
+  const owned = await sql`
+    SELECT id FROM vita_hero.kids WHERE id = ${kidId} AND profile_id = ${profileId} LIMIT 1`;
+  if (owned.length === 0) throw new ApiError(404, "No such child", "NOT_FOUND");
+  await sql`
+    INSERT INTO vita_hero.meal_photo_consent (kid_id, profile_id, granted, decided_at)
+    VALUES (${kidId}, ${profileId}, ${granted}, NOW())
+    ON CONFLICT (kid_id) DO UPDATE
+      SET granted = EXCLUDED.granted, profile_id = EXCLUDED.profile_id, decided_at = NOW()
+  `;
+  return { kidId, asked: true, granted };
+}

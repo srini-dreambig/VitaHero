@@ -37,11 +37,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,9 +62,11 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kallam.healthcare.data.DetectedFood
 import kallam.healthcare.data.FoodRecognitionService
+import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.S
 import kallam.healthcare.ui.components.HeroCard
 import kallam.healthcare.ui.components.IconBubble
+import kallam.healthcare.ui.components.PrimaryGradientButton
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf
 import kallam.healthcare.ui.components.tf2
@@ -78,11 +83,17 @@ import kotlinx.coroutines.withContext
 fun FoodRecognitionScreen(
     kidName: String,
     kidId: String,
+    guardianViewModel: GuardianViewModel,
     onBack: () -> Unit,
     onLogDetectedFood: (String, String, Int) -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Whether this child's meal photographs may leave the handset. Read once
+    // on the way in; the card below asks if nobody has been asked yet.
+    val mealConsent by guardianViewModel.mealPhotoConsent.collectAsState()
+    val consent = mealConsent[kidId]
+    LaunchedEffect(kidId) { guardianViewModel.loadMealPhotoConsent(kidId) }
     var isAnalyzing by remember { mutableStateOf(false) }
     var detectedItems by remember { mutableStateOf<List<DetectedFood>>(emptyList()) }
     var loggedItems by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -109,7 +120,14 @@ fun FoodRecognitionScreen(
             detectedItems = emptyList()
             scope.launch {
                 val results = withContext(Dispatchers.IO) {
-                    FoodRecognitionService.analyseBitmap(bitmap)
+                    // The guardian's answer decides whether this photograph
+                    // leaves the phone. Without a yes it is labelled here, on
+                    // the device, and the meal is still logged.
+                    FoodRecognitionService.analyseBitmap(
+                        bitmap,
+                        kidId = kidId,
+                        allowRemote = consent?.granted == true,
+                    )
                 }
                 detectedItems = results
                 isAnalyzing = false
@@ -145,6 +163,55 @@ fun FoodRecognitionScreen(
                 .padding(pad),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp)
         ) {
+            // The question, asked once, before the first photograph.
+            //
+            // Camp photographs have had a consent gate from the start; these
+            // did not, and they are the ones taken in a family's own kitchen.
+            // Both answers leave a working feature — that is the point, and it
+            // is why the card says what each one means rather than pressing
+            // for a yes.
+            if (consent != null && !consent.asked) {
+                item {
+                    HeroCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp)) {
+                            Text(
+                                t(S.mealPhotoAskTitle),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                t(S.mealPhotoAskBody),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.height(14.dp))
+                            PrimaryGradientButton(
+                                text = t(S.mealPhotoAllow),
+                                onClick = { guardianViewModel.setMealPhotoConsent(kidId, true) },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            OutlinedButton(
+                                onClick = { guardianViewModel.setMealPhotoConsent(kidId, false) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                            ) { Text(t(S.mealPhotoKeepOnPhone)) }
+                        }
+                    }
+                    Spacer(Modifier.height(16.dp))
+                }
+            } else if (consent != null && !consent.granted) {
+                item {
+                    Text(
+                        t(S.mealPhotoOnDevice),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                }
+            }
+
             item {
                 Text(
                     tf(S.takePhotoOf, kidName),

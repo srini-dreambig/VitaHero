@@ -509,11 +509,55 @@ suite("end to end", () => {
     smsLog.length = 0;
     const r = await releaseCamp(sql, physician, campId, captureSms);
     expect(r.released).toBe(5);
+    // Everybody is told, and the wording follows the finding. Telling a parent
+    // whose child is fine that something needs a doctor's attention is a
+    // frightening lie; telling a parent whose child is not that their results
+    // are ready buries the one sentence that mattered.
     expect(r.urgentNotified).toBe(1);
-    expect(smsLog[0].body).toContain("needs a doctor's attention");
+    expect(r.notified).toBe(5);
+    const urgentTexts = smsLog.filter((m) => /needs a doctor's attention/.test(m.body));
+    const plainTexts = smsLog.filter((m) => /results are ready/.test(m.body));
+    expect(urgentTexts).toHaveLength(1);
+    expect(plainTexts).toHaveLength(4);
+    // No family gets both.
+    expect(urgentTexts.length + plainTexts.length).toBe(smsLog.length);
 
     const results = await client.query("SELECT * FROM vita_hero.camp_kid_results WHERE school_camp_id=$1", [campId]);
     expect(results.rowCount).toBe(5);
+
+    // Being told twice is the failure mode that matters here, and there are
+    // two defences. The first is that a release with nothing newly approved
+    // refuses outright.
+    smsLog.length = 0;
+    await expect(releaseCamp(sql, physician, campId, captureSms)).rejects.toThrow(
+      /Nothing has been approved/
+    );
+    expect(smsLog).toHaveLength(0);
+
+    // The second is the one that carries the weight, because approving a
+    // straggler and releasing again is the normal way to finish a camp. That
+    // guard is a NOT EXISTS against consent_log matched on camp AND child —
+    // exactly the kind of thing that looks right and silently never fires if
+    // the child id written is not the child id matched. So: every family just
+    // told has a row, and it names their child.
+    const told = await client.query(
+      `SELECT kid_id, action FROM vita_hero.consent_log
+        WHERE camp_id = $1 AND action = 'RESULT_NOTIFIED'`,
+      [campId]
+    );
+    // All five, the urgent one included. A child who became urgent without
+    // ever being escalated at review has no URGENT_ESCALATED row to stop a
+    // second text, so release writes its own for everybody it told.
+    expect(told.rowCount).toBe(5);
+    for (const row of told.rows) {
+      expect(row.kid_id, "a blank kid_id makes the re-release guard unsatisfiable").toBeTruthy();
+    }
+    const participantIds = (await client.query(
+      "SELECT kid_id FROM vita_hero.camp_participants WHERE camp_id = $1", [campId]
+    )).rows.map((r: { kid_id: string }) => r.kid_id);
+    for (const row of told.rows) {
+      expect(participantIds).toContain(row.kid_id);
+    }
 
     const gp = await client.query("SELECT COUNT(*)::int AS n FROM vita_hero.growth_points");
     expect(gp.rows[0].n).toBeGreaterThanOrEqual(5);
@@ -703,7 +747,12 @@ suite("end to end", () => {
     const releaseSms: string[] = [];
     const rel = await releaseCamp(sql, physician, camp2, async (to: string) => { releaseSms.push(to); return { ok: true, reason: "" }; });
     expect(rel.released).toBeGreaterThan(0);
-    expect(releaseSms.length).toBe(0);
+    // Release tells everybody now, so this is no longer "nobody is texted" —
+    // it is the sharper claim, and the one the guard was always for: the
+    // family already told at escalation time is not told a second time.
+    expect(releaseSms).not.toContain(sent[0]);
+    // And the point is not vacuous — the other families on the camp were told.
+    expect(releaseSms.length).toBeGreaterThan(0);
   });
 
   test("a repeat finding is surfaced to the physician", async () => {
