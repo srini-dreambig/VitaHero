@@ -123,3 +123,35 @@ describe("the app and the worker are the same product", () => {
     });
   }
 });
+
+// ── one door per person ─────────────────────────────────────
+//
+// Asked for plainly: authentication for doctors and parents is Firebase OTP,
+// and there is no confusion about it. This is that rule, read off the app's
+// own network layer so it cannot drift from what ships.
+//
+// The app used to carry five sign-in calls: Google, email sign-up, email
+// sign-in, an SMS OTP send and its verify. None were reachable — the screens
+// that called them were never rendered — but the methods were there, the
+// buttons existed in unrendered composables, and the server answered three of
+// them. Dead plumbing behind a live door is the kind of thing that gets
+// reconnected by accident.
+describe("the app signs in one way and one way only", () => {
+  const auth = appCalls().filter((c) => c.path.startsWith("/api/auth"));
+
+  test("exactly one of them mints a session, and it is the Firebase one", () => {
+    const minting = auth
+      .filter((c) => c.path !== "/api/auth/me" && c.path !== "/api/auth/logout")
+      .map((c) => `${c.method} ${c.path}`);
+    expect(minting).toEqual(["POST /api/auth/phone/firebase-verify"]);
+  });
+
+  test("and nothing else in the app talks to an auth route", () => {
+    // me and logout are session housekeeping, not a way in.
+    expect(auth.map((c) => c.path).sort()).toEqual([
+      "/api/auth/logout",
+      "/api/auth/me",
+      "/api/auth/phone/firebase-verify",
+    ]);
+  });
+});

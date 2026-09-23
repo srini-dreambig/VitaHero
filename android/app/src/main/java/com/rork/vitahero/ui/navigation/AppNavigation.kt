@@ -131,7 +131,6 @@ private val OnboardingImages = listOf(
 
 @Composable
 fun AppNavigation(
-    onGoogleSignInRequest: () -> Unit = {},
     invitePhone: String = "",
 ) {
     val navController = rememberNavController()
@@ -274,13 +273,6 @@ fun AppNavigation(
                 isLoading = authLoading,
                 authError = authError,
                 prefilledPhone = invitePhone,
-                onSignInWithGoogle = { onGoogleSignInRequest() },
-                onSignUpWithEmail = { name, email, password ->
-                    appViewModel.signUpWithEmail(name, email, password)
-                },
-                onSignInWithEmail = { email, password ->
-                    appViewModel.signInWithEmail(email, password)
-                },
                 onContinueWithPhone = { p ->
                     phone = p
                     pendingName = "Parent"

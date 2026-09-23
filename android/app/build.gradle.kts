@@ -61,7 +61,6 @@ android {
         buildConfigField("String", "RORK_AUTH_URL", "\"${buildConfigProp("RORK_AUTH_URL", "EXPO_PUBLIC_RORK_AUTH_URL")}\"")
         buildConfigField("String", "PROJECT_ID", "\"${buildConfigProp("PROJECT_ID", "EXPO_PUBLIC_PROJECT_ID")}\"")
         buildConfigField("String", "TEAM_ID", "\"${buildConfigProp("TEAM_ID", "EXPO_PUBLIC_TEAM_ID")}\"")
-        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"${buildConfigProp("GOOGLE_WEB_CLIENT_ID", "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID")}\"")
     }
 
     // Release signing.
@@ -229,9 +228,6 @@ dependencies {
     }
     implementation(libs.androidx.security.crypto)
     implementation(libs.guava.android)
-    implementation(libs.androidx.credentials)
-    implementation(libs.androidx.credentials.play.services.auth)
-    implementation(libs.googleid)
     implementation(libs.mlkit.image.labeling)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(platform(libs.firebase.bom))

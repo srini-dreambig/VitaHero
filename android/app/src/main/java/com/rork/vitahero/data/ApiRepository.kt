@@ -54,114 +54,13 @@ class ApiRepository {
 
     // ─── Auth ───────────────────────────────────────────────────
 
-    suspend fun googleSignIn(idToken: String): Result<GoogleAuthResponse> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val resp = http.post("$base/api/auth/google") {
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("id_token" to idToken))
-            }
-            if (resp.observed()) {
-                Result.success(resp.body<GoogleAuthResponse>())
-            } else {
-                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
-                Result.failure(Exception(err?.error ?: "Google sign-in failed"))
-            }
-        } catch (e: Exception) {
-            noteTransportFailure(e)
-            Result.failure(e)
-        }
-    }
 
-    suspend fun signUpWithEmail(name: String, email: String, password: String): Result<GoogleAuthResponse> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val resp = http.post("$base/api/auth/signup") {
-                contentType(ContentType.Application.Json)
-                setBody(mapOf(
-                    "name" to name,
-                    "email" to email,
-                    "password" to password
-                ))
-            }
-            if (resp.observed()) {
-                Result.success(resp.body<GoogleAuthResponse>())
-            } else {
-                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
-                Result.failure(Exception(err?.error ?: "Sign up failed"))
-            }
-        } catch (e: Exception) {
-            noteTransportFailure(e)
-            Result.failure(e)
-        }
-    }
 
-    suspend fun signInWithEmail(email: String, password: String): Result<GoogleAuthResponse> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val resp = http.post("$base/api/auth/signin") {
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("email" to email, "password" to password))
-            }
-            if (resp.observed()) {
-                Result.success(resp.body<GoogleAuthResponse>())
-            } else {
-                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
-                Result.failure(Exception(err?.error ?: "Invalid email or password"))
-            }
-        } catch (e: Exception) {
-            noteTransportFailure(e)
-            Result.failure(e)
-        }
-    }
 
-    suspend fun sendPhoneOtp(phone: String): Result<Unit> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val resp = http.post("$base/api/auth/phone/send") {
-                contentType(ContentType.Application.Json)
-                // Which product is asking. This app is for families; school
-                // staff, screening teams and doctors belong in the console,
-                // and the backend turns them round here with the address of
-                // it rather than signing them in to a screen that has no idea
-                // what a doctor is and would call them "Parent".
-                setBody(mapOf("phone" to phone, "surface" to SURFACE))
-            }
-            if (resp.observed()) {
-                val body = try { resp.body<PhoneSendResponse>() } catch (_: Exception) { PhoneSendResponse(true) }
-                if (body.success) Result.success(Unit)
-                else Result.failure(Exception(body.note ?: "SMS delivery failed"))
-            } else {
-                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
-                Result.failure(Exception(err?.error ?: "Failed to send OTP"))
-            }
-        } catch (e: Exception) {
-            noteTransportFailure(e)
-            Result.failure(e)
-        }
-    }
 
-    suspend fun verifyPhoneOtp(phone: String, otp: String): Result<GoogleAuthResponse> = onIo {
-        if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
-        try {
-            val resp = http.post("$base/api/auth/phone/verify") {
-                contentType(ContentType.Application.Json)
-                setBody(mapOf("phone" to phone, "otp" to otp, "surface" to SURFACE))
-            }
-            if (resp.observed()) {
-                Result.success(resp.body<GoogleAuthResponse>())
-            } else {
-                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
-                Result.failure(Exception(err?.error ?: "Invalid OTP"))
-            }
-        } catch (e: Exception) {
-            noteTransportFailure(e)
-            Result.failure(e)
-        }
-    }
 
     /** Exchanges a Firebase phone-auth ID token for a VitaHero session. */
-    suspend fun firebasePhoneSignIn(idToken: String): Result<GoogleAuthResponse> = onIo {
+    suspend fun firebasePhoneSignIn(idToken: String): Result<PhoneAuthResponse> = onIo {
         if (skipNetwork) return@onIo Result.failure(Exception("Backend not configured"))
         try {
             val resp = http.post("$base/api/auth/phone/firebase-verify") {
@@ -169,7 +68,7 @@ class ApiRepository {
                 setBody(mapOf("idToken" to idToken, "surface" to SURFACE))
             }
             if (resp.observed()) {
-                Result.success(resp.body<GoogleAuthResponse>())
+                Result.success(resp.body<PhoneAuthResponse>())
             } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Sign-in failed"))
@@ -548,7 +447,7 @@ class ApiRepository {
 }
 
 @kotlinx.serialization.Serializable
-data class GoogleAuthResponse(
+data class PhoneAuthResponse(
     val token: String = "",
     val profile: AuthProfile? = null
 )

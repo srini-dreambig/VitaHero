@@ -116,20 +116,16 @@ fun HttpResponse.observed(): Boolean {
  * Is this the call where a 401 means "wrong credentials" rather than "your
  * session has ended"?
  *
- * Only the endpoints that take credentials. `/api/auth/me` is deliberately not
- * one of them: it carries a session token like any other read, and a 401 there
- * is exactly the thing this file exists to notice. Ending the session on a
- * rejected password, by contrast, would sign a parent out of the screen they
- * are trying to sign in on.
+ * The app signs in one way: it takes a Firebase phone token to
+ * `/api/auth/phone/firebase-verify`. That is the only call that carries a
+ * credential, so it is the only one where a 401 means the credential was
+ * wrong. `/api/auth/me` is deliberately not one of them: it carries a session
+ * token like any other read, and a 401 there is exactly the thing this file
+ * exists to notice. Ending the session on a rejected code, by contrast, would
+ * sign a parent out of the screen they are trying to sign in on.
  */
-private fun HttpResponse.isCredentialCheck(): Boolean {
-    val path = call.request.url.encodedPath
-    return path == "/api/auth/google" ||
-        path == "/api/auth/signup" ||
-        path == "/api/auth/signin" ||
-        path.startsWith("/api/auth/phone/") ||
-        path.startsWith("/api/auth/firebase")
-}
+private fun HttpResponse.isCredentialCheck(): Boolean =
+    call.request.url.encodedPath.startsWith("/api/auth/phone/")
 
 /** A transport failure — no response at all. Distinct from a rejection. */
 fun noteTransportFailure(e: Throwable) {

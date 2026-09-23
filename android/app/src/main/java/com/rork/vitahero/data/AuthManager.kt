@@ -145,49 +145,10 @@ class AuthManager(private val app: Application) {
         _authError.value = tr(S.authSessionEnded, locale)
     }
 
-    fun signInWithGoogle(idToken: String) {
-        _authLoading.value = true
-        _authError.value = null
-        scope.launch {
-            api.googleSignIn(idToken).fold(
-                onSuccess = { resp -> onAuthSuccess(resp) },
-                onFailure = { e ->
-                    _authError.value = e.message ?: tr(S.authGoogleFailed, locale)
-                    _authLoading.value = false
-                }
-            )
-        }
-    }
 
-    fun signUpWithEmail(name: String, email: String, password: String) {
-        _authLoading.value = true
-        _authError.value = null
-        scope.launch {
-            api.signUpWithEmail(name, email, password).fold(
-                onSuccess = { resp -> onAuthSuccess(resp) },
-                onFailure = { e ->
-                    _authError.value = e.message ?: tr(S.authSignupFailed, locale)
-                    _authLoading.value = false
-                }
-            )
-        }
-    }
 
-    fun signInWithEmail(email: String, password: String) {
-        _authLoading.value = true
-        _authError.value = null
-        scope.launch {
-            api.signInWithEmail(email, password).fold(
-                onSuccess = { resp -> onAuthSuccess(resp) },
-                onFailure = { e ->
-                    _authError.value = e.message ?: tr(S.authSigninFailed, locale)
-                    _authLoading.value = false
-                }
-            )
-        }
-    }
 
-    private fun onAuthSuccess(resp: GoogleAuthResponse) {
+    private fun onAuthSuccess(resp: PhoneAuthResponse) {
         SessionSignals.reset()
         val token = resp.token
         val profile = resp.profile

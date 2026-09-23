@@ -53,9 +53,7 @@ object S {
     const val usePhone = "use_phone"
     const val signUpHint = "sign_up_hint"
     const val loginHint = "login_hint"
-    const val emailConfirmNote = "email_confirm_note"
     const val smsNote = "sms_note"
-    const val signInWithGoogle = "sign_in_with_google"
 
     // ---- Consent ----
     const val consentTitle = "consent_title"
@@ -289,7 +287,6 @@ object S {
     const val verifyNumber = "verify_number"
     const val didntGetCode = "didnt_get_code"
     const val resendIn = "resend_in"
-    const val orContinue = "or_continue"
     const val weWillSendCode = "we_will_send_code"
     const val appSubtitle = "app_subtitle"
     const val childrenFromSchool = "children_from_school"
@@ -576,9 +573,7 @@ private val en = mapOf(
     S.usePhone to "Use Phone",
     S.signUpHint to "New? Sign Up",
     S.loginHint to "Have account?",
-    S.emailConfirmNote to "We'll send a confirmation to your email",
     S.smsNote to "We'll send a 6-digit code via SMS",
-    S.signInWithGoogle to "Sign in with Google",
     S.consentTitle to "Parental Consent",
     S.consentBody to "VitaHero collects your child's health data (height, weight, dental, eyesight, nutrition) to provide personalized insights and recommendations. This data is stored securely and never shared without your permission. You can delete it anytime.",
     S.consentAccept to "I Agree — Continue",
@@ -758,7 +753,6 @@ private val en = mapOf(
     S.verifyNumber to "Verify your number",
     S.didntGetCode to "Didn't get the code?",
     S.resendIn to "Resend in %ss",
-    S.orContinue to "or continue with",
     S.weWillSendCode to "We'll send a 6-digit verification code to this number.",
     S.appSubtitle to "Your child's health, in heroic hands",
     S.childrenFromSchool to "Your school adds your children to VitaHero. Ask the school office if one is missing.",
@@ -1039,7 +1033,6 @@ private val hi = mapOf(
     S.usePhone to "\u092B\u093C\u094B\u0928 \u0907\u0938\u094D\u0924\u0947\u092E\u093E\u0932 \u0915\u0930\u0947\u0902",
     S.signUpHint to "\u0928\u092F\u093E? \u0938\u093E\u0907\u0928 \u0905\u092A",
     S.loginHint to "\u0916\u093E\u0924\u093E \u0939\u0948?",
-    S.emailConfirmNote to "\u0939\u092E \u0906\u092A\u0915\u0947 \u0908\u092E\u0947\u0932 \u092A\u0930 \u092A\u0941\u0937\u094D\u091F\u093F \u092D\u0947\u091C\u0947\u0902\u0917\u0947",
     S.smsNote to "\u0939\u092E SMS \u0926\u094D\u0935\u093E\u0930\u093E 6-\u0905\u0902\u0915\u094B\u0902 \u0915\u093E \u0915\u094B\u0921 \u092D\u0947\u091C\u0947\u0902\u0917\u0947",
     S.consentTitle to "\u092E\u093E\u0924\u093E-\u092A\u093F\u0924\u093E \u0915\u0940 \u0938\u0939\u092E\u0924\u093F",
     S.consentBody to "\u0935\u093F\u091F\u093E\u0939\u0940\u0930\u094B \u0906\u092A\u0915\u0947 \u092C\u091A\u094D\u091A\u0947 \u0915\u093E \u0938\u094D\u0935\u093E\u0938\u094D\u0925\u094D\u092F \u0921\u0947\u091F\u093E (\u090A\u0902\u091A\u093E\u0908, \u0935\u091C\u0928, \u0926\u093E\u0902\u0924, \u0906\u0902\u0916\u0947\u0902, \u092A\u094B\u0937\u0923) \u090F\u0915\u0924\u094D\u0930 \u0915\u0930\u0924\u093E \u0939\u0948 \u0924\u093E\u0915\u093F \u0935\u094D\u092F\u0915\u094D\u0924\u093F\u0917\u0924 \u0938\u0941\u091D\u093E\u0935 \u0926\u0947 \u0938\u0915\u0947\u0902\u0964 \u092F\u0939 \u0921\u0947\u091F\u093E \u0938\u0941\u0930\u0915\u094D\u0937\u093F\u0924 \u0930\u0916\u093E \u091C\u093E\u0924\u093E \u0939\u0948 \u0914\u0930 \u0906\u092A\u0915\u0940 \u0905\u0928\u0941\u092E\u0924\u093F \u0915\u0947 \u092C\u093F\u0928\u093E \u0915\u092D\u0940 \u0938\u093E\u091D\u093E \u0928\u0939\u0940\u0902 \u0915\u093F\u092F\u093E \u091C\u093E\u0924\u093E\u0964",
@@ -1363,7 +1356,6 @@ private val te = mapOf(
     S.usePhone to "\u0C2B\u0C4B\u0C28\u0C4D \u0C09\u0C2A\u0C2F\u0C4B\u0C17\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F",
     S.signUpHint to "\u0C15\u0C4A\u0C24\u0C4D\u0C24\u0C26\u0C3F? \u0C38\u0C48\u0C28\u0C4D \u0C05\u0C2A\u0C4D",
     S.loginHint to "\u0C16\u0C3E\u0C24\u0C3E \u0C09\u0C02\u0C26\u0C3E?",
-    S.emailConfirmNote to "\u0C2E\u0C47\u0C2E\u0C4D \u0C2E\u0C40 \u0C07\u0C2E\u0C46\u0C2F\u0C3F\u0C32\u0C4D\u200C\u0C15\u0C3F \u0C28\u0C3F\u0C30\u0C4D\u0C27\u0C3E\u0C30\u0C23 \u0C2A\u0C02\u0C2A\u0C41\u0C24\u0C3E\u0C2E\u0C41",
     S.smsNote to "\u0C2E\u0C47\u0C2E\u0C4D SMS \u0C26\u0C4D\u0C35\u0C3E\u0C30\u0C3E 6-\u0C05\u0C02\u0C15\u0C46\u0C32 \u0C15\u0C4B\u0C21\u0C4D \u0C2A\u0C02\u0C2A\u0C41\u0C24\u0C3E\u0C2E\u0C41",
     S.consentTitle to "\u0C24\u0C32\u0C4D\u0C32\u0C3F\u0C26\u0C02\u0C21\u0C4D\u0C30\u0C41\u0C32 \u0C05\u0C28\u0C41\u0C2E\u0C24\u0C3F",
     S.consentBody to "\u0C35\u0C4D\u0C2F\u0C15\u0C4D\u0C24\u0C3F\u0C17\u0C24 \u0C38\u0C32\u0C39\u0C3E\u0C32\u0C41 \u0C2E\u0C30\u0C3F\u0C2F\u0C41 \u0C38\u0C3F\u0C2B\u0C3E\u0C30\u0C4D\u0C38\u0C41\u0C32\u0C28\u0C41 \u0C05\u0C02\u0C26\u0C3F\u0C02\u0C1A\u0C21\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C35\u0C40\u0C1F\u0C3E\u0C39\u0C40\u0C30\u0C4B \u0C2E\u0C40 \u0C2A\u0C3F\u0C32\u0C4D\u0C32 \u0C06\u0C30\u0C4B\u0C17\u0C4D\u0C2F \u0C21\u0C47\u0C1F\u0C3E\u0C28\u0C41 \u0C38\u0C47\u0C15\u0C30\u0C3F\u0C38\u0C4D\u0C24\u0C41\u0C02\u0C26\u0C3F. \u0C08 \u0C21\u0C47\u0C1F\u0C3E \u0C38\u0C41\u0C30\u0C15\u0C4D\u0C37\u0C3F\u0C24\u0C02\u0C17\u0C3E \u0C09\u0C02\u0C1A\u0C2C\u0C21\u0C41\u0C24\u0C41\u0C02\u0C26\u0C3F \u0C2E\u0C30\u0C3F\u0C2F\u0C41 \u0C2E\u0C40 \u0C05\u0C28\u0C41\u0C2E\u0C24\u0C3F \u0C32\u0C47\u0C15\u0C41\u0C02\u0C21\u0C3E \u0C0E\u0C2A\u0C4D\u0C2A\u0C41\u0C21\u0C42 \u0C37\u0C47\u0C30\u0C4D \u0C1A\u0C47\u0C2F\u0C2C\u0C21\u0C26\u0C41.",

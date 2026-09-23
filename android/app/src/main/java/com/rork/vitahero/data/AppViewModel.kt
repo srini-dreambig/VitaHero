@@ -141,10 +141,6 @@ class AppViewModel(
 
     fun completeOnboarding() = auth.completeOnboarding()
 
-    fun signInWithGoogle(idToken: String) = auth.signInWithGoogle(idToken)
-    fun signUpWithEmail(name: String, email: String, password: String) =
-        auth.signUpWithEmail(name, email, password)
-    fun signInWithEmail(email: String, password: String) = auth.signInWithEmail(email, password)
     fun requestPhoneOtp(activity: Activity, phone: String) = auth.requestPhoneOtp(activity, phone)
     fun resendPhoneOtp(activity: Activity, phone: String) = auth.resendPhoneOtp(activity, phone)
     fun verifyPhoneOtp(phone: String, token: String) = auth.verifyPhoneOtp(phone, token)
