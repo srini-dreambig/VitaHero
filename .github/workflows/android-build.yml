@@ -16,9 +16,12 @@ name: Android build
 on:
   push:
     branches: ["main", "claude/**"]
-    paths: ["android/**", ".github/workflows/android-build.yml"]
+    paths:
+      - "android/**"
+      - "tools/check-r8-keeps.py"
+      - ".github/workflows/android-build.yml"
   pull_request:
-    paths: ["android/**"]
+    paths: ["android/**", "tools/check-r8-keeps.py"]
   workflow_dispatch:
 
 jobs:
@@ -87,8 +90,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      # Not assembleRelease: R8 and resource shrinking add minutes and catch
-      # nothing a compile does not. What is wanted here is the type checker.
+      # This job is the type checker, and it is deliberately the fast one: a
+      # type error should come back in three minutes, not behind R8. The
+      # release build is a separate job below, because it checks something
+      # this one cannot — see the note there. An earlier version of this
+      # comment claimed R8 "catches nothing a compile does not", which is
+      # wrong in the one way that matters.
       - name: Compile
         working-directory: android
         run: ./gradlew :app:compileReleaseKotlin --stacktrace
@@ -96,3 +103,41 @@ jobs:
       # No :app:testReleaseUnitTest step. There is no android/app/src/test —
       # a task that runs zero tests and passes reads on the summary page as
       # though something was checked. Add the step with the first test.
+
+  release:
+    name: Release build and R8
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+
+      # The only build that runs R8, and until now nothing ever ran it. With
+      # no keystore configured the APK comes out unsigned, which is fine —
+      # what is being checked is what R8 did, not whether it can be uploaded.
+      - name: Assemble release
+        working-directory: android
+        run: ./gradlew :app:assembleRelease --stacktrace
+
+      # The build succeeding is not the check.
+      #
+      # kotlinx.serialization generates a Foo$$serializer class per
+      # @Serializable type; no Kotlin names it, so R8 removes it unless a rule
+      # says otherwise, and that rule matches on a package name spelled out as
+      # a string. Get it wrong and the build succeeds, the app installs, and it
+      # throws on the first response it parses. Debug builds never notice,
+      # because debug does not run R8.
+      - name: Every serializer survived R8
+        run: python3 tools/check-r8-keeps.py android/app/build/outputs/apk/release/app-release.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-apk-unsigned
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
