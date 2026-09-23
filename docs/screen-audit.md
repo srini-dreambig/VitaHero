@@ -15,15 +15,15 @@ difference. Several findings below are of that shape.
 |---|---|---|
 | Splash | — | No data. |
 | Consent (terms) | local | App terms, before sign-in. |
-| Onboarding | static | Four slides; images are remote URLs. |
+| Onboarding | static | Four slides. The images were remote URLs on a CDN belonging to a vendor no longer involved; they are dropped, and the slides draw as a tinted panel above the title. |
 | Auth / OTP | `/api/auth/*` | Real. Phone OTP via Twilio. |
 | Home | `/api/kids`, `/api/camps`, `/api/appointments` | **Fixed:** showed an unscreened child a health score of 80% and "doing well". Now a dash and "Not screened yet". |
 | Kids | `/api/kids` (read only) | **Fixed:** height and weight rendered as "0 cm" / "0 kg" for an unmeasured child; now a dash. Labels were English-only. **Removed:** adding a child — see below. |
 | Kid detail | `/api/kids` + camp results | **Removed:** the growth entry form. Height and weight are the camp's. |
 | Growth charts | WHO/IAP tables + the child's measurement | **Fixed:** fed a zero height into the tables, which returns below the 3rd percentile, and plotted a severe stunting result for a child nobody had measured. Now says there are no measurements. |
-| Diet | `/api/meals`, `/api/ai-diet-tip` | Falls back to on-device generic advice, labelled as such. **Fixed:** read NOT_MEASURED as "needs extra care" in one line and "keep up the great balance" in the next. |
-| Food recognition | on-device ML Kit + a calorie dictionary | Honest: estimates, and it surfaces the label it actually detected. |
-| Rewards | `/api/leaderboard`, meals, streaks | **Fixed:** four of six badges described water drunk, minutes played and "height on track 3 camps in a row", none of it recorded. The leaderboard invented a single entry scoring 1500 against nobody; now empty with an explanation. |
+| Diet | `/api/meals`, `/api/ai-diet-tip`, `/api/me/diet-plan` | Falls back to on-device generic advice, labelled as such. **Fixed:** read NOT_MEASURED as "needs extra care" in one line and "keep up the great balance" in the next. A dietician's plan, where one exists, sits above the generated tips with its author's name on it — the two should not read as equals. |
+| Food recognition | on-device ML Kit, or `/api/food-recognition` with consent | Honest: estimates, and it surfaces the label it actually detected. The photograph leaves the handset only where the guardian said it may, per child; without that answer ML Kit does the work alone. |
+| Rewards | `/api/badges`, `/api/leaderboard`, `/api/me/hero` | **Fixed:** four of six badges described water drunk, minutes played and "height on track 3 camps in a row", none of it recorded. The leaderboard invented a single entry scoring 1500 against nobody; now empty with an explanation. Badges are earned on the server now, so they survive a reinstall and mean the same thing for every child. Carries this month's VitaHero, who is named only where their guardian agreed. |
 | Camps | `/api/camps` + school camps | Real. Shows a banner when a consent is waiting. |
 | Camp detail | `/api/camps` | Real. Links to each child's released result. |
 | Camp consent | `/api/camps/consents` | Real. Photography is a separate question, shown only where the camp asked. |
