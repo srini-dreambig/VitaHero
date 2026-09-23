@@ -25,9 +25,14 @@ import { Sql } from "./common";
  * Bump this whenever any ensure*Schema function changes.
  *
  * Forgetting to bump it means an existing database silently keeps the old
- * shape, so the check in migrate.test.ts asserts this file changes whenever
- * the DDL does.
+ * shape. SCHEMA_DDL_FINGERPRINT below is what actually enforces that, and it
+ * is checked in migrate.test.ts.
  */
+// 11 — profiles.created_at. listGuardians has always selected it and nothing
+//     has ever created it, so the console's guardian directory answered 500
+//     on every call. Existing rows are backfilled to the migration time by
+//     the column default, which is a wrong "joined" date on one subtitle and
+//     the only alternative to a column no INSERT fills.
 // 10 — sessions.surface: which product a sign-in was made from. Clinical
 //     writes are app-only, and this is what decides. Existing tokens have it
 //     null, which is refused — the safe direction, and the only clients
@@ -57,7 +62,28 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
+
+/**
+ * A fingerprint of every DDL statement in this worker.
+ *
+ * The comment above says forgetting to bump the version is caught by a check
+ * in migrate.test.ts. It was not: no such check existed, and the claim had
+ * been sitting here being believed. A missed bump is silent and total — the
+ * version gate means an already-migrated database runs no DDL at all, so the
+ * column is simply never added and every query that names it answers 500
+ * forever, on production only, where no test runs.
+ *
+ * That is not hypothetical. profiles.created_at was selected by listGuardians
+ * and had never been added by anything, so the console's guardian directory
+ * answered 500 on every call it had ever received.
+ *
+ * So the guard is real now. migrate.test.ts recomputes this over the DDL it
+ * finds in the source and fails when the two disagree. Changing any schema
+ * means updating both lines, together, which is the point: the second line is
+ * what makes you look at the first.
+ */
+export const SCHEMA_DDL_FINGERPRINT = "35a3f7f402932049";
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

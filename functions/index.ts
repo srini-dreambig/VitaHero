@@ -387,6 +387,16 @@ async function ensureSchema(sql: Sql): Promise<void> {
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'PARENT'`;
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS provisioned BOOLEAN DEFAULT false`;
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invited_at TIMESTAMPTZ`;
+  // listGuardians selects this, so without it the console's whole guardian
+  // directory answered 500 on every call — a screen that had never once
+  // worked, and could not be seen to be broken because every route test runs
+  // against a stub that does not parse the SQL.
+  //
+  // DEFAULT NOW() means Postgres backfills rows that already exist, so a
+  // guardian who joined before this deploy reads as having joined on it. That
+  // is a wrong date on one subtitle; the alternative is a column no INSERT
+  // ever fills, which leaves the field empty forever and the feature dead.
+  await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`;
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS invite_count INT DEFAULT 0`;
   await sql`ALTER TABLE vita_hero.profiles ADD COLUMN IF NOT EXISTS school_id TEXT`;
 

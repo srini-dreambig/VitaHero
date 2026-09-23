@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import pg from "pg";
 import type { Sql } from "./common";
 import { serialQuery } from "./pgserial";
-import { migrate, SCHEMA_VERSION } from "./migrate";
+import { migrate, SCHEMA_VERSION, SCHEMA_DDL_FINGERPRINT } from "./migrate";
 import { ensureStageASchema } from "./schools";
 import { ensureCampSchema } from "./camps";
 import { ensureReferralSchema } from "./referrals";
@@ -290,4 +290,46 @@ describe("seeding a fresh database", () => {
   });
 
 
+});
+
+// ── the version gate's own guard ──
+//
+// migrate() skips all DDL when the recorded version already equals
+// SCHEMA_VERSION. That is the optimisation the whole file exists for, and it
+// is also a trap: change the schema without bumping the version and the change
+// reaches a fresh database (every test) and never reaches a database that
+// already exists (production, and only production). The failure is invisible
+// here and total there.
+//
+// migrate.ts used to claim this was already checked. It was not. So:
+// SCHEMA_DDL_FINGERPRINT is a hash of the DDL in the source, and it lives two
+// lines under SCHEMA_VERSION. Changing any CREATE TABLE, ALTER TABLE or CREATE
+// INDEX moves the hash and fails this test, and the only way to make it pass
+// is to open the file where the version number is.
+describe("the schema version cannot drift from the schema", () => {
+  test("the DDL fingerprint matches the DDL actually in the source", async () => {
+    const { readdirSync, readFileSync } = await import("node:fs");
+    const { createHash } = await import("node:crypto");
+    const found: string[] = [];
+    for (const f of readdirSync(".").sort()) {
+      if (!f.endsWith(".ts") || f.endsWith(".test.ts")) continue;
+      const src = readFileSync(f, "utf8");
+      const re = /(CREATE TABLE IF NOT EXISTS|ALTER TABLE|CREATE (?:UNIQUE )?INDEX IF NOT EXISTS|CREATE SCHEMA IF NOT EXISTS)[\s\S]{0,400}?(?=`)/g;
+      for (const m of src.matchAll(re)) found.push(m[0].replace(/\s+/g, " ").trim());
+    }
+    // If this drops to nothing the extractor has stopped matching, and the
+    // hash below would then be a hash of the empty string for ever after.
+    expect(found.length).toBeGreaterThan(100);
+
+    const hash = createHash("sha256").update(found.sort().join("\n")).digest("hex").slice(0, 16);
+    expect(
+      hash,
+      `The DDL changed but SCHEMA_DDL_FINGERPRINT did not.\n` +
+      `If you altered the schema: bump SCHEMA_VERSION in migrate.ts, add a line\n` +
+      `to the numbered list saying what changed and why, then set\n` +
+      `SCHEMA_DDL_FINGERPRINT to ${hash}.\n` +
+      `Without the version bump the change reaches new databases only, never\n` +
+      `one that already exists.`,
+    ).toBe(SCHEMA_DDL_FINGERPRINT);
+  });
 });

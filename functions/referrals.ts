@@ -579,8 +579,15 @@ export async function nudgeReferrals(
  * booking screen opens on the right kind of doctor instead of a full list.
  */
 export async function openReferralSpecialties(sql: Sql, profileId: string) {
+  // No DISTINCT. r.id is the primary key, so it could never remove a row —
+  // but with it, Postgres rejects the whole statement, because SELECT DISTINCT
+  // requires every ORDER BY expression to appear in the select list and the
+  // urgency CASE does not. That made this endpoint answer 500 every time it
+  // was called, which nobody saw: the app's getOr catches the failure and
+  // returns an empty ReferralSpecialtiesDto, so the booking screen simply
+  // offered no specialties and reported nothing wrong.
   const rows = await sql`
-    SELECT DISTINCT r.specialty, r.kid_id, k.name AS kid_name, r.urgency, r.id
+    SELECT r.specialty, r.kid_id, k.name AS kid_name, r.urgency, r.id
     FROM vita_hero.referrals r
     JOIN vita_hero.kids k ON k.id = r.kid_id
     WHERE r.profile_id = ${profileId} AND r.status IN ('OPEN','BOOKED')
