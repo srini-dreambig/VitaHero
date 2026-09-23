@@ -17,24 +17,12 @@
 // DELETE fails with what it answered instead. That is what makes a wrong body
 // here show up as a failure rather than as a pass.
 
-// What this does not cover, said plainly so the green tick cannot be read as
-// more than it is:
+// The routes that only do their work once something outside the worker
+// answers — the three sign-in doors, the two toolkit routes, logout, the
+// invited_at stamp and the two older personal-tracking writes — are covered in
+// external-routes.test.ts, which stubs global fetch and runs them configured.
+// They were listed here as uncovered until that file existed.
 //
-//   * /api/auth/phone/send, /verify and /firebase-verify. Sign-in needs a real
-//     SMS provider or Firebase, neither of which exists here.
-//   * /api/ai-diet-tips, /api/ai-diet-tips/generate and /api/food-recognition.
-//     All three need TOOLKIT_URL, and all three are written to degrade quietly
-//     without it — so the path they take here is the one where they write
-//     nothing on purpose.
-//   * /api/auth/logout, which writes only to vita_hero.sessions, and sessions
-//     are excluded from the write detector below for the reason given there.
-//   * DELETE /api/appointments/:id and POST /api/leaderboard, which belong to
-//     the older personal-tracking tables rather than to the school pathway.
-//   * The invited_at stamp inside /api/admin/invites/send — see that row.
-//
-// Everything else the console or the app writes is here, with the body it
-// really sends and the role that really sends it.
-
 import { afterAll, beforeAll, describe, expect, test, mock } from "bun:test";
 import pg from "pg";
 import type { Sql } from "./common";

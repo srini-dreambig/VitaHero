@@ -4459,6 +4459,18 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           funFact: String(aiJson.funFact || ""),
           generatedAt: `AI-generated for ${kidRows[0].name}`,
         };
+        // A reply that parsed but said nothing we asked for is not an answer.
+        // The guard above only catches unparseable JSON, so a model that drifts
+        // its keys — renamed fields, a wrapper object, a list instead of an
+        // object — got this far with all four strings empty, and the INSERT
+        // below overwrites on conflict. The family's screen went blank, the
+        // tip they had before was gone, and the server reported 201 Created.
+        if (!content.greeting && !content.insight && !content.suggestion && !content.funFact) {
+          return json(
+            { error: "The tip service sent something we could not read", code: "TOOLKIT_BAD_SHAPE" },
+            502,
+          );
+        }
         const row = await sql`
           INSERT INTO vita_hero.ai_diet_tips (kid_id, profile_id, content, generated_at)
           VALUES (${kidId}, ${session.profileId}, ${JSON.stringify(content)}::jsonb, NOW())
