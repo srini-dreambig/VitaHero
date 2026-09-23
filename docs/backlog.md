@@ -30,8 +30,11 @@ is already keyed by check type.
   was dropped. `OnboardingScreen` draws that case as a tinted panel above
   the title, so it reads as a design rather than a failure. Bundling art
   later is a list of drawables and nothing else.
-- **A release build has never run here.** CI compiles debug only, so the
-  ProGuard keeps for kotlinx's generated `$$serializer` classes — repointed
-  at `kallam.healthcare` — are unproven. R8 strips by package name, and a
-  wrong keep produces a build that passes every debug gate and crashes on
-  its first JSON parse. One `./gradlew bundleRelease` settles it.
+- ~~A release build has never run here.~~ **Done.** The Android workflow has
+  a release job now: it runs `assembleRelease`, so R8 actually executes, and
+  then `tools/check-r8-keeps.py` reads the built DEX and confirms every one
+  of the 118 `@Serializable` classes still has its generated serializer. The
+  keeps survived the package rename. The check runs on every push that
+  touches `android/`, so it cannot quietly rot, and it reads an `.aab` as
+  well as an `.apk` — point it at `app/build/outputs/bundle/release/` to
+  check the exact artifact before uploading it to Play.
