@@ -19,11 +19,15 @@ import { readFileSync } from "node:fs";
  * api("/api/admin/camps/" + id + "/review/" + kidId) is one call with two
  * variables in it; what matters is the shape, so each variable becomes a
  * sample id and the shape is what gets driven.
+ *
+ * printPage() is the second way out of the console — a server-rendered page
+ * fetched with the same token and handed to a print window. It is read here
+ * too, because a consent slip that 404s is as broken as a button that does.
  */
 function consoleCalls(): string[] {
   const src = readFileSync("./portal.ts", "utf8");
   const out = new Set<string>();
-  for (const m of src.matchAll(/api\(\s*("(?:[^"\\]|\\.)*"(?:\s*\+\s*[^,)]+)*)/g)) {
+  for (const m of src.matchAll(/\b(?:api|printPage)\(\s*("(?:[^"\\]|\\.)*"(?:\s*\+\s*[^,)]+)*)/g)) {
     let path = "";
     for (const part of m[1].split(/\s*\+\s*/)) {
       const p = part.trim();

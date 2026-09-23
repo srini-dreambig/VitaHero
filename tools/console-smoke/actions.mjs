@@ -149,7 +149,14 @@ t = await p.$eval("#root", (n) => n.innerText);
 // The sentence that used to send people to another screen.
 check("consent no longer tells the operator to go to another screen",
   !/Use Setup/i.test(t));
-check("consent can remind everyone still waiting", /Remind all 2/.test(t));
+// Two children are still waiting, and the remedy is different for each: one
+// guardian has no app to answer in, the other has the app and no answer. The
+// bulk action used to be a single "Remind all 2" that texted both, which is a
+// wasted text for the first. It is two buttons now, counted separately.
+check("the bulk action separates inviting from reminding",
+  /Invite all 1/.test(t) && /Remind all 1/.test(t));
+check("and there is no button that would text both the same thing",
+  !/Remind all 2/.test(t));
 check("a guardian on the app is offered a reminder",
   (await rowButton("Ananya Reddy", "Remind")) === "yes");
 // Reminding somebody who has no app is the wrong remedy; invite them instead.

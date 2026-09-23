@@ -83,6 +83,7 @@ import {
   doctorCamps,
   setCampStaffActive,
 } from "./camps";
+import { campConsentForm } from "./consent-form";
 import { adminAnalytics } from "./analytics";
 import { makeSender, sendToMany, smsProvider, textbeeDevice } from "./messaging";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
@@ -2074,6 +2075,21 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
               const b = await readBody().catch(() => ({}) as Record<string, unknown>);
               return json(await requestConsent(sql, actor, campId, smsSender, url.origin, {
                 profileIds: Array.isArray(b.profileIds) ? (b.profileIds as string[]) : [],
+              }));
+            }
+            // The paper a school hands out. HTML rather than JSON: the console
+            // fetches it with its own token and opens it to print, so the
+            // roster never travels as a link anyone could forward.
+            if (third === "form" && method === "GET") {
+              const html = await campConsentForm(sql, actor, campId, {
+                lang: url.searchParams.get("lang") || "en",
+                only: url.searchParams.get("only") || "pending",
+              });
+              return cors(new Response(html, {
+                headers: {
+                  "Content-Type": "text/html; charset=utf-8",
+                  "Cache-Control": "no-store",
+                },
               }));
             }
             if (third === "record" && method === "POST") {

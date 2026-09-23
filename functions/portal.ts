@@ -734,6 +734,10 @@ export const PORTAL_HTML = `<!doctype html>
       lookupQuery: "", lookup: null, demo: null,
       addChild: null,
       invites: null, campPeople: null, peopleQuery: "",
+      // Which language the printed consent slips come out in. Held on S so it
+      // survives a re-render of the consent tab; the app asks in the same
+      // three, and the slip is meant to be the same question on paper.
+      consentLang: "en",
       threads: null, thread: null, billing: null, library: null, libForm: null,
       // Which form owns the slot above. Kept beside the form, not on it,
       // because the form object is posted to the server as it stands.
@@ -1062,6 +1066,35 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   // ── api ──
+  // Open a server-rendered page for printing.
+  //
+  // It cannot be a link: the page is a roster of children and their guardians'
+  // numbers, and a URL anyone could forward is the wrong shape for that. So
+  // the console fetches it with its own token and hands the result to a window
+  // it opened itself. The window is opened on the click rather than in the
+  // callback, because a window opened from a promise is a popup to a browser.
+  function printPage(path) {
+    var w = window.open("", "_blank");
+    if (!w) { S.notice = "Allow pop-ups for this site to print."; render(); return; }
+    w.document.write("<p style=\'font:14px sans-serif;padding:24px\'>Preparing\\u2026</p>");
+    var h = {};
+    if (S.auth && S.auth.mode === "key") h["X-Admin-Key"] = S.auth.key;
+    if (S.auth && S.auth.mode === "session") h["Authorization"] = "Bearer " + S.auth.token;
+    fetch(path, { headers: h }).then(function (r) {
+      return r.text().then(function (t) {
+        if (!r.ok) throw new Error(t || "Could not build that page (" + r.status + ")");
+        return t;
+      });
+    }).then(function (html) {
+      w.document.open(); w.document.write(html); w.document.close();
+      // Give the page a beat to lay out before the print dialogue steals it.
+      w.setTimeout(function () { w.focus(); w.print(); }, 350);
+    }).catch(function (e) {
+      w.close();
+      S.error = e.message || "Could not build that page."; render();
+    });
+  }
+
   function api(path, opts) {
     var o = opts || {}, h = { "Content-Type": "application/json" };
     if (S.auth && S.auth.mode === "key") h["X-Admin-Key"] = S.auth.key;
@@ -3856,9 +3889,83 @@ export const PORTAL_HTML = `<!doctype html>
         });
     }
 
+    // The loop, as a loop. Three numbers, in the order the work happens:
+    // who has not got the app, who has it and has not answered, who has
+    // answered. Each one carries the single button that moves it along.
+    var noApp = pend.filter(function (p) { return !p.guardianUsingApp && p.guardianProfileId; });
+    var waiting = pend.filter(function (p) { return p.guardianUsingApp; });
+    var answered = S.participants.length - pend.length;
+
+    function inviteAllMissing() {
+      if (!noApp.length) return;
+      if (!confirm("Text the app link to " + noApp.length + " guardian"
+                   + (noApp.length === 1 ? "" : "s") + " who have not installed it?")) return;
+      run(api("/api/admin/invites/send", { method: "POST",
+        body: { schoolId: c.schoolId, onlyNotJoined: true,
+                profileIds: noApp.map(function (p) { return p.guardianProfileId; }) } }),
+        function (d) {
+          S.notice = d.sent
+            ? "Invitation sent to " + d.sent + (d.sent === 1 ? " guardian." : " guardians.")
+            : "Nothing sent \\u2014 check the mobile numbers.";
+          refreshCamp("consent");
+        });
+    }
+
+    function step(n, label, hint, button) {
+      return el("div", { class: "card", style: "flex:1;min-width:190px;padding:12px 14px" },
+        el("div", { style: "font-size:22px;font-weight:700;line-height:1.1" }, String(n)),
+        el("div", { style: "font-size:12.5px;font-weight:600;margin-top:2px" }, label),
+        el("div", { class: "muted", style: "font-size:11.5px;margin:2px 0 8px" }, hint),
+        button);
+    }
+
     return el("div", null,
       el("div", { class: "msg info" },
         "Consent is per camp and per child. A child cannot be screened without it \\u2014 that rule is enforced by the server, not by this screen."),
+      // E1/E3 — the two ways forward, side by side: paper for the families
+      // who will never open an app, and a chase for the ones who would.
+      el("div", { class: "row", style: "gap:10px;align-items:stretch;margin-bottom:12px;flex-wrap:wrap" },
+        step(noApp.length, "without the app",
+          "They cannot answer on a phone they have not got.",
+          noApp.length
+            ? el("button", { class: "sm", disabled: S.busy, onclick: inviteAllMissing },
+                icon("message", 13), " Invite all " + noApp.length)
+            : el("span", { class: "muted", style: "font-size:11.5px" }, "Nobody waiting on an invitation.")),
+        step(waiting.length, "asked, not answered",
+          "They have the app and the request.",
+          waiting.length
+            ? el("button", { class: "sm", disabled: S.busy,
+                onclick: function () { chase(waiting.map(function (p) { return p.guardianProfileId; })); } },
+                icon("message", 13), " Remind all " + waiting.length)
+            : el("span", { class: "muted", style: "font-size:11.5px" }, "Nobody left to remind.")),
+        step(answered, "answered",
+          "Granted, declined or recorded on paper.",
+          el("span", { class: "muted", style: "font-size:11.5px" },
+            answered === S.participants.length && answered > 0
+              ? "Everybody has answered."
+              : "Recorded against the camp."))),
+      // The paper round. A school hands these out in the classroom and keys
+      // the answers back in below; the wording is the app's own, so the two
+      // routes cannot ask different questions.
+      el("div", { class: "row", style: "gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap" },
+        el("span", { style: "font-size:12.5px;font-weight:600" }, "Paper consent slips"),
+        el("select", { style: "width:auto",
+          onchange: function (e) { S.consentLang = e.target.value; } },
+          [["en", "English"], ["hi", "\\u0939\\u093F\\u0928\\u094D\\u0926\\u0940"], ["te", "\\u0C24\\u0C46\\u0C32\\u0C41\\u0C17\\u0C41"]].map(function (o) {
+            return el("option", { value: o[0], selected: (S.consentLang || "en") === o[0] }, o[1]);
+          })),
+        el("button", { class: "sm", disabled: !pend.length,
+          onclick: function () {
+            printPage("/api/admin/camps/" + c.id + "/consent/form?only=pending&lang="
+                      + (S.consentLang || "en"));
+          } }, icon("download", 13), " Print the " + pend.length + " still waiting"),
+        el("button", { class: "sm",
+          onclick: function () {
+            printPage("/api/admin/camps/" + c.id + "/consent/form?only=all&lang="
+                      + (S.consentLang || "en"));
+          } }, "Print the whole roster"),
+        el("span", { class: "muted", style: "font-size:11.5px" },
+          "One page per child, pre-filled with their name and class.")),
       c.photosEnabled
         ? el("div", { class: "msg warn" },
             "Photographs are on for this camp, so the paper form has two questions. Tick photographs only where the guardian ticked it themselves \\u2014 agreeing to a check-up is not agreeing to a camera.")
@@ -3904,15 +4011,10 @@ export const PORTAL_HTML = `<!doctype html>
                   el("button", { class: "sm dang", onclick: function () { paper(p, "DECLINED"); } }, "Declined"))
               : el("span", { class: "muted", style: "font-size:12.5px" }, "Answered")));
         })))),
-      // This used to be a sentence telling the operator to walk to another
-      // screen. It is a button now.
-      pend.length
-        ? el("div", { class: "row", style: "margin-top:12px;align-items:center" },
-            el("span", { class: "muted", style: "font-size:12.5px" },
-              pend.length + " still waiting."),
-            el("button", { disabled: S.busy, onclick: function () { chase(null); } },
-              icon("message", 14), " Remind all " + pend.length))
-        : null);
+      // "Remind all" used to live down here, under the table, as the only
+      // bulk action. It is up in the loop now, split from the invitation,
+      // because texting a reminder to somebody with no app is a wasted text.
+      null);
   }
 
   // ══════════════════════════════════════ camp day
