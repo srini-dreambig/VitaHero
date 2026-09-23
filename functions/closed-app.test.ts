@@ -103,10 +103,15 @@ describe("a family has one door, and it is their phone", () => {
       expect(String(r.body.error)).toMatch(/mobile number your school holds/i);
     });
 
-  test("and no Google sign-in", async () => {
+  test("and no Google sign-in — not disabled, gone", async () => {
+    // It used to answer 403 GOOGLE_DISABLED, on the reasoning that an
+    // installed copy of the app might still call it. No copy ever shipped
+    // with it: the app has never been uploaded to Play, and the client-side
+    // chain was removed before it was. So the door is not locked, it is
+    // bricked up, and the unmatched-route answer is the honest one.
     const r = await post("/api/auth/google", { idToken: "x" });
-    expect(r.status).toBe(403);
-    expect(r.body.code).toBe("GOOGLE_DISABLED");
+    expect(r.status).toBe(404);
+    expect(r.body.error).toBe("Not found");
   });
 
   test("an operator can still sign in by email when the SMS provider is down", async () => {

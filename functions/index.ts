@@ -2869,18 +2869,6 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         }
       }
 
-      // ── Google Sign-In ───────────────────────────────
-      // Closed app: parents are phone-only, admins use email. Google is disabled.
-      if (path === "/api/auth/google" && request.method === "POST") {
-        return json(
-          {
-            error: "Google sign-in is disabled. Please sign in with your registered mobile number.",
-            code: "GOOGLE_DISABLED",
-          },
-          403
-        );
-      }
-
       // ── Phone OTP: Send ──────────────────────────────
       if (path === "/api/auth/phone/send" && request.method === "POST") {
         const body: Record<string, unknown> = await request.json();
