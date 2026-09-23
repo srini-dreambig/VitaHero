@@ -4144,13 +4144,28 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path === "/api/co-parents" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
+        // The id is the client's to choose here — that is how this endpoint has
+        // always worked, and the ON CONFLICT guard below is what stops one
+        // family's id reaching another's row. But it went into the INSERT
+        // unchecked, so a body without one violated a NOT NULL constraint and
+        // answered 500: a crash where a refusal belongs. The app's own DTO
+        // makes all three non-null, so this is about every other caller.
+        const coId = String(body.id || "").trim();
+        const coName = String(body.name || "").trim();
+        const coRelation = String(body.relation || "").trim();
+        if (!coId || !coName || !coRelation) {
+          return json(
+            { error: "A co-parent needs an id, a name and a relation", code: "INCOMPLETE" },
+            400,
+          );
+        }
         const row = await sql`
           INSERT INTO vita_hero.co_parents
             (id, profile_id, user_id, name, relation, joined_date)
           VALUES (
-            ${body.id as string}, ${session.profileId},
-            ${session.userId || null}, ${body.name as string},
-            ${body.relation as string}, ${(body.joined_date as string) || ""}
+            ${coId}, ${session.profileId},
+            ${session.userId || null}, ${coName},
+            ${coRelation}, ${(body.joined_date as string) || ""}
           )
           ON CONFLICT (id) DO UPDATE SET
             user_id = EXCLUDED.user_id,
