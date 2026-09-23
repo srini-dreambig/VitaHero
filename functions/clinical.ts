@@ -122,10 +122,6 @@ export function normaliseSpecialty(v: string): string {
   return ALIASES[raw.toLowerCase()] || "";
 }
 
-export function isSpecialty(v: string): boolean {
-  return normaliseSpecialty(v) !== "";
-}
-
 /**
  * The checks a doctor of this specialty can actually record today.
  *

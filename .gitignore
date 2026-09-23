@@ -3,6 +3,11 @@ node_modules
 .expo
 .rork
 
+# Build output from the console smoke runner. `$work` is a literal directory
+# somebody created by running the script with the variable unset, and 316KB of
+# generated portal.html rode into the repository with it.
+$work/
+
 # Cloudflare Functions
 functions/node_modules
 !functions/package.json
