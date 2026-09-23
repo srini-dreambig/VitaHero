@@ -23,9 +23,11 @@ import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.WorkspacePremium
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -41,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.Badge
 import kallam.healthcare.data.BadgeProgress
+import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.LeaderEntry
 import kallam.healthcare.data.S
@@ -60,10 +63,17 @@ fun RewardsScreen(
     leaderboards: Map<String, List<LeaderEntry>>,
     onRefreshLeaderboard: (String) -> Unit,
     badgeData: (String) -> BadgeProgress,
+    guardianViewModel: GuardianViewModel,
 ) {
     var selectedKidId by rememberSaveable { mutableStateOf(kids.firstOrNull()?.id.orEmpty()) }
+    val heroes by guardianViewModel.hero.collectAsState()
+    val nameConsents by guardianViewModel.heroNameConsent.collectAsState()
     LaunchedEffect(selectedKidId) {
-        if (selectedKidId.isNotBlank()) onRefreshLeaderboard(selectedKidId)
+        if (selectedKidId.isNotBlank()) {
+            onRefreshLeaderboard(selectedKidId)
+            guardianViewModel.loadHero(selectedKidId)
+            guardianViewModel.loadHeroNameConsent(selectedKidId)
+        }
     }
     LaunchedEffect(kids.map { it.id }) {
         if (selectedKidId.isBlank()) {
@@ -156,6 +166,82 @@ fun RewardsScreen(
             Spacer(Modifier.height(24.dp))
             Text(tf(S.kidBadges, kidName), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(12.dp))
+        }
+
+        // D3 — this month's VitaHero, and the question behind the name.
+        //
+        // The name shown is whatever the server sent: a first name where that
+        // child's guardian agreed, "A pupil in Class 5" where they did not.
+        // This screen cannot show a name it was not given, which is the point
+        // of resolving it there rather than here.
+        item {
+            val hero = heroes[selectedKidId]
+            if (hero != null) {
+                HeroCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp)) {
+                        Text(
+                            t(S.heroOfMonthTitle),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = HeroOrange,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            hero.displayName,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        if (hero.achievement.isNotBlank()) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                hero.achievement,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Spacer(Modifier.height(10.dp))
+                        Text(hero.story, style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // Asked once per child, and revocable at any time. Deliberately
+            // not a precondition of anything: a child can be chosen either
+            // way, and saying no only changes whether their name appears.
+            val consent = nameConsents[selectedKidId]
+            if (consent != null && selectedKidId.isNotBlank()) {
+                HeroCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp)) {
+                        Text(
+                            t(S.heroNameAskTitle),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            t(S.heroNameAskBody),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Switch(
+                                checked = consent.granted,
+                                onCheckedChange = { on ->
+                                    guardianViewModel.setHeroNameConsent(selectedKidId, on)
+                                },
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                if (consent.granted) t(S.heroNameYes) else t(S.heroNameNo),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
         }
 
         // Badge grid (2 per row)

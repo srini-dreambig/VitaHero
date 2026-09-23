@@ -86,6 +86,14 @@ import {
 import { campConsentForm } from "./consent-form";
 import { ensureBadgeSchema, kidBadges } from "./badges";
 import {
+  ensureHeroSchema,
+  heroForSchool,
+  heroNameConsent,
+  heroShortlist,
+  setHeroNameConsent,
+  setHeroOfMonth,
+} from "./hero";
+import {
   dieticianChild,
   dieticianChildren,
   dieticianSchools,
@@ -1723,6 +1731,7 @@ export const SCHEMA_STEPS = [
   ensureOversightSchema,
   ensureBadgeSchema,
   ensureMealPhotoSchema,
+  ensureHeroSchema,
   ensureDieticianSchema,
   ensureDoctorSignInBackfill,
 ];
@@ -2388,6 +2397,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path === "/api/admin/hospitals" || path.startsWith("/api/admin/hospitals/")
           || path === "/api/admin/doctors" || path.startsWith("/api/admin/doctors/")
           || path === "/api/admin/dieticians" || path.startsWith("/api/admin/dieticians/")
+          || path === "/api/admin/hero"
           || path === "/api/admin/invites" || path === "/api/admin/invites/send"
           || path === "/api/admin/camp-people"
           || path === "/api/admin/lookup"
@@ -2422,6 +2432,18 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           // corner of the doctor list: a dietician has no specialty, no
           // hospital and no screening form, and a parent browsing for an
           // ophthalmologist should never be shown one.
+          // D3 — the month's hero. A shortlist computed from durable badge
+          // and streak data, and a choice made by a person, because the
+          // numbers cannot see the child who turned a bad year around.
+          if (path === "/api/admin/hero" && method === "GET") {
+            return json(await heroShortlist(
+              sql, actor, url.searchParams.get("school_id") || ""
+            ));
+          }
+          if (path === "/api/admin/hero" && (method === "POST" || method === "PUT")) {
+            return json(await setHeroOfMonth(sql, actor, await readBody()));
+          }
+
           if (path === "/api/admin/dieticians") {
             if (method === "GET") {
               return json(await listDieticians(sql, actor, url.searchParams.get("q") || ""));
@@ -3664,6 +3686,50 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
           return serverError(e, "dietician");
+        }
+      }
+
+      // ── VitaHero of the month ──────────────────────────
+      //
+      // Read as the signed-in family: the school comes from their own child's
+      // record rather than the query string, so this cannot be used to browse
+      // other schools' children.
+      if (path === "/api/me/hero" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          const kidId = url.searchParams.get("kid_id") || "";
+          const rows = await sql`
+            SELECT school_id FROM vita_hero.kids
+            WHERE id = ${kidId} AND profile_id = ${session.profileId} LIMIT 1
+          `;
+          if (rows.length === 0) return json({ error: "No such child", code: "NOT_FOUND" }, 404);
+          return json(await heroForSchool(
+            sql, (rows[0].school_id as string) || "", url.searchParams.get("month") || ""
+          ));
+        } catch (e) {
+          return serverError(e, "api");
+        }
+      }
+
+      // Whether this child may be named if they are ever chosen.
+      if (path === "/api/me/hero-name-consent") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          if (request.method === "GET") {
+            return json(await heroNameConsent(
+              sql, session.profileId, url.searchParams.get("kid_id") || ""
+            ));
+          }
+          if (request.method === "POST") {
+            const b = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+            return json(await setHeroNameConsent(
+              sql, session.profileId, String(b.kidId || ""), b.granted === true
+            ));
+          }
+          return json({ error: "Method not allowed" }, 405);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return serverError(e, "api");
         }
       }
 

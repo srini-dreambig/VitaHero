@@ -732,6 +732,8 @@ export const PORTAL_HTML = `<!doctype html>
       // because a dietician has no specialty and no hospital, and putting
       // them in that table would put them in a parent's referral list.
       dieticians: null, dieForm: null, dieQuery: "",
+      // D3 — this month's hero: the shortlist, and the story being written.
+      hero: null, heroForm: null,
       // The doctors table has its own filter and search: a directory of any
       // size is unusable without them, and the endpoint has always accepted
       // both — the console simply never sent either.
@@ -1377,13 +1379,17 @@ export const PORTAL_HTML = `<!doctype html>
         api("/api/admin/schools/" + id + "/staff")
       ]), inScope(function (d) { S.admins = d[0].admins; S.staff = d[1].staff; }));
     }
-    // The programme tab carries the archive/delete panel for ops, and that
-    // panel has to know what is attached to the school before it can say
-    // which of the two is possible.
-    else if (t === "programme" && isOps() && !S.danger) {
-      run(api("/api/admin/schools/" + id + "/archive"), inScope(function (d) {
-        S.danger = { schoolId: id, footprint: d.footprint, canDelete: d.canDelete, reason: d.reason, confirm: "" };
-      }));
+    // The programme tab carries two independent things: the month's hero, and
+    // the archive/delete panel for ops. Neither waits on the other, so both
+    // leave here together. They were briefly two branches of this else-if
+    // chain, which meant the second one never ran.
+    else if (t === "programme") {
+      if (!S.hero) loadHero(id);
+      if (isOps() && !S.danger) {
+        run(api("/api/admin/schools/" + id + "/archive"), inScope(function (d) {
+          S.danger = { schoolId: id, footprint: d.footprint, canDelete: d.canDelete, reason: d.reason, confirm: "" };
+        }));
+      }
     }
     else if (t === "history" && !S.batches) run(api("/api/admin/schools/" + id + "/roster/batches"), inScope(function (d) { S.batches = d.batches; }));
     else if (t === "referrals" && !S.referrals) run(api("/api/admin/schools/" + id + "/referrals"), inScope(function (d) { S.referrals = d; }));
@@ -2225,6 +2231,11 @@ export const PORTAL_HTML = `<!doctype html>
       });
     }
     return el("div", null,
+      // D3 lives here rather than in a tab of its own. The tab row is one row
+      // on purpose — a thirteenth screen turns "everything at once" back into
+      // "everything behind a scroll", and the smoke test enforces that. This
+      // is a school-level, monthly thing, which is what this tab is for.
+      viewHero(),
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "School details"),
           !isOps() ? el("span", { class: "pill mute" }, "Some fields are ops-only") : null),
         el("div", { class: "card-b" },
@@ -5033,6 +5044,120 @@ export const PORTAL_HTML = `<!doctype html>
       });
   }
 
+  function loadHero(schoolId) {
+    // inScope, because leaving for another school while this is in flight
+    // would otherwise paint the first school's hero under the second one's name.
+    run(api("/api/admin/hero?school_id=" + encodeURIComponent(schoolId)), inScope(function (d) {
+      S.hero = d; S.heroForm = null; render();
+    }));
+  }
+
+  /**
+   * D3 — who the school celebrates this month.
+   *
+   * The shortlist is ranked by the server on badges and streaks, which are
+   * durable and comparable now that they live there. The choice is a person's,
+   * because the numbers cannot see the child who turned a bad year around —
+   * and the story is a paragraph somebody writes, not something generated.
+   */
+  function viewHero() {
+    // Nothing at all until the shortlist arrives. This sits above the school
+    // form rather than owning the screen, so a loading card here would be a
+    // permanent spinner over somebody else's content.
+    if (!S.hero) return null;
+    var list = S.hero.candidates || [];
+    var f = S.heroForm;
+    var cur = S.hero.current;
+
+    // How this month reads to another family right now. Shown rather than
+    // described, because the guardian's answer is read at the moment of
+    // display: a consent withdrawn since publication takes the name off here
+    // too, and whoever is looking should see that rather than be told it.
+    function shownAs(c) {
+      var klass = ((c.grade || "") + (c.section ? " " + c.section : "")).trim();
+      if (c.mayBeNamed) return String(c.name || "").trim().split(/\s+/)[0] || "A pupil";
+      return klass ? "A pupil in " + klass : "A pupil";
+    }
+
+    function save() {
+      run(api("/api/admin/hero", { method: "POST", body: {
+        schoolId: S.hero.schoolId, kidId: f.kidId, story: f.story,
+        achievement: f.achievement, published: true,
+      } }), function () {
+        S.notice = "This month's VitaHero is set.";
+        loadHero(S.hero.schoolId);
+      });
+    }
+
+    return el("div", null,
+      el("div", { class: "msg info" },
+        "Ranked on badges earned and the current streak \u2014 the same numbers for every "
+        + "child, kept on the server. Pick from the list rather than taking the top row: "
+        + "the numbers cannot see the child who started badly and turned it around."),
+      el("div", { class: "msg warn" },
+        "The story is read by other families. A child is named only where their guardian "
+        + "has agreed \u2014 the column below says which \u2014 and everyone else appears as "
+        + "\u201ca pupil in Class 5\u201d. Write about what they did, never about what a check found."),
+
+      cur ? el("div", { class: "card", style: "margin-bottom:12px" }, el("div", { class: "card-b" },
+        el("h3", null, S.hero.month + " already has a VitaHero"),
+        el("p", null, el("b", null, cur.name),
+          cur.published ? " was chosen. " : " was chosen but is not published yet. ",
+          "Families see them as \u201c", el("b", null, shownAs(cur)), "\u201d."),
+        cur.achievement ? el("p", { class: "muted" }, cur.achievement) : null,
+        cur.story ? el("p", { class: "muted", style: "white-space:pre-wrap" }, cur.story) : null,
+        el("p", { class: "muted", style: "font-size:12.5px;margin-bottom:0" },
+          "There is one hero per school per month, so choosing again below replaces this."))) : null,
+
+      f ? el("div", { class: "card", style: "margin-bottom:12px" }, el("div", { class: "card-b" },
+        el("h3", null, "VitaHero for " + S.hero.month + " \u2014 " + f.name),
+        el("div", { class: "fld" }, el("label", null, "What they did (one line)"),
+          el("input", { value: f.achievement,
+            placeholder: "Logged every meal for three weeks",
+            onchange: function (e) { f.achievement = e.target.value; } })),
+        el("div", { class: "fld" }, el("label", null, "The story"),
+          el("textarea", { rows: 5, value: f.story,
+            onchange: function (e) { f.story = e.target.value; } })),
+        f.mayBeNamed
+          ? el("p", { class: "muted", style: "font-size:12.5px" },
+              "Their guardian has agreed to their first name being shown.")
+          : el("div", { class: "msg warn", style: "margin:0 0 10px" },
+              "Their guardian has not agreed to naming, so this publishes as \u201c"
+              + shownAs(f) + "\u201d. That is fine \u2014 the achievement is still theirs. "
+              + "Do not put their name in the story to get round it."),
+        el("div", { class: "row" },
+          el("button", { class: "pri", disabled: S.busy, onclick: save }, "Publish"),
+          el("button", { onclick: function () { set({ heroForm: null }); } }, "Cancel")))) : null,
+
+      list.length === 0
+        ? el("div", { class: "card" }, el("div", { class: "empty" },
+            "No children on this school's roster yet."))
+        : el("div", { class: "tw" }, el("table", null,
+            el("thead", null, el("tr", null,
+              el("th", null, "Child"), el("th", null, "Class"), el("th", null, "Badges"),
+              el("th", null, "Streak"), el("th", null, "May be named"), el("th", null, ""))),
+            el("tbody", null, list.map(function (c) {
+              return el("tr", null,
+                el("td", null, el("b", null, c.name)),
+                el("td", null, (c.grade || "") + (c.section ? " " + c.section : "")),
+                el("td", null, String(c.badges)),
+                el("td", null, c.streak + " days"),
+                el("td", null, c.mayBeNamed
+                  ? el("span", { class: "pill ok" }, "Yes")
+                  : el("span", { class: "pill mute" }, "Not asked")),
+                el("td", null, el("button", { class: "sm", onclick: function () {
+                  // Reopening this month's existing pick starts from what was
+                  // written. An empty box here would quietly wipe a paragraph
+                  // somebody wrote by hand.
+                  var same = cur && cur.kidId === c.kidId;
+                  set({ heroForm: { kidId: c.kidId, name: c.name, grade: c.grade,
+                    section: c.section, mayBeNamed: c.mayBeNamed,
+                    story: same ? cur.story : "",
+                    achievement: same ? cur.achievement : "" } });
+                } }, cur && cur.kidId === c.kidId ? "Edit" : "Choose")));
+            })))));
+  }
+
   function loadDieticians() {
     run(api("/api/admin/dieticians" + (S.dieQuery ? "?q=" + encodeURIComponent(S.dieQuery) : "")),
       function (d) {
@@ -5592,6 +5717,9 @@ export const PORTAL_HTML = `<!doctype html>
 
   function goSchoolTab(tab) {
     S.schoolTab = tab; S.error = ""; S.upload = null; S.addChild = null;
+    // The shortlist belongs to the school being looked at, so it goes with the
+    // school rather than surviving a move to the next one.
+    S.hero = null; S.heroForm = null;
     render(); loadSchoolTab();
   }
 

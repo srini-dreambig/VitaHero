@@ -496,6 +496,7 @@ fun AppNavigation(
                 appViewModel = appViewModel,
                 profileViewModel = profileViewModel,
                 kidsViewModel = kidsViewModel,
+                guardianViewModel = guardianViewModel,
                 phone = profilePhone,
                 darkTheme = darkTheme,
                 onOpenKid = { navController.navigate("kid/$it") },

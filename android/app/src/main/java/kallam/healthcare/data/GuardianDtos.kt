@@ -426,3 +426,39 @@ data class MealPhotoConsentDto(
 
 @Serializable
 data class MealPhotoConsentBody(val kidId: String, val granted: Boolean)
+
+
+// ─── VitaHero of the month ──────────────────────────────────
+
+/**
+ * The month's hero, as a family reads it.
+ *
+ * `displayName` is already resolved by the server — a first name where the
+ * guardian agreed, "A pupil in Class 5" where they did not — so this app has
+ * no way to show a name it was not given, however a future screen is written.
+ * There are no health fields here at all, deliberately: the achievement is
+ * public, the record behind it is not.
+ */
+@Serializable
+data class HeroOfMonthDto(
+    val month: String = "",
+    val displayName: String = "",
+    val named: Boolean = false,
+    val grade: String = "",
+    val achievement: String = "",
+    val story: String = "",
+)
+
+@Serializable
+data class HeroResponseDto(val hero: HeroOfMonthDto? = null)
+
+/** Whether this child may be named if they are ever chosen. */
+@Serializable
+data class HeroNameConsentDto(
+    val kidId: String = "",
+    val asked: Boolean = false,
+    val granted: Boolean = false,
+)
+
+@Serializable
+data class HeroNameConsentBody(val kidId: String, val granted: Boolean)

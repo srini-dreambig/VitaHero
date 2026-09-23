@@ -59,6 +59,7 @@ import kallam.healthcare.data.AppViewModel
 import kallam.healthcare.data.S
 import kallam.healthcare.ui.components.selectAsState
 import kallam.healthcare.ui.components.t
+import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.KidsViewModel
 import kallam.healthcare.data.ProfileViewModel
 
@@ -76,6 +77,7 @@ fun MainScaffold(
     appViewModel: AppViewModel,
     profileViewModel: ProfileViewModel,
     kidsViewModel: KidsViewModel,
+    guardianViewModel: GuardianViewModel,
     phone: String,
     darkTheme: Boolean,
     onOpenKid: (String) -> Unit,
@@ -154,7 +156,8 @@ fun MainScaffold(
                         kids = kids,
                         leaderboards = leaderboards,
                         onRefreshLeaderboard = { kidsViewModel.refreshLeaderboard(it) },
-                        badgeData = { kidsViewModel.badgeProgressForKid(it) }
+                        badgeData = { kidsViewModel.badgeProgressForKid(it) },
+                        guardianViewModel = guardianViewModel,
                     )
                 }
                 Tab.PROFILE -> ProfileScreen(

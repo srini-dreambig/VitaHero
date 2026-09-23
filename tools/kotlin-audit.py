@@ -411,17 +411,29 @@ def params_of(src, fname):
         else:
             cur += ch
     parts.append(cur)
-    names = set()
+    names, required, order = set(), set(), []
     for part in parts:
         pm = re.match(r"\s*(?:@\w+\s*)*(?:vararg\s+)?(\w+)\s*:", part)
         if pm:
             names.add(pm.group(1))
-    return names
+            order.append(pm.group(1))
+            # A default is an `=` at the top level of this one parameter. A
+            # lambda default such as `() -> Unit = {}` has it after the arrow,
+            # and a comparison cannot appear here, so a bare `=` is enough.
+            after = part[pm.end():]
+            if "=" not in after:
+                required.add(pm.group(1))
+    return names, required, order
 
 SCREENS = {}
+REQUIRED = {}
+LAST_PARAM = {}
 for f, src in SRC.items():
     for m in re.finditer(r"^@Composable\s*\n(?:private |internal )?fun (\w+)\s*\(", src, re.M):
-        SCREENS[m.group(1)] = params_of(src, m.group(1))
+        names, required, order = params_of(src, m.group(1))
+        SCREENS[m.group(1)] = names
+        REQUIRED[m.group(1)] = required
+        LAST_PARAM[m.group(1)] = order[-1] if order else ""
 
 bad_args = []
 
@@ -474,12 +486,42 @@ for f, src in SRC.items():
                     depth -= 1
                 i += 1
             args = src[m.end():i - 1]
+            supplied = set()
             for part in split_top(args):
                 am = re.match(r"\s*(\w+)\s*=(?!=)", part)
-                if am and am.group(1) not in allowed:
+                if am:
+                    supplied.add(am.group(1))
+                    if am.group(1) not in allowed:
+                        bad_args.append(
+                            f"{rel(f)} calls {name}({am.group(1)} = ...), but {name} has no "
+                            f"such parameter (it takes: {', '.join(sorted(allowed))})")
+            # Every parameter without a default has to be passed.
+            #
+            # Added after adding a required parameter to two composables and
+            # having both call sites slip past every local gate — the name
+            # check only ever asked whether a supplied argument existed, never
+            # whether a needed one was missing, so the first thing to notice
+            # was a three-minute CI compile.
+            #
+            # Positional calls are skipped: this reads names, and a call that
+            # passes anything positionally cannot be judged that way. Every
+            # screen in this app is called with named arguments.
+            positional = any(
+                part.strip() and not re.match(r"\s*\w+\s*=(?!=)", part)
+                for part in split_top(args)
+            )
+            # A trailing lambda supplies the last declared parameter, outside
+            # the brackets — `HeroCard(modifier) { ... }` passes `content`
+            # without ever naming it. Six real call sites looked like errors
+            # until this was accounted for, which is the difference between a
+            # gate people trust and one they learn to ignore.
+            rest = src[i:i + 40].lstrip()
+            if rest.startswith("{"):
+                supplied.add(LAST_PARAM.get(name, ""))
+            if not positional and args.strip():
+                for missing in sorted(REQUIRED.get(name, set()) - supplied):
                     bad_args.append(
-                        f"{rel(f)} calls {name}({am.group(1)} = ...), but {name} has no "
-                        f"such parameter (it takes: {', '.join(sorted(allowed))})")
+                        f"{rel(f)} calls {name}(...) without {missing}, which has no default")
 for x in sorted(set(bad_args)):
     fail(x)
 if not bad_args:

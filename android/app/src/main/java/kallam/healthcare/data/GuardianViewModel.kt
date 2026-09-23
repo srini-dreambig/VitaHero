@@ -143,6 +143,8 @@ class GuardianViewModel(
         _pendingConsents.value = emptyList()
         _dietPlans.value = emptyMap()
         _mealPhotoConsent.value = emptyMap()
+        _hero.value = emptyMap()
+        _heroNameConsent.value = emptyMap()
         _result.value = null
         _photos.value = emptyList()
         _openPhoto.value = null
@@ -203,6 +205,42 @@ class GuardianViewModel(
         loadReferrals(force = force)
         loadQuestions(force)
         loadEntitlements(force)
+    }
+
+    // ── VitaHero of the month ──
+    private val _hero = MutableStateFlow<Map<String, HeroOfMonthDto>>(emptyMap())
+    val hero: StateFlow<Map<String, HeroOfMonthDto>> = _hero.asStateFlow()
+
+    private val _heroNameConsent = MutableStateFlow<Map<String, HeroNameConsentDto>>(emptyMap())
+    val heroNameConsent: StateFlow<Map<String, HeroNameConsentDto>> =
+        _heroNameConsent.asStateFlow()
+
+    fun loadHero(kidId: String, force: Boolean = false) = once("hero:$kidId", force) {
+        val h = repo.heroOfMonth(kidId)
+        // Absent means no hero published this month, which is most months at
+        // most schools. Nothing to draw rather than something to apologise for.
+        if (h != null) _hero.update { it + (kidId to h) }
+    }
+
+    fun loadHeroNameConsent(kidId: String, force: Boolean = false) =
+        once("heroname:$kidId", force) {
+            _heroNameConsent.update { it + (kidId to repo.heroNameConsent(kidId)) }
+        }
+
+    /**
+     * Answer whether this child may be named if they are ever chosen.
+     *
+     * Read at display time on the server, so a no takes the name off a month
+     * that has already been published rather than only applying to the next
+     * one. A consent that cannot be withdrawn is not consent.
+     */
+    fun setHeroNameConsent(kidId: String, granted: Boolean) {
+        viewModelScope.launch {
+            repo.setHeroNameConsent(kidId, granted).fold(
+                onSuccess = { d -> _heroNameConsent.update { it + (kidId to d) } },
+                onFailure = { e -> say(e.message ?: "That could not be saved.") },
+            )
+        }
     }
 
     // ── meal photographs ──

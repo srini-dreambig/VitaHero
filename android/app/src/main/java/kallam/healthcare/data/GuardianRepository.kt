@@ -143,6 +143,19 @@ class GuardianRepository {
     suspend fun dietPlan(kidId: String): DietPlanDto? =
         getOr("/api/me/diet-plan", GuardianDietPlanDto(), mapOf("kid_id" to kidId)).plan
 
+    // ─── VitaHero of the month ──────────────────────────────
+
+    /** This month's hero at the child's school, or null when none is published. */
+    suspend fun heroOfMonth(kidId: String): HeroOfMonthDto? =
+        getOr("/api/me/hero", HeroResponseDto(), mapOf("kid_id" to kidId)).hero
+
+    suspend fun heroNameConsent(kidId: String): HeroNameConsentDto =
+        getOr("/api/me/hero-name-consent", HeroNameConsentDto(kidId = kidId),
+            mapOf("kid_id" to kidId))
+
+    suspend fun setHeroNameConsent(kidId: String, granted: Boolean): Result<HeroNameConsentDto> =
+        postFor("/api/me/hero-name-consent", HeroNameConsentBody(kidId, granted))
+
     // ─── Meal photographs ───────────────────────────────────
 
     /**
