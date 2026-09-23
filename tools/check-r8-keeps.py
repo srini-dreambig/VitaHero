@@ -103,7 +103,17 @@ def main() -> int:
         )
 
     kept = serializers_in(archive)
-    missing = sorted(c for c in want if f"{c}$$serializer" not in kept)
+
+    # A nested @Serializable class is compiled as Outer$Inner, so its
+    # serializer is Outer$Inner$$serializer and never equals
+    # Inner$$serializer. Five classes here are nested — LeaderboardRow and
+    # four inside FamilySharingService — and matching on the bare name alone
+    # reported all five as stripped by a build that had kept them.
+    def survived(c: str) -> bool:
+        exact = f"{c}$$serializer"
+        return any(k == exact or k.endswith(f"${exact}") for k in kept)
+
+    missing = sorted(c for c in want if not survived(c))
 
     print(f"check-r8-keeps: {len(want)} @Serializable classes declared, "
           f"{len(kept)} serializers in the DEX")
@@ -112,7 +122,11 @@ def main() -> int:
         print(f"\nR8 removed the generated serializer for {len(missing)} class(es):",
               file=sys.stderr)
         for c in missing:
-            print(f"  {c}", file=sys.stderr)
+            # Anything in the DEX that mentions the name at all, so a failure
+            # can be diagnosed from the log rather than by building again.
+            near = sorted(k for k in kept if c in k)[:3]
+            hint = f"   (DEX has: {', '.join(near)})" if near else ""
+            print(f"  {c}{hint}", file=sys.stderr)
         print(
             "\nThis build installs, runs, and throws on the first response it parses.\n"
             "Check the -keep line in android/app/proguard-rules.pro still names the\n"
