@@ -1,6 +1,10 @@
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
+    // No kotlin.android plugin. AGP 9 compiles Kotlin itself, and that plugin
+    // was the thing calling the legacy variant API — applicationVariants,
+    // testVariants and unitTestVariants — which is what kept android.newDsl
+    // switched off. Compose and serialization are still their own plugins;
+    // built-in Kotlin does not absorb those.
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.google.services)
@@ -199,11 +203,11 @@ tasks.matching { it.name.startsWith("publish") && it.name.contains("Release") }.
     }
 }
 
-kotlin {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
-    }
-}
+// No kotlin { compilerOptions { jvmTarget } } block. Under built-in Kotlin the
+// JVM target defaults to android.compileOptions.targetCompatibility, which is
+// VERSION_11 a few lines above — so setting it here would be repeating that in
+// a second place, and the two could then disagree. It also named a type from
+// the plugin that has just been removed.
 
 dependencies {
     implementation(libs.androidx.core.ktx)
