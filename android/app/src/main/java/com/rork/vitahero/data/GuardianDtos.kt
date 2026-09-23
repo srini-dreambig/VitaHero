@@ -381,3 +381,28 @@ data class SymptomSavedDto(
      */
     val advice: String = "",
 )
+
+// ─── Badges ─────────────────────────────────────────────────
+
+/**
+ * One badge, as the server decides it.
+ *
+ * No words: the id keys a table in KidsViewModel that supplies the title, the
+ * description and the colour, in all three languages. A server that sent
+ * "Super Eater" would be a server that only speaks English.
+ */
+@Serializable
+data class BadgeDto(
+    val id: String = "",
+    /** True once it has ever been earned; a broken streak does not take it back. */
+    val earned: Boolean = false,
+    /** True while the condition holds today. The bar, not the record. */
+    val meets: Boolean = false,
+    val earnedAt: String = "",
+    val target: Int = 0,
+    val current: Int = 0,
+    val progress: Float = 0f,
+)
+
+@Serializable
+data class BadgesDto(val badges: List<BadgeDto> = emptyList())

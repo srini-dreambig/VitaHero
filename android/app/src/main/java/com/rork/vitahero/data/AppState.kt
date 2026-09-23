@@ -59,6 +59,9 @@ class AppStateHolder(display: DisplayPreferences = DisplayPreferences()) {
     val streaks = MutableStateFlow<Map<String, StreakInfo>>(emptyMap())
     val aiContent = MutableStateFlow<Map<String, AIDietContent>>(emptyMap())
     val leaderboards = MutableStateFlow<Map<String, List<LeaderEntry>>>(emptyMap())
+    // Badges as the server last reported them. Absent means "not asked yet";
+    // an empty list means "asked, and this child has earned none".
+    val badges = MutableStateFlow<Map<String, List<Badge>>>(emptyMap())
     val bookingSlots = MutableStateFlow<Map<String, List<BookingTimeSlot>>>(emptyMap())
     val syncMessage = MutableStateFlow<String?>(null)
 
@@ -77,6 +80,7 @@ class AppStateHolder(display: DisplayPreferences = DisplayPreferences()) {
         streaks.value = emptyMap()
         aiContent.value = emptyMap()
         leaderboards.value = emptyMap()
+        badges.value = emptyMap()
         bookingSlots.value = emptyMap()
         syncMessage.value = null
     }

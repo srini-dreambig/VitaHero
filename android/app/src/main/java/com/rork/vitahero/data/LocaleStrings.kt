@@ -105,6 +105,18 @@ object S {
     const val disclaimerChart = "disclaimer_chart"
 
     // ---- Diet ----
+    // Energy in against energy out. Both halves of this have worked for a
+    // while — food photographs become logged meals, Health Connect reads the
+    // day's active calories — and neither was ever shown beside the other.
+    const val energyToday = "energy_today"
+    const val energyEaten = "energy_eaten"
+    const val energyBurnt = "energy_burnt"
+    const val energyNetMore = "energy_net_more"
+    const val energyNetLess = "energy_net_less"
+    const val energyNetEven = "energy_net_even"
+    const val energyNoWearable = "energy_no_wearable"
+    const val energyConnect = "energy_connect"
+    const val energyKcal = "energy_kcal"
     const val todaysPlan = "todays_plan"
     const val kcalLogged = "kcal_logged"
     const val allMealsLogged = "all_meals_logged"
@@ -430,6 +442,10 @@ object S {
     const val navCamps = "nav_camps"
     const val navRewards = "nav_rewards"
     const val navProfile = "nav_profile"
+    // Badges come from the server now, so "none yet" and "could not ask" both
+    // land here rather than being papered over with a locally invented set.
+    const val badgesEmpty = "badges_empty"
+    const val badgesEmptySub = "badges_empty_sub"
     const val leaderboardEmpty = "leaderboard_empty"
     const val leaderboardEmptySub = "leaderboard_empty_sub"
     const val noGrowthData = "no_growth_data"
@@ -609,6 +625,15 @@ private val en = mapOf(
     S.generatingReport to "Generating PDF report…",
     S.saveMeasurements to "Save measurements",
     S.viewDietPlan to "View today's diet plan",
+    S.energyToday to "Energy today",
+    S.energyEaten to "Eaten",
+    S.energyBurnt to "Burnt",
+    S.energyNetMore to "%s kcal more in than out",
+    S.energyNetLess to "%s kcal more out than in",
+    S.energyNetEven to "In and out are level today",
+    S.energyNoWearable to "Connect a watch or phone to see what they burnt.",
+    S.energyConnect to "Connect",
+    S.energyKcal to "%s kcal",
     S.todaysPlan to "Today's plan",
     S.kcalLogged to "%d of %d kcal logged",
     S.allMealsLogged to "All meals logged — Super Eater streak continues!",
@@ -973,6 +998,8 @@ private val en = mapOf(
     S.navCamps to "Camps",
     S.navRewards to "Rewards",
     S.navProfile to "Profile",
+    S.badgesEmpty to "No badges yet",
+    S.badgesEmptySub to "Badges are kept for your child on the server, so they last. Log a meal and they will start filling in.",
     S.leaderboardEmpty to "No leaderboard yet",
     S.leaderboardEmptySub to "This fills in once other children at your school are logging meals too.",
     S.noGrowthData to "No measurements yet",
@@ -1069,6 +1096,15 @@ private val hi = mapOf(
     S.generatingReport to "PDF \u0930\u093F\u092A\u094B\u0930\u094D\u091F \u092C\u0928 \u0930\u0939\u0940 \u0939\u0948\u2026",
     S.saveMeasurements to "\u092E\u093E\u092A \u0938\u0947\u0935 \u0915\u0930\u0947\u0902",
     S.viewDietPlan to "\u0906\u091C \u0915\u093E \u0921\u093E\u0907\u091F \u092A\u094D\u0932\u093E\u0928 \u0926\u0947\u0916\u0947\u0902",
+    S.energyToday to "\u0906\u091C \u0915\u0940 \u090A\u0930\u094D\u091C\u093E",
+    S.energyEaten to "\u0916\u093E\u092F\u093E",
+    S.energyBurnt to "\u0916\u0930\u094D\u091A \u0939\u0941\u0906",
+    S.energyNetMore to "%s \u0915\u0948\u0932\u094B\u0930\u0940 \u0905\u0902\u0926\u0930 \u091C\u094D\u092F\u093E\u0926\u093E",
+    S.energyNetLess to "%s \u0915\u0948\u0932\u094B\u0930\u0940 \u092C\u093E\u0939\u0930 \u091C\u094D\u092F\u093E\u0926\u093E",
+    S.energyNetEven to "\u0906\u091C \u0905\u0902\u0926\u0930 \u0914\u0930 \u092C\u093E\u0939\u0930 \u092C\u0930\u093E\u092C\u0930 \u0939\u0948\u0902",
+    S.energyNoWearable to "\u0916\u0930\u094D\u091A \u0939\u0941\u0908 \u090A\u0930\u094D\u091C\u093E \u0926\u0947\u0916\u0928\u0947 \u0915\u0947 \u0932\u093F\u090F \u0918\u0921\u093C\u0940 \u092F\u093E \u092B\u093C\u094B\u0928 \u091C\u094B\u0921\u093C\u0947\u0902\u0964",
+    S.energyConnect to "\u091C\u094B\u0921\u093C\u0947\u0902",
+    S.energyKcal to "%s \u0915\u0948\u0932\u094B\u0930\u0940",
     S.todaysPlan to "\u0906\u091C \u0915\u093E \u092A\u094D\u0932\u093E\u0928",
     S.kcalLogged to "%d \u092E\u0947\u0902 \u0938\u0947 %d kcal \u0926\u0930\u094D\u091C",
     S.allMealsLogged to "\u0938\u092D\u0940 \u092D\u094B\u091C\u0928 \u0926\u0930\u094D\u091C — \u0938\u0941\u092A\u0930 \u0908\u091F\u0930 \u0938\u094D\u091F\u094D\u0930\u0940\u0915 \u091C\u093E\u0930\u0940!",
@@ -1302,6 +1338,8 @@ private val hi = mapOf(
     S.navCamps to "\u0915\u0948\u0902\u092A",
     S.navRewards to "\u0907\u0928\u093E\u092E",
     S.navProfile to "\u092A\u094D\u0930\u094B\u092B\u093C\u093E\u0907\u0932",
+    S.badgesEmpty to "\u0905\u092D\u0940 \u0915\u094B\u0908 \u092C\u0948\u091C \u0928\u0939\u0940\u0902",
+    S.badgesEmptySub to "\u092C\u0948\u091C \u0938\u0930\u094D\u0935\u0930 \u092A\u0930 \u0938\u0939\u0947\u091C\u0947 \u091C\u093E\u0924\u0947 \u0939\u0948\u0902, \u0907\u0938\u0932\u093F\u090F \u0935\u0947 \u092C\u0928\u0947 \u0930\u0939\u0924\u0947 \u0939\u0948\u0902\u0964 \u090F\u0915 \u092D\u094B\u091C\u0928 \u0926\u0930\u094D\u091C \u0915\u0930\u0947\u0902, \u092B\u093F\u0930 \u092F\u0939 \u092D\u0930\u0928\u093E \u0936\u0941\u0930\u0942 \u0939\u094B\u0917\u093E\u0964",
     S.leaderboardEmpty to "\u0905\u092D\u0940 \u0915\u094B\u0908 \u0932\u0940\u0921\u0930\u092C\u094B\u0930\u094D\u0921 \u0928\u0939\u0940\u0902",
     S.leaderboardEmptySub to "\u091C\u092C \u0906\u092A\u0915\u0947 \u0938\u094D\u0915\u0942\u0932 \u0915\u0947 \u0926\u0942\u0938\u0930\u0947 \u092C\u091A\u094D\u091A\u0947 \u092D\u0940 \u092D\u094B\u091C\u0928 \u0926\u0930\u094D\u091C \u0915\u0930\u0928\u0947 \u0932\u0917\u0947\u0902\u0917\u0947, \u0924\u092C \u092F\u0939 \u092D\u0930 \u091C\u093E\u090F\u0917\u093E\u0964",
     S.noGrowthData to "\u0905\u092D\u0940 \u0915\u094B\u0908 \u092E\u093E\u092A \u0928\u0939\u0940\u0902",
@@ -1398,6 +1436,15 @@ private val te = mapOf(
     S.eyeWatchMsg to "\u0C1A\u0C3F\u0C28\u0C4D\u0C28 \u0C26\u0C43\u0C37\u0C4D\u0C1F\u0C3F \u0C12\u0C24\u0C4D\u0C24\u0C3F\u0C21\u0C3F \u0C15\u0C28\u0C3F\u0C2A\u0C3F\u0C02\u0C1A\u0C3F\u0C02\u0C26\u0C3F. \u0C15\u0C02\u0C1F\u0C3F \u0C28\u0C3F\u0C2A\u0C41\u0C23\u0C41\u0C21\u0C3F \u0C2B\u0C3E\u0C32\u0C4B-\u0C05\u0C2A\u0C4D \u0C2A\u0C30\u0C3F\u0C17\u0C23\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
     S.disclaimerShort to "\u0C38\u0C2E\u0C3E\u0C1A\u0C3E\u0C30 \u0C2A\u0C4D\u0C30\u0C2F\u0C4B\u0C1C\u0C28\u0C3E\u0C32\u0C15\u0C41 \u0C2E\u0C3E\u0C24\u0C4D\u0C30\u0C2E\u0C47. \u0C30\u0C4B\u0C17 \u0C28\u0C3F\u0C30\u0C4D\u0C27\u0C3E\u0C30\u0C23 \u0C15\u0C4B\u0C38\u0C02 \u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D\u200C\u0C28\u0C3F \u0C38\u0C02\u0C2A\u0C4D\u0C30\u0C26\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
     S.disclaimerChart to "\u0C1A\u0C3E\u0C30\u0C4D\u0C1F\u0C41\u0C32\u0C41 \u0C38\u0C2E\u0C3E\u0C1A\u0C3E\u0C30 \u0C2A\u0C4D\u0C30\u0C2F\u0C4B\u0C1C\u0C28\u0C3E\u0C32\u0C15\u0C41 \u0C2E\u0C3E\u0C24\u0C4D\u0C30\u0C2E\u0C47. \u0C35\u0C48\u0C26\u0C4D\u0C2F \u0C28\u0C3F\u0C30\u0C4D\u0C23\u0C2F\u0C3E\u0C32 \u0C15\u0C4B\u0C38\u0C02 \u0C0E\u0C32\u0C4D\u0C32\u0C2A\u0C4D\u0C2A\u0C41\u0C21\u0C42 \u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D\u200C\u0C28\u0C3F \u0C38\u0C02\u0C2A\u0C4D\u0C30\u0C26\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
+    S.energyToday to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C36\u0C15\u0C4D\u0C24\u0C3F",
+    S.energyEaten to "\u0C24\u0C3F\u0C28\u0C4D\u0C28\u0C26\u0C3F",
+    S.energyBurnt to "\u0C16\u0C30\u0C4D\u0C1A\u0C48\u0C28\u0C26\u0C3F",
+    S.energyNetMore to "%s \u0C15\u0C47\u0C32\u0C30\u0C40\u0C32\u0C41 \u0C0E\u0C15\u0C4D\u0C15\u0C41\u0C35 \u0C24\u0C40\u0C38\u0C41\u0C15\u0C41\u0C28\u0C4D\u0C28\u0C3E\u0C30\u0C41",
+    S.energyNetLess to "%s \u0C15\u0C47\u0C32\u0C30\u0C40\u0C32\u0C41 \u0C0E\u0C15\u0C4D\u0C15\u0C41\u0C35 \u0C16\u0C30\u0C4D\u0C1A\u0C48\u0C28\u0C3E\u0C2F\u0C3F",
+    S.energyNetEven to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C30\u0C46\u0C02\u0C21\u0C42 \u0C38\u0C2E\u0C3E\u0C28\u0C02",
+    S.energyNoWearable to "\u0C16\u0C30\u0C4D\u0C1A\u0C48\u0C28 \u0C36\u0C15\u0C4D\u0C24\u0C3F \u0C1A\u0C42\u0C21\u0C21\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C35\u0C3E\u0C1A\u0C40 \u0C32\u0C47\u0C26\u0C3E \u0C2B\u0C4B\u0C28\u0C4D \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C1F\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F.",
+    S.energyConnect to "\u0C15\u0C28\u0C46\u0C15\u0C4D\u0C1F\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
+    S.energyKcal to "%s \u0C15\u0C47\u0C32\u0C30\u0C40\u0C32\u0C41",
     S.todaysPlan to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C2A\u0C4D\u0C32\u0C3E\u0C28\u0C4D",
     S.kcalLogged to "%d \u0C32\u0C4B %d kcal \u0C28\u0C2E\u0C4B\u0C26\u0C41 \u0C1A\u0C47\u0C36\u0C3E\u0C30\u0C41",
     S.allMealsLogged to "\u0C05\u0C28\u0C4D\u0C28\u0C40 \u0C2D\u0C4B\u0C1C\u0C28\u0C3E\u0C32\u0C41 \u0C28\u0C2E\u0C4B\u0C26\u0C41 \u0C1A\u0C47\u0C2F\u0C2C\u0C21\u0C4D\u0C21\u0C3E\u0C2F\u0C3F — \u0C38\u0C42\u0C2A\u0C30\u0C4D \u0C08\u0C1F\u0C30\u0C4D \u0C38\u0C4D\u0C1F\u0C4D\u0C30\u0C40\u0C15\u0C4D \u0C15\u0C4A\u0C28\u0C38\u0C3E\u0C17\u0C41\u0C24\u0C4B\u0C02\u0C26\u0C3F!",
@@ -1627,6 +1674,8 @@ private val te = mapOf(
     S.navCamps to "\u0C36\u0C3F\u0C2C\u0C3F\u0C30\u0C3E\u0C32\u0C41",
     S.navRewards to "\u0C2C\u0C39\u0C41\u0C2E\u0C24\u0C41\u0C32\u0C41",
     S.navProfile to "\u0C2A\u0C4D\u0C30\u0C4A\u0C2B\u0C48\u0C32\u0C4D",
+    S.badgesEmpty to "\u0C07\u0C02\u0C15\u0C3E \u0C2C\u0C4D\u0C2F\u0C3E\u0C21\u0C4D\u0C1C\u0C4D\u0C32\u0C41 \u0C32\u0C47\u0C35\u0C41",
+    S.badgesEmptySub to "\u0C2C\u0C4D\u0C2F\u0C3E\u0C21\u0C4D\u0C1C\u0C4D\u0C32\u0C41 \u0C38\u0C30\u0C4D\u0C35\u0C30\u0C4D\u200C\u0C32\u0C4B \u0C2D\u0C26\u0C4D\u0C30\u0C2A\u0C30\u0C41\u0C38\u0C4D\u0C24\u0C3E\u0C30\u0C41, \u0C05\u0C02\u0C26\u0C41\u0C15\u0C47 \u0C05\u0C35\u0C3F \u0C28\u0C3F\u0C32\u0C3F\u0C1A\u0C3F \u0C09\u0C02\u0C1F\u0C3E\u0C2F\u0C3F. \u0C12\u0C15 \u0C2D\u0C4B\u0C1C\u0C28\u0C02 \u0C28\u0C2E\u0C4B\u0C26\u0C41 \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F, \u0C05\u0C35\u0C3F \u0C28\u0C3F\u0C02\u0C21\u0C21\u0C02 \u0C2E\u0C4A\u0C26\u0C32\u0C35\u0C41\u0C24\u0C3E\u0C2F\u0C3F.",
     S.leaderboardEmpty to "\u0C07\u0C02\u0C15\u0C3E \u0C32\u0C40\u0C21\u0C30\u0C4D\u200C\u0C2C\u0C4B\u0C30\u0C4D\u0C21\u0C4D \u0C32\u0C47\u0C26\u0C41",
     S.leaderboardEmptySub to "\u0C2E\u0C40 \u0C2A\u0C3E\u0C20\u0C36\u0C3E\u0C32\u0C32\u0C4B\u0C28\u0C3F \u0C07\u0C24\u0C30 \u0C2A\u0C3F\u0C32\u0C4D\u0C32\u0C32\u0C41 \u0C15\u0C42\u0C21\u0C3E \u0C2D\u0C4B\u0C1C\u0C28\u0C02 \u0C28\u0C2E\u0C4B\u0C26\u0C41 \u0C1A\u0C47\u0C2F\u0C21\u0C02 \u0C2E\u0C4A\u0C26\u0C32\u0C41\u0C2A\u0C46\u0C1F\u0C4D\u0C1F\u0C3F\u0C28\u0C2A\u0C4D\u0C2A\u0C41\u0C21\u0C41 \u0C07\u0C26\u0C3F \u0C28\u0C3F\u0C02\u0C21\u0C41\u0C24\u0C41\u0C02\u0C26\u0C3F.",
     S.noGrowthData to "\u0C07\u0C02\u0C15\u0C3E \u0C15\u0C4A\u0C32\u0C24\u0C32\u0C41 \u0C32\u0C47\u0C35\u0C41",

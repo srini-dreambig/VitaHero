@@ -22,6 +22,7 @@ class KidsViewModel(
     private val state get() = container.state
     private val auth get() = container.auth
     private val api get() = container.api
+    private val guardian = GuardianRepository()
 
     val meals get() = state.meals
     val streaks get() = state.streaks
@@ -82,6 +83,7 @@ class KidsViewModel(
             ))
         }
         container.persist(SyncEntity.MEALS, SyncEntity.STREAKS)
+        invalidateBadges(kidId)
     }
 
     fun addMealItem(kidId: String, name: String, detail: String, kcal: Int, timeSlot: String = "Snack") {
@@ -114,6 +116,19 @@ class KidsViewModel(
             s + (kidId to StreakInfo(currentStreak = cs, bestStreak = maxOf(prev.bestStreak, cs), lastLogDate = today))
         }
         container.persist(SyncEntity.MEALS, SyncEntity.STREAKS)
+        invalidateBadges(kidId)
+    }
+
+    /**
+     * This child's badges are out of date; ask again next time they are read.
+     *
+     * Not a refetch: the meal that changed them is queued for sync, not sent,
+     * so asking the server now would get yesterday's answer and cache it.
+     * Forgetting is enough — the rewards screen re-asks on the way in, by
+     * which time the queue has usually flushed.
+     */
+    private fun invalidateBadges(kidId: String) {
+        state.badges.update { it - kidId }
     }
 
     /**
@@ -133,6 +148,7 @@ class KidsViewModel(
         state.streaks.update { it - kidId }
         state.aiContent.update { it - kidId }
         state.leaderboards.update { it - kidId }
+        state.badges.update { it - kidId }
     }
 
     fun refreshWearableData(kidId: String) {
@@ -169,55 +185,65 @@ class KidsViewModel(
         }
     }
 
-    fun badgeProgressForKid(kidId: String): BadgeProgress {
-        val kid = kidById(kidId) ?: return BadgeProgress()
-        val mealList = mealsForKid(kidId)
-        val eatenCount = mealList.count { it.eaten }
-        val streak = streakForKid(kidId)
-        val totalMeals = mealList.size.coerceAtLeast(1)
+    /**
+     * How a badge is dressed, once the server has said whether it is earned.
+     *
+     * The rule moved to functions/badges.ts; what stays here is everything a
+     * child actually reads — a title, a line of explanation, a colour — in the
+     * three languages the app speaks. The server sends ids.
+     *
+     * Bright Smile is the one badge with two descriptions, because "no
+     * cavities" and "nobody has looked yet" are different things to say to a
+     * family, and only the second one is true before a camp.
+     */
+    private fun dress(dto: BadgeDto): Badge? = when (dto.id) {
+        "b1" -> Badge(dto.id, S.badgeSuperEater, S.badgeSuperEaterSub,
+            dto.earned, dto.progress, 0xFF10B981, dto.target, dto.current)
+        "b2" -> Badge(dto.id, S.badgeEveryMeal, S.badgeEveryMealSub,
+            dto.earned, dto.progress, 0xFF2563EB, dto.target, dto.current)
+        "b3" -> Badge(dto.id, S.badgeThreeDay, S.badgeThreeDaySub,
+            dto.earned, dto.progress, 0xFF06B6D4, dto.target, dto.current)
+        "b4" -> Badge(dto.id, S.badgeTwoWeek, S.badgeTwoWeekSub,
+            dto.earned, dto.progress, 0xFFF59E0B, dto.target, dto.current)
+        "b5" -> Badge(dto.id, S.badgeBrightSmile,
+            if (dto.current > 0 || dto.earned) S.badgeBrightSmileSub else S.badgeBrightSmileUnknown,
+            dto.earned, dto.progress, 0xFF8B5CF6, dto.target, dto.current)
+        "b6" -> Badge(dto.id, S.badgeHalfWay, S.badgeHalfWaySub,
+            dto.earned, dto.progress, 0xFFFB7185, dto.target, dto.current)
+        // A badge this build has no words for. Dropped rather than shown as a
+        // blank tile, so the server can add one ahead of an app release.
+        else -> null
+    }
 
-        // Every badge here describes something this app actually measures:
-        // meals logged, and the streak of days they were logged. The old set
-        // claimed water drunk, minutes played and "height on track 3 camps in
-        // a row" — none of which was ever recorded, all of them derived from
-        // the meal counter. A badge a child cannot have earned is a lie told
-        // to a child.
-        val dentalKnown = kid.dental != HealthFlag.NOT_MEASURED
-        val badges = listOf(
-            Badge("b1", S.badgeSuperEater, S.badgeSuperEaterSub,
-                eatenCount >= totalMeals && streak.currentStreak >= 7,
-                (streak.currentStreak / 7f).coerceAtMost(1f),
-                0xFF10B981, 7, streak.currentStreak),
-            Badge("b2", S.badgeEveryMeal, S.badgeEveryMealSub,
-                eatenCount >= totalMeals,
-                eatenCount / totalMeals.toFloat(),
-                0xFF2563EB, totalMeals, eatenCount),
-            Badge("b3", S.badgeThreeDay, S.badgeThreeDaySub,
-                streak.currentStreak >= 3,
-                (streak.currentStreak / 3f).coerceAtMost(1f),
-                0xFF06B6D4, 3, streak.currentStreak),
-            Badge("b4", S.badgeTwoWeek, S.badgeTwoWeekSub,
-                streak.bestStreak >= 14,
-                (streak.bestStreak / 14f).coerceAtMost(1f),
-                0xFFF59E0B, 14, streak.bestStreak),
-            // The one clinical badge. Only meaningful once a dentist has
-            // actually looked; before that it shows as not yet checked rather
-            // than as partial progress toward something nobody did.
-            Badge("b5", S.badgeBrightSmile,
-                if (dentalKnown) S.badgeBrightSmileSub else S.badgeBrightSmileUnknown,
-                dentalKnown && kid.dental == HealthFlag.GOOD,
-                if (dentalKnown && kid.dental == HealthFlag.GOOD) 1f else 0f,
-                0xFF8B5CF6, 1, if (dentalKnown && kid.dental == HealthFlag.GOOD) 1 else 0),
-            Badge("b6", S.badgeHalfWay, S.badgeHalfWaySub,
-                eatenCount >= totalMeals / 2,
-                (eatenCount / (totalMeals / 2f).coerceAtLeast(1f)).coerceAtMost(1f),
-                0xFFFB7185, (totalMeals / 2).coerceAtLeast(1), eatenCount),
-        )
-
-        if (state.leaderboards.value[kidId] == null) {
-            refreshLeaderboard(kidId)
+    fun refreshBadges(kidId: String) {
+        if (kidById(kidId) == null) return
+        viewModelScope.launch {
+            // Empty means the call did not land: the server always answers
+            // with the whole set, earned or not. Caching an empty answer would
+            // wipe a child's week off the screen because a train went into a
+            // tunnel, so nothing is stored and the next read asks again.
+            val dtos = guardian.badges(kidId)
+            if (dtos.isEmpty()) return@launch
+            state.badges.update { it + (kidId to dtos.mapNotNull(::dress)) }
         }
-        return BadgeProgress(badges, state.leaderboards.value[kidId] ?: emptyList())
+    }
+
+    /**
+     * What the rewards screen draws.
+     *
+     * Reads what the server last said and asks again if it has not been asked.
+     * Nothing is computed here any more: a badge worked out on this handset
+     * could not survive a reinstall, could not be compared with another
+     * child's, and could be earned by editing local state.
+     */
+    fun badgeProgressForKid(kidId: String): BadgeProgress {
+        if (kidById(kidId) == null) return BadgeProgress()
+        if (state.badges.value[kidId] == null) refreshBadges(kidId)
+        if (state.leaderboards.value[kidId] == null) refreshLeaderboard(kidId)
+        return BadgeProgress(
+            state.badges.value[kidId] ?: emptyList(),
+            state.leaderboards.value[kidId] ?: emptyList(),
+        )
     }
 
     fun generateAIContent(kidId: String) {

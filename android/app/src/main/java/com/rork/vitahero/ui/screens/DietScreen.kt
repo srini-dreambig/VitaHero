@@ -54,6 +54,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AIDietContent
 import com.rork.vitahero.data.AppLocale
+import com.rork.vitahero.data.HealthConnectService
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.MealItem
 import com.rork.vitahero.data.S
@@ -77,7 +78,9 @@ fun DietScreen(
     onBack: () -> Unit,
     onToggleMeal: (String) -> Unit,
     onGenerateAI: () -> Unit,
-    onOpenFoodRecognition: () -> Unit = {}
+    onOpenFoodRecognition: () -> Unit = {},
+    wearable: HealthConnectService.WearableData? = null,
+    onConnectWearable: () -> Unit = {},
 ) {
     val eatenCount = meals.count { it.eaten }
     val totalKcal = meals.filter { it.eaten }.sumOf { it.kcal }
@@ -133,6 +136,13 @@ fun DietScreen(
                         }
                     }
                 }
+                Spacer(Modifier.height(12.dp))
+                EnergyCard(
+                    eatenKcal = totalKcal,
+                    burntKcal = wearable?.caloriesBurned ?: 0,
+                    connected = wearable?.isConnected == true,
+                    onConnect = onConnectWearable,
+                )
                 Spacer(Modifier.height(16.dp))
             }
 
@@ -176,6 +186,101 @@ fun DietScreen(
                 Spacer(Modifier.height(10.dp))
             }
         }
+    }
+}
+
+/**
+ * Energy in against energy out, which is the whole point of the habit loop and
+ * had never been on one screen.
+ *
+ * Both halves already worked in isolation: a photographed meal becomes a
+ * logged MealItem with a calorie count, and Health Connect reads the day's
+ * active calories. A parent could see "1,450 kcal" on this screen and "320
+ * kcal burnt" three screens away in the child's detail, and was left to do
+ * the subtraction.
+ *
+ * The bar is deliberately not a verdict. A day where a child eats more than
+ * they burn is most days, for a growing child, and a red bar saying so would
+ * be both alarming and wrong — so the two are drawn to the same scale and the
+ * difference is stated as a number, with no colour that means "bad".
+ */
+@Composable
+private fun EnergyCard(
+    eatenKcal: Int,
+    burntKcal: Int,
+    connected: Boolean,
+    onConnect: () -> Unit,
+) {
+    // The longer of the two sets the scale, so neither bar is ever full width
+    // unless it is genuinely the larger number.
+    val scale = maxOf(eatenKcal, burntKcal, 1).toFloat()
+    val net = eatenKcal - burntKcal
+
+    HeroCard(Modifier.fillMaxWidth(), background = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.padding(18.dp)) {
+            Text(
+                t(S.energyToday),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(10.dp))
+            EnergyBar(t(S.energyEaten), eatenKcal, eatenKcal / scale, HeroOrange)
+            Spacer(Modifier.height(8.dp))
+            if (connected) {
+                EnergyBar(t(S.energyBurnt), burntKcal, burntKcal / scale, HeroBlue)
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    when {
+                        net > 0 -> tf(S.energyNetMore, net.toString())
+                        net < 0 -> tf(S.energyNetLess, (-net).toString())
+                        else -> t(S.energyNetEven)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                // No reading is not the same as zero burnt, and drawing an
+                // empty bar would say the child sat still all day.
+                Text(
+                    t(S.energyNoWearable),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    t(S.energyConnect),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = HeroBlue,
+                    modifier = Modifier.clickable(onClick = onConnect),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EnergyBar(label: String, kcal: Int, fraction: Float, colour: Color) {
+    Column {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.weight(1f))
+            Text(
+                tf(S.energyKcal, kcal.toString()),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Spacer(Modifier.height(4.dp))
+        LinearProgressIndicator(
+            progress = { fraction.coerceIn(0f, 1f) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = colour,
+            trackColor = colour.copy(alpha = 0.15f),
+        )
     }
 }
 

@@ -499,7 +499,12 @@ fun AppNavigation(
                     onGenerateAI = { kidsViewModel.generateAIContent(kidId) },
                     onOpenFoodRecognition = {
                         navController.navigate("foodRecognition/$kidId/${kid.name}")
-                    }
+                    },
+                    // The burnt half of the day. Read here rather than on the
+                    // child's detail screen alone, so the two numbers the
+                    // habit loop is about sit beside each other.
+                    wearable = wearablesByKid[kidId],
+                    onConnectWearable = { kidsViewModel.refreshWearableData(kidId) },
                 )
             }
         }

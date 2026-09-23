@@ -84,6 +84,7 @@ import {
   setCampStaffActive,
 } from "./camps";
 import { campConsentForm } from "./consent-form";
+import { ensureBadgeSchema, kidBadges } from "./badges";
 import { adminAnalytics } from "./analytics";
 import { makeSender, sendToMany, smsProvider, textbeeDevice } from "./messaging";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
@@ -1703,6 +1704,7 @@ export const SCHEMA_STEPS = [
   ensureBillingSchema,
   ensureSymptomSchema,
   ensureOversightSchema,
+  ensureBadgeSchema,
   ensureDoctorSignInBackfill,
 ];
 
@@ -4140,6 +4142,21 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           ),
         }));
         return json(anonymized);
+      }
+
+      // ── D1 · Badges ───────────────────────────────────
+      //
+      // The rule lives on the server now. What comes back is ids and numbers;
+      // the app owns the title, the description and the colour, because it is
+      // the side that speaks Hindi and Telugu.
+      if (path === "/api/badges" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const kidId = url.searchParams.get("kid_id") || "";
+        if (!kidId) return json({ error: "Missing kid_id", code: "BAD_REQUEST" }, 400);
+        if (!(await kidOwnedByProfile(sql, kidId, session.profileId))) {
+          return json({ error: "Kid not found" }, 404);
+        }
+        return json(await kidBadges(sql, kidId));
       }
 
       // ── AI Diet Tips (persisted) ──────────────────────

@@ -111,6 +111,21 @@ class GuardianRepository {
         ),
     )
 
+    // ─── Badges ─────────────────────────────────────────────
+
+    /**
+     * This child's badges.
+     *
+     * An empty list means the call did not land — `getOr` returns its fallback
+     * on any failure, and the server always answers with the full set of
+     * badges, earned or not. So the caller can treat empty as "could not ask"
+     * and leave whatever is already on screen alone, which is the difference
+     * between a parent seeing yesterday's badges on a train and seeing a
+     * child's week wiped by a tunnel.
+     */
+    suspend fun badges(kidId: String): List<BadgeDto> =
+        getOr("/api/badges", BadgesDto(), mapOf("kid_id" to kidId)).badges
+
     // ─── Results ────────────────────────────────────────────
 
     suspend fun campResult(campId: String, kidId: String): CampResultDto =

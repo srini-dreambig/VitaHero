@@ -160,14 +160,41 @@ fun RewardsScreen(
 
         // Badge grid (2 per row)
         item {
-            val rows = badges.chunked(2)
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                rows.forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        row.forEach { badge ->
-                            BadgeCard(badge, Modifier.weight(1f))
+            // Empty is a real state, the same way it is for the leaderboard.
+            // Badges are kept on the server so they survive a reinstall, which
+            // also means a phone that cannot reach it has nothing to show —
+            // and an invented set drawn from this handset is the thing that
+            // change was made to stop.
+            if (badges.isEmpty()) {
+                HeroCard(Modifier.fillMaxWidth()) {
+                    Column(
+                        Modifier.fillMaxWidth().padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            t(S.badgesEmpty),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            t(S.badgesEmptySub),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
+            } else {
+                val rows = badges.chunked(2)
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    rows.forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            row.forEach { badge ->
+                                BadgeCard(badge, Modifier.weight(1f))
+                            }
+                            if (row.size == 1) Spacer(Modifier.weight(1f))
                         }
-                        if (row.size == 1) Spacer(Modifier.weight(1f))
                     }
                 }
             }
