@@ -388,3 +388,94 @@ describe("the review screens read fields the worker sends", () => {
     expect(screen).toContain("recommendation.isNotBlank()");
   });
 });
+
+// ── nobody is assigned to a dead end ────────────────────────
+//
+// Four checks exist: height and weight, vision, dental, haemoglobin. ENT,
+// Skin, Spine and the immunisation review are named in PLANNED_CHECKS and
+// deliberately not built yet.
+//
+// That is a fine state to be in and a dangerous one to leave unguarded,
+// because a specialty is a dropdown an administrator picks from. An ENT
+// doctor assigned to a camp signs in, finds the child, opens the form and
+// there is nothing in it — discovered in a school hall, by the one person who
+// cannot do anything about it.
+//
+// So the rule is the pairing, not the list: every specialty offered as
+// screenable must yield a form, and both assignment paths must refuse one
+// that does not. Build ENT tomorrow and these pass the moment its rule lands;
+// add ENT to the dropdown without its rule and they fail here.
+describe("a specialty is offered only when there is something to record", () => {
+  test("every screenable specialty yields at least one check", () => {
+    const orphans = specialtyOptions()
+      .filter((s) => s.canScreen)
+      .filter((s) => screeningChecksFor(s.name).length === 0);
+    expect(
+      orphans.map((s) => s.name),
+      "these specialties are offered as screenable and produce an empty form"
+    ).toEqual([]);
+  });
+
+  test("and the ones with no screen say so rather than being hidden", () => {
+    // Not filtered out of the directory: a dermatologist is a perfectly good
+    // referral target, and a school should be able to record that they exist.
+    // What they cannot be is a camp clinician.
+    const unbuilt = specialtyOptions().filter((s) => !s.canScreen).map((s) => s.name);
+    expect(unbuilt.length, "every specialty screens, so this check proves nothing")
+      .toBeGreaterThan(0);
+    for (const name of unbuilt) {
+      expect(screeningChecksFor(name), `${name} claims no screen but returns checks`).toEqual([]);
+    }
+  });
+
+  test("both assignment paths refuse a specialty with no form", () => {
+    // assignDoctorToCamp has always refused. assignCampStaff took a profile id
+    // and asked only about the role, so the identical assignment succeeded by
+    // coming in the side entrance.
+    const camps = readFileSync("./camps.ts", "utf8");
+    for (const fn of ["assignDoctorToCamp", "assignCampStaff"]) {
+      const start = camps.indexOf(`export async function ${fn}(`);
+      expect(start, `${fn} not found`).toBeGreaterThan(0);
+      const next = camps.indexOf("\nexport ", start + 10);
+      const body = camps.slice(start, next >= 0 ? next : undefined);
+      expect(
+        body,
+        `${fn} does not check the specialty has a screening form`
+      ).toContain("SPECIALTY_NOT_SCREENED");
+    }
+  });
+
+  test("no clinician is ever handed a planned check to record", () => {
+    // The invariant that matters, and not the one I first wrote. The four
+    // planned checks do have a rule in clinical.ts — a shared placeholder that
+    // takes a free-text outcome of normal, abnormal or referral and nothing
+    // measured. So "has no rule" was never the thing separating them; having
+    // no fields, no form and no health area in the family's app is.
+    //
+    // What must hold is that none of them reaches a clinician: not through a
+    // specialty, not through any camp. Whoever builds ENT flips one list and
+    // this starts requiring the rest.
+    for (const s of specialtyOptions()) {
+      for (const check of screeningChecksFor(s.name)) {
+        expect(
+          (PLANNED_CHECKS as readonly string[]).includes(check),
+          `${s.name} would be asked to record ${check}, which has no form`
+        ).toBe(false);
+        expect(
+          (DESIGNED_CHECKS as readonly string[]).includes(check),
+          `${s.name} yields ${check}, which is in neither list`
+        ).toBe(true);
+      }
+    }
+  });
+
+  test("a designed check has a rule of its own, not the shared placeholder", () => {
+    const clinical = readFileSync("./clinical.ts", "utf8");
+    for (const check of DESIGNED_CHECKS) {
+      expect(
+        clinical,
+        `${check} is offered to schools but no rule names it`
+      ).toContain(`case "${check}":`);
+    }
+  });
+});

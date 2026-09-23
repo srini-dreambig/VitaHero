@@ -36,8 +36,21 @@ export type Surface = "app" | "console";
  * children and nothing else. Same door, different building behind it.
  */
 export const APP_ROLES = ["PARENT", "PHYSICIAN", "SCREENER"];
+/**
+ * Who the console admits: the people who run the programme, and nobody else.
+ *
+ * It used to admit clinicians too, from when the console was the only place
+ * screening could happen. That has not been true since the clinical work moved
+ * to the app, and leaving the door open meant a doctor could sign in to the
+ * admin panel and wander a programme they have no business in — a school's
+ * whole roster, its billing, its staff — while every button that mattered to
+ * them refused. Asked for directly: only admin has anything to do here.
+ *
+ * SCHOOL_ADMIN stays. A school's own office does the work this product is for:
+ * building rosters, chasing consent, reading the report.
+ */
 export const CONSOLE_ROLES = [
-  "SCHOOL_ADMIN", "SCREENER", "PHYSICIAN", "ADMIN", "SUPERADMIN",
+  "SCHOOL_ADMIN", "ADMIN", "SUPERADMIN",
 ];
 
 /**
@@ -89,10 +102,13 @@ export function surfaceRefusal(
       code: "WRONG_SURFACE_APP",
     };
   }
+  const clinical = role === "PHYSICIAN" || role === "SCREENER";
   return {
-    error:
-      "This number is registered as a parent. The console is for school staff and screening teams — " +
-      "open the VitaHero app on your phone to see your child's results.",
+    error: clinical
+      ? "Screening, approval and release happen in the VitaHero app, on the phone you " +
+        "screen with. There is nothing for a clinician to do in the console."
+      : "This number is registered as a parent. The console is for the people running " +
+        "the programme — open the VitaHero app on your phone to see your child's results.",
     code: "WRONG_SURFACE_CONSOLE",
   };
 }
@@ -129,3 +145,39 @@ export function clinicalSurfaceRefusal(
     code: "APP_ONLY",
   };
 }
+
+/**
+ * Which sign-in a surface is allowed to use.
+ *
+ * The app signs in with Firebase phone OTP and nothing else. The console has
+ * its own SMS OTP, sent by this worker through the school's gateway, because
+ * an administrator at a desk is not running the Android app.
+ *
+ * Both endpoints accept a declared surface, and the SMS one would happily
+ * accept "app" — so a client that asked could take an SMS code and mint a
+ * full app session, clinical writes included, having never touched Firebase.
+ * Nothing shipped does that; the app has only ever used Firebase. But "no
+ * client currently does this" is not the same as "this cannot be done", and
+ * the rule is meant to be one door per person.
+ */
+export function wrongSignInForSurface(
+  surface: Surface,
+  method: "sms" | "firebase"
+): { error: string; code: string } | null {
+  if (surface === "app" && method === "sms") {
+    return {
+      error:
+        "The VitaHero app signs in with the code Google sends to your phone. " +
+        "Open the app and enter your mobile number there.",
+      code: "USE_FIREBASE_OTP",
+    };
+  }
+  if (surface === "console" && method === "firebase") {
+    return {
+      error: "The console signs in with the code texted to your registered mobile number.",
+      code: "USE_SMS_OTP",
+    };
+  }
+  return null;
+}
+

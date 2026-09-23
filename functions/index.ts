@@ -20,7 +20,9 @@ import {
   isOpsRole,
   slugify,
 } from "./common";
-import { clinicalSurfaceRefusal, surfaceOf, surfaceRefusal, type Surface } from "./surfaces";
+import {
+  clinicalSurfaceRefusal, surfaceOf, surfaceRefusal, wrongSignInForSurface, type Surface,
+} from "./surfaces";
 import {
   Actor,
   ApiError,
@@ -1160,6 +1162,19 @@ async function verifyInviteToken(token: string, env: Env): Promise<string | null
   } catch {
     return null;
   }
+}
+
+/**
+ * The surface a caller claimed at the SMS sign-in door.
+ *
+ * Absent means the console here, not the app. Everywhere else the default is
+ * the app, because every installed copy predates the field — but this
+ * endpoint is the console's own door, the app has only ever used Firebase,
+ * and defaulting it to the app would turn a missing field into "use Firebase
+ * instead" for the one client that legitimately belongs here.
+ */
+function smsDoorSurface(body: Record<string, unknown>): Surface {
+  return surfaceOf(body.surface ?? "console");
 }
 
 /** Admin gate: ADMIN_API_KEY header (bootstrap) OR a role=ADMIN session. */
@@ -2861,12 +2876,18 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         // have called them "Parent" and shown them an empty list of children.
         const signInRole = (provRows[0].role as string) || "";
         const wrongDoor = surfaceRefusal(
-          surfaceOf(body.surface), signInRole, new URL(request.url).origin + "/admin");
+          smsDoorSurface(body), signInRole, new URL(request.url).origin + "/admin");
         if (wrongDoor) {
           // Refused before the code is sent, not after. There is no point
           // texting somebody a code for a door that will not open.
           return json(wrongDoor, 403);
         }
+
+        // Asked after the role, deliberately. An administrator claiming the
+        // app surface should be told the console is theirs, not told to use
+        // a Firebase sign-in that would refuse them anyway.
+        const smsDoor = wrongSignInForSurface(smsDoorSurface(body), "sms");
+        if (smsDoor) return json(smsDoor, 403);
 
         const clinicianRole = signInRole;
         if (!(await canClinicianSignIn(sql, signInProfileId, clinicianRole))) {
@@ -2982,9 +3003,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         // actually minted. A door that only checks on the way in is a door
         // anyone can walk around.
         const verifyWrongDoor = surfaceRefusal(
-          surfaceOf(body.surface), (existing[0].role as string) || "",
+          smsDoorSurface(body), (existing[0].role as string) || "",
           new URL(request.url).origin + "/admin");
         if (verifyWrongDoor) return json(verifyWrongDoor, 403);
+        const smsVerifyDoor = wrongSignInForSurface(smsDoorSurface(body), "sms");
+        if (smsVerifyDoor) return json(smsVerifyDoor, 403);
 
         const sessionToken = await mintSession(sql, profileId, "PHONE", surfaceOf(body.surface));
         await sql`
@@ -3068,10 +3091,29 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
 
         // Firebase is a third way in, and it needs the same question asked of
         // it. It is the one the Android app actually uses.
+        const fbRole = (existing[0].role as string) || "";
         const fbWrongDoor = surfaceRefusal(
-          surfaceOf(body.surface), (existing[0].role as string) || "",
+          surfaceOf(body.surface), fbRole,
           new URL(request.url).origin + "/admin");
         if (fbWrongDoor) return json(fbWrongDoor, 403);
+
+        // A clinician whose camps were all revoked has nothing to open.
+        //
+        // This check lived only on the SMS door — the console's — which is
+        // the one door a clinician can no longer use. So the only door they
+        // do use never asked, and a doctor removed from every camp kept
+        // signing in to the app. Revoking access has to mean revoked, and
+        // the question belongs wherever somebody actually knocks.
+        if (!(await canClinicianSignIn(sql, profileId, fbRole))) {
+          return json(
+            {
+              error:
+                "Your camp access has ended. Ask the school to assign you to a camp if this is wrong.",
+              code: "NO_ACTIVE_CAMP",
+            },
+            403
+          );
+        }
 
         const sessionToken = await mintSession(sql, profileId, "FIREBASE_PHONE", surfaceOf(body.surface));
         await sql`

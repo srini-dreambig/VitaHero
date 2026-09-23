@@ -1082,8 +1082,11 @@ describe("sessions", () => {
         { phone: "+919876543210", otp: "123456", attempts: 0,
           expires_at: new Date(Date.now() + 600_000).toISOString() },
       ] },
+      // A school administrator, because this is the console's door. What is
+      // under test is that a sign-in adds a session row rather than replacing
+      // the only one \u2014 true of whoever signs in.
       { match: /SELECT id, provisioned/, rows: [
-        { id: "ph_9876543210", provisioned: true, name: "Priya", role: "PARENT", school_id: null },
+        { id: "ph_9876543210", provisioned: true, name: "Asha", role: "SCHOOL_ADMIN", school_id: "sch1" },
       ] },
     ];
     const r = await call("/api/auth/phone/verify", {
@@ -1369,23 +1372,15 @@ describe("requesting a sign-in code", () => {
     expect(b.error).toContain("sign-in access");
   });
 
-  test("a provisioned doctor with no camps yet gets a code", async () => {
+  test("a doctor asking the SMS door is sent to the app's own sign-in", async () => {
+    // The SMS door is the console's, and the console is shut to clinicians.
+    // Their whole camp day is in the app, which signs in through Firebase.
     handlers = [
       { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PHYSICIAN" }] },
-      // Never assigned to anything: live 0, ever 0. This is "not yet", and the
-      // app has a screen that says so — it is not a closed door.
-      { match: /FROM vita_hero\.camp_staff/i, rows: [{ live: 0, ever: 0 }] },
-      { match: /FROM vita_hero\.phone_otps/i, rows: [] },
     ];
-    const res = await send("9876500011");
-    // Not 200: this test environment has no SMS provider, so the handler gets
-    // as far as trying to send and reports honestly that it could not. That is
-    // a delivery problem, and a different thing from the door being shut —
-    // which is exactly what is being asserted here.
-    expect(res.status).not.toBe(403);
-    const b = (await res.json()) as { code?: string; note?: string };
-    expect(b.code).toBeUndefined();
-    expect(b.note).toContain("could not deliver");
+    const res = await sendAs("9876500011", "app");
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code?: string }).code).toBe("USE_FIREBASE_OTP");
   });
 
   // ── the two products ──
@@ -1404,17 +1399,17 @@ describe("requesting a sign-in code", () => {
       body: JSON.stringify(surface ? { phone, surface } : { phone }),
     });
 
-  test("a doctor at the family app is let in, because that is where the screening happens", async () => {
+  test("and a parent is sent there too \u2014 one door per person", async () => {
+    // Nothing in the app has ever used this endpoint; it accepted "app"
+    // anyway, so an SMS code could have minted a full app session, clinical
+    // writes included, having never touched Firebase. No shipped client did
+    // that, which is not the same as it being impossible.
     handlers = [
-      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PHYSICIAN" }] },
-      { match: /FROM vita_hero\.camp_staff/i, rows: [{ live: 2, ever: 2 }] },
-      { match: /FROM vita_hero\.phone_otps/i, rows: [] },
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PARENT" }] },
     ];
-    const res = await sendAs("9876500011", "app");
-    // Not 403: the door is theirs. (Not 200 either — no SMS provider here.)
-    expect(res.status).not.toBe(403);
-    const b = (await res.json()) as { code?: string };
-    expect(b.code).toBeUndefined();
+    const res = await sendAs("9876543210", "app");
+    expect(res.status).toBe(403);
+    expect(((await res.json()) as { code?: string }).code).toBe("USE_FIREBASE_OTP");
   });
 
   test("a school administrator at the family app is turned round, with the console address", async () => {
@@ -1452,22 +1447,18 @@ describe("requesting a sign-in code", () => {
     expect(calls.some((c) => /phone_otps/i.test(c.text))).toBe(false);
   });
 
-  test("a client that says nothing is the family app, so parents keep working", async () => {
-    // Every installed copy of the app predates the field.
-    handlers = [
-      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PARENT" }] },
-      { match: /FROM vita_hero\.phone_otps/i, rows: [] },
-    ];
-    const res = await sendAs("9876543210");
-    expect(res.status).not.toBe(403);
-  });
 
-  test("a parent signing in to the app is not affected by any of this", async () => {
+  test("a caller that says nothing is the console here, not the app", async () => {
+    // The opposite default to everywhere else, and deliberately so. Elsewhere
+    // an absent surface means the app, because every installed copy predates
+    // the field. This endpoint is the console's own door, so a missing field
+    // is a console sign-in \u2014 defaulting it to the app would answer "use
+    // Firebase instead" to the one client that belongs here.
     handlers = [
-      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PARENT" }] },
+      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "SCHOOL_ADMIN" }] },
       { match: /FROM vita_hero\.phone_otps/i, rows: [] },
     ];
-    const res = await sendAs("9876543210", "app");
+    const res = await sendAs("9876500022");
     expect(res.status).not.toBe(403);
   });
 
@@ -1491,15 +1482,21 @@ describe("requesting a sign-in code", () => {
     expect(((await res.json()) as { code?: string }).code).toBe("WRONG_SURFACE_APP");
   });
 
-  test("a doctor whose camps were all revoked still gets a closed door", async () => {
-    handlers = [
-      { match: /FROM vita_hero\.profiles/i, rows: [{ provisioned: true, role: "PHYSICIAN" }] },
-      { match: /FROM vita_hero\.camp_staff/i, rows: [{ live: 0, ever: 3 }] },
-    ];
-    const res = await send("9876500011");
-    expect(res.status).toBe(403);
-    const b = (await res.json()) as { code?: string };
-    expect(b.code).toBe("NO_ACTIVE_CAMP");
+  test("a revoked clinician is stopped at the door they actually use", async () => {
+    // The revocation check used to sit only here, on the SMS door \u2014 the one
+    // door a clinician cannot use. So the door they do use never asked, and a
+    // doctor removed from every camp kept signing in. It now runs in
+    // firebase-verify, which is where they knock.
+    //
+    // Asserted at the unit level rather than here: firebase-verify validates
+    // its token against Google over the network, which this stubbed worker
+    // cannot reach. chain.test.ts drives canClinicianSignIn against a real
+    // database, revoking an assignment and watching it flip.
+    const src = await Bun.file("index.ts").text();
+    const fb = src.slice(src.indexOf('path === "/api/auth/phone/firebase-verify"'));
+    const handler = fb.slice(0, fb.indexOf("\n      // \u2500\u2500"));
+    expect(handler, "firebase-verify does not ask whether the clinician still has a camp")
+      .toContain("canClinicianSignIn");
   });
 });
 

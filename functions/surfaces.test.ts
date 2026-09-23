@@ -26,17 +26,31 @@ describe("which door is whose", () => {
     expect(r.error).toMatch(/app on your phone/i);
   });
 
-  test("a doctor is admitted to both, because they work in both", () => {
-    // The app is where a camp day actually happens: a dentist in a school hall
-    // has a phone, not a laptop. The console is where the same person reviews
-    // and releases afterwards.
-    expect(surfaceRefusal("app", "PHYSICIAN", CONSOLE)).toBeNull();
-    expect(surfaceRefusal("console", "PHYSICIAN", CONSOLE)).toBeNull();
+  test("a clinician belongs in the app and nowhere else", () => {
+    // The whole camp day is on the phone now — screening, approving, releasing
+    // — so the console has nothing left for them. It used to admit them from
+    // when it was the only place screening could happen, which meant a doctor
+    // could sign in and wander a school's roster, billing and staff while
+    // every button that mattered to them refused.
+    for (const role of ["PHYSICIAN", "SCREENER"]) {
+      expect(surfaceRefusal("app", role, CONSOLE), role).toBeNull();
+      const r = surfaceRefusal("console", role, CONSOLE)!;
+      expect(r, `${role} is still admitted to the console`).not.toBeNull();
+      expect(r.code).toBe("WRONG_SURFACE_CONSOLE");
+      // And told where their work is, rather than only that this is not it.
+      expect(r.error).toMatch(/VitaHero app/i);
+    }
   });
 
-  test("and so is a screener, who only ever works a camp day", () => {
-    expect(surfaceRefusal("app", "SCREENER", CONSOLE)).toBeNull();
-    expect(surfaceRefusal("console", "SCREENER", CONSOLE)).toBeNull();
+  test("and a parent's refusal is not a clinician's", () => {
+    // Same code, different sentence. "Open the app to see your child's
+    // results" is no use to a doctor, and "the phone you screen with" is no
+    // use to a parent.
+    const parent = surfaceRefusal("console", "PARENT", CONSOLE)!;
+    const doctor = surfaceRefusal("console", "PHYSICIAN", CONSOLE)!;
+    expect(parent.error).not.toBe(doctor.error);
+    expect(parent.error).toMatch(/your child/i);
+    expect(doctor.error).toMatch(/screen with/i);
   });
 
   test("an administrator is console-only: there is no app screen for that job", () => {

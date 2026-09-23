@@ -2139,6 +2139,42 @@ export async function assignCampStaff(
     throw new ApiError(403, "That person belongs to a different school", "WRONG_SCHOOL");
   }
 
+  // The same specialty rule assignDoctorToCamp enforces, applied to the other
+  // door. That one refuses a dermatologist because VitaHero has no skin check
+  // to record; this one took a profile id and asked only about the role, so
+  // the identical assignment succeeded by coming in the side entrance. The
+  // doctor then signs in, finds the child, opens the form and there is
+  // nothing in it — which is discovered in a school hall rather than here.
+  //
+  // Matched on the number, because that is what ties a profile to a directory
+  // entry: assignDoctorToCamp mints the profile as ph_<last ten digits>.
+  if (role === "PHYSICIAN") {
+    // Wrapped, and a failure means "no directory entry to judge by".
+    // assertCampAccess looks the specialty up in its own statement for the
+    // same reason spelled out there: camp work must not stop because the
+    // directory table is absent. Reaching for it unguarded here is exactly
+    // the coupling that note warns against, and it turned a missing table
+    // into a camp nobody could be staffed for.
+    const dir = await sql`
+      SELECT name, specialty FROM vita_hero.doctors
+      WHERE active = true AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10)
+            = ${profileId.replace(/^ph_/, "")}
+      LIMIT 1
+    `.catch(() => [] as Record<string, unknown>[]);
+    if (dir.length > 0) {
+      const specialty = String(dir[0].specialty || "");
+      if (screeningChecksFor(specialty).length === 0) {
+        throw new ApiError(
+          400,
+          `${dir[0].name as string} is ${specialty || "a doctor"} and VitaHero has no ` +
+            `screening form for that yet, so there would be nothing for them to record ` +
+            `at this camp.`,
+          "SPECIALTY_NOT_SCREENED"
+        );
+      }
+    }
+  }
+
   await sql`
     INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role)
     VALUES (${"cst_" + campId.slice(-10) + "_" + slugify(profileId).slice(0, 16)}, ${campId}, ${profileId}, ${role})

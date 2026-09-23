@@ -261,17 +261,17 @@ suite("a doctor added in the console can sign in", () => {
   //
   // What the door still refuses is a school administrator or VitaHero
   // operations: those jobs have no screen in the app at all.
-  test("a doctor's sign-in opens both products, because they work on both", async () => {
+  test("a doctor's sign-in is an app sign-in, and only that", async () => {
     const d = await find("Dr Meera Iyer");
     expect(d.canSignIn).toBe(true);
     const at = await doorOpensFor(d.phone);
     expect(at.role).toBe("PHYSICIAN");
 
     const CONSOLE = "https://vitahero.example/admin";
-    // Reviewing a camp's findings at a desk.
-    expect(surfaceRefusal("console", at.role!, CONSOLE)).toBeNull();
-    // Screening the children in the school hall, on the phone in their hand.
+    // The whole camp day is on the phone: screening, approving, releasing.
     expect(surfaceRefusal("app", at.role!, CONSOLE)).toBeNull();
+    // And the console has nothing left for them.
+    expect(surfaceRefusal("console", at.role!, CONSOLE)!.code).toBe("WRONG_SURFACE_CONSOLE");
   });
 
   test("and a backfilled doctor is the same, not a special case", async () => {
@@ -281,7 +281,8 @@ suite("a doctor added in the console can sign in", () => {
     expect(at.open).toBe(true);
     expect(at.role).toBe("PHYSICIAN");
     expect(surfaceRefusal("app", at.role!, "https://x/admin")).toBeNull();
-    expect(surfaceRefusal("console", at.role!, "https://x/admin")).toBeNull();
+    expect(surfaceRefusal("console", at.role!, "https://x/admin")!.code)
+      .toBe("WRONG_SURFACE_CONSOLE");
   });
 
   test("a school administrator is still turned round at the app, with somewhere to go", async () => {
