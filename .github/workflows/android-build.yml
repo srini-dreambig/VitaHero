@@ -96,9 +96,15 @@ jobs:
       # this one cannot — see the note there. An earlier version of this
       # comment claimed R8 "catches nothing a compile does not", which is
       # wrong in the one way that matters.
+      # -Pandroid.debug.obsoleteApi is temporary. Three AGP 9 deprecation
+      # warnings say applicationVariants, testVariants and unitTestVariants are
+      # being called, and nothing in this repository calls them — a plugin
+      # does. This is the flag AGP itself points at to name the caller, and
+      # knowing which plugin is what decides whether android.newDsl can be
+      # turned on. Remove it once that is answered.
       - name: Compile
         working-directory: android
-        run: ./gradlew :app:compileReleaseKotlin --stacktrace
+        run: ./gradlew :app:compileReleaseKotlin --stacktrace -Pandroid.debug.obsoleteApi=true
 
       # No :app:testReleaseUnitTest step. There is no android/app/src/test —
       # a task that runs zero tests and passes reads on the summary page as
