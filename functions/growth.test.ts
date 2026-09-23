@@ -18,7 +18,7 @@ import { estimatePercentile, referenceSex } from "./clinical";
 const TS = readFileSync(new globalThis.URL("./clinical.ts", import.meta.url), "utf8");
 const KT = readFileSync(
   new globalThis.URL(
-    "../android/app/src/main/java/com/rork/vitahero/data/GrowthStandards.kt",
+    "../android/app/src/main/java/kallam/healthcare/data/GrowthStandards.kt",
     import.meta.url,
   ),
   "utf8",

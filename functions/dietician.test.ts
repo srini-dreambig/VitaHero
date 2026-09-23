@@ -371,7 +371,7 @@ suite("what a dietician can reach", () => {
     // so a renamed field shows a dietician a child with no readings and no
     // plan, and no error anywhere.
     const src = readFileSync(
-      "../android/app/src/main/java/com/rork/vitahero/data/DieticianDtos.kt", "utf8");
+      "../android/app/src/main/java/kallam/healthcare/data/DieticianDtos.kt", "utf8");
     const fieldsOf = (name: string) => {
       const at = src.indexOf(`data class ${name}(`);
       if (at < 0) throw new Error(`${name} is gone from DieticianDtos.kt`);

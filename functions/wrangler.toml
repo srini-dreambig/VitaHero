@@ -1,9 +1,9 @@
 # The VitaHero backend, as a Worker you own.
 #
-# There was no wrangler config in this repository at all: the worker has only
-# ever been deployed by Rork's platform, from rork.json, to
-# kidhero-health-sync-backend.rork.app — their domain, their Cloudflare
-# account. This file is what makes it deployable to yours instead.
+# There was no wrangler config in this repository at all: the worker had only
+# ever been deployed by the platform this project started on, to a hostname on
+# their domain, in their Cloudflare account. This file is what makes it
+# deployable to yours instead.
 #
 # What it serves is both halves of the programme: /api/* for the Android app
 # and /admin for the console, which is a single HTML string built by portal.ts

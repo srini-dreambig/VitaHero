@@ -1,7 +1,6 @@
 node_modules
 .env
 .expo
-.rork
 
 # Build output from the console smoke runner. `$work` is a literal directory
 # somebody created by running the script with the variable unset, and 316KB of

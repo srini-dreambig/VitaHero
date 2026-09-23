@@ -854,7 +854,7 @@ describe("the console offers only what can actually be recorded", () => {
 describe("the app and the server agree about camps", () => {
   const kotlin = async (rel: string) => {
     const { readFileSync } = await import("node:fs");
-    return readFileSync("../android/app/src/main/java/com/rork/vitahero/" + rel, "utf8");
+    return readFileSync("../android/app/src/main/java/kallam/healthcare/" + rel, "utf8");
   };
 
   test("every status the server can send is a value the app can parse", async () => {

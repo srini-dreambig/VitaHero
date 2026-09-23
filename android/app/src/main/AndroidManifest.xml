@@ -33,7 +33,7 @@
         android:label="VitaHero"
         android:supportsRtl="true"
         android:networkSecurityConfig="@xml/network_security_config"
-        android:theme="@style/Theme.RorkApp">
+        android:theme="@style/Theme.VitaHero">
         <!-- Portrait only.
 
              Every screen in this app is laid out for a portrait phone, and
@@ -51,7 +51,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.RorkApp"
+            android:theme="@style/Theme.VitaHero"
             android:screenOrientation="portrait"
             android:launchMode="singleTask">
             <intent-filter>
@@ -99,11 +99,11 @@
         </provider>
 
         <receiver
-            android:name="com.rork.vitahero.data.NotificationReceiver"
+            android:name="kallam.healthcare.data.NotificationReceiver"
             android:exported="false" />
 
         <receiver
-            android:name="com.rork.vitahero.data.BootReceiver"
+            android:name="kallam.healthcare.data.BootReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

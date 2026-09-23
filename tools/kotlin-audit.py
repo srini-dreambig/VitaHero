@@ -27,7 +27,7 @@ from pathlib import Path
 
 # Resolved from this file rather than hardcoded, so the audit runs wherever
 # the repository is checked out.
-ROOT = Path(__file__).resolve().parent.parent / "android/app/src/main/java/com/rork/vitahero"
+ROOT = Path(__file__).resolve().parent.parent / "android/app/src/main/java/kallam/healthcare"
 FILES = sorted(ROOT.rglob("*.kt"))
 SRC = {f: f.read_text() for f in FILES}
 
@@ -201,8 +201,8 @@ for gone in ["deriveCampFlags", "ensureCampKidResults"]:
 
 # unused-import check for the file the change emptied
 kids_screen = SRC[ROOT / "ui/screens/KidsScreen.kt"]
-if "import com.rork.vitahero.data.HealthFlag" in kids_screen and "HealthFlag" not in \
-        kids_screen.replace("import com.rork.vitahero.data.HealthFlag", ""):
+if "import kallam.healthcare.data.HealthFlag" in kids_screen and "HealthFlag" not in \
+        kids_screen.replace("import kallam.healthcare.data.HealthFlag", ""):
     fail("KidsScreen.kt imports HealthFlag but no longer uses it")
 
 
@@ -265,17 +265,17 @@ for f, src in SRC.items():
 
 missing = set()
 for f, src in SRC.items():
-    for m in re.finditer(r"^import (com\.rork\.vitahero\.[\w.]+)", src, re.M):
+    for m in re.finditer(r"^import (kallam\.healthcare\.[\w.]+)", src, re.M):
         name = m.group(1)
         if name.endswith(".*"):
             continue
-        generated = ("com.rork.vitahero.BuildConfig", "com.rork.vitahero.R")
+        generated = ("kallam.healthcare.BuildConfig", "kallam.healthcare.R")
         if name not in declared and not name.startswith(generated):
             missing.add(f"{rel(f)} imports {name}, which nothing declares")
 for x in sorted(missing):
     fail(x)
 if not missing:
-    print(f"  ok  every com.rork.vitahero import resolves ({len(declared)} declarations)")
+    print(f"  ok  every kallam.healthcare import resolves ({len(declared)} declarations)")
 
 
 # ── 9b. imports nothing uses ────────────────────────────────

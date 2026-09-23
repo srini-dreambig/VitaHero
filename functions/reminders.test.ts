@@ -17,7 +17,7 @@ const SLOT_DATE = /^\d{2} [A-Z][a-z]{2} \d{4}$/;
 const SLOT_TIME = /^\d{2}:\d{2} (AM|PM)$/;
 
 const SCHEDULER = readFileSync(
-  new URL("../android/app/src/main/java/com/rork/vitahero/data/NotificationScheduler.kt", import.meta.url),
+  new URL("../android/app/src/main/java/kallam/healthcare/data/NotificationScheduler.kt", import.meta.url),
   "utf8",
 );
 

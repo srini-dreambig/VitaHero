@@ -20,7 +20,7 @@
 import { describe, expect, test, mock } from "bun:test";
 import { readFileSync } from "node:fs";
 
-const DATA = "../android/app/src/main/java/com/rork/vitahero/data";
+const DATA = "../android/app/src/main/java/kallam/healthcare/data";
 
 /** Every HTTP call in the app's network layer, read off the source. */
 function appCalls(): Array<{ method: string; path: string; where: string }> {

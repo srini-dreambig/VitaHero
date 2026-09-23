@@ -19,7 +19,7 @@ import { migrate } from "./migrate";
 import { campConsentForm, CONSENT_COPY, CONSENT_FORM_LANGS } from "./consent-form";
 import { DESIGNED_CHECKS } from "./clinical";
 
-const LOCALES = "../android/app/src/main/java/com/rork/vitahero/data/LocaleStrings.kt";
+const LOCALES = "../android/app/src/main/java/kallam/healthcare/data/LocaleStrings.kt";
 
 /**
  * The app's string table for one locale, for the keys the form reuses.
@@ -73,7 +73,7 @@ describe("the form's wording is the app's wording", () => {
     const src = readFileSync(LOCALES, "utf8");
     // Every key the consent screen renders, read off the screen itself.
     const screen = readFileSync(
-      "../android/app/src/main/java/com/rork/vitahero/ui/screens/CampConsentScreen.kt", "utf8");
+      "../android/app/src/main/java/kallam/healthcare/ui/screens/CampConsentScreen.kt", "utf8");
     const used = new Set((screen.match(/S\.(\w+)/g) || []).map((s) => s.slice(2)));
     // Headings and empty states are the app's own furniture; what has to match
     // is the wording of the questions and the answers.

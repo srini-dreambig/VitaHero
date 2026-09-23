@@ -2,10 +2,10 @@
 
 ## Live URLs
 
-- **Cloudflare backend + admin portal:** `https://kidhero-health-sync-backend.rork.app`
-- **Admin panel:** `https://kidhero-health-sync-backend.rork.app/admin`
-- **Privacy policy:** `https://kidhero-health-sync-backend.rork.app/privacy`
-- **Data deletion:** `https://kidhero-health-sync-backend.rork.app/data-deletion`
+- **Cloudflare backend + admin portal:** `https://vitahero.kallam.workers.dev`
+- **Admin panel:** `https://vitahero.kallam.workers.dev/admin`
+- **Privacy policy:** `https://vitahero.kallam.workers.dev/privacy`
+- **Data deletion:** `https://vitahero.kallam.workers.dev/data-deletion`
 - **Package name:** `kallam.healthcare`
 - **Upload signing SHA-256:** `DE:00:14:9D:0C:F3:6F:5C:9E:53:85:0E:60:90:7B:1C:61:71:1F:AD:FA:C8:26:65:E5:7D:70:91:74:36:90:A1`
 
@@ -15,7 +15,7 @@
 
 | Task | Status |
 |------|--------|
-| Google Play connected in Rork | ✅ Done |
+| Google Play developer account | ✅ Done |
 | Android app source + local build | ✅ Updated with the real VitaHero logo; `runChecks` passed |
 | Play Store icon, banner, screenshots | ✅ Regenerated with the real VitaHero logo and real app UI colours/layout |
 | Play Store listing text (en-US) | ✅ Verified correct (title, short + full description) |
@@ -59,7 +59,8 @@ Google will not let you apply for production until every item below is completed
 - **Create and roll out a release**
   - Go to **Testing → Internal testing**.
   - Click **Create release**.
-  - Upload the latest App Bundle (AAB) or use the one already published via Rork.
+  - Upload the App Bundle built by `.github/workflows/android-publish.yml`, or
+    one built locally with `./gradlew bundleRelease`.
   - Add release notes:
     ```
     First release of VitaHero. View school health camp reports, track growth, get diet tips, scan meals, and book doctor appointments — all in one secure app for parents.
@@ -74,7 +75,7 @@ Google will not let you apply for production until every item below is completed
   - **Upload listing images:** as described in step 1 above.
 
 - **Let us know about the content of your app**
-  - **Privacy policy:** Go to **Policy → App content → Privacy policy**. Enter `https://kidhero-health-sync-backend.rork.app/privacy`.
+  - **Privacy policy:** Go to **Policy → App content → Privacy policy**. Enter `https://vitahero.kallam.workers.dev/privacy`.
   - **Sign in details:** Go to **Policy → App content → App access**. If any feature requires login, provide test credentials. VitaHero uses phone-OTP login, so you can provide a test phone number and note that OTP is sent via SMS.
   - **Ads:** Go to **Policy → App content → Ads**. Select **No, this app does not contain ads**.
   - **Content rating:** Go to **Grow → Store presence → Content ratings**. Fill the questionnaire. For a health app for parents, the rating is typically **PEGI 3 / ESRB Everyone** with the **Health** category selected. This is quick and takes about 5 minutes.
@@ -97,7 +98,7 @@ Google will not let you apply for production until every item below is completed
     **Data processing:**
     - OTP codes are processed ephemerally and not stored.
     - Required encryption in transit: **Yes**.
-    - Account deletion mechanism: **Yes**, via `https://kidhero-health-sync-backend.rork.app/data-deletion`.
+    - Account deletion mechanism: **Yes**, via `https://vitahero.kallam.workers.dev/data-deletion`.
 
   - **Government apps:** Not applicable — leave as **No**.
   - **Financial features:** Not applicable — leave as **No**.
@@ -244,11 +245,11 @@ The admin portal is already live as part of the Cloudflare worker. It is a singl
 
 ### Access the admin panel
 ```
-https://kidhero-health-sync-backend.rork.app/admin
+https://vitahero.kallam.workers.dev/admin
 ```
 
 ### Set the admin key
-1. In the Rork project environment settings (or Cloudflare worker secrets), set `ADMIN_API_KEY` to a long, random string. This same key is used to log in to the admin panel.
+1. In the Cloudflare worker's secrets, set `ADMIN_API_KEY` to a long, random string. This same key is used to log in to the admin panel.
 2. If you want invite links to work, also set `INVITE_SIGNING_KEY` to a different random string.
 3. Set `ANDROID_CERT_SHA256` to the Play Console upload certificate SHA-256 so Android App Links auto-verify.
 4. Set `APP_PLAY_URL` to the Play Store URL once the app is published.

@@ -68,7 +68,7 @@ function URL2(base: string, db: string): string {
   return u.toString();
 }
 
-const DTOS = "../android/app/src/main/java/com/rork/vitahero/data/GuardianDtos.kt";
+const DTOS = "../android/app/src/main/java/kallam/healthcare/data/GuardianDtos.kt";
 
 /**
  * The fields a Kotlin data class declares, in order.

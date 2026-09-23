@@ -1,0 +1,261 @@
+package kallam.healthcare.data
+
+import androidx.compose.ui.graphics.Color
+import kallam.healthcare.ui.theme.FlagAlert
+import kallam.healthcare.ui.theme.FlagGood
+import kallam.healthcare.ui.theme.FlagNeutral
+import kallam.healthcare.ui.theme.FlagWatch
+
+enum class HealthFlag(val label: String, val color: Color) {
+    GOOD("On track", FlagGood),
+    WATCH("Needs attention", FlagWatch),
+    ALERT("See a doctor", FlagAlert),
+
+    /**
+     * Nothing has been measured yet — no camp has screened this, or the camp
+     * did not include this check. Distinct from GOOD on purpose: silence is
+     * not a clean bill of health, and showing it as one misleads a parent.
+     */
+    NOT_MEASURED("Not measured yet", FlagNeutral)
+}
+
+data class HealthMetric(
+    val title: String,
+    val value: String,
+    val flag: HealthFlag,
+    val note: String
+)
+
+data class GrowthPoint(
+    val id: String = "",
+    val label: String,
+    val height: Float, // cm
+    val weight: Float, // kg
+)
+
+data class Kid(
+    val id: String,
+    val name: String,
+    val age: Int,
+    val gender: String,
+    val school: String,
+    val grade: String,
+    val heightCm: Float,
+    val weightKg: Float,
+    val avatarColor: Long,
+    val overallScore: Int, // 0..100
+    val growth: List<GrowthPoint>,
+    val dental: HealthFlag,
+    val eyesight: HealthFlag,
+    val nutrition: HealthFlag,
+    val lastCheckup: String,
+    val source: String = "PARENT", // ADMIN = provisioned from a school camp (medical data is read-only)
+)
+
+/**
+ * The state of a camp, as the server actually reports it.
+ *
+ * This used to be UPCOMING and COMPLETED only — neither of which the school
+ * camp lifecycle produces. `CampStatus.valueOf` therefore threw on every
+ * partner camp and fell back to UPCOMING, so the "past camps" list was always
+ * empty, a camp whose results had been released still read as upcoming, and
+ * the reminder scheduler kept nudging families about camps that had already
+ * happened.
+ *
+ * UPCOMING and COMPLETED remain because a guardian's own camp entries, in the
+ * older personal camps table, still use them.
+ */
+enum class CampStatus {
+    SCHEDULED,
+    IN_PROGRESS,
+    SCREENED,
+    RELEASED,
+    CANCELLED,
+    UPCOMING,
+    COMPLETED;
+
+    /** Still to happen, or happening — worth a reminder and a consent chase. */
+    val isUpcoming: Boolean
+        get() = this == SCHEDULED || this == IN_PROGRESS || this == UPCOMING
+
+    /** Done. Results may or may not have been released yet. */
+    val isPast: Boolean
+        get() = this == SCREENED || this == RELEASED || this == COMPLETED
+}
+
+data class Camp(
+    val id: String,
+    val title: String,
+    val school: String,
+    val date: String,
+    val time: String,
+    val status: CampStatus,
+    /** Where the camp is. Empty when the school has not said. */
+    val venue: String = "",
+    /** The date guardians are asked to reply by; empty when none was set. */
+    val consentDeadline: String = "",
+    val checks: List<String>,
+    val resultSummary: String?,
+    val isPartnerCamp: Boolean = false,
+    val schoolId: String = "",
+    val schoolCampId: String = "",
+    val description: String = "",
+    val grades: List<String> = emptyList(),
+    val capacity: Int = 0,
+    val registeredKidIds: List<String> = emptyList(),
+)
+
+data class PartnerSchool(
+    val id: String,
+    val name: String,
+    val city: String,
+    val district: String,
+    val description: String,
+    val enrolledAt: String = "",
+    val kidId: String? = null,
+)
+
+data class GrowthAssessment(
+    val heightPercentile: Int,
+    val weightPercentile: Int,
+    val heightStatus: String,
+    val weightStatus: String,
+    val chartSource: String = "WHO/IAP 2007",
+)
+
+data class Doctor(
+    val id: String,
+    val name: String,
+    val specialty: String,
+    val hospital: String,
+    val rating: Float,
+    val nextSlot: String,
+    val avatarColor: Long,
+    val hospitalId: String = "",
+    val city: String = "",
+    val isCampPartner: Boolean = false,
+)
+
+data class Hospital(
+    val id: String,
+    val name: String,
+    val city: String,
+    val district: String,
+    val address: String,
+    val rating: Float,
+    val isCampPartner: Boolean,
+    val conductedCamps: Int,
+    val userCampLinked: Boolean,
+    val distanceKm: Float?,
+    val specialties: List<String>,
+    val doctors: List<Doctor>,
+)
+
+data class BookingDirectory(
+    val city: String,
+    val hospitals: List<Hospital>,
+    val specialties: List<String>,
+)
+
+data class BookingTimeSlot(
+    val label: String,
+    val date: String,
+    val time: String,
+)
+
+data class Appointment(
+    val id: String,
+    val doctorId: String = "",
+    val doctorName: String,
+    val specialty: String,
+    val kidName: String,
+    val date: String,
+    val time: String
+)
+
+data class MealItem(
+    val id: String,
+    val time: String,
+    val name: String,
+    val detail: String,
+    val kcal: Int,
+    var eaten: Boolean
+)
+
+data class Badge(
+    val id: String,
+    /**
+     * Locale keys, not English. A badge is chrome a child reads, and it was
+     * the last place in the app still hardcoding English.
+     */
+    val titleKey: String,
+    val descriptionKey: String,
+    val earned: Boolean,
+    val progress: Float, // 0..1
+    val accent: Long,
+    val targetCount: Int = 7,
+    val currentCount: Int = 0
+)
+
+data class LeaderEntry(
+    val rank: Int,
+    val name: String,
+    val points: Int,
+    val isYou: Boolean
+)
+
+data class StreakInfo(
+    val currentStreak: Int = 0,
+    val bestStreak: Int = 0,
+    val lastLogDate: String = ""
+)
+
+data class CoParent(
+    val id: String,
+    val name: String,
+    val relation: String,
+    val joinedDate: String = ""
+)
+
+data class PersonalizedDietTip(
+    val greeting: String,
+    val insight: String,
+    val suggestion: String,
+    val funFact: String
+)
+
+data class AppNotification(
+    val id: String,
+    val title: String,
+    val body: String,
+    val time: String,
+    val type: NotificationType,
+    val unread: Boolean
+)
+
+/**
+ * What a notification is about.
+ *
+ * CONSENT, RESULT and REFERRAL are the school programme: a permission request
+ * waiting on this guardian, a released set of camp results, and a follow-up a
+ * physician suggested. The feed used to carry none of them — it read the
+ * family's own saved camps and nothing else — so the three things the
+ * programme actually does to a family happened in silence unless the parent
+ * caught the SMS, and only an urgent result sends one.
+ *
+ * An unknown value from the server falls back to CAMP rather than throwing
+ * (see BackendDataLoader), so an older build shows these with a calendar icon
+ * instead of crashing on them.
+ */
+enum class NotificationType { CAMP, CHECKUP, DIET, REWARD, CONSENT, RESULT, REFERRAL }
+
+/**
+ * A measurement as a parent should see it.
+ *
+ * Height and weight default to zero for a child no camp has screened, and
+ * "0 cm" is not a height — it is the absence of one, and it must not be
+ * rendered as a number.
+ */
+fun Kid.heightText(): String = if (heightCm > 0f) "${heightCm.toInt()} cm" else "\u2014"
+
+fun Kid.weightText(): String = if (weightKg > 0f) "${weightKg.toInt()} kg" else "\u2014"

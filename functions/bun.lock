@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "rork-functions",
+      "name": "vitahero-functions",
       "dependencies": {
         "@neondatabase/serverless": "^1.1.0",
       },

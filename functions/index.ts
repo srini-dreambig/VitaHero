@@ -227,7 +227,7 @@ const OTP_MAX_ATTEMPTS = 5;
 /**
  * The applicationId, which is what Android verifies an App Link against.
  *
- * Not the Kotlin namespace. This said com.rork.vitahero — the package the
+ * Not the Kotlin namespace. This said kallam.healthcare — the package the
  * source lives in — while the app installs as kallam.healthcare, so the
  * assetlinks.json this worker serves named an app nobody has. App Link
  * verification fails on a mismatch, silently, and every invite link opens a

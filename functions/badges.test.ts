@@ -15,7 +15,7 @@ import { SCHEMA_STEPS } from "./index";
 import { migrate } from "./migrate";
 import { BADGE_IDS, kidBadges } from "./badges";
 
-const APP = "../android/app/src/main/java/com/rork/vitahero";
+const APP = "../android/app/src/main/java/kallam/healthcare";
 
 describe("the app and the server agree on what a badge is", () => {
   test("every id the server sends, the app has words for", () => {

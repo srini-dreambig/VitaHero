@@ -1,9 +1,9 @@
 # Deploy the backend and admin console to your own Cloudflare account.
 #
-# Until this existed the worker was only deployable through Rork's platform,
-# to kidhero-health-sync-backend.rork.app — their domain, their account, and
-# no way to ship a fix without them. functions/wrangler.toml plus this is the
-# whole of what it takes to own it.
+# Until this existed the worker was only deployable through the platform this
+# project started on — their domain, their account, and no way to ship a fix
+# without them. functions/wrangler.toml plus this is the whole of what it takes
+# to own it.
 #
 # Set up, once:
 #
@@ -23,8 +23,8 @@
 #
 # After the first deploy the console is at
 # https://vitahero.<your-subdomain>.workers.dev/admin, and the Android
-# app needs RORK_FUNCTIONS_URL pointed at that origin — otherwise it keeps
-# talking to Rork's copy, which is the whole thing you are moving away from.
+# app needs VITAHERO_BACKEND_URL pointed at that origin — otherwise it keeps
+# talking to whichever worker the build defaulted to.
 name: Deploy worker
 
 on:

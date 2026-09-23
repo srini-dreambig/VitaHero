@@ -1,4 +1,4 @@
-# Cloudflare Worker secrets (set in Rork dashboard or `wrangler secret put`)
+# Cloudflare Worker secrets (set with `wrangler secret put`)
 # Copy to functions/.dev.vars for local worker testing — never commit real values.
 
 DATABASE_URL=postgresql://user:pass@host/neondb?sslmode=require
@@ -27,8 +27,14 @@ TWILIO_ACCOUNT_SID=
 TWILIO_AUTH_TOKEN=
 TWILIO_FROM=
 
-# Rork Toolkit — used server-side for AI diet tips (NOT in the Android app)
-TOOLKIT_URL=https://toolkit.rork.app
+# Optional. An OpenAI-compatible chat endpoint, used server-side for AI diet
+# tips and the remote half of food recognition — never called from the Android
+# app. Both features return null and degrade quietly when these are unset.
+#
+# The request path is still the shape the original vendor used
+# (/v2/vercel/v1/chat/completions), so pointing this at a different provider
+# means changing that path in functions/index.ts as well.
+TOOLKIT_URL=
 TOOLKIT_SECRET_KEY=
 
 # Closed-app admin import + invites

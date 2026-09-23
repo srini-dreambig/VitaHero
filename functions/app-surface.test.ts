@@ -22,7 +22,7 @@ import {
   DESIGNED_CHECKS, PLANNED_CHECKS, summariseForApp, specialtyOptions, screeningChecksFor,
 } from "./clinical";
 
-const APP = "../android/app/src/main/java/com/rork/vitahero";
+const APP = "../android/app/src/main/java/kallam/healthcare";
 const read = (f: string) => readFileSync(`${APP}/${f}`, "utf8");
 
 /** The tabs KidDetailScreen offers, read off the enum rather than assumed. */
@@ -284,12 +284,16 @@ describe("the app's clinician form writes what the clinical rules read", () => {
 // the link's host and checking that it names the package of the app claiming
 // it. The worker serves that file with ANDROID_PACKAGE in it.
 //
-// That constant said com.rork.vitahero — the package the Kotlin lives in —
-// while the app installs as kallam.healthcare. Two plausible-looking names
-// for the same app, and nothing compared them. So verification failed for
-// every install, silently, and every invite link opened a browser instead of
-// the app. The Play listing URL the worker falls back to was wrong the same
-// way, pointing at a listing that does not exist.
+// That constant once held the Kotlin package while the app installed under a
+// different applicationId. Two plausible-looking names for the same app, and
+// nothing compared them. So verification failed for every install, silently,
+// and every invite link opened a browser instead of the app. The Play listing
+// URL the worker falls back to was wrong the same way, pointing at a listing
+// that does not exist.
+//
+// The two names have since been unified — the Kotlin package was renamed to
+// the applicationId — so the mismatch is harder to reintroduce. Harder is not
+// impossible, which is why both tests below are still here.
 describe("the worker names the app the way Android does", () => {
   const gradle = readFileSync("../android/app/build.gradle.kts", "utf8");
   const worker = readFileSync("./index.ts", "utf8");
@@ -309,16 +313,23 @@ describe("the worker names the app the way Android does", () => {
     ).toBe(applicationId);
   });
 
-  test("and the namespace is deliberately not the applicationId", () => {
-    // Guards the fix as much as the bug. If these two ever become the same
-    // string, the test above stops proving anything, because picking either
-    // one would pass.
+  test("and the source package is the same name, on purpose", () => {
+    // These used to differ, and the test above used that difference to prove
+    // it was reading the right one. They are deliberately the same string now:
+    // one name for the app in the manifest, in Play, in Firebase and in the
+    // imports. So the guard inverts — a future divergence should be somebody's
+    // decision rather than a typo, and this is where they find out.
+    //
+    // If they ever do diverge, the test above regains its teeth by itself,
+    // because picking the wrong one would then fail it.
     const namespace = gradle.match(/namespace\s*=\s*"([^"]+)"/)?.[1];
-    expect(namespace).toBeTruthy();
+    expect(namespace, "namespace not found in build.gradle.kts").toBeTruthy();
     expect(
       namespace,
-      "namespace and applicationId are now equal, so the check above no longer distinguishes them"
-    ).not.toBe(applicationId);
+      `namespace is "${namespace}" and applicationId is "${applicationId}". They were ` +
+        `unified on purpose — if you are splitting them again, say so here and make sure ` +
+        `ANDROID_PACKAGE in the worker still follows the applicationId`
+    ).toBe(applicationId);
   });
 });
 
