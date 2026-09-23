@@ -35,7 +35,12 @@ const IN_ORDER = [
   "question_messages", "question_threads", "correction_requests", "data_rights_log",
   "record_access", "consent_log", "camp_participants", "camp_registrations",
   "camp_staff", "referrals", "appointments", "growth_points", "symptom_events",
-  "meal_items", "ai_diet_tips", "streaks", "school_camps", "camps",
+  "meal_items", "ai_diet_tips", "streaks", "kid_badges",
+  // A plan is about a child and an assignment is about a school, so both go
+  // with the programme. The dietician directory itself is reference data and
+  // is handled with the doctors, below.
+  "diet_plans", "dietician_schools",
+  "school_camps", "camps",
   "invoice_lines", "invoices", "school_contracts", "roster_batches",
   "import_batches", "school_enrollments", "school_classes", "co_parents",
   "kids", "phone_otps", "sms_log", "schools",
@@ -52,11 +57,13 @@ const IN_ORDER = [
  * ticked by default now: a button called "Empty the programme" behind the
  * words DELETE EVERYTHING should mean it unless you say otherwise.
  */
-const DIRECTORY = ["doctors", "hospitals"];
+const DIRECTORY = ["doctors", "dieticians", "hospitals"];
 const LIBRARY = ["library_articles"];
 
 /** Roles that go. Operations is absent on purpose — see resetProgramme. */
-const ROLES_REMOVED = ["PARENT", "SCHOOL_ADMIN", "SCREENER", "PHYSICIAN", "REVOKED"];
+const ROLES_REMOVED = [
+  "PARENT", "SCHOOL_ADMIN", "SCREENER", "PHYSICIAN", "DIETICIAN", "REVOKED",
+];
 
 async function countOf(sql: Sql, table: string, where = ""): Promise<number> {
   try {
@@ -90,7 +97,7 @@ export async function previewReset(sql: Sql, actor: Actor) {
 
   const [
     schools, camps, children, guardians, findings, referrals, photos, staff, questions,
-    hospitals, doctors, articles,
+    hospitals, doctors, dieticians, articles,
   ] = await Promise.all([
     countOf(sql, "schools"),
     countOf(sql, "school_camps"),
@@ -99,10 +106,11 @@ export async function previewReset(sql: Sql, actor: Actor) {
     countOf(sql, "camp_findings"),
     countOf(sql, "referrals"),
     countOf(sql, "finding_photos"),
-    countOf(sql, "profiles", "WHERE role IN ('SCHOOL_ADMIN','SCREENER','PHYSICIAN')"),
+    countOf(sql, "profiles", "WHERE role IN ('SCHOOL_ADMIN','SCREENER','PHYSICIAN','DIETICIAN')"),
     countOf(sql, "question_threads"),
     countOf(sql, "hospitals"),
     countOf(sql, "doctors"),
+    countOf(sql, "dieticians"),
     countOf(sql, "library_articles"),
   ]);
 
@@ -115,7 +123,10 @@ export async function previewReset(sql: Sql, actor: Actor) {
     // much of it there is, so ticking or unticking is an informed decision
     // rather than a guess.
     optional: {
-      directory: { hospitals, doctors, total: hospitals + doctors },
+      directory: {
+        hospitals, doctors, dieticians,
+        total: hospitals + doctors + dieticians,
+      },
       library: { articles, total: articles },
     },
     // The one thing that is never a choice, and why.
@@ -178,6 +189,7 @@ export async function resetProgramme(
     ...before.counts,
     hospitals: take.directory ? before.optional.directory.hospitals : 0,
     doctors: take.directory ? before.optional.directory.doctors : 0,
+    dieticians: take.directory ? before.optional.directory.dieticians : 0,
     articles: take.library ? before.optional.library.articles : 0,
   };
 

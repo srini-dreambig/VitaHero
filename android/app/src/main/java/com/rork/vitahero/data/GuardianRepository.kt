@@ -131,6 +131,18 @@ class GuardianRepository {
     suspend fun campResult(campId: String, kidId: String): CampResultDto =
         getOr("/api/camps/result", CampResultDto(), mapOf("camp_id" to campId, "kid_id" to kidId))
 
+    // ─── The diet plan ──────────────────────────────────────
+
+    /**
+     * The plan a dietician wrote for this child, or null when there is none.
+     *
+     * Null covers both "nobody has written one" and "the call did not land",
+     * and here that is the right conflation: neither is something to put on a
+     * parent's screen, and the screen simply does not draw the card.
+     */
+    suspend fun dietPlan(kidId: String): DietPlanDto? =
+        getOr("/api/me/diet-plan", GuardianDietPlanDto(), mapOf("kid_id" to kidId)).plan
+
     // ─── Photographs ────────────────────────────────────────
 
     suspend fun photos(kidId: String): List<FindingPhotoDto> =

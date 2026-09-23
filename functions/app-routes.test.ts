@@ -31,6 +31,10 @@ function appCalls(): Array<{ method: string; path: string; where: string }> {
     // exactly why it belongs in this list: those routes were written for a
     // browser, and nothing else would notice if one moved.
     "ClinicianRepository.kt",
+    // The dietician's half. Its own routes rather than the admin ones,
+    // because a dietician is not an administrator and the admin router turns
+    // away any role outside its staff list.
+    "DieticianRepository.kt",
   ];
   const out = new Map<string, { method: string; path: string; where: string }>();
 

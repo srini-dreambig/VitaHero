@@ -727,6 +727,11 @@ export const PORTAL_HTML = `<!doctype html>
       forceOffline: false, syncRejects: null,
       photos: null, photosKid: null, photoOpen: null,
       hospitals: null, doctors: null, hosForm: null, docForm: null, hosQuery: "",
+      // The dietician directory: the list, the form, the search box, and
+      // which row's school picker is open. Separate from the doctors above
+      // because a dietician has no specialty and no hospital, and putting
+      // them in that table would put them in a parent's referral list.
+      dieticians: null, dieForm: null, dieQuery: "",
       // The doctors table has its own filter and search: a directory of any
       // size is unusable without them, and the endpoint has always accepted
       // both — the console simply never sent either.
@@ -1093,6 +1098,13 @@ export const PORTAL_HTML = `<!doctype html>
       w.close();
       S.error = e.message || "Could not build that page."; render();
     });
+  }
+
+  // "1 dieticians" is the kind of thing that makes a screen look unfinished,
+  // and this screen is the one asking somebody to type DELETE EVERYTHING.
+  function plural(n, word) {
+    var c = Number(n) || 0;
+    return c + " " + word + (c === 1 ? "" : "s");
   }
 
   function api(path, opts) {
@@ -5021,6 +5033,142 @@ export const PORTAL_HTML = `<!doctype html>
       });
   }
 
+  function loadDieticians() {
+    run(api("/api/admin/dieticians" + (S.dieQuery ? "?q=" + encodeURIComponent(S.dieQuery) : "")),
+      function (d) {
+        S.dieticians = d; S.view = "dieticians"; S.dieForm = null;
+        // The school picker needs the school list; a directory screen with no
+        // schools to assign is a screen with a dead dropdown on it.
+        if (S.schools && S.schools.length) { render(); return; }
+        api("/api/admin/schools").then(
+          function (r) { S.schools = r.schools || []; },
+          function () { S.schools = []; }
+        ).then(render);
+      });
+  }
+
+  function viewDieticians() {
+    if (!S.dieticians) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
+    var rows = S.dieticians.dieticians || [];
+
+    function save() {
+      run(api("/api/admin/dieticians", { method: "POST", body: S.dieForm }), function (r) {
+        S.notice = (r && r.signInHint) || "Saved.";
+        S.dieForm = null; loadDieticians();
+      });
+    }
+    function retire(d) {
+      if (!confirm("Retire " + d.name + "?\\n\\nTheir sign-in stops working and their schools are "
+          + "taken away. Plans they have already written stay with the families.")) return;
+      run(api("/api/admin/dieticians/" + encodeURIComponent(d.id), { method: "DELETE" }),
+        function () { S.notice = d.name + " is retired."; loadDieticians(); });
+    }
+    function restore(d) {
+      run(api("/api/admin/dieticians", { method: "POST", body: {
+        id: d.id, name: d.name, phone: d.phone, qualification: d.qualification,
+        city: d.city, active: true,
+      } }), function (r) { S.notice = (r && r.signInHint) || "Restored."; loadDieticians(); });
+    }
+    function setSchool(d, schoolId, on) {
+      if (!schoolId) return;
+      run(api("/api/admin/dieticians/" + encodeURIComponent(d.id) + "/schools", {
+        method: "POST", body: { schoolId: schoolId, active: on },
+      }), function () {
+        S.notice = on ? "Assigned." : "Removed."; loadDieticians();
+      });
+    }
+
+    var f = S.dieForm;
+    var bindDie = function (k) {
+      return function (e) { S.dieForm[k] = e.target.value; };
+    };
+
+    return el("div", null,
+      el("div", { class: "msg info" },
+        "A dietician works across a school rather than at one camp, so they are assigned to "
+        + "schools, not to camps. They see growth, haemoglobin and the food log for children "
+        + "at their schools \u2014 not the dental, eye or illness record \u2014 and they write "
+        + "the diet plan a family reads in the app."),
+      el("div", { class: "tbar" },
+        el("input", { type: "text", value: S.dieQuery || "",
+          placeholder: "Name or mobile",
+          onchange: function (e) { S.dieQuery = e.target.value; loadDieticians(); } }),
+        el("div", { style: "flex:1" }),
+        el("span", { class: "cnt" }, rows.length + (rows.length === 1 ? " dietician" : " dieticians")),
+        el("button", { class: "pri", onclick: function () {
+          set({ dieForm: { name: "", phone: "", qualification: "", city: "", active: true } });
+        } }, icon("plus", 14), " Add a dietician")),
+
+      f ? el("div", { class: "card", style: "margin-bottom:12px" }, el("div", { class: "card-b" },
+        el("h3", null, f.id ? "Edit dietician" : "Add a dietician"),
+        el("div", { class: "g2" },
+          el("div", { class: "fld" }, el("label", null, "Name"),
+            el("input", { value: f.name, onchange: bindDie("name") })),
+          el("div", { class: "fld" }, el("label", null, "Mobile number"),
+            el("input", { value: f.phone, onchange: bindDie("phone"),
+              placeholder: "10-digit mobile" })),
+          el("div", { class: "fld" }, el("label", null, "Qualification"),
+            el("input", { value: f.qualification, onchange: bindDie("qualification"),
+              placeholder: "e.g. RD, MSc Nutrition" })),
+          el("div", { class: "fld" }, el("label", null, "City"),
+            el("input", { value: f.city, onchange: bindDie("city") }))),
+        el("p", { class: "muted", style: "font-size:12.5px;margin-top:8px" },
+          "The mobile number is how they sign in to the app \u2014 a one-time code goes to it. "
+          + "A number that already belongs to a parent or a clinician is refused."),
+        el("div", { class: "row", style: "margin-top:10px" },
+          el("button", { class: "pri", disabled: S.busy, onclick: save }, "Save"),
+          el("button", { onclick: function () { set({ dieForm: null }); } }, "Cancel")))) : null,
+
+      rows.length === 0
+        ? el("div", { class: "card" }, el("div", { class: "empty" },
+            "No dieticians yet. Add one and assign them a school."))
+        : el("div", { class: "tw" }, el("table", null,
+            el("thead", null, el("tr", null,
+              el("th", null, "Name"), el("th", null, "Mobile"), el("th", null, "Qualification"),
+              el("th", null, "Schools"), el("th", null, ""))),
+            el("tbody", null, rows.map(function (d) {
+              return el("tr", null,
+                el("td", null, el("b", null, d.name),
+                  d.active ? null : el("span", { class: "pill mute", style: "margin-left:6px" }, "Retired")),
+                el("td", { class: "mono" }, d.phone),
+                el("td", null, d.qualification || el("span", { class: "muted" }, "\u2014")),
+                el("td", null,
+                  d.schools.length === 0
+                    ? el("span", { class: "muted", style: "font-size:12.5px" }, "None yet")
+                    : el("div", { class: "row", style: "gap:4px;flex-wrap:wrap" },
+                        d.schools.map(function (sc) {
+                          // A chip, not a status pill: .pill shouts its text
+                          // in capitals, which is right for SCREENED and
+                          // wrong for a school's name.
+                          return el("span", { class: "tg" }, sc.name,
+                            el("button", { class: "sm", style: "margin-left:4px",
+                              title: "Remove",
+                              onclick: function () { setSchool(d, sc.schoolId, false); } }, "\u00d7"));
+                        })),
+                  d.active
+                    ? el("select", { style: "width:auto;margin-top:6px",
+                        onchange: function (e) { setSchool(d, e.target.value, true); e.target.value = ""; } },
+                        [el("option", { value: "" }, "\u2014 assign a school \u2014")].concat(
+                          (S.schools || []).filter(function (sc) {
+                            for (var i = 0; i < d.schools.length; i++) {
+                              if (d.schools[i].schoolId === sc.id) return false;
+                            }
+                            return true;
+                          }).map(function (sc) {
+                            return el("option", { value: sc.id }, sc.name);
+                          })))
+                    : null),
+                el("td", null, el("div", { class: "row", style: "gap:6px" },
+                  el("button", { class: "sm", onclick: function () {
+                    set({ dieForm: { id: d.id, name: d.name, phone: d.phone,
+                      qualification: d.qualification, city: d.city, active: d.active } });
+                  } }, "Edit"),
+                  d.active
+                    ? el("button", { class: "sm dang", onclick: function () { retire(d); } }, "Retire")
+                    : el("button", { class: "sm", onclick: function () { restore(d); } }, "Restore"))));
+            })))));
+  }
+
   function viewHospitals() {
     if (!S.hospitals) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var canEdit = S.hospitals.canEdit;
@@ -5510,7 +5658,8 @@ export const PORTAL_HTML = `<!doctype html>
               icon("search", 14), " Find")),
           el("div", { class: "hint" },
             "Searches guardians, school contacts, administrators, screeners, physicians, "
-            + "the doctor directory and the hospitals \u2014 all at once, across every school."))),
+            + "dieticians, the doctor directory and the hospitals \u2014 all at once, "
+            + "across every school."))),
 
       !d ? null
         : el("div", null,
@@ -5633,9 +5782,10 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "card-h" }, el("h2", null, "Also remove")),
         el("div", { class: "card-b" },
           el("div", { class: "row" },
-            option("resetDirectory", "Hospitals & doctors",
-              d.optional.directory.hospitals + " hospitals, "
-              + d.optional.directory.doctors + " doctors",
+            option("resetDirectory", "Hospitals, doctors & dieticians",
+              plural(d.optional.directory.hospitals, "hospital") + ", "
+              + plural(d.optional.directory.doctors, "doctor") + ", "
+              + plural(d.optional.directory.dieticians, "dietician"),
               d.optional.directory.total),
             option("resetLibrary", "Reading library", "articles a guardian is shown",
               d.optional.library.total)),
@@ -5695,6 +5845,7 @@ export const PORTAL_HTML = `<!doctype html>
           }) : null,
           isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
           isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
+          isOps() ? navItem("users", "Dieticians", "dieticians", loadDieticians) : null,
           isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
           // Parents sit beside Schools rather than inside one. A guardian
           // belongs to the programme, not to a school: they move between
@@ -5740,6 +5891,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.view === "library") return "Reading for families";
     if (S.view === "parents") return "Parents";
     if (S.view === "hospitals") return "Hospitals & doctors";
+    if (S.view === "dieticians") return "Dieticians";
     if (S.view === "oversight") return "Oversight";
     return "VitaHero";
   }
@@ -5804,6 +5956,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.view === "newSchool") return "/schools/new";
     if (S.view === "schools") return "/schools";
     if (S.view === "hospitals") return "/hospitals";
+    if (S.view === "dieticians") return "/dieticians";
     if (S.view === "library") return "/library";
     if (S.view === "mycamps") return "/my-camps";
     return "/overview";
@@ -5897,6 +6050,7 @@ export const PORTAL_HTML = `<!doctype html>
       else if (S.view === "mycamps") body = viewMyCamps();
       else if (S.view === "library") body = viewLibrary();
       else if (S.view === "hospitals") body = viewHospitals();
+      else if (S.view === "dieticians") body = viewDieticians();
       else if (S.view === "oversight") body = viewOversight();
       else if (S.view === "schools") body = viewSchools();
       else if (S.view === "parents") body = viewParents();

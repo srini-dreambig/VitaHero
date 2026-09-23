@@ -269,8 +269,50 @@ export async function listArticles(sql: Sql, actor: Actor) {
   return { articles: rows.map(mapArticle), checkTypes: [...CHECK_TYPES], locales: [...LOCALES] };
 }
 
+/**
+ * C4 — a dietician may write for the shelf, within their own shelf-space.
+ *
+ * The publishing route already existed and was operations-only, which is the
+ * smallest item on the dietician track: this is a permission change and an
+ * authoring screen, not a new system.
+ *
+ * What a dietician may not do is edit or delete somebody else's article. The
+ * library is what a family reads when a result worries them, and a person
+ * brought in to advise on food should not be able to rewrite the page about
+ * a child's eyesight.
+ */
+async function assertMayEdit(
+  sql: Sql, actor: Actor, slug: string, locale: string,
+) {
+  if (isOpsRole(actor.role)) return;
+  if (actor.role !== "DIETICIAN") {
+    throw new ApiError(403, "The library is edited by VitaHero operations", "OPS_REQUIRED");
+  }
+  const rows = await sql`
+    SELECT created_by FROM vita_hero.library_articles
+    WHERE slug = ${slug} AND locale = ${locale} LIMIT 1
+  `;
+  if (rows.length === 0) return; // a new article is theirs
+  if (String(rows[0].created_by || "") !== actor.profileId) {
+    throw new ApiError(
+      403,
+      "That article was written by somebody else. You can write your own.",
+      "NOT_YOUR_ARTICLE",
+    );
+  }
+}
+
+/** The articles this author has written. The only list a dietician gets. */
+export async function myArticles(sql: Sql, actor: Actor) {
+  const rows = await sql`
+    SELECT * FROM vita_hero.library_articles
+    WHERE created_by = ${actor.profileId} ORDER BY updated_at DESC
+  `;
+  return { articles: rows.map(mapArticle), checkTypes: [...CHECK_TYPES], locales: [...LOCALES] };
+}
+
 export async function upsertArticle(sql: Sql, actor: Actor, body: Record<string, unknown>) {
-  if (!isOpsRole(actor.role)) {
+  if (!isOpsRole(actor.role) && actor.role !== "DIETICIAN") {
     throw new ApiError(403, "The library is edited by VitaHero operations", "OPS_REQUIRED");
   }
   const slug = String(body.slug || "").trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "");
@@ -295,6 +337,10 @@ export async function upsertArticle(sql: Sql, actor: Actor, body: Record<string,
   const maxAge = Math.min(99, Number(body.maxAge) || 99);
   if (minAge > maxAge) throw new ApiError(400, "The age range is back to front", "BAD_AGE_RANGE");
 
+  // After validation, before the write: a refusal about whose article this is
+  // should not come before a refusal about the article being unreadable.
+  await assertMayEdit(sql, actor, slug, locale);
+
   await sql`
     INSERT INTO vita_hero.library_articles
       (id, slug, locale, title, summary, body, check_types, flags, min_age, max_age, published, created_by, updated_at)
@@ -311,6 +357,9 @@ export async function upsertArticle(sql: Sql, actor: Actor, body: Record<string,
 }
 
 export async function deleteArticle(sql: Sql, actor: Actor, slug: string, locale: string) {
+  // Deletion stays with operations even for an author's own article. Taking a
+  // page off the shelf that a family has been sent to is a decision about the
+  // programme, not about one article.
   if (!isOpsRole(actor.role)) {
     throw new ApiError(403, "The library is edited by VitaHero operations", "OPS_REQUIRED");
   }

@@ -34,8 +34,14 @@ export type Surface = "app" | "console";
  * data on it — it is their assigned camps, the children on those camps, and
  * the screening forms their own specialty covers. A parent sees their own
  * children and nothing else. Same door, different building behind it.
+ *
+ * A dietician is the same argument again. Their work is continuous rather than
+ * camp-shaped — a plan runs for weeks and the food log fills in every day —
+ * and the console is no more use to them than it is to a dentist in a school
+ * hall. They see the children at the schools they are assigned to, and of
+ * those children only what bears on diet.
  */
-export const APP_ROLES = ["PARENT", "PHYSICIAN", "SCREENER"];
+export const APP_ROLES = ["PARENT", "PHYSICIAN", "SCREENER", "DIETICIAN"];
 /**
  * Who the console admits: the people who run the programme, and nobody else.
  *
@@ -70,6 +76,7 @@ const HUMAN: Record<string, string> = {
   SCHOOL_ADMIN: "a school administrator",
   SCREENER: "a member of a screening team",
   PHYSICIAN: "a doctor",
+  DIETICIAN: "a dietician",
   ADMIN: "VitaHero operations",
   SUPERADMIN: "VitaHero operations",
 };
@@ -103,6 +110,13 @@ export function surfaceRefusal(
     };
   }
   const clinical = role === "PHYSICIAN" || role === "SCREENER";
+  if (role === "DIETICIAN") {
+    return {
+      error: "Your schools, the children on them and the plans you write are in the " +
+        "VitaHero app. There is nothing for a dietician to do in the console.",
+      code: "WRONG_SURFACE_CONSOLE",
+    };
+  }
   return {
     error: clinical
       ? "Screening, approval and release happen in the VitaHero app, on the phone you " +
@@ -142,6 +156,26 @@ export function clinicalSurfaceRefusal(
     error:
       "Screening, approval and release happen in the VitaHero app, on the phone the " +
       "clinician is holding at the camp. The console cannot record them.",
+    code: "APP_ONLY",
+  };
+}
+
+/**
+ * The same rule for a dietician, with the sentence that fits their job.
+ *
+ * Same gate, same code, different words. Telling a dietician that "screening,
+ * approval and release happen in the app" is telling them about somebody
+ * else's work, and the point of a refusal is that the person reading it knows
+ * what to do next.
+ */
+export function dieticianSurfaceRefusal(
+  surface: string | undefined
+): { error: string; code: string } | null {
+  if (surface === "app") return null;
+  return {
+    error:
+      "Your schools, the children on them and the plans you write are in the VitaHero " +
+      "app. Sign in there on your phone.",
     code: "APP_ONLY",
   };
 }

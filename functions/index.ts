@@ -21,7 +21,7 @@ import {
   slugify,
 } from "./common";
 import {
-  clinicalSurfaceRefusal, surfaceOf, surfaceRefusal, wrongSignInForSurface, type Surface,
+  clinicalSurfaceRefusal, dieticianSurfaceRefusal, surfaceOf, surfaceRefusal, wrongSignInForSurface, type Surface,
 } from "./surfaces";
 import {
   Actor,
@@ -85,6 +85,19 @@ import {
 } from "./camps";
 import { campConsentForm } from "./consent-form";
 import { ensureBadgeSchema, kidBadges } from "./badges";
+import {
+  dieticianChild,
+  dieticianChildren,
+  dieticianSchools,
+  dieticianSelf,
+  ensureDieticianSchema,
+  guardianDietPlan,
+  listDieticians,
+  retireDietician,
+  saveDietPlan,
+  setDieticianSchool,
+  upsertDietician,
+} from "./dietician";
 import { adminAnalytics } from "./analytics";
 import { makeSender, sendToMany, smsProvider, textbeeDevice } from "./messaging";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
@@ -154,6 +167,7 @@ import {
   libraryForGuardian,
   getArticle,
   listArticles,
+  myArticles,
   upsertArticle,
   deleteArticle,
 } from "./library";
@@ -1705,6 +1719,7 @@ export const SCHEMA_STEPS = [
   ensureSymptomSchema,
   ensureOversightSchema,
   ensureBadgeSchema,
+  ensureDieticianSchema,
   ensureDoctorSignInBackfill,
 ];
 
@@ -2368,6 +2383,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // demo-data is gone now, along with the seed it existed to clean up.
       if (path === "/api/admin/hospitals" || path.startsWith("/api/admin/hospitals/")
           || path === "/api/admin/doctors" || path.startsWith("/api/admin/doctors/")
+          || path === "/api/admin/dieticians" || path.startsWith("/api/admin/dieticians/")
           || path === "/api/admin/invites" || path === "/api/admin/invites/send"
           || path === "/api/admin/camp-people"
           || path === "/api/admin/lookup"
@@ -2396,6 +2412,34 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (path.startsWith("/api/admin/hospitals/") && method === "DELETE") {
             return json(await deleteHospital(sql, actor,
               decodeURIComponent(path.slice("/api/admin/hospitals/".length))));
+          }
+
+          // The dietician directory. Its own table and its own routes, not a
+          // corner of the doctor list: a dietician has no specialty, no
+          // hospital and no screening form, and a parent browsing for an
+          // ophthalmologist should never be shown one.
+          if (path === "/api/admin/dieticians") {
+            if (method === "GET") {
+              return json(await listDieticians(sql, actor, url.searchParams.get("q") || ""));
+            }
+            if (method === "POST" || method === "PUT") {
+              return json(await upsertDietician(sql, actor, await readBody()));
+            }
+            return json({ error: "Method not allowed" }, 405);
+          }
+          if (path.startsWith("/api/admin/dieticians/")) {
+            const rest = path.slice("/api/admin/dieticians/".length).split("/").map(decodeURIComponent);
+            const dieticianId = rest[0] || "";
+            if (rest[1] === "schools" && method === "POST") {
+              const b = await readBody();
+              return json(await setDieticianSchool(
+                sql, actor, dieticianId, String(b.schoolId || ""), b.active !== false,
+              ));
+            }
+            if (!rest[1] && method === "DELETE") {
+              return json(await retireDietician(sql, actor, dieticianId));
+            }
+            return json({ error: "Method not allowed" }, 405);
           }
 
           if (path === "/api/admin/doctors") {
@@ -3571,6 +3615,75 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           }
           return json({ error: "Not found" }, 404);
         } catch (e) {
+          return serverError(e, "api");
+        }
+      }
+
+      // ── C · The dietician's own screens (app only) ──────
+      //
+      // Not under /api/admin: a dietician is not an administrator, and the
+      // admin router turns away any role outside its staff list — which is
+      // the right answer for it. These take the session directly and build
+      // the actor from it, the way the guardian routes do.
+      if (path.startsWith("/api/dietician/")) {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const me: Actor = {
+          profileId: session.profileId,
+          name: session.name,
+          role: session.role,
+          schoolId: session.schoolId,
+          surface: session.surface,
+        };
+        try {
+          // The same rule as the clinical writes: this work happens on the
+          // phone the dietician is holding, not in the admin panel.
+          const wrongDoor = dieticianSurfaceRefusal(session.surface);
+          if (wrongDoor) return json(wrongDoor, 403);
+
+          if (path === "/api/dietician/schools" && request.method === "GET") {
+            return json(await dieticianSchools(sql, me));
+          }
+          if (path === "/api/dietician/children" && request.method === "GET") {
+            return json(await dieticianChildren(
+              sql, me,
+              url.searchParams.get("school_id") || "",
+              url.searchParams.get("q") || "",
+            ));
+          }
+          if (path === "/api/dietician/child" && request.method === "GET") {
+            return json(await dieticianChild(sql, me, url.searchParams.get("kid_id") || ""));
+          }
+          if (path === "/api/dietician/plan" && request.method === "POST") {
+            const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+            return json(await saveDietPlan(sql, me, body), 201);
+          }
+          // C4 — the reading library. A permission change on a route that
+          // already existed, scoped to this author's own articles.
+          if (path === "/api/dietician/articles" && request.method === "GET") {
+            await dieticianSelf(sql, me);
+            return json(await myArticles(sql, me));
+          }
+          if (path === "/api/dietician/articles" && request.method === "POST") {
+            await dieticianSelf(sql, me);
+            const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+            return json(await upsertArticle(sql, me, body), 201);
+          }
+          return json({ error: "Not found" }, 404);
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return serverError(e, "dietician");
+        }
+      }
+
+      // ── The parent's side of a diet plan ────────────────
+      if (path === "/api/me/diet-plan" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          return json(await guardianDietPlan(
+            sql, session.profileId, url.searchParams.get("kid_id") || "",
+          ));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
           return serverError(e, "api");
         }
       }

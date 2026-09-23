@@ -54,6 +54,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.rork.vitahero.data.AIDietContent
 import com.rork.vitahero.data.AppLocale
+import com.rork.vitahero.data.DietPlanDto
 import com.rork.vitahero.data.HealthConnectService
 import com.rork.vitahero.data.LocalAppLocale
 import com.rork.vitahero.data.MealItem
@@ -81,6 +82,7 @@ fun DietScreen(
     onOpenFoodRecognition: () -> Unit = {},
     wearable: HealthConnectService.WearableData? = null,
     onConnectWearable: () -> Unit = {},
+    plan: DietPlanDto? = null,
 ) {
     val eatenCount = meals.count { it.eaten }
     val totalKcal = meals.filter { it.eaten }.sumOf { it.kcal }
@@ -144,6 +146,18 @@ fun DietScreen(
                     onConnect = onConnectWearable,
                 )
                 Spacer(Modifier.height(16.dp))
+            }
+
+            // The dietician's plan, if a dietician has written one.
+            //
+            // Above the generated tips on purpose. One of these was written by
+            // a person who looked at this child's growth and haemoglobin; the
+            // other is a generated suggestion. They should not read as equals.
+            if (plan != null) {
+                item {
+                    DietPlanCard(plan)
+                    Spacer(Modifier.height(16.dp))
+                }
             }
 
             // AI Content section
@@ -281,6 +295,63 @@ private fun EnergyBar(label: String, kcal: Int, fraction: Float, colour: Color) 
             color = colour,
             trackColor = colour.copy(alpha = 0.15f),
         )
+    }
+}
+
+/**
+ * What the dietician wrote, as the family reads it.
+ *
+ * Their name is on it. A plan that arrives unsigned is advice from an app; a
+ * plan with a name on it is advice from a person, which is what it is.
+ */
+@Composable
+private fun DietPlanCard(plan: DietPlanDto) {
+    HeroCard(Modifier.fillMaxWidth(), background = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.padding(18.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Outlined.TipsAndUpdates,
+                    contentDescription = null,
+                    tint = HeroBlue,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    plan.title.ifBlank { t(S.dietPlanTitle) },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (plan.authorName.isNotBlank()) {
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    tf(S.dietPlanFrom, plan.authorName),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(plan.guidance, style = MaterialTheme.typography.bodyMedium)
+            plan.targets.forEach { target ->
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        target.label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Text(
+                        target.value,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = HeroBlue,
+                    )
+                }
+            }
+        }
     }
 }
 

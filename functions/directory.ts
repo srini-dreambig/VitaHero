@@ -669,6 +669,7 @@ function roleLabel(role: string): string {
     SCHOOL_ADMIN: "School administrator",
     SCREENER: "Screener",
     PHYSICIAN: "Physician",
+    DIETICIAN: "Dietician",
     ADMIN: "Operations",
     SUPERADMIN: "Operations",
   };

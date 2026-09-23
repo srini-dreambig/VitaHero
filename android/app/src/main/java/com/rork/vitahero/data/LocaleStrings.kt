@@ -105,6 +105,9 @@ object S {
     const val disclaimerChart = "disclaimer_chart"
 
     // ---- Diet ----
+    // The plan a dietician wrote for this child, as the family reads it.
+    const val dietPlanTitle = "diet_plan_title"
+    const val dietPlanFrom = "diet_plan_from"
     // Energy in against energy out. Both halves of this have worked for a
     // while — food photographs become logged meals, Health Connect reads the
     // day's active calories — and neither was ever shown beside the other.
@@ -625,6 +628,8 @@ private val en = mapOf(
     S.generatingReport to "Generating PDF report…",
     S.saveMeasurements to "Save measurements",
     S.viewDietPlan to "View today's diet plan",
+    S.dietPlanTitle to "Your dietician's plan",
+    S.dietPlanFrom to "Written by %s",
     S.energyToday to "Energy today",
     S.energyEaten to "Eaten",
     S.energyBurnt to "Burnt",
@@ -1096,6 +1101,8 @@ private val hi = mapOf(
     S.generatingReport to "PDF \u0930\u093F\u092A\u094B\u0930\u094D\u091F \u092C\u0928 \u0930\u0939\u0940 \u0939\u0948\u2026",
     S.saveMeasurements to "\u092E\u093E\u092A \u0938\u0947\u0935 \u0915\u0930\u0947\u0902",
     S.viewDietPlan to "\u0906\u091C \u0915\u093E \u0921\u093E\u0907\u091F \u092A\u094D\u0932\u093E\u0928 \u0926\u0947\u0916\u0947\u0902",
+    S.dietPlanTitle to "\u0906\u092A\u0915\u0947 \u0921\u093E\u092F\u091F\u0940\u0936\u093F\u092F\u0928 \u0915\u0940 \u092F\u094B\u091C\u0928\u093E",
+    S.dietPlanFrom to "%s \u0926\u094D\u0935\u093E\u0930\u093E \u0932\u093F\u0916\u0940 \u0917\u0908",
     S.energyToday to "\u0906\u091C \u0915\u0940 \u090A\u0930\u094D\u091C\u093E",
     S.energyEaten to "\u0916\u093E\u092F\u093E",
     S.energyBurnt to "\u0916\u0930\u094D\u091A \u0939\u0941\u0906",
@@ -1436,6 +1443,8 @@ private val te = mapOf(
     S.eyeWatchMsg to "\u0C1A\u0C3F\u0C28\u0C4D\u0C28 \u0C26\u0C43\u0C37\u0C4D\u0C1F\u0C3F \u0C12\u0C24\u0C4D\u0C24\u0C3F\u0C21\u0C3F \u0C15\u0C28\u0C3F\u0C2A\u0C3F\u0C02\u0C1A\u0C3F\u0C02\u0C26\u0C3F. \u0C15\u0C02\u0C1F\u0C3F \u0C28\u0C3F\u0C2A\u0C41\u0C23\u0C41\u0C21\u0C3F \u0C2B\u0C3E\u0C32\u0C4B-\u0C05\u0C2A\u0C4D \u0C2A\u0C30\u0C3F\u0C17\u0C23\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
     S.disclaimerShort to "\u0C38\u0C2E\u0C3E\u0C1A\u0C3E\u0C30 \u0C2A\u0C4D\u0C30\u0C2F\u0C4B\u0C1C\u0C28\u0C3E\u0C32\u0C15\u0C41 \u0C2E\u0C3E\u0C24\u0C4D\u0C30\u0C2E\u0C47. \u0C30\u0C4B\u0C17 \u0C28\u0C3F\u0C30\u0C4D\u0C27\u0C3E\u0C30\u0C23 \u0C15\u0C4B\u0C38\u0C02 \u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D\u200C\u0C28\u0C3F \u0C38\u0C02\u0C2A\u0C4D\u0C30\u0C26\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
     S.disclaimerChart to "\u0C1A\u0C3E\u0C30\u0C4D\u0C1F\u0C41\u0C32\u0C41 \u0C38\u0C2E\u0C3E\u0C1A\u0C3E\u0C30 \u0C2A\u0C4D\u0C30\u0C2F\u0C4B\u0C1C\u0C28\u0C3E\u0C32\u0C15\u0C41 \u0C2E\u0C3E\u0C24\u0C4D\u0C30\u0C2E\u0C47. \u0C35\u0C48\u0C26\u0C4D\u0C2F \u0C28\u0C3F\u0C30\u0C4D\u0C23\u0C2F\u0C3E\u0C32 \u0C15\u0C4B\u0C38\u0C02 \u0C0E\u0C32\u0C4D\u0C32\u0C2A\u0C4D\u0C2A\u0C41\u0C21\u0C42 \u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D\u200C\u0C28\u0C3F \u0C38\u0C02\u0C2A\u0C4D\u0C30\u0C26\u0C3F\u0C02\u0C1A\u0C02\u0C21\u0C3F.",
+    S.dietPlanTitle to "\u0C2E\u0C40 \u0C21\u0C2F\u0C1F\u0C40\u0C37\u0C3F\u0C2F\u0C28\u0C4D \u0C2A\u0C4D\u0C32\u0C3E\u0C28\u0C4D",
+    S.dietPlanFrom to "%s \u0C30\u0C3E\u0C38\u0C3F\u0C28\u0C26\u0C3F",
     S.energyToday to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C36\u0C15\u0C4D\u0C24\u0C3F",
     S.energyEaten to "\u0C24\u0C3F\u0C28\u0C4D\u0C28\u0C26\u0C3F",
     S.energyBurnt to "\u0C16\u0C30\u0C4D\u0C1A\u0C48\u0C28\u0C26\u0C3F",

@@ -35,6 +35,15 @@ class GuardianViewModel(
     private val _pendingConsents = MutableStateFlow<List<PendingConsentDto>>(emptyList())
     val pendingConsents: StateFlow<List<PendingConsentDto>> = _pendingConsents.asStateFlow()
 
+    // ── the diet plan ──
+    //
+    // Keyed by child rather than held singly: a parent with two children
+    // switches between them on the same screen, and a single slot would show
+    // one child's plan under the other's name for as long as the second read
+    // took.
+    private val _dietPlans = MutableStateFlow<Map<String, DietPlanDto>>(emptyMap())
+    val dietPlans: StateFlow<Map<String, DietPlanDto>> = _dietPlans.asStateFlow()
+
     // ── results ──
     private val _result = MutableStateFlow<CampResultDto?>(null)
     val result: StateFlow<CampResultDto?> = _result.asStateFlow()
@@ -132,6 +141,7 @@ class GuardianViewModel(
     private fun forgetSession() {
         loaded.clear()
         _pendingConsents.value = emptyList()
+        _dietPlans.value = emptyMap()
         _result.value = null
         _photos.value = emptyList()
         _openPhoto.value = null
@@ -193,6 +203,24 @@ class GuardianViewModel(
         loadQuestions(force)
         loadEntitlements(force)
     }
+
+    // ─── The diet plan ──────────────────────────────────────
+
+    /**
+     * The plan for one child, if a dietician has written one.
+     *
+     * Keyed per child so two children never share a slot, and read once per
+     * child per session — a plan changes when a dietician writes a new one,
+     * which is weeks apart, not between two taps on the same screen.
+     */
+    fun loadDietPlan(kidId: String, force: Boolean = false) =
+        once("dietplan:$kidId", force) {
+            val plan = repo.dietPlan(kidId)
+            // A missing plan leaves the map alone rather than writing null
+            // into it: there is nothing to draw either way, and this keeps a
+            // plan on screen through a failed refresh.
+            if (plan != null) _dietPlans.update { it + (kidId to plan) }
+        }
 
     // ─── Consent ────────────────────────────────────────────
 

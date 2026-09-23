@@ -107,7 +107,7 @@ await p.addInitScript(() => {
                 referrals: 4, photos: 0, staff: 1, questions: 0 },
       // The directory and the library are a choice, counted apart from the
       // total: that is what goes no matter what is ticked.
-      optional: { directory: { hospitals: 2, doctors: 6, total: 8 },
+      optional: { directory: { hospitals: 2, doctors: 6, dieticians: 1, total: 9 },
                   library: { articles: 4, total: 4 } },
       keeps: ["Operations sign-ins, including yours — otherwise you would be locked out mid-reset"] },
   };
@@ -389,8 +389,13 @@ check("and the operations sign-in is the one thing that always stays",
 // somebody emptied the programme and then found the doctors still listed with
 // no way to tell whether that was a decision or a fault.
 check("the directory and the library are offered as choices, with their counts",
-  /Hospitals & doctors/.test(reset) && /Reading library/.test(reset)
-  && /2 hospitals, 6 doctors/.test(reset));
+  /Hospitals, doctors & dieticians/.test(reset) && /Reading library/.test(reset)
+  // Every count, not a prefix of the line: a key the server stopped sending
+  // renders as the word "undefined", and a prefix match would let that ship.
+  // (textContent runs the nodes together, so no trailing boundary to anchor
+  // on — the absence of "undefined" is the check that matters.)
+  && /2 hospitals, 6 doctors, 1 dietician/.test(reset)
+  && !/undefined/.test(reset));
 const ticked = await p.evaluate(() =>
   [...document.querySelectorAll(".card input[type=checkbox]")].map((c) => c.checked));
 check("and both are ticked to begin with, so the button means what it says",

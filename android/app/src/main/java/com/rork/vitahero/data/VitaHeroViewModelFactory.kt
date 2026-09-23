@@ -26,6 +26,8 @@ class VitaHeroViewModelFactory(
                 GuardianViewModel(application, container) as T
             modelClass.isAssignableFrom(ClinicianViewModel::class.java) ->
                 ClinicianViewModel(application, container) as T
+            modelClass.isAssignableFrom(DieticianViewModel::class.java) ->
+                DieticianViewModel(application, container) as T
             else -> throw IllegalArgumentException("Unknown ViewModel: ${modelClass.name}")
         }
     }

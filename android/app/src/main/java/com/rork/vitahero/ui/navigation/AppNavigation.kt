@@ -41,6 +41,10 @@ import com.rork.vitahero.ui.screens.ReferralsScreen
 import com.rork.vitahero.ui.screens.CampDetailScreen
 import com.rork.vitahero.ui.screens.ConsentScreen
 import com.rork.vitahero.ui.screens.DietScreen
+import com.rork.vitahero.ui.screens.DieticianArticlesScreen
+import com.rork.vitahero.ui.screens.DieticianChildScreen
+import com.rork.vitahero.ui.screens.DieticianChildrenScreen
+import com.rork.vitahero.ui.screens.DieticianSchoolsScreen
 import com.rork.vitahero.ui.screens.FamilySharingScreen
 import com.rork.vitahero.ui.screens.FoodRecognitionScreen
 import com.rork.vitahero.ui.screens.GrowthChartsScreen
@@ -77,6 +81,13 @@ object Routes {
     // a screener screens, a physician signs off.
     const val CLINIC_REVIEW = "clinic/{campId}/review/{title}"
     const val CLINIC_REVIEW_CHILD = "clinic/{campId}/review/child/{kidId}"
+
+    // The dietician's side. A school rather than a camp is the unit of work,
+    // because a plan runs for weeks and a camp is a day.
+    const val DIETICIAN = "dietician"
+    const val DIETICIAN_SCHOOL = "dietician/{schoolId}/{name}"
+    const val DIETICIAN_CHILD = "dietician/child/{kidId}"
+    const val DIETICIAN_ARTICLES = "dietician/articles"
     const val KID_DETAIL = "kid/{kidId}"
     const val DIET = "diet/{kidId}"
     // Optional query arguments, so every existing `bookingRoute()` with no
@@ -160,6 +171,7 @@ fun AppNavigation(
     // second or two a school's wifi takes.
     val role by appViewModel.role.collectAsState()
     val isClinician = role == "PHYSICIAN" || role == "SCREENER"
+    val isDietician = role == "DIETICIAN"
 
     var phone by rememberSaveable { mutableStateOf("") }
     var pendingName by rememberSaveable { mutableStateOf("") }
@@ -170,7 +182,12 @@ fun AppNavigation(
             // the profile, a moment after isLoggedIn flips, so keying on the
             // session alone would send a doctor to the family home and leave
             // them there.
-            navController.navigate(if (isClinician) Routes.CLINIC else Routes.MAIN) {
+            val home = when {
+                isClinician -> Routes.CLINIC
+                isDietician -> Routes.DIETICIAN
+                else -> Routes.MAIN
+            }
+            navController.navigate(home) {
                 popUpTo(Routes.SPLASH) { inclusive = true }
                 launchSingleTop = true
             }
@@ -204,9 +221,11 @@ fun AppNavigation(
         if (isLoggedIn) guardianViewModel.refreshAll()
     }
     val pendingConsents by guardianViewModel.pendingConsents.collectAsState()
+    val dietPlans by guardianViewModel.dietPlans.collectAsState()
 
     val startDest = when {
         isLoggedIn && isClinician -> Routes.CLINIC
+        isLoggedIn && isDietician -> Routes.DIETICIAN
         isLoggedIn -> Routes.MAIN
         onboardingComplete -> Routes.AUTH
         else -> Routes.CONSENT
@@ -320,6 +339,61 @@ fun AppNavigation(
         // Three screens and no bottom bar: a camp day is a sequence, not a set
         // of places to browse. My camps → this camp's children → this child's
         // form, and back out the way you came in.
+        // ── The dietician's side ────────────────────────────
+        //
+        // My schools → the children at one of them → one child and their plan.
+        // The same shape as the clinician's sequence and for the same reason:
+        // this is a job with a next step, not a set of places to browse.
+        composable(Routes.DIETICIAN) {
+            DieticianSchoolsScreen(
+                dietician = vms.dietician,
+                onOpenSchool = { schoolId, name ->
+                    navController.navigate("dietician/$schoolId/${Uri.encode(name)}")
+                },
+                onOpenArticles = { navController.navigate(Routes.DIETICIAN_ARTICLES) },
+                onLogout = {
+                    appViewModel.logout()
+                    navController.navigate(Routes.AUTH) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+            )
+        }
+
+        composable(
+            Routes.DIETICIAN_SCHOOL,
+            arguments = listOf(
+                navArgument("schoolId") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType },
+            ),
+        ) { backStack ->
+            DieticianChildrenScreen(
+                schoolId = backStack.arguments?.getString("schoolId").orEmpty(),
+                schoolName = backStack.arguments?.getString("name").orEmpty(),
+                dietician = vms.dietician,
+                onOpenChild = { kidId -> navController.navigate("dietician/child/$kidId") },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            Routes.DIETICIAN_CHILD,
+            arguments = listOf(navArgument("kidId") { type = NavType.StringType }),
+        ) { backStack ->
+            DieticianChildScreen(
+                kidId = backStack.arguments?.getString("kidId").orEmpty(),
+                dietician = vms.dietician,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(Routes.DIETICIAN_ARTICLES) {
+            DieticianArticlesScreen(
+                dietician = vms.dietician,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
         composable(Routes.CLINIC) {
             val clinicianName by appViewModel.signedInName.collectAsState()
             ClinicianCampsScreen(
@@ -488,6 +562,7 @@ fun AppNavigation(
             val kid = kidsViewModel.kidById(kidId)
             val meals by kidsViewModel.meals.collectAsState()
             val aiContent by kidsViewModel.aiContent.collectAsState()
+            LaunchedEffect(kidId) { guardianViewModel.loadDietPlan(kidId) }
             if (kid != null) {
                 DietScreen(
                     kidName = kid.name,
@@ -505,6 +580,7 @@ fun AppNavigation(
                     // habit loop is about sit beside each other.
                     wearable = wearablesByKid[kidId],
                     onConnectWearable = { kidsViewModel.refreshWearableData(kidId) },
+                    plan = dietPlans[kidId],
                 )
             }
         }
