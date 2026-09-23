@@ -1,4 +1,4 @@
-// Finding a number, filtering a directory, and clearing the demonstration data.
+// Finding a number and filtering a directory.
 //
 // Against a real Postgres, because all three are queries: a LIKE over digits
 // stripped out of a stored number, a filter the console never passed, and a
@@ -12,7 +12,6 @@ import { deleteSchool, schoolFootprint, type Actor } from "./schools";
 import { SCHEMA_STEPS } from "./index";
 import { migrate, SCHEMA_VERSION } from "./migrate";
 import { listDoctors, lookupPhone, upsertDoctor, upsertHospital } from "./directory";
-import { previewDemoData, purgeDemoData, DEMO_SCHOOL_IDS, DEMO_DOCTOR_IDS } from "./demo";
 
 const URL = process.env.TEST_DATABASE_URL;
 const suite = URL ? describe : describe.skip;
@@ -153,7 +152,7 @@ suite("a school that has screened children cannot be deleted", () => {
   });
 });
 
-suite("looking a number up, filtering, and clearing demo data", () => {
+suite("looking a number up and filtering the directory", () => {
   beforeAll(async () => {
     const admin = new pg.Client({ connectionString: URL });
     await admin.connect();
@@ -278,94 +277,4 @@ suite("looking a number up, filtering, and clearing demo data", () => {
     await expect(lookupPhone(sql, HEAD, "9876543210")).rejects.toThrow(/operations/i);
   });
 
-  // ── clearing the demonstration data ────────────────────────
-  test("the preview says what would go, and removes nothing", async () => {
-    await sql`
-      INSERT INTO vita_hero.schools (id, name, city, partner_code)
-      VALUES ('sch_oak', 'Oakridge International School', 'Hyderabad', 'OAK2026')
-      ON CONFLICT (id) DO NOTHING`;
-    await sql`
-      INSERT INTO vita_hero.doctors (id, name, specialty, phone)
-      VALUES ('d1', 'Dr Demo One', 'Paediatrics', '+919111111111')
-      ON CONFLICT (id) DO NOTHING`;
-
-    const before = await previewDemoData(sql, OPS);
-    expect(before.items.some((i) => i.id === "sch_oak")).toBe(true);
-    expect(before.items.some((i) => i.id === "d1")).toBe(true);
-
-    // Looking is not doing.
-    const still = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.schools WHERE id = 'sch_oak'`;
-    expect(still[0].c).toBe(1);
-  });
-
-  test("a real school is never touched, however it is named", async () => {
-    await sql`
-      INSERT INTO vita_hero.schools (id, name, city, partner_code)
-      VALUES ('sch_real', 'Oakridge International School', 'Guntur', 'REAL1')
-      ON CONFLICT (id) DO NOTHING`;
-    const p = await previewDemoData(sql, OPS);
-    // Same name as a demo school, different id. Matching on the name is how a
-    // real school gets deleted by a regular expression.
-    expect(p.items.some((i) => i.id === "sch_real")).toBe(false);
-    await purgeDemoData(sql, OPS);
-    const alive = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.schools WHERE id = 'sch_real'`;
-    expect(alive[0].c).toBe(1);
-  });
-
-  test("the demo rows are gone afterwards", async () => {
-    const schools = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.schools WHERE id = ANY(${DEMO_SCHOOL_IDS})`;
-    const docs = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.doctors WHERE id = ANY(${DEMO_DOCTOR_IDS})`;
-    expect(schools[0].c).toBe(0);
-    expect(docs[0].c).toBe(0);
-  });
-
-  test("a demo doctor somebody booked is retired, not deleted", async () => {
-    await sql`
-      INSERT INTO vita_hero.doctors (id, name, specialty, phone, active)
-      VALUES ('d2', 'Dr Demo Two', 'Dental', '+919222222222', true)
-      ON CONFLICT (id) DO UPDATE SET active = true`;
-    await sql`
-      INSERT INTO vita_hero.appointments (id, profile_id, doctor_name, doctor_id, date, time)
-      VALUES ('ap_1', 'ph_9876543210', 'Dr Demo Two', 'd2', '2026-10-01', '10:00')
-      ON CONFLICT (id) DO NOTHING`;
-
-    const p = await previewDemoData(sql, OPS);
-    const d2 = p.items.find((i) => i.id === "d2")!;
-    expect(d2.removable).toBe(false);
-    expect(d2.reason).toMatch(/appointment/);
-
-    const r = await purgeDemoData(sql, OPS);
-    expect(r.kept.some((k) => k.id === "d2")).toBe(true);
-    // The family's booking still names a doctor who still exists.
-    const row = await sql`SELECT active FROM vita_hero.doctors WHERE id = 'd2'`;
-    expect(row.length).toBe(1);
-    expect(row[0].active).toBe(false);
-  });
-
-  test("clearing twice is not an error, it is a no-op", async () => {
-    const r = await purgeDemoData(sql, OPS);
-    expect(r.removed.length).toBe(0);
-    const p = await previewDemoData(sql, OPS);
-    expect(p.removable).toBe(0);
-  });
-
-  test("a school administrator cannot clear anything", async () => {
-    await expect(previewDemoData(sql, HEAD)).rejects.toThrow(/operations/i);
-    await expect(purgeDemoData(sql, HEAD)).rejects.toThrow(/operations/i);
-  });
-
-  test("the reading library is only cleared when it is asked for", async () => {
-    await sql`
-      INSERT INTO vita_hero.library_articles (id, slug, locale, title, summary, body)
-      VALUES ('la_vision_en', 'vision', 'en', 'When your child squints',
-              'What a vision WATCH means.', 'Body text.')
-      ON CONFLICT DO NOTHING`;
-    await purgeDemoData(sql, OPS);
-    let n = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.library_articles`;
-    expect(n[0].c).toBe(1);
-
-    await purgeDemoData(sql, OPS, { articles: true });
-    n = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.library_articles`;
-    expect(n[0].c).toBe(0);
-  });
 });

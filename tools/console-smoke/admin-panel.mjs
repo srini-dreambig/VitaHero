@@ -110,18 +110,6 @@ await p.addInitScript(() => {
       optional: { directory: { hospitals: 2, doctors: 6, total: 8 },
                   library: { articles: 4, total: 4 } },
       keeps: ["Operations sign-ins, including yours — otherwise you would be locked out mid-reset"] },
-    "/api/admin/demo-data": {
-      empty: false, removable: 2, blocked: 1, articles: 4,
-      items: [
-        { kind: "School", id: "sch_oak", name: "Oakridge International School",
-          detail: "0 on roll · 2 camps", removable: true, reason: "" },
-        { kind: "Doctor", id: "d1", name: "Dr Demo", detail: "Paediatrics",
-          removable: true, reason: "" },
-        { kind: "Hospital", id: "hosp_rainbow", name: "Rainbow Children's Hospital",
-          detail: "Hyderabad", removable: false,
-          reason: "In use by a camp, school or doctor you added — will be retired, not deleted" },
-      ],
-    },
   };
   window.__calls = [];
   window.confirm = () => true;
@@ -358,34 +346,6 @@ check("the same number is reported as a guardian and as a doctor",
   /Guardian/.test(found) && /Doctor \(directory\)/.test(found));
 check("the match says where that person sits", /Silver Oaks/.test(found));
 
-// ── clearing the demonstration data ───────────────────────────
-await go(p, "Demonstration data");
-await p.waitForTimeout(400);
-const demo = await raw(".content");
-// Findable by the words somebody would go looking for, not behind a category
-// invented to hold one screen.
-const oversightTabs = await p.$$eval(".tabs .tab", (ns) =>
-  ns.map((n) => n.textContent.replace(/\d+$/, "").trim()));
-check("clearing the demo data is named on the tab, not hidden behind a category",
-  oversightTabs.includes("Demonstration data") && !oversightTabs.includes("Maintenance"));
-check("the demo panel lists what it would remove", /Oakridge International School/.test(demo));
-check("it says which records it will keep, and why",
-  /Kept/.test(demo) && /In use by a camp/.test(demo));
-check("nothing has been removed by looking",
-  !(await calls()).some((x) => x.method === "DELETE"));
-
-await p.evaluate(() => {
-  [...document.querySelectorAll("button")].find((x) => /^Remove 2$/.test(x.textContent.trim())).click();
-});
-await p.waitForTimeout(400);
-c = await calls();
-const purged = c.find((x) => x.path === "/api/admin/demo-data" && x.method === "DELETE");
-check("removing sends one delete", !!purged);
-// The reading library is content a guardian is shown, not fiction. It only
-// goes when the other button is pressed.
-check("the reading library is left alone unless asked for",
-  !!purged && purged.body.articles === false);
-
 // ── parents ───────────────────────────────────────────────────
 //
 // Guardians are the largest group of people the programme touches and the only
@@ -481,9 +441,12 @@ check("and it sends the words for the server to check again",
 check("and it sends the choice about the directory rather than assuming it",
   !!wiped && wiped.body.directory === false && wiped.body.library === true);
 
-// The safeguard that matters most: this is not a button on the demo screen.
-await go(p, "Demonstration data");
-check("emptying the programme is not reachable from the demonstration-data screen",
+// The safeguard that matters most: emptying the programme lives on its own
+// screen and nowhere else. This used to be checked against the
+// demonstration-data screen, which no longer exists; Retention is the nearest
+// neighbour and makes the same point.
+await go(p, "Retention");
+check("emptying the programme is not reachable from another oversight screen",
   await p.evaluate(() => document.getElementById("resetgo") === null));
 
 check("admin panel: no page errors", errs.length === 0);

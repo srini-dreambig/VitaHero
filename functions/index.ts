@@ -186,7 +186,6 @@ import {
   lookupPhone,
   listGuardians,
 } from "./directory";
-import { previewDemoData, purgeDemoData } from "./demo";
 import { previewReset, resetProgramme } from "./reset";
 import { migrate, SCHEMA_VERSION } from "./migrate";
 import { servePrivacyPage, serveDataDeletionPage } from "./pages";
@@ -698,33 +697,6 @@ async function ensureHotPathIndexes(sql: Sql): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS school_enrollments_school ON vita_hero.school_enrollments(school_id)`;
 }
 
-/**
- * Seed the starter doctor directory, once, on a database that has none.
- *
- * Separated from ensureSchema for the same reason as the library: that
- * function is now pure DDL, recorded and sent as a batch, and anything that
- * reads a result has to run on its own.
- */
-async function seedDoctorsIfEmpty(sql: Sql): Promise<void> {
-  const docCount = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.doctors`;
-  if ((docCount[0]?.c as number) === 0) {
-    const doctors = [
-      ["d1", "Dr. Ananya Rao", "Paediatrics", "Rainbow Children's Hospital", 4.9],
-      ["d2", "Dr. Vikram Reddy", "Dental", "Apollo Cradle", 4.7],
-      ["d3", "Dr. Meera Iyer", "Ophthalmology", "LV Prasad Eye Institute", 4.8],
-      ["d4", "Dr. Karthik Nair", "Nutrition", "KIMS Hospital", 4.6],
-      ["d5", "Dr. Priya Sharma", "General Paediatrics", "Continental Hospitals", 4.5],
-    ] as const;
-    await insertRows(
-      sql,
-      `INSERT INTO vita_hero.doctors (id, name, specialty, hospital, rating)
-       SELECT v.id, v.name, v.specialty, v.hospital, v.rating::numeric
-       FROM (VALUES %VALUES%) AS v(id, name, specialty, hospital, rating)
-       ON CONFLICT (id) DO NOTHING`,
-      doctors.map((d) => [...d])
-    );
-  }
-}
 
 
 function generateDoctorSlots(
@@ -757,75 +729,6 @@ function generateDoctorSlots(
   return slots;
 }
 
-/**
- * The demo partner schools and their camps, once, on a database that has none.
- *
- * This used to be called from `ensureSchema`, which was wrong twice over.
- *
- * `ensureSchema` is pure DDL: it is handed a recorder that writes statements
- * down instead of running them, and reads come back empty. So the
- * `SELECT COUNT(*)` guard below always saw zero and never fired. The inserts
- * survived that only because they say DO NOTHING — which in turn meant an ops
- * user who deleted a demo school got it back the next time the schema version
- * moved, because by then the row it would have conflicted with was gone. A
- * school returning from the dead after somebody deliberately removed it is not
- * a cosmetic problem, and the console can delete schools now.
- *
- * Run as a seed step the read is real, the guard does its job, and the whole
- * thing is two statements rather than ten.
- */
-export async function seedPartnerSchools(sql: Sql): Promise<void> {
-  const schoolCount = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.schools`;
-  if ((schoolCount[0]?.c as number) > 0) return;
-
-  const schools = [
-    ["sch_oak", "Oakridge International School", "Hyderabad", "Gachibowli", "OAK2026", "health@oakridge.in", "Partner since 2024 · Full annual screening programme"],
-    ["sch_dps", "Delhi Public School Hyderabad", "Hyderabad", "Khajaguda", "DPS2026", "nurse@dpshyd.com", "Vision, dental & nutrition camps every term"],
-    ["sch_jgs", "Johnson Grammar School", "Hyderabad", "Habsiguda", "JGS2026", "wellness@jgs.edu.in", "IAP-aligned growth monitoring"],
-    ["sch_chirec", "CHIREC International School", "Hyderabad", "Kondapur", "CHI2026", "health@chirec.in", "WHO growth charts integrated with camp results"],
-  ];
-
-  await insertRows(
-    sql,
-    `INSERT INTO vita_hero.schools (id, name, city, district, partner_code, contact_email, description)
-     VALUES %VALUES% ON CONFLICT (id) DO NOTHING`,
-    schools
-  );
-
-  const now = new Date();
-  const fmt = (d: Date) =>
-    d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-  const d14 = new Date(now); d14.setDate(d14.getDate() + 14);
-  const d28 = new Date(now); d28.setDate(d28.getDate() + 28);
-  const d45 = new Date(now); d45.setDate(d45.getDate() + 45);
-  const d60 = new Date(now); d60.setDate(d60.getDate() - 30);
-
-  // The hospital each camp is run with, carried on the row rather than patched
-  // in afterwards by a second pass over the same six ids.
-  const camps: unknown[][] = [
-    ["sc_oak_1", "sch_oak", "Annual Health & Growth Camp", "Full IAP screening: height, weight, BMI percentile, dental, vision, Hb", fmt(d14), "9:00 AM – 1:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision", "Haemoglobin"], ["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"], 250, null, "hosp_rainbow"],
-    ["sc_oak_2", "sch_oak", "Nutrition & Anaemia Camp", "Focus on iron deficiency and BMI-for-age screening", fmt(d45), "10:00 AM – 12:30 PM", "SCHEDULED", ["Height & weight", "Haemoglobin"], ["Class 6", "Class 7", "Class 8"], 180, null, "hosp_kims"],
-    ["sc_dps_1", "sch_dps", "Vision & Dental Screening", "School-wide eye and dental check for primary grades", fmt(d28), "8:30 AM – 12:00 PM", "SCHEDULED", ["Dental", "Vision"], ["Nursery", "Class 1", "Class 2", "Class 3"], 300, null, "hosp_lvp"],
-    ["sc_jgs_1", "sch_jgs", "Growth Monitoring Day", "WHO/IAP growth charts with paediatrician review", fmt(d45), "9:00 AM – 2:00 PM", "SCHEDULED", ["Height & weight"], ["Class 4", "Class 5", "Class 6"], 200, null, "hosp_rainbow"],
-    ["sc_chirec_1", "sch_chirec", "Comprehensive Health Camp", "Multi-specialty camp with follow-up booking", fmt(d14), "9:00 AM – 3:00 PM", "SCHEDULED", ["Height & weight", "Dental", "Vision"], ["All grades"], 400, null, "hosp_continental"],
-    ["sc_oak_past", "sch_oak", "Mid-Term Dental Check", "Completed screening — 3 follow-ups recommended", fmt(d60), "10:00 AM – 12:00 PM", "COMPLETED", ["Dental"], ["Class 3", "Class 4"], 120, "142 children screened · 3 follow-ups recommended", "hosp_rainbow"],
-  ];
-
-  await insertRows(
-    sql,
-    `INSERT INTO vita_hero.school_camps
-       (id, school_id, title, description, date, time, status, checks, grades, capacity, result_summary, hospital_id)
-     SELECT v.id, v.school_id, v.title, v.description, v.date, v.time, v.status,
-            v.checks::jsonb, v.grades::jsonb, v.capacity::int, v.result_summary, v.hospital_id
-     FROM (VALUES %VALUES%) AS v(id, school_id, title, description, date, time, status,
-                                 checks, grades, capacity, result_summary, hospital_id)
-     ON CONFLICT (id) DO NOTHING`,
-    camps.map((c) => [
-      c[0], c[1], c[2], c[3], c[4], c[5], c[6],
-      JSON.stringify(c[7]), JSON.stringify(c[8]), c[9], c[10], c[11],
-    ])
-  );
-}
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
@@ -1062,95 +965,6 @@ async function ensureHospitalPartnerships(sql: Sql): Promise<void> {
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS hospital_id TEXT`;
 }
 
-/**
- * The hospitals and doctors a first-time reader of the console expects to see.
- *
- * These rows used to be written by ensureHospitalPartnerships, which is a DDL
- * step, with ON CONFLICT DO UPDATE on every column. Two consequences, both of
- * them live:
- *
- *   - An operations user who corrected a hospital's address or phone number
- *     had that correction reverted the next time the schema version moved.
- *     Nothing reported it; the edit simply went back to the seeded value.
- *   - Deleting a demonstration hospital or doctor was pointless, because the
- *     next migration put it back.
- *
- * It is a seed now: it only runs when the directory is empty, and only when
- * demonstration data has been asked for. The DDL it was living inside stays
- * where it was.
- */
-async function seedDirectoryIfEmpty(sql: Sql): Promise<void> {
-  const have = await sql`SELECT COUNT(*)::int AS c FROM vita_hero.hospitals`;
-  if ((have[0]?.c as number) > 0) return;
-
-  const hospitals = [
-    ["hosp_rainbow", "Rainbow Children's Hospital", "Hyderabad", "Gachibowli", "Road No. 2, Gachibowli", 17.4401, 78.3489, "+91 40 4244 2222", 4.9, true],
-    ["hosp_apollo", "Apollo Cradle & Children's Hospital", "Hyderabad", "Jubilee Hills", "Road No. 36, Jubilee Hills", 17.4239, 78.4738, "+91 40 2355 1234", 4.8, true],
-    ["hosp_lvp", "LV Prasad Eye Institute", "Hyderabad", "Banjara Hills", "Kallam Anji Reddy Campus, Banjara Hills", 17.4125, 78.4482, "+91 40 3061 2345", 4.8, true],
-    ["hosp_kims", "KIMS Hospital", "Hyderabad", "Secunderabad", "1-112 / 86, Survey No 5, Kondapur", 17.4399, 78.4983, "+91 40 4488 5000", 4.6, true],
-    ["hosp_continental", "Continental Hospitals", "Hyderabad", "Gachibowli", "Plot No. 3, Road No. 2, Gachibowli", 17.4435, 78.3772, "+91 40 6700 0000", 4.7, true],
-    ["hosp_smile", "Smile Care Dental Clinic", "Hyderabad", "Banjara Hills", "Road No. 12, Banjara Hills", 17.4158, 78.4487, "+91 40 2335 6789", 4.7, true],
-    ["hosp_care", "Care Hospital", "Hyderabad", "Banjara Hills", "Road No. 10, Banjara Hills", 17.4122, 78.4489, "+91 40 3041 4141", 4.5, false],
-    ["hosp_yashoda", "Yashoda Hospitals", "Hyderabad", "Somajiguda", "Raj Bhavan Road, Somajiguda", 17.4231, 78.4578, "+91 40 4567 4567", 4.6, false],
-  ] as const;
-
-  for (const [id, name, city, district, address, lat, lng, phone, rating, isPartner] of hospitals) {
-    await sql`
-      INSERT INTO vita_hero.hospitals
-        (id, name, city, district, address, lat, lng, phone, rating, is_camp_partner)
-      VALUES (${id}, ${name}, ${city}, ${district}, ${address}, ${lat}, ${lng}, ${phone}, ${rating}, ${isPartner})
-      ON CONFLICT (id) DO UPDATE SET
-        name = EXCLUDED.name,
-        city = EXCLUDED.city,
-        district = EXCLUDED.district,
-        address = EXCLUDED.address,
-        lat = EXCLUDED.lat,
-        lng = EXCLUDED.lng,
-        phone = EXCLUDED.phone,
-        rating = EXCLUDED.rating,
-        is_camp_partner = EXCLUDED.is_camp_partner
-    `;
-  }
-
-  const extraDoctors = [
-    ["d6", "Dr. Lakshmi Devi", "Paediatrics", "Rainbow Children's Hospital", "hosp_rainbow", 4.8],
-    ["d7", "Dr. Rohit Verma", "Ophthalmology", "Continental Hospitals", "hosp_continental", 4.7],
-    ["d8", "Dr. Anjali Mehta", "Dental", "Smile Care Dental Clinic", "hosp_smile", 4.7],
-    ["d9", "Dr. Suresh Kumar", "Nutrition", "Apollo Cradle & Children's Hospital", "hosp_apollo", 4.8],
-    ["d10", "Dr. Deepa Singh", "General Paediatrics", "Care Hospital", "hosp_care", 4.5],
-  ] as const;
-
-  for (const [id, name, specialty, hospital, hospitalId, rating] of extraDoctors) {
-    await sql`
-      INSERT INTO vita_hero.doctors (id, name, specialty, hospital, hospital_id, rating)
-      VALUES (${id}, ${name}, ${specialty}, ${hospital}, ${hospitalId}, ${rating})
-      ON CONFLICT (id) DO UPDATE SET
-        hospital_id = EXCLUDED.hospital_id,
-        hospital = EXCLUDED.hospital
-    `;
-  }
-
-  await sql`
-    UPDATE vita_hero.doctors SET hospital_id = 'hosp_rainbow'
-    WHERE id = 'd1' AND (hospital_id IS NULL OR hospital_id = '')
-  `;
-  await sql`
-    UPDATE vita_hero.doctors SET hospital_id = 'hosp_apollo'
-    WHERE id = 'd2' AND (hospital_id IS NULL OR hospital_id = '')
-  `;
-  await sql`
-    UPDATE vita_hero.doctors SET hospital_id = 'hosp_lvp'
-    WHERE id = 'd3' AND (hospital_id IS NULL OR hospital_id = '')
-  `;
-  await sql`
-    UPDATE vita_hero.doctors SET hospital_id = 'hosp_kims'
-    WHERE id = 'd4' AND (hospital_id IS NULL OR hospital_id = '')
-  `;
-  await sql`
-    UPDATE vita_hero.doctors SET hospital_id = 'hosp_continental'
-    WHERE id = 'd5' AND (hospital_id IS NULL OR hospital_id = '')
-  `;
-}
 
 
 async function getFamilyOwnerId(
@@ -1876,23 +1690,19 @@ export const SCHEMA_STEPS = [
   ensureDoctorSignInBackfill,
 ];
 
-/** Steps that have to read before they write. Only ever touch an empty table. */
-// Demonstration data is opt-in now.
-//
-// Four fictional schools, six camps against them, four hospitals and five
-// doctors are exactly what someone opening the console for the first time
-// wants to see, and exactly what a district running a real programme does not:
-// they sit among the real schools looking like real schools. Set
-// SEED_DEMO_DATA=true on an evaluation deployment; leave it unset everywhere
-// that matters.
-//
-// The reading library is not demo data — it is content a guardian is shown —
-// so it is seeded regardless.
-export function seedSteps(env: Env) {
-  const demo = String((env as unknown as Record<string, unknown>).SEED_DEMO_DATA || "") === "true";
-  return demo
-    ? [seedDirectoryIfEmpty, seedDoctorsIfEmpty, seedPartnerSchools, seedLibraryIfEmpty]
-    : [seedLibraryIfEmpty];
+/**
+ * Steps that have to read before they write. Only ever touch an empty table.
+ *
+ * Just the reading library, which is content a guardian is shown rather than
+ * a fictional record. The demonstration seed — four invented Hyderabad
+ * schools, six camps, four hospitals, ten doctors — is gone: it was already
+ * opt-in behind SEED_DEMO_DATA and no deployment set it, so the switch was
+ * guarding a thing nobody turned on. Its ids are recorded in the commit that
+ * removed it, and in this file's history, for any database still carrying
+ * those rows.
+ */
+export function seedSteps(_env: Env) {
+  return [seedLibraryIfEmpty];
 }
 
 /** Per-isolate latch so schema init does not run on every request. */
@@ -2522,11 +2332,12 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       // /api/admin/lookup and /api/admin/demo-data were written inside it and
       // not added here: both shipped as dead code, and the console showed
       // "Not found" on a screen whose server-side function had passing tests.
+      // demo-data is gone now, along with the seed it existed to clean up.
       if (path === "/api/admin/hospitals" || path.startsWith("/api/admin/hospitals/")
           || path === "/api/admin/doctors" || path.startsWith("/api/admin/doctors/")
           || path === "/api/admin/invites" || path === "/api/admin/invites/send"
           || path === "/api/admin/camp-people"
-          || path === "/api/admin/lookup" || path === "/api/admin/demo-data"
+          || path === "/api/admin/lookup"
           || path === "/api/admin/guardians" || path === "/api/admin/reset") {
         const actor = await resolveActor(request, sql, env);
         if (!actor) {
@@ -2599,15 +2410,6 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             return json({ error: "Method not allowed" }, 405);
           }
 
-          // Demonstration data: look before you leap, then leap.
-          if (path === "/api/admin/demo-data") {
-            if (method === "GET") return json(await previewDemoData(sql, actor));
-            if (method === "DELETE") {
-              const b = await readBody();
-              return json(await purgeDemoData(sql, actor, { articles: b.articles === true }));
-            }
-            return json({ error: "Method not allowed" }, 405);
-          }
 
           if (path === "/api/admin/invites" && method === "GET") {
             return json(await inviteStatus(sql, actor, url.searchParams.get("school_id") || ""));

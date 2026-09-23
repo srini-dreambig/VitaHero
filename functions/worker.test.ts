@@ -833,22 +833,12 @@ describe("the console offers only what can actually be recorded", () => {
     for (const c of PLANNED_CHECKS) expect(m![1]).not.toContain(c);
   });
 
-  test("no seeded camp carries a status or a check the code does not know", async () => {
-    const { readFileSync } = await import("node:fs");
-    const { CHECK_TYPES } = await import("./clinical");
-    const { CAMP_STATUSES } = await import("./camps");
-    const src = readFileSync("index.ts", "utf8");
-    const seed = src.slice(src.indexOf("async function seedPartnerSchools"));
-    const body = seed.slice(0, seed.indexOf("\nasync function", 10));
-    // The seed rows are ["id", "school", "title", "desc", date, time, STATUS, [checks], ...]
-    for (const row of body.matchAll(/"(SCHEDULED|UPCOMING|DRAFT|IN_PROGRESS|SCREENED|RELEASED|CANCELLED)", \[([^\]]*)\]/g)) {
-      expect(CAMP_STATUSES).toContain(row[1]);
-      for (const raw of row[2].split(",")) {
-        const check = raw.trim().replace(/^"|"$/g, "");
-        if (check) expect(CHECK_TYPES).toContain(check);
-      }
-    }
-  });
+  // No "no seeded camp carries an unknown status" test any more. It read the
+  // rows out of seedPartnerSchools, which no longer exists \u2014 so it would have
+  // matched nothing, iterated nothing and passed, which is worse than not
+  // being there. What it guarded is covered where it belongs: the console and
+  // the worker agree about CAMP_STATUSES and CHECK_TYPES in the suite below.
+
 });
 
 // The console and the app have to agree about camps.
@@ -1303,7 +1293,6 @@ describe("every admin route the console calls is actually reachable", () => {
     ["GET", "/api/admin/hospitals"],
     ["GET", "/api/admin/doctors"],
     ["GET", "/api/admin/lookup?phone=9876543210"],
-    ["GET", "/api/admin/demo-data"],
     ["GET", "/api/admin/guardians"],
     ["GET", "/api/admin/reset"],
     ["GET", "/api/admin/partners"],

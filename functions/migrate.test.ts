@@ -270,81 +270,24 @@ describe("seeding a fresh database", () => {
     expect(inserts[0].params.length / 10).toBeGreaterThanOrEqual(6);
   });
 
-  test("a school ops deleted does not come back", async () => {
-    // The real failure this moved for. In the DDL path the COUNT below was
-    // handed an empty result, so the guard never fired, and the inserts landed
-    // every time the schema version moved. DO NOTHING hid that only while the
-    // demo rows still existed — once ops deleted one, the next migration put it
-    // straight back.
-    const { seedPartnerSchools } = await import("./index");
-    const populated = fakeSql([
-      { match: /COUNT\(\*\)::int AS c FROM vita_hero\.schools/, rows: [{ c: 3 }] },
-    ]);
-    await seedPartnerSchools(populated);
-    expect(populated.statements.length).toBe(1);
-    expect(populated.statements.some((s: { text: string }) => /INSERT INTO/.test(s.text))).toBe(false);
-  });
-
-  test("but an empty database still gets its demo schools, in two statements", async () => {
-    const { seedPartnerSchools } = await import("./index");
-    const empty = fakeSql([
-      { match: /COUNT\(\*\)::int AS c FROM vita_hero\.schools/, rows: [{ c: 0 }] },
-    ]);
-    await seedPartnerSchools(empty);
-    const inserts = empty.statements.filter((s: { text: string }) => /INSERT INTO/.test(s.text));
-    expect(inserts.length).toBe(2);
-    expect(inserts[0].text).toContain("vita_hero.schools");
-    expect(inserts[1].text).toContain("vita_hero.school_camps");
-    // Four schools of seven columns, six camps of twelve.
-    expect(inserts[0].params.length).toBe(4 * 7);
-    expect(inserts[1].params.length).toBe(6 * 12);
-    // The camps carry their hospital on the insert, so nothing has to go back
-    // over the same six ids afterwards to patch it in.
-    expect(inserts[1].params).toContain("hosp_rainbow");
-  });
-
-  test("a seed step that reads is not run against the recorder", async () => {
-    // migrate() hands the DDL a recorder whose reads come back empty. Any step
-    // that decides something from a read has to be a seed, or its guard is
-    // decoration. seedPartnerSchools was in the DDL path with exactly that
-    // problem, so the shape is worth asserting rather than remembering.
-    const { readFileSync } = await import("node:fs");
-    const src = readFileSync("index.ts", "utf8");
-    const ensureSchema = src.slice(
-      src.indexOf("async function ensureSchema("),
-      src.indexOf("async function seedDoctorsIfEmpty(")
-    );
-    expect(ensureSchema).not.toContain("seedPartnerSchools(sql)");
-    // It is a seed step, wherever the list is built. The list is now chosen at
-    // runtime — demonstration data is opt-in — so this asserts the property
-    // rather than one spelling of one line.
-    const steps = src.slice(src.indexOf("function seedSteps("));
-    expect(steps.slice(0, steps.indexOf("}"))).toContain("seedPartnerSchools");
-  });
-
-  test("demonstration data is not seeded unless it is asked for", async () => {
-    // The four fictional schools are right for an evaluation and wrong for a
-    // district running a real programme, where they sit among the real schools
-    // looking exactly like one of them.
+  test("nothing fictional is seeded, whatever the environment says", async () => {
+    // There used to be four invented Hyderabad schools, six camps, four
+    // hospitals and ten doctors behind a SEED_DEMO_DATA switch, which no
+    // deployment ever set. A switch guarding a thing nobody turns on is a
+    // thing to remove, not to keep guarding \u2014 so the seed is gone and this
+    // holds the door shut: the reading library is content a guardian reads,
+    // and it is the only thing a fresh database is given.
     //
-    // Asserted by calling it rather than by reading the file: what matters is
-    // which steps come back, not how the branch is written.
+    // Asserted by calling seedSteps rather than reading the file, because
+    // what matters is which steps come back, not how the list is written.
     const { seedSteps } = await import("./index");
     const names = (env: unknown) =>
       (seedSteps(env as never) as Array<{ name: string }>).map((f) => f.name);
 
     expect(names({})).toEqual(["seedLibraryIfEmpty"]);
-    expect(names({ SEED_DEMO_DATA: "false" })).toEqual(["seedLibraryIfEmpty"]);
-    // Anything other than an explicit "true" leaves it off — an env var that
-    // arrived as "1" or "yes" must not quietly seed a live programme.
+    expect(names({ SEED_DEMO_DATA: "true" })).toEqual(["seedLibraryIfEmpty"]);
     expect(names({ SEED_DEMO_DATA: "1" })).toEqual(["seedLibraryIfEmpty"]);
-
-    const on = names({ SEED_DEMO_DATA: "true" });
-    expect(on).toContain("seedPartnerSchools");
-    expect(on).toContain("seedDoctorsIfEmpty");
-    // The reading library is content a guardian is shown, not fiction, so it
-    // is seeded either way.
-    expect(on).toContain("seedLibraryIfEmpty");
   });
+
 
 });

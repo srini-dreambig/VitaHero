@@ -4610,8 +4610,6 @@ export const PORTAL_HTML = `<!doctype html>
       run(api("/api/admin/access-log?days=" + (S.accessDays || 30)), function (d) { S.access = d; });
     } else if (t === "retention" && !S.retention) {
       run(api("/api/admin/retention"), function (d) { S.retention = d; });
-    } else if (t === "demo" && !S.demo) {
-      run(api("/api/admin/demo-data"), function (d) { S.demo = d; });
     } else if (t === "reset" && !S.resetPlan) {
       // Always re-counted on arrival rather than cached: the number somebody
       // is about to confirm has to be the number as it is now.
@@ -4631,7 +4629,6 @@ export const PORTAL_HTML = `<!doctype html>
       ["phone", "Find a number"],
       ["access", "Record access"],
       ["retention", "Retention"],
-      isOps() ? ["demo", "Demonstration data"] : null,
       // Last, and marked. One of these refuses to touch anything real and the
       // other exists to remove exactly that; in a single row they are
       // neighbours, so the one that empties the programme does not get to look
@@ -4655,7 +4652,6 @@ export const PORTAL_HTML = `<!doctype html>
           : S.oversightTab === "retention" ? tabRetention()
           : S.oversightTab === "child" ? tabChildTrail()
           : S.oversightTab === "phone" ? tabPhoneLookup()
-          : S.oversightTab === "demo" ? tabDemoData()
           : S.oversightTab === "reset" ? tabReset()
           : tabPartners();
       }));
@@ -5578,63 +5574,6 @@ export const PORTAL_HTML = `<!doctype html>
                 S.busy ? "Removing\\u2026" : "Empty the programme"))));
   }
 
-  function tabDemoData() {
-    var d = S.demo;
-    if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
-
-    function purge(withArticles) {
-      var what = d.removable + (d.removable === 1 ? " record" : " records");
-      if (!confirm("Remove " + what + "?\\n\\nThis cannot be undone. Anything holding real "
-        + "records is kept and will be listed.")) return;
-      run(api("/api/admin/demo-data", { method: "DELETE", body: { articles: !!withArticles } }),
-        function (r) {
-          S.notice = r.removed.length
-            ? "Removed " + r.removed.length + (r.removed.length === 1 ? " record." : " records.")
-            : "Nothing to remove.";
-          if (r.kept.length) {
-            S.notice += " Kept " + r.kept.length + " that hold real records.";
-          }
-          S.demo = null; S.schools = []; loadOversightTab();
-        });
-    }
-
-    return el("div", null,
-      el("div", { class: "msg info" },
-        "Demonstration data is the fictional schools, hospitals and doctors a new database "
-        + "starts with. It is no longer re-created on its own \u2014 set SEED_DEMO_DATA=true "
-        + "to get it back on an evaluation deployment."),
-
-      d.empty
-        ? el("div", { class: "card" }, el("div", { class: "empty" },
-            el("h3", null, "Nothing to clear"),
-            el("p", { style: "font-size:12.5px" }, "This database holds no demonstration records.")))
-        : el("div", null,
-            el("div", { class: "tbar" },
-              el("span", { class: "ttl" }, "Demonstration records"),
-              el("span", { class: "cnt" }, String(d.items.length)),
-              el("div", { style: "flex:1" }),
-              d.removable
-                ? el("button", { class: "dang", disabled: S.busy, onclick: function () { purge(false); } },
-                    icon("trash", 14), " Remove " + d.removable)
-                : null,
-              d.articles
-                ? el("button", { disabled: S.busy, onclick: function () { purge(true); } },
-                    icon("trash", 14), " Remove these and the " + d.articles + " library articles")
-                : null),
-            el("div", { class: "tw" }, el("table", null,
-              el("thead", null, el("tr", null, el("th", null, "Kind"), el("th", null, "Name"),
-                el("th", null, "Detail"), el("th", null, "What happens"))),
-              el("tbody", null, d.items.map(function (i) {
-                return el("tr", { class: i.removable ? "" : "muted" },
-                  el("td", null, el("span", { class: "pill mute" }, i.kind)),
-                  el("td", null, el("b", null, i.name)),
-                  el("td", { class: "muted" }, i.detail || "\u2014"),
-                  el("td", null, i.removable
-                    ? el("span", { class: "pill err" }, "Will be removed")
-                    : el("span", null, el("span", { class: "pill ok" }, "Kept"),
-                        el("div", { class: "muted", style: "font-size:11.5px;margin-top:2px" }, i.reason))));
-              }))))));
-  }
 
   function truncate(v, n) {
     v = String(v || "");
