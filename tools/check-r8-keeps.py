@@ -21,7 +21,13 @@ So: read the @Serializable classes out of the Kotlin, read the type names out
 of the built DEX, and report which ones the build actually kept. No Android
 tooling needed — a DEX carries its type descriptors as plain strings.
 
-    tools/check-r8-keeps.py android/app/build/outputs/apk/release/app-release.apk
+    tools/check-r8-keeps.py android/app/build/outputs/apk/release/
+
+Give it the output directory rather than a file and it finds the archive
+itself. That is not convenience: an unsigned release APK is called
+app-release-unsigned.apk and a signed one app-release.apk, so a hardcoded
+name works until somebody configures signing, or — as happened here — does
+not work until they do.
 """
 import re
 import sys
@@ -62,12 +68,31 @@ def serializers_in(archive: Path) -> set[str]:
     return found
 
 
+def resolve(given: Path) -> Path:
+    """The archive to read, whether given a file, a directory or a glob."""
+    if given.is_file():
+        return given
+    if given.is_dir():
+        found = sorted(p for p in given.iterdir()
+                       if p.suffix in (".apk", ".aab") and p.is_file())
+    else:
+        found = sorted(Path(given.parent).glob(given.name))
+    if not found:
+        raise SystemExit(f"check-r8-keeps: no .apk or .aab at {given}")
+    if len(found) > 1:
+        names = ", ".join(p.name for p in found)
+        raise SystemExit(
+            f"check-r8-keeps: {given} holds more than one archive ({names}) — "
+            "name the one to check"
+        )
+    print(f"check-r8-keeps: reading {found[0].name}")
+    return found[0]
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         raise SystemExit(f"usage: {sys.argv[0]} <release .apk or .aab>")
-    archive = Path(sys.argv[1])
-    if not archive.is_file():
-        raise SystemExit(f"check-r8-keeps: no such file: {archive}")
+    archive = resolve(Path(sys.argv[1]))
 
     want = declared()
     # A parse that finds nothing must fail loudly rather than pass vacuously.

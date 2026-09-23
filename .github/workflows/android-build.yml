@@ -134,10 +134,10 @@ jobs:
       # throws on the first response it parses. Debug builds never notice,
       # because debug does not run R8.
       - name: Every serializer survived R8
-        run: python3 tools/check-r8-keeps.py android/app/build/outputs/apk/release/app-release.apk
+        run: python3 tools/check-r8-keeps.py android/app/build/outputs/apk/release/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: release-apk-unsigned
+          name: release-apk
           path: android/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
