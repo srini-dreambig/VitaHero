@@ -173,7 +173,7 @@ await run("SCHOOL_ADMIN", { billing: false });
   const p2 = await b2.newPage({ viewport: { width: 1280, height: 900 } });
   await p2.addInitScript(() => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+      mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
     }));
     const D = {
       "/api/admin/overview": { schools: 1, students: 1, guardians: 1, guardiansActivated: 0,
@@ -234,7 +234,7 @@ await run("SCHOOL_ADMIN", { billing: false });
   p3.on("pageerror", (e) => err3.push(e.message));
   await p3.addInitScript(() => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+      mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
     }));
     const school = { id: "sch_1", name: "Silver Oaks", city: "Hyderabad", district: "",
       partnerCode: "SO-1", academicYear: "2026-27", contactName: "", contactPhone: "",

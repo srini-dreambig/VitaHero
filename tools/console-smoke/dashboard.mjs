@@ -52,7 +52,7 @@ const ANALYTICS = {
 
 await p.addInitScript((A) => {
   localStorage.setItem("vh_console", JSON.stringify({
-    mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+    mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
   }));
   const D = {
     "/api/admin/overview": { schools: 2, students: 520, guardians: 500, guardiansActivated: 210,

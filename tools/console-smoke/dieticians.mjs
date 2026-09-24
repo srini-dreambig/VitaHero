@@ -1,5 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
-import { go } from "./nav.mjs";
+import { go, aboutText } from "./nav.mjs";
 
 // C — the dietician directory, from the console's side.
 //
@@ -21,7 +21,7 @@ p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 await p.addInitScript(() => {
   window.__posted = [];
   localStorage.setItem("vh_console", JSON.stringify({
-    mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+    mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
   }));
   const D = {
     "/api/admin/overview": { schools: 2, students: 0, guardians: 0, guardiansActivated: 0,
@@ -62,8 +62,9 @@ await p.waitForTimeout(600);
 let t = await p.$eval("#root", (n) => n.innerText);
 check("the directory lists dieticians", /Meera Rao/.test(t) && /Asha Kumar/.test(t));
 check("a retired one is marked as retired", /RETIRED/i.test(t));
-check("the screen says what a dietician may see", /growth, haemoglobin and the food log/i.test(t));
-check("and says what they may not", /not the dental, eye or illness record/i.test(t));
+const dietAbout = await aboutText(p);
+check("the screen says what a dietician may see", /growth, haemoglobin and the food log/i.test(dietAbout));
+check("and says what they may not", /not the dental, eye or illness record/i.test(dietAbout));
 check("the school they are on is shown", /Silver Oaks/i.test(t));
 
 // The assignment dropdown must offer the school they are NOT on.

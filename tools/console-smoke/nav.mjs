@@ -60,3 +60,29 @@ async function click(p, label, anyButton) {
 /** The screens of this destination, in order. */
 export const screens = (p) =>
   p.$$eval(".tabs .tab", (ns) => ns.map((n) => n.textContent.replace(/\d+$/, "").trim()));
+
+/**
+ * The screen's standing note, from behind the information icon in the top bar.
+ *
+ * These used to be a paragraph at the top of the screen and were read straight
+ * off .content. They are a disclosure now, so a test that wants to assert the
+ * console explains itself has to open it — which is also the test that the
+ * icon works.
+ *
+ * Every step re-queries: toggling re-renders the whole tree, so an element
+ * handle taken before the click is detached by the time of the next one.
+ */
+export async function aboutText(p) {
+  const toggle = () => p.evaluate(() => {
+    const b = document.querySelector(".aboutw .ibtn");
+    if (b) b.click();
+    return !!b;
+  });
+  if (!(await p.$(".aboutw .ibtn"))) return "";
+  if (!(await p.$(".aboutp"))) { await toggle(); await p.waitForTimeout(160); }
+  const text = await p.$eval(".aboutp", (n) => n.innerText).catch(() => "");
+  // Put it away again: it hangs over the top of the screen, and a test that
+  // leaves it open is a test that cannot click what is underneath.
+  if (await p.$(".aboutp")) { await toggle(); await p.waitForTimeout(140); }
+  return text;
+}

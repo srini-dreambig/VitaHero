@@ -63,7 +63,7 @@ await (async () => {
 
   await p.addInitScript(([A, R]) => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+      mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
     }));
     const D = {
       "/api/admin/overview": { schools: 2, students: 520, guardians: 500, guardiansActivated: 210,
@@ -162,7 +162,13 @@ await (async () => {
   if (await tryGo("Camps")) await shot("04-camps");
   if (await tryGo("Questions")) await shot("05-questions");
   if (await tryGo("Billing")) await shot("06-billing");
-  if (await tryGo("Hospitals")) await shot("07-hospitals");
+  if (await tryGo("Hospitals")) {
+    await shot("07-hospitals");
+    // The screen's standing note, open behind its icon.
+    await p.evaluate(() => document.querySelector(".aboutw .ibtn")?.click());
+    await shot("07-hospitals-about");
+    await p.evaluate(() => document.querySelector(".aboutw .ibtn")?.click());
+  }
   if (await tryGo("Doctors")) await shot("08-doctors");
   if (await tryGo("Library")) await shot("09-library");
 

@@ -420,6 +420,50 @@ export const PORTAL_HTML = `<!doctype html>
   .msg.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-ln)}
   .msg.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-ln)}
   .msg.info{background:var(--info-bg);color:var(--info);border-color:var(--info-ln)}
+  /* A notice you can put away before it puts itself away. */
+  .msg.dis{display:flex;align-items:flex-start;gap:var(--s-2)}
+  .msg.dis .grow{flex:1;min-width:0}
+  .msg.dis button{color:inherit;opacity:.65;margin:-3px -6px 0 0;flex:none}
+  .msg.dis button:hover:not(:disabled){opacity:1;background:rgba(255,255,255,.6);border-color:transparent}
+
+  /* \u2500\u2500 a screen's standing explanation \u2500\u2500
+     Ten screens opened with a paragraph of blue saying what they are for.
+     Each is worth reading; none is worth four lines of every visit after the
+     first. It lives behind the information icon beside the title now and
+     opens under it. Absolute rather than fixed: .bar is sticky and clips
+     nothing, so the panel can hang off it without the placement machinery the
+     row menus need. */
+  .aboutw{position:relative;display:inline-flex;flex:none}
+  .aboutp{position:absolute;top:calc(100% + 10px);right:0;z-index:50;
+    width:min(430px,calc(100vw - 40px));background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r-lg);box-shadow:var(--sh-lg);padding:var(--s-4);
+    font-size:var(--t-md);line-height:1.55;color:var(--ink-2);white-space:normal;text-align:left}
+  .aboutp:before{content:"";position:absolute;top:-5px;right:13px;width:9px;height:9px;
+    background:var(--card);border-left:1px solid var(--line);border-top:1px solid var(--line);
+    transform:rotate(45deg)}
+  .aboutp h4{margin-bottom:var(--s-2)}
+  /* A notice you can put away before it puts itself away. */
+  .msg.dis{display:flex;align-items:flex-start;gap:var(--s-2)}
+  .msg.dis .grow{flex:1;min-width:0}
+  .msg.dis button{color:inherit;opacity:.65;margin:-3px -6px 0 0;flex:none}
+  .msg.dis button:hover:not(:disabled){opacity:1;background:rgba(255,255,255,.6);border-color:transparent}
+
+  /* ── a screen's standing explanation ──
+     Ten screens opened with a paragraph of blue saying what they are for.
+     Each is worth reading; none is worth four lines of every visit after the
+     first. It lives behind the information icon beside the title now and
+     opens under it. Absolute rather than fixed: .bar is sticky and clips
+     nothing, so the panel can hang off it without the placement machinery the
+     row menus need. */
+  .aboutw{position:relative;display:inline-flex;flex:none}
+  .aboutp{position:absolute;top:calc(100% + 10px);right:0;z-index:50;
+    width:min(430px,calc(100vw - 40px));background:var(--card);border:1px solid var(--line);
+    border-radius:var(--r-lg);box-shadow:var(--sh-lg);padding:var(--s-4);
+    font-size:var(--t-md);line-height:1.55;color:var(--ink-2);white-space:normal;text-align:left}
+  .aboutp:before{content:"";position:absolute;top:-5px;right:13px;width:9px;height:9px;
+    background:var(--card);border-left:1px solid var(--line);border-top:1px solid var(--line);
+    transform:rotate(45deg)}
+  .aboutp h4{margin-bottom:var(--s-2)}
 
   /* ── the screens of a workspace ──
      One row of tabs under the title, in the order the work happens. */
@@ -740,6 +784,8 @@ export const PORTAL_HTML = `<!doctype html>
     ban: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM4.9 4.9l14.2 14.2",
     x: "M18 6 6 18M6 6l12 12",
     chevron: "m6 9 6 6 6-6",
+    info: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 16v-4M12 8h.01",
+    info: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM12 16v-4M12 8h.01",
     arrowLeft: "M19 12H5M12 19l-7-7 7-7",
     arrowRight: "M5 12h14M12 5l7 7-7 7",
     mail: "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM22 7l-10 6L2 7",
@@ -890,7 +936,7 @@ export const PORTAL_HTML = `<!doctype html>
       classes: null, admins: null, staff: null, roster: null, batches: null,
       camps: null, camp: null, campTab: "setup", participants: null, queue: null,
       screenKid: null, screenForm: null, reviewKid: null, reviewData: null,
-      myCamps: null, upload: null, otp: null, signMode: "otp", slide: 0, form: null,
+      myCamps: null, upload: null, otp: null, signMode: "otp", slide: 0, about: "", form: null,
       referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
       programme: null, rollover: null, refForm: null, refFilter: "",
       forceOffline: false, syncRejects: null,
@@ -1396,6 +1442,68 @@ export const PORTAL_HTML = `<!doctype html>
     setTimeout(function () { URL.revokeObjectURL(u); }, 1000);
   }
 
+  // \u2500\u2500 a screen's standing explanation \u2500\u2500
+  //
+  // Called while a screen's body is being built, which happens before the top
+  // bar is built \u2014 so by the time the bar asks, the note is there. Renders
+  // nothing where it stands.
+  //
+  // Takes its pieces the way el() does, so turning a banner into a note was
+  // swapping the call and changing nothing else.
+  var aboutNote = "";
+  function about() {
+    aboutNote = [].slice.call(arguments).join("");
+    return null;
+  }
+
+  /**
+   * The information icon, beside the screen's title.
+   *
+   * What is open is the path it was opened on rather than a boolean, so moving
+   * to another screen closes it without anything having to remember to.
+   */
+  function aboutButton() {
+    if (!aboutNote) return null;
+    var here = currentPath(), open = S.about === here;
+    return el("div", { class: "aboutw" },
+      el("button", { class: "ibtn" + (open ? " on" : ""),
+        title: open ? "Hide this note" : "What this screen is for",
+        onclick: function () { set({ about: open ? "" : here }); } }, icon("info", 16)),
+      open ? el("div", { class: "aboutp" },
+        el("h4", null, "About this screen"), aboutNote) : null);
+  }
+
+  // \u2500\u2500 a notice that gets out of the way \u2500\u2500
+  //
+  // "Saved." and "Deleted Silver Oaks." stayed until the next action, which on
+  // a screen you then stayed on meant they were still there minutes later,
+  // describing something long since finished. They clear themselves now, after
+  // long enough to read them \u2014 four seconds and a beat a word, capped \u2014 and
+  // carry a dismiss button for anyone who has already read it. Errors do not:
+  // an error is something you still have to do something about.
+  var noticeShown = "", noticeTimer = null;
+  function armNotice() {
+    if (S.notice === noticeShown) return;
+    noticeShown = S.notice;
+    if (noticeTimer) { clearTimeout(noticeTimer); noticeTimer = null; }
+    if (!S.notice) return;
+    var words = String(S.notice).split(" ").length;
+    noticeTimer = setTimeout(function () {
+      noticeTimer = null;
+      // Something else has been said since. That one owns the timer now.
+      if (S.notice !== noticeShown) return;
+      S.notice = ""; noticeShown = "";
+      render();
+    }, Math.min(14000, 4000 + words * 220));
+  }
+  function noticeBar() {
+    if (!S.notice) return null;
+    return el("div", { class: "msg ok dis" },
+      el("span", { class: "grow" }, S.notice),
+      el("button", { class: "ibtn sm", title: "Dismiss",
+        onclick: function () { set({ notice: "" }); } }, icon("x", 14)));
+  }
+
   // ── small helpers ──
   function uniq(a) { return a.filter(function (v, i) { return a.indexOf(v) === i; }); }
   function trim(s) { return String(s).trim(); }
@@ -1431,7 +1539,7 @@ export const PORTAL_HTML = `<!doctype html>
     function useKey() {
       var k = keyI.value.trim();
       if (!k) { set({ error: "Enter the admin API key" }); return; }
-      S.auth = { mode: "key", key: k, name: "VitaHero Admin", role: "SUPERADMIN", schoolId: null };
+      S.auth = { mode: "key", key: k, name: "Admin key", role: "SUPERADMIN", schoolId: null };
       run(api("/api/admin/overview"), function (d) { saveAuth(S.auth); S.overview = d; S.view = "overview"; });
     }
     function send() {
@@ -1475,7 +1583,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("button", { class: S.signMode === "key" ? "on" : "",
             onclick: function () { set({ signMode: "key", error: "" }); } }, "Admin")),
         S.error ? el("div", { class: "msg err" }, S.error) : null,
-        S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
+        noticeBar(),
         S.signMode === "key"
           ? el("div", null,
               el("div", { class: "fld" }, el("label", null, "Admin API key"),
@@ -2426,7 +2534,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       tabBar(schoolTabs(), S.schoolTab, goSchoolTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
-      S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
+      noticeBar(),
       safely(function () {
       return S.schoolTab === "roster" ? tabRoster()
         : S.schoolTab === "camps" ? tabCamps()
@@ -3145,7 +3253,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat err" }, el("b", null, t.overdue), el("span", null, "overdue")),
         el("div", { class: "stat ok" }, el("b", null, t.closureRate === null ? "—" : t.closureRate + "%"),
           el("span", null, "closure rate"))),
-      el("div", { class: "msg info" },
+      about(
         "Closure rate is the number that shows the screening changed something. It counts referrals a clinician has closed, over those a family has not declined."),
       el("div", { class: "row", style: "margin-bottom:var(--s-3)" },
         el("select", { style: "max-width:200px", onchange: function (e) { set({ refFilter: e.target.value }); } },
@@ -3349,7 +3457,7 @@ export const PORTAL_HTML = `<!doctype html>
     }
     var open = S.corrections.filter(function (c) { return c.status === "OPEN"; });
     return el("div", null,
-      el("div", { class: "msg info" },
+      about(
         "Guardians can ask for a detail about their child to be corrected. A guardian cannot change a record themselves — you accept or reject, and either way it is recorded."),
       S.corrections.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
@@ -3399,7 +3507,7 @@ export const PORTAL_HTML = `<!doctype html>
 
     var overdue = q.counts ? (q.counts.overdue || 0) : 0;
     return el("div", null,
-      el("div", { class: "msg info" },
+      about(
         "Families can ask about their child's check-up here. It is not urgent care, and the app tells them so before they write. You have said you will reply within "
         + q.responseWindowDays + " days."),
       overdue
@@ -3519,7 +3627,7 @@ export const PORTAL_HTML = `<!doctype html>
 
     var pct = v.total ? Math.round((v.joined / v.total) * 100) : 0;
     return el("div", null,
-      el("div", { class: "msg info" },
+      about(
         "A released result reaches a family only if they have the app. This is how many can receive one."),
       // Checked before anything is sent, so "Sent to 0 of 2" is never the
       // first time anyone learns this worker cannot text at all.
@@ -3627,7 +3735,7 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     return el("div", null,
-      el("div", { class: "msg info" },
+      about(
         "Invoices are built from children whose results were actually released \u2014 never from a headcount. There is no payment gateway here: mark an invoice paid when the money arrives."),
       el("div", { class: "card" },
         el("div", { class: "card-h" },
@@ -3811,7 +3919,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat ok" }, el("b", null, c.released || 0), el("span", null, "released"))),
       tabBar(campTabs(), S.campTab, goCampTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
-      S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
+      noticeBar(),
       safely(function () {
         return S.campTab === "setup" ? campSetup()
           : S.campTab === "people" ? campPeopleTab()
@@ -4170,7 +4278,7 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     return el("div", null,
-      el("div", { class: "msg info" },
+      about(
         "Consent is per camp and per child. A child cannot be screened without it \\u2014 that rule is enforced by the server, not by this screen."),
       // E1/E3 — the two ways forward, side by side: paper for the families
       // who will never open an app, and a chase for the ones who would.
@@ -4905,7 +5013,7 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     return el("div", null,
-      el("div", { class: "msg info" },
+      about(
         "This is what families read after a camp. Write plainly, in the second person, and never write anything that reads like a diagnosis \u2014 the physician's recommendation does that job."),
       el("div", { class: "row", style: "margin-bottom:var(--s-4)" },
         el("div", { style: "flex:1" }),
@@ -4998,7 +5106,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       tabBar(oversightTabs(), S.oversightTab, goOversightTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
-      S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
+      noticeBar(),
       safely(function () {
         return S.oversightTab === "access" ? tabAccessLog()
           : S.oversightTab === "retention" ? tabRetention()
@@ -5317,7 +5425,7 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     return el("div", null,
-      el("div", { class: "msg info" },
+      about(
         "Ranked on badges earned and the current streak \u2014 the same numbers for every "
         + "child, kept on the server. Pick from the list rather than taking the top row: "
         + "the numbers cannot see the child who started badly and turned it around."),
@@ -5436,7 +5544,7 @@ export const PORTAL_HTML = `<!doctype html>
     };
 
     return el("div", null,
-      el("div", { class: "msg info" },
+      about(
         "A dietician works across a school rather than at one camp, so they are assigned to "
         + "schools, not to camps. They see growth, haemoglobin and the food log for children "
         + "at their schools \u2014 not the dental, eye or illness record \u2014 and they write "
@@ -5699,7 +5807,7 @@ export const PORTAL_HTML = `<!doctype html>
     var hs = S.hospitals.hospitals || [];
     var searchBox;
     return el("div", null,
-      el("div", { class: "msg info" },
+      about(
         "This is what a family sees when a doctor refers their child onward. A hospital marked as a camp partner is shown first."),
       el("div", { class: "tbar" },
         el("span", { class: "ttl" }, "Hospitals"),
@@ -6411,6 +6519,9 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     clear(root);
+    armNotice();
+    // Cleared before the body is built, and set by whichever screen has one.
+    aboutNote = "";
     if (!S.auth) { add(root, viewSignIn()); return; }
 
     // A screen that throws must not take the console with it.
@@ -6442,10 +6553,11 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "bar" },
           el("div", { class: "grow" }, crumbs(), el("h1", null, title())),
           S.view === "camp" && S.camp ? statusPill(S.camp.camp.status) : null,
-          S.view === "school" && S.school ? el("span", { class: "code" }, S.school.partnerCode) : null),
+          S.view === "school" && S.school ? el("span", { class: "code" }, S.school.partnerCode) : null,
+          aboutButton()),
         el("div", { class: "content" },
           S.view !== "school" && S.view !== "camp" && S.error ? el("div", { class: "msg err" }, S.error) : null,
-          S.view !== "school" && S.view !== "camp" && S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
+          S.view !== "school" && S.view !== "camp" ? noticeBar() : null,
           body))));
 
     // Any table that was not given a scroller gets one. A phone is 390px wide
@@ -6528,16 +6640,25 @@ export const PORTAL_HTML = `<!doctype html>
   // whatever is underneath — otherwise dismissing a menu over a table row
   // would also open that row.
   document.addEventListener("click", function (e) {
-    if (!S.menu) return;
-    var n = e.target;
+    if (!S.menu && !S.about) return;
+    var inMenu = false, inAbout = false, n = e.target;
     while (n && n !== document) {
-      if (n.className && String(n.className).indexOf("menuw") >= 0) return;
+      var c = n.className ? String(n.className) : "";
+      if (c.indexOf("menuw") >= 0) inMenu = true;
+      if (c.indexOf("aboutw") >= 0) inAbout = true;
       n = n.parentNode;
     }
-    S.menu = ""; render();
+    if (S.menu && !inMenu) { S.menu = ""; render(); return; }
+    // The note is read-only, so unlike a menu it does not swallow the click
+    // that dismisses it: rendering on the next tick lets this click finish on
+    // the button it was aimed at. Closing a menu has to swallow the click
+    // because the row underneath opens something; closing a note does not.
+    if (S.about && !inAbout) { S.about = ""; setTimeout(render, 0); }
   }, true);
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && S.menu) { S.menu = ""; render(); }
+    if (e.key !== "Escape") return;
+    if (S.menu) { S.menu = ""; render(); }
+    else if (S.about) { S.about = ""; render(); }
   });
   // A fixed menu does not travel with the button it belongs to, so scrolling
   // would leave it stranded over unrelated rows. Close it instead.

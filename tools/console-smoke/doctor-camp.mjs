@@ -21,7 +21,7 @@ p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 
 await p.addInitScript(() => {
   localStorage.setItem("vh_console", JSON.stringify({
-    mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+    mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
   }));
   const camp = {
     camp: {

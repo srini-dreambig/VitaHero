@@ -24,7 +24,7 @@ p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 await p.addInitScript(() => {
   window.__posted = [];
   localStorage.setItem("vh_console", JSON.stringify({
-    mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+    mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
   }));
   const school = { id: "sch_1", name: "Silver Oaks", city: "Hyderabad", district: "",
     contactName: "", contactPhone: "", contactEmail: "", academicYear: "2026-27",

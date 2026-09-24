@@ -1,5 +1,5 @@
 const { chromium } = (await import((process.env.PW_DIR || "playwright") + "/index.js")).default;
-import { go } from "./nav.mjs";
+import { go, aboutText } from "./nav.mjs";
 
 // Every console screen added late — the question queue, a question thread,
 // contracts and invoices, the reading library — rendered in a real browser
@@ -20,7 +20,7 @@ p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
 
 await p.addInitScript(() => {
   localStorage.setItem("vh_console", JSON.stringify({
-    mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+    mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
   }));
   const D = {
     "/api/admin/overview": { schools: 1, students: 6, guardians: 6, guardiansActivated: 3,
@@ -102,7 +102,7 @@ await p.waitForTimeout(400);
 // ── questions ──
 await click("Questions");
 const q = await text();
-check("the queue says what this channel is not", /not urgent care/i.test(q));
+check("the queue says what this channel is not", /not urgent care/i.test(await aboutText(p)));
 check("the queue names the promised reply window", /within 3 days|3 days/.test(q));
 check("an overdue question is called out", /waiting longer than/i.test(q));
 check("days waited is shown per thread", /\b5d\b/i.test(q));
@@ -119,8 +119,9 @@ check("the reply box warns against clinical detail", /referral letter/.test(thre
 await click("Questions");
 await click("Billing");
 const bill = await text();
-check("billing says invoices come from delivered work", /actually released/.test(bill));
-check("billing says there is no payment gateway", /no payment gateway/.test(bill));
+const billAbout = await aboutText(p);
+check("billing says invoices come from delivered work", /actually released/.test(billAbout));
+check("billing says there is no payment gateway", /no payment gateway/.test(billAbout));
 check("the contract is shown", /per student year/i.test(bill));
 check("the rate is shown in rupees", /150/.test(bill));
 check("the invoice is listed", /VH-2027-0001/.test(bill));
@@ -135,7 +136,7 @@ check("the contract form explains paise", /paise/.test(form));
 await click("Cancel");
 await click("Library");
 const lib = await text();
-check("the library warns against writing a diagnosis", /diagnosis/.test(lib));
+check("the library warns against writing a diagnosis", /diagnosis/.test(await aboutText(p)));
 check("an article shows what triggers it", /Vision/.test(lib));
 check("an article shows its age band", /4.{0,3}14/.test(lib));
 
@@ -151,7 +152,7 @@ const hos = await text();
 check("the hospital directory lists hospitals", /Rainbow Children/.test(hos));
 check("a camp partner is marked as one", /Camp partner/i.test(hos));
 check("a second hospital is listed", /LV Prasad/.test(hos));
-check("the directory says what it is for", /refers their child onward/i.test(hos));
+check("the directory says what it is for", /refers their child onward/i.test(await aboutText(p)));
 await click("Add hospital");
 const hosForm = await text();
 check("a hospital can be added", /Add a hospital/.test(hosForm));
@@ -164,7 +165,7 @@ await p.getByText("Silver Oaks").first().click();
 await p.waitForTimeout(400);
 await click("App invites");
 const inv = await text();
-check("invites explain why they matter", /reaches a family only if they have the app/i.test(inv));
+check("invites explain why they matter", /reaches a family only if they have the app/i.test(await aboutText(p)));
 check("only families not on the app are targeted by default", /Invite the 4 not on the app/.test(inv));
 check("the guardian list can be exported", /Export CSV/.test(inv));
 check("a guardian already on the app is marked", /Installed/i.test(inv));

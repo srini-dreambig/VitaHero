@@ -32,7 +32,7 @@ async function open() {
 
   await p.addInitScript((school) => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+      mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
     }));
     // A camp pack from a previous day, exactly as the console stores one.
     localStorage.setItem("vh_pack_camp_9", JSON.stringify({
@@ -174,7 +174,7 @@ async function open() {
 
   await p.addInitScript(() => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+      mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
     }));
     const mk = (id, name) => ({
       id, name, city: "Hyderabad", district: "", partnerCode: id.toUpperCase(),
@@ -256,7 +256,7 @@ async function open() {
 
   await p.addInitScript(() => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+      mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
     }));
     // Two captures already waiting, and a third recorded while the sync of
     // those two is still in flight.
@@ -369,7 +369,7 @@ async function open() {
 
   await p.addInitScript(() => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+      mode: "key", key: "k", name: "Asha Menon", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
     }));
     // The pack the screener downloaded before walking into the hall. Offline,
     // the console builds the capture form out of this rather than the network.

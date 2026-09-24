@@ -40,7 +40,7 @@ const ANALYTICS = {
 async function openAs(role, schoolId) {
   await p.addInitScript(([role, schoolId, analytics]) => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "VitaHero Admin", role, profileId: "ph_1", schoolId }));
+      mode: "key", key: "k", name: "Asha Menon", role, profileId: "ph_1", schoolId }));
     const D = {
       "/api/admin/overview": { schools: 0, students: 0, guardians: 0,
         guardiansActivated: 0, campStatus: {}, upcoming: [] },
