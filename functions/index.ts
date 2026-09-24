@@ -1817,6 +1817,27 @@ export default {
     if (path === "/privacy") return servePrivacyPage();
     if (path === "/data-deletion") return serveDataDeletionPage();
 
+    // The bare hostname goes to the console.
+    //
+    // It used to answer {"error":"Not found","path":"/"}, which is correct —
+    // there is no route there — and reads exactly like a broken deployment.
+    // Opening the hostname is the first thing anyone does, and a raw JSON 404
+    // is what they judge the deploy by. It cost a day and a support ticket to
+    // find out the worker had been fine the whole time.
+    //
+    // 302 rather than 301: a permanent redirect is cached by browsers for a
+    // long time and is unpleasant to take back, and "/" might one day want to
+    // be a landing page.
+    //
+    // GET and HEAD only. A POST to "/" is not somebody who mistyped, and it
+    // should still get the 404 it always did rather than be bounced at the
+    // console. Sits above the database check on purpose, like the two pages
+    // above it: a hostname that cannot reach Postgres should still be able to
+    // point a person at the door.
+    if (path === "/" && (request.method === "GET" || request.method === "HEAD")) {
+      return Response.redirect(new URL("/admin", url).toString(), 302);
+    }
+
     const dbUrl = env.DATABASE_URL;
 
     if (!dbUrl) {

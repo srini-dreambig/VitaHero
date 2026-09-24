@@ -73,6 +73,35 @@ beforeEach(() => {
 
 // ── portal ──
 describe("the portal", () => {
+  // The bare hostname is what a person types, and what they judge a deploy by.
+  //
+  // It answered {"error":"Not found","path":"/"} — correct, there is no route
+  // there, and indistinguishable from a broken worker. A redeploy was reported
+  // as failed on the strength of it, and a support agent reading only that
+  // page concluded the product had no web interface and advised bolting static
+  // assets onto the worker, which is the configuration that had just been
+  // removed after it served a slide deck in place of the console for weeks.
+  test("the bare hostname sends a person to the console", async () => {
+    const r = await call("/");
+    expect(r.status).toBe(302);
+    expect(new URL(r.headers.get("Location")!).pathname).toBe("/admin");
+  });
+
+  test("but a POST to it is still not a route", async () => {
+    // Nobody POSTs to "/" by mistyping. Bouncing a write at the console would
+    // turn a clear 404 into a confusing one.
+    const r = await call("/", { method: "POST", body: "{}" });
+    expect(r.status).toBe(404);
+  });
+
+  test("and the redirect does not need the database", async () => {
+    // It sits in front of the DATABASE_URL check, with the two Play pages. A
+    // hostname that cannot reach Postgres should still point at the door
+    // rather than answer 500 at the one address everybody tries first.
+    const r = await worker.fetch(req("/"), { ADMIN_API_KEY: "k" } as never);
+    expect(r.status).toBe(302);
+  });
+
   test("is served as HTML at /admin", async () => {
     const r = await call("/admin");
     expect(r.status).toBe(200);
