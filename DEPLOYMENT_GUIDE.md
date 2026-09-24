@@ -241,6 +241,36 @@ First release of VitaHero. View school health camp reports, track growth, get di
 
 ## Admin portal setup
 
+### How the backend gets deployed
+
+Cloudflare Workers Builds is connected to the GitHub repository and deploys on
+every push to `main`. Its configuration lives in the Cloudflare dashboard, and
+these three settings are the whole of it:
+
+| Setting | Value |
+|---|---|
+| Root directory | `functions` |
+| Build command | `bun install` |
+| Deploy command | `npx wrangler deploy` |
+
+**The root directory is the one that matters.** Pointed at the repository root
+instead, Workers Builds finds no `wrangler.toml` — it lives in `functions/` —
+falls back to publishing static assets, and serves `presentation/index.html`.
+What you get is a Worker with no script at all: the console and every `/api`
+route return 404, and the dashboard says *"Metrics is unavailable for Workers
+with only static assets"*. If you ever see that line, this is why.
+
+To recover: **Workers & Pages → vitahero → Deployments**, find the last version
+that was the real worker, and roll back. Then fix the root directory.
+
+GitHub Actions does **not** deploy. `worker-checks.yml` runs the test suites
+against a real Postgres and stops there; two things deploying one Worker is how
+a bad deploy goes unnoticed. `production-health.yml` checks every half hour
+that the hostname is still serving the worker rather than something else, and
+the sharpest of its three assertions is that an unauthenticated `/api/me/rights`
+answers **401** — only running code can refuse you; a static-assets deployment
+can only 404.
+
 The admin portal is already live as part of the Cloudflare worker. It is a single-page HTML app served by the same backend, not a separate Vercel deployment.
 
 ### Access the admin panel

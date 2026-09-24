@@ -19,6 +19,29 @@
 #   every secret below — set once with `wrangler secret put`, stored by
 #     Cloudflare, and never passed through a build.
 
+# ─── How this is deployed ───────────────────────────────────
+#
+# Cloudflare Workers Builds, connected to this repository, deploying on every
+# push. Its settings live in the dashboard, not here, which is exactly how they
+# went wrong unnoticed — so they are written down:
+#
+#   Workers & Pages -> vitahero -> Settings -> Build
+#     Root directory   functions
+#     Build command    bun install      (bun.lock is in this directory)
+#     Deploy command   npx wrangler deploy
+#
+# The root directory is the one that matters. Pointed at the repository root,
+# Workers Builds finds no wrangler config — this file is in functions/, not up
+# there — falls back to publishing static assets, and serves presentation/
+# index.html. The result is a Worker with no script: the console 404s, every
+# /api route 404s, and the dashboard reports "Metrics is unavailable for
+# Workers with only static assets". That happened, on a commit that changed one
+# Python file and nothing else.
+#
+# There is no second deploy path. The GitHub Actions workflow runs the tests
+# and does not deploy, because two things deploying one Worker is what let this
+# go unseen. production-health.yml checks the hostname afterwards.
+
 # Matches the Worker that Workers Builds actually created. It was named
 # "vitahero" in the dashboard, and the dashboard's name wins — so a
 # `wrangler deploy` run against a config saying anything else would not update

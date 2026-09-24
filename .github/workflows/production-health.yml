@@ -1,0 +1,82 @@
+# Is production still the worker, or has something replaced it?
+#
+# This exists because of how the last outage was found: by a person clicking a
+# link in the Cloudflare dashboard and noticing the partner deck where the
+# console should be. Nothing in this repository was watching, and the deploy
+# that did it came from a path nothing here knew about — Cloudflare Workers
+# Builds, wired straight to the repository, firing on every push regardless of
+# what changed. It deployed a commit that touched one Python file as a website.
+#
+# So this does not check "did our deploy work". It checks "is the thing on that
+# hostname still the worker", which is true or false whoever deployed it.
+name: Production health
+
+on:
+  schedule:
+    # Every half hour. A console that has been down for a whole working day is
+    # a school ringing you; one that has been down for twenty minutes is not.
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  health:
+    name: The worker is still the worker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check
+        env:
+          # Set the WORKER_BASE_URL repository variable to point this
+          # elsewhere; the default is the production worker.
+          BASE: ${{ vars.WORKER_BASE_URL || 'https://vitahero.kallam.workers.dev' }}
+        run: |
+          set -uo pipefail
+          fail=0
+
+          # Retried once, because a single timeout is the internet, not an
+          # outage, and a health check that cries wolf gets muted.
+          get() {
+            curl -sS --max-time 25 -o /tmp/body -w '%{http_code}' "$1" 2>/dev/null \
+              || { sleep 5; curl -sS --max-time 25 -o /tmp/body -w '%{http_code}' "$1" 2>/dev/null; }
+          }
+
+          # 1. The script runs at all, and can reach the database.
+          code=$(get "$BASE/ping")
+          if [ "$code" = "200" ] && grep -q '"ok":true' /tmp/body; then
+            echo "ok   /ping -> 200, database answered"
+          else
+            echo "FAIL /ping -> $code"; head -c 300 /tmp/body; echo; fail=1
+          fi
+
+          # 2. The console is the console. Checking for 200 alone would have
+          #    passed happily while the partner deck was being served.
+          code=$(get "$BASE/admin")
+          if [ "$code" = "200" ] && grep -q "VitaHero Console" /tmp/body; then
+            echo "ok   /admin -> 200, and it is the console"
+          else
+            echo "FAIL /admin -> $code, and the body is not the console"
+            head -c 300 /tmp/body; echo; fail=1
+          fi
+
+          # 3. The sharpest of the three. An unauthenticated API call must be
+          #    refused with 401 — which only code can do. A worker serving
+          #    static files has no route here and can only answer 404, so this
+          #    is what tells "the worker is running" apart from "files are
+          #    being served from the same hostname".
+          code=$(get "$BASE/api/me/rights")
+          if [ "$code" = "401" ]; then
+            echo "ok   /api/me/rights -> 401, the API is executing"
+          else
+            echo "FAIL /api/me/rights -> $code (401 expected; 404 means the"
+            echo "     worker script is gone and assets are being served)"
+            head -c 300 /tmp/body; echo; fail=1
+          fi
+
+          if [ "$fail" != "0" ]; then
+            echo
+            echo "Production is not serving the VitaHero worker."
+            echo "Check Workers & Pages -> vitahero -> Deployments and roll back,"
+            echo "then check Settings -> Build: Root directory must be 'functions'."
+            exit 1
+          fi
+          echo
+          echo "Production is the worker."

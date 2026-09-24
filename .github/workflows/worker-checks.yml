@@ -1,0 +1,73 @@
+# Check the backend. Deploying it is Cloudflare's job, not this file's.
+#
+# There used to be a deploy job here as well, and that was one deploy path too
+# many. Cloudflare Workers Builds is connected to this repository and deploys
+# on every push; this workflow also had credentials to deploy the same worker.
+# Two things deploying one worker is how a commit touching a single Python file
+# ended up published as a website, with neither path aware of the other.
+#
+# So there is one deploy path now — Workers Builds, configured with `functions`
+# as its root directory so it finds functions/wrangler.toml — and this file
+# does what it was always best at: running the SQL suites against a real
+# Postgres, which is the thing a deploy cannot do for itself.
+#
+# It does not gate the deploy. Workers Builds will publish whether this passes
+# or not, which is worth knowing: a red tick here means the thing on production
+# is already the thing that failed. .github/workflows/production-health.yml is
+# the backstop that notices.
+name: Worker checks
+
+on:
+  push:
+    branches: ["main"]
+    paths: ["functions/**", ".github/workflows/worker-checks.yml"]
+  pull_request:
+    paths: ["functions/**"]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Checks
+    runs-on: ubuntu-latest
+
+    # The worker is the only thing between a parent and their child's results.
+    # Deploying it without running the SQL suites against a real database is
+    # how a migration reaches production untested.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: vitahero_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        working-directory: functions
+        run: bun install --frozen-lockfile
+
+      - name: Types
+        working-directory: functions
+        run: bunx tsc --noEmit
+
+      - name: Tests
+        working-directory: functions
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/vitahero_test
+        run: bun test
+
+      # Catches a config or bundling error here rather than half way through a
+      # deploy, and costs seconds.
+      - name: Bundle
+        working-directory: functions
+        run: bunx wrangler deploy --dry-run
