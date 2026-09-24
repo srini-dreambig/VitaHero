@@ -38,19 +38,23 @@ export const PORTAL_HTML = `<!doctype html>
     --nav-2:#1A2341;        /* DarkSurface */
     --nav-tx:#94A3B8;       /* InkFaint */
     --nav-ac:#F47B20;
+    --nav-line:#1E293B;
+    --nav-sunk:#2C3E4E;
     --ink:#0F172A;          /* Ink */
     --ink-2:#475569;        /* InkSoft */
     --ink-3:#94A3B8;        /* InkFaint */
     --bg:#FAFCFE;           /* Canvas */
     --card:#FFFFFF;         /* SurfaceWhite */
     --sunk:#EEF4F8;         /* SurfaceMuted */
+    --hover:#F5F9FC;
     --line:#E2E9EF;         /* HairLine */
     --line-2:#EEF4F8;
-    --ok:#10B981;    --ok-bg:#E7F8F2;      /* FlagGood */
-    --warn:#F59E0B;  --warn-bg:#FEF3DC;    /* FlagWatch */
-    --err:#EF4444;   --err-bg:#FDE8E8;     /* FlagAlert */
-    --info:#1FA2DD;  --info-bg:#D6EFFA;    /* HeroBlue */
-    --mute:#94A3B8;  --mute-bg:#EEF4F8;    /* FlagNeutral */
+    --line-3:#CFD9E0;
+    --ok:#10B981;    --ok-bg:#E7F8F2;   --ok-ln:#C6E3D8;   /* FlagGood */
+    --warn:#F59E0B;  --warn-bg:#FEF3DC; --warn-ln:#EEDFB6; /* FlagWatch */
+    --err:#EF4444;   --err-bg:#FDE8E8;  --err-ln:#F0D2CE;  /* FlagAlert */
+    --info:#1FA2DD;  --info-bg:#D6EFFA; --info-ln:#C3E2F0; /* HeroBlue */
+    --mute:#94A3B8;  --mute-bg:#EEF4F8;                    /* FlagNeutral */
     --purple:#8B5CF6;
     /* Flatter than the app on purpose. A phone screen shows one card at a
        time and a drop shadow separates it from the wallpaper; a console shows
@@ -59,30 +63,86 @@ export const PORTAL_HTML = `<!doctype html>
        things that genuinely float — a menu over the page. */
     --sh:0 1px 1px rgba(15,23,42,.04);
     --sh-lg:0 8px 24px -8px rgba(15,23,42,.18),0 2px 6px -2px rgba(15,23,42,.08);
+
+    /* ── the scales ──
+       Everything below is chosen from one of these four ladders and nothing
+       else. The console had seven font weights, fourteen font sizes and
+       forty-four padding values, most of them half a step apart: 12px beside
+       12.5px, 640 beside 650. Differences that small are not read as a
+       hierarchy, they are read as a mistake, and there is no way to add a
+       screen to a system like that without guessing. Adding one now means
+       picking a rung, not a number. */
+
+    /* Type. Six rungs, each a clear step from the last: a caption, a
+       footnote, a control, the body, a heading, a title — and one figure size
+       for a number that is the point of the screen it is on. */
+    --t-cap:10px;   /* uppercase captions: column heads, tile labels, pills */
+    --t-xs:11px;    /* counts and axis ticks riding alongside something else */
+    --t-sm:12px;    /* secondary prose: hints, sub-lines, meta */
+    --t-md:13px;    /* body, table cells, buttons, inputs — the default */
+    --t-lg:15px;    /* section and panel headings */
+    --t-xl:18px;    /* page title, and the figure on a summary tile */
+    --t-2xl:28px;   /* the headline figure on a dashboard tile */
+
+    /* Weight. Three, and each has a job: regular reads, medium labels,
+       semibold names things. 700 is the wordmark only — it is a logotype,
+       not a heading. */
+    --w-reg:400;
+    --w-med:500;
+    --w-semi:600;
+
+    /* Space. A 4px grid. Gaps, padding and margins come from here, so two
+       things that look like they should line up do. */
+    --s-1:4px;
+    --s-2:8px;
+    --s-3:12px;
+    --s-4:16px;
+    --s-5:20px;
+    --s-6:24px;
+    --s-7:32px;
+    --gut:20px;     /* the page gutter: the top bar and the content share it */
+
+    /* Control height. One number is why a search box, a filter, a count and a
+       button in the same strip sit on the same line — which they did not. */
+    --ctl:28px;
+    --ctl-sm:24px;
+    --ctl-lg:32px;
+    --row:32px;     /* a table row */
+
     /* Console density. The app rounds cards at 18-22dp because it is held at
        arm's length and touched; a console is read at a desk with a mouse, so
        the chrome shrinks and the data takes the space it gives up. */
+    --r-sm:4px;
     --r:6px;
     --r-lg:8px;
+    --r-full:999px;
+
+    --font:"Host Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
     margin:0;background:var(--bg);color:var(--ink);
-    font:13px/1.45 "Host Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    font:var(--t-md)/1.45 var(--font);
     -webkit-font-smoothing:antialiased;
   }
   h1,h2,h3,h4{margin:0;line-height:1.25;letter-spacing:-.014em}
-  h1{font-size:18px;font-weight:660}
-  h2{font-size:14px;font-weight:640}
-  h3{font-size:13px;font-weight:640}
-  h4{font-size:10.5px;font-weight:650;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3)}
-  p{margin:0 0 10px}
+  h1{font-size:var(--t-xl);font-weight:var(--w-semi)}
+  h2{font-size:var(--t-lg);font-weight:var(--w-semi)}
+  h3{font-size:var(--t-md);font-weight:var(--w-semi)}
+  /* The caption. One treatment, used for every small uppercase label on the
+     screen — column heads, tile captions, menu section heads — so they read as
+     the same kind of thing. */
+  h4,.cap{font-size:var(--t-cap);font-weight:var(--w-semi);text-transform:uppercase;
+    letter-spacing:.07em;color:var(--ink-3);line-height:1.4}
+  p{margin:0 0 var(--s-3)}
   a{color:var(--brand-dk)}
   /* Tabular figures wherever a number is read down a column rather than in a
      sentence: without them a 1 is narrower than a 7 and the column wobbles. */
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;
     font-variant-numeric:tabular-nums}
+  .tnum{font-variant-numeric:tabular-nums}
 
   /* ── shell ── */
   /* minmax(0,...) rather than a bare 1fr: a grid track's automatic minimum is
@@ -91,7 +151,8 @@ export const PORTAL_HTML = `<!doctype html>
      scrolling inside itself. */
   .shell{display:grid;grid-template-columns:214px minmax(0,1fr);min-height:100vh}
   .nav{background:var(--nav);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
-  .brand{display:flex;align-items:center;gap:10px;padding:14px 14px 12px;font-weight:700;font-size:14px;letter-spacing:-.02em}
+  .brand{display:flex;align-items:center;gap:var(--s-2);padding:var(--s-4) var(--s-3) var(--s-3);
+    font-weight:var(--w-semi);font-size:var(--t-md);letter-spacing:-.02em}
   /* The wordmark as the brand actually sets it: "vita" orange, "hero" blue,
      lowercase, tight. Previously a gradient square stood in for the logo. */
   .wm{font-weight:700;letter-spacing:-.02em;font-size:17px;line-height:1}
@@ -100,120 +161,136 @@ export const PORTAL_HTML = `<!doctype html>
   .nav .wm i{color:#F9A45C}
   .nav .wm b{color:#6FC7EE}
   .wm.big{font-size:30px}
-  .signbrand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:18px}
-  .signbrand .tag{font-size:11px;font-weight:600;letter-spacing:.13em;
+  .signbrand{display:flex;flex-direction:column;align-items:center;gap:var(--s-2);margin-bottom:var(--s-5)}
+  .signbrand .tag{font-size:var(--t-xs);font-weight:var(--w-semi);letter-spacing:.13em;
     text-transform:uppercase;color:var(--blue)}
   /* The nav is now long enough to need its own scroll, so the brand stays put
      at the top and sign-out stays put at the bottom. */
-  .navscroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:8px}
+  .navscroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:var(--s-2)}
   .navscroll::-webkit-scrollbar{width:6px}
-  .navscroll::-webkit-scrollbar-thumb{background:#2C3E4E;border-radius:3px}
-  .navsec{padding:4px 8px}
-  .navsec + .navsec{border-top:1px solid #1B2836;margin-top:2px}
-  .navi .n{margin-left:auto;background:#2C3E4E;color:#CBD5E1;border-radius:9px;
-    padding:0 6px;font-size:11px;font-weight:650;line-height:17px}
-  .navsec h4{color:#5D707E;padding:8px 8px 5px;font-size:10px}
+  .navscroll::-webkit-scrollbar-thumb{background:var(--nav-sunk);border-radius:var(--r-full)}
+  .navsec{padding:var(--s-1) var(--s-2)}
+  .navsec + .navsec{border-top:1px solid var(--nav-line);margin-top:var(--s-1);padding-top:var(--s-2)}
+  .navi .n{margin-left:auto;background:var(--nav-sunk);color:#CBD5E1;border-radius:var(--r-full);
+    padding:0 6px;font-size:var(--t-cap);font-weight:var(--w-semi);line-height:16px}
+  .navsec h4{color:#5D707E;padding:var(--s-2) var(--s-2) var(--s-1)}
   .navi{
-    display:flex;align-items:center;gap:8px;width:100%;text-align:left;
-    background:none;border:none;color:var(--nav-tx);font:inherit;font-size:12.5px;font-weight:500;
-    padding:6px 9px;border-radius:5px;cursor:pointer;margin-bottom:1px;
+    display:flex;align-items:center;gap:var(--s-2);width:100%;text-align:left;min-height:var(--ctl);
+    background:none;border:none;color:var(--nav-tx);font:inherit;font-size:var(--t-md);font-weight:var(--w-med);
+    padding:0 var(--s-2);border-radius:var(--r-sm);cursor:pointer;margin-bottom:1px;
   }
   .navi:hover{background:var(--nav-2);color:#fff}
-  .navi.on{background:var(--nav-2);color:#fff;font-weight:600}
+  .navi.on{background:var(--nav-2);color:#fff;font-weight:var(--w-semi)}
   .navi.on .ic{color:var(--nav-ac)}
   .ic{width:15px;height:15px;display:flex;align-items:center;justify-content:center;flex:none;opacity:.9}
-  .navfoot{margin-top:auto;padding:14px;border-top:1px solid #223140;font-size:12.5px;color:var(--nav-tx)}
-  .navfoot b{display:block;color:#fff;font-weight:600;font-size:13px}
-  .navfoot .role{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#5D707E;margin-top:1px}
-  .navfoot button{margin-top:10px;width:100%;background:none;border:1px solid #2C3E4E;color:var(--nav-tx);
-    padding:6px;border-radius:6px;font:inherit;font-size:12.5px;cursor:pointer}
-  .navfoot button:hover{background:var(--nav-2);color:#fff}
+  .navfoot{margin-top:auto;padding:var(--s-3);border-top:1px solid var(--nav-line);
+    font-size:var(--t-sm);color:var(--nav-tx)}
+  .navfoot b{display:block;color:#fff;font-weight:var(--w-semi);font-size:var(--t-md)}
+  .navfoot .role{font-size:var(--t-cap);text-transform:uppercase;letter-spacing:.07em;color:#5D707E;margin-top:1px}
+  .navfoot button{margin-top:var(--s-2);width:100%;justify-content:center;background:none;
+    border:1px solid var(--nav-sunk);color:var(--nav-tx);border-radius:var(--r);font:inherit;
+    font-size:var(--t-md);cursor:pointer}
+  .navfoot button:hover{background:var(--nav-2);color:#fff;border-color:var(--nav-sunk)}
 
   .main{min-width:0;display:flex;flex-direction:column}
   .bar{
-    background:var(--card);border-bottom:1px solid var(--line);padding:9px 18px;
-    display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10;min-height:46px;
+    background:var(--card);border-bottom:1px solid var(--line);padding:var(--s-2) var(--gut);
+    display:flex;align-items:center;gap:var(--s-3);position:sticky;top:0;z-index:10;min-height:48px;
   }
   .bar .grow{flex:1;min-width:0}
-  .crumb{font-size:11.5px;color:var(--ink-3);margin-bottom:1px}
-  .crumb button{background:none;border:none;color:var(--ink-3);font:inherit;padding:0;cursor:pointer;text-decoration:underline}
-  .crumb button:hover{color:var(--brand-dk)}
-  .content{padding:16px 18px 56px;flex:1}
+  .crumb{font-size:var(--t-sm);color:var(--ink-3);margin-bottom:1px}
+  .crumb button{background:none;border:none;color:var(--ink-3);font:inherit;font-size:var(--t-sm);
+    min-height:0;padding:0;cursor:pointer;text-decoration:underline}
+  .crumb button:hover{color:var(--brand-dk);background:none}
+  .content{padding:var(--s-4) var(--gut) 56px;flex:1}
 
-  /* ── controls ── */
+  /* ── controls ──
+     One height for everything that sits in a row with something else, so a
+     search box, a filter group, a count and a button line up without anyone
+     nudging a margin. */
   button,.btn{
-    font:inherit;font-size:12.5px;font-weight:550;cursor:pointer;border:1px solid var(--line);
-    background:var(--card);color:var(--ink);padding:5px 10px;border-radius:5px;
+    font:inherit;font-size:var(--t-md);font-weight:var(--w-med);cursor:pointer;border:1px solid var(--line);
+    background:var(--card);color:var(--ink);padding:0 var(--s-3);border-radius:var(--r);
+    min-height:var(--ctl);
     transition:background .12s,border-color .12s;white-space:nowrap;
-    display:inline-flex;align-items:center;gap:6px;line-height:1.3;
+    display:inline-flex;align-items:center;gap:var(--s-2);line-height:1.3;
   }
   /* An icon inside a button never shrinks below its box and never sets the
      line height — otherwise a row of buttons with and without icons no longer
      shares a baseline. */
   button svg,.btn svg{flex:none;display:block}
-  button:hover:not(:disabled){background:var(--sunk);border-color:#CFD9E0}
+  button:hover:not(:disabled){background:var(--sunk);border-color:var(--line-3)}
   button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--brand);outline-offset:1px}
   button:disabled{opacity:.45;cursor:not-allowed}
-  button.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+  button.pri{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:var(--w-semi)}
   button.pri:hover:not(:disabled){background:var(--brand-dk);border-color:var(--brand-dk)}
   button.ghost{border-color:transparent;background:none}
-  button.ghost:hover:not(:disabled){background:var(--mute-bg)}
-  button.dang{color:var(--err);border-color:#EBC8C4}
-  button.dang:hover:not(:disabled){background:var(--err-bg)}
-  button.lnk{border:none;background:none;color:var(--brand-dk);padding:2px 3px;text-decoration:underline;font-weight:500}
+  button.ghost:hover:not(:disabled){background:var(--mute-bg);border-color:transparent}
+  button.dang{color:var(--err);border-color:var(--err-ln)}
+  button.dang:hover:not(:disabled){background:var(--err-bg);border-color:var(--err-ln)}
+  button.lnk{border:none;background:none;color:var(--brand-dk);padding:0;min-height:0;
+    text-decoration:underline;font-weight:var(--w-med)}
   button.lnk:hover:not(:disabled){background:none;color:var(--brand)}
-  button.sm{padding:3px 8px;font-size:12px}
-  button.big{padding:8px 15px;font-size:12.5px}
+  button.sm{min-height:var(--ctl-sm);padding:0 var(--s-2);font-size:var(--t-sm);gap:var(--s-1)}
+  button.big{min-height:var(--ctl-lg);padding:0 var(--s-4)}
   /* Icon-only: square, quiet until hovered. The row-action affordance. */
-  button.ibtn{padding:4px;border-color:transparent;background:none;color:var(--ink-3);border-radius:5px}
+  button.ibtn{width:var(--ctl);min-height:var(--ctl);padding:0;justify-content:center;
+    border-color:transparent;background:none;color:var(--ink-3);border-radius:var(--r)}
   button.ibtn:hover:not(:disabled){background:var(--sunk);color:var(--ink);border-color:var(--line)}
   button.ibtn.on{background:var(--sunk);color:var(--ink);border-color:var(--line)}
+  button.sm.ibtn{width:var(--ctl-sm);min-height:var(--ctl-sm)}
 
-  label{display:block;font-size:11.5px;font-weight:600;margin-bottom:4px;color:var(--ink-2)}
+  label{display:block;font-size:var(--t-sm);font-weight:var(--w-semi);margin-bottom:var(--s-1);color:var(--ink-2)}
   input[type=text],input[type=tel],input[type=email],input[type=number],input[type=date],select,textarea{
-    font:inherit;font-size:12.5px;width:100%;padding:5px 8px;border:1px solid var(--line);border-radius:5px;
-    background:var(--card);color:var(--ink);
+    font:inherit;font-size:var(--t-md);width:100%;padding:0 var(--s-2);border:1px solid var(--line);
+    border-radius:var(--r);height:var(--ctl);background:var(--card);color:var(--ink);
   }
-  textarea{min-height:66px;resize:vertical;line-height:1.5}
-  .fld{margin-bottom:11px}
-  .hint{font-size:11.5px;color:var(--ink-3);margin-top:3px;line-height:1.45}
-  .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
-  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 12px}
+  select{padding-right:var(--s-1)}
+  textarea{height:auto;min-height:72px;padding:var(--s-2);resize:vertical;line-height:1.5}
+  input::placeholder,textarea::placeholder{color:var(--ink-3)}
+  .fld{margin-bottom:var(--s-3)}
+  .hint{font-size:var(--t-sm);color:var(--ink-3);margin-top:var(--s-1);line-height:1.45}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:0 var(--s-3)}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:0 var(--s-3)}
   @media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
 
-  .chips{display:flex;flex-wrap:wrap;gap:7px}
+  .chips{display:flex;flex-wrap:wrap;gap:var(--s-2)}
   .chip{
-    display:flex;align-items:center;gap:5px;font-size:12px;font-weight:500;
-    border:1px solid var(--line);border-radius:14px;padding:3px 10px 3px 8px;cursor:pointer;
-    user-select:none;background:var(--card);
+    display:flex;align-items:center;gap:var(--s-1);font-size:var(--t-sm);font-weight:var(--w-med);
+    min-height:var(--ctl-sm);border:1px solid var(--line);border-radius:var(--r-full);
+    padding:0 var(--s-3) 0 var(--s-2);cursor:pointer;user-select:none;background:var(--card);
   }
   .chip input{margin:0;accent-color:var(--brand)}
   .chip.on{background:var(--brand-sf);border-color:#EFC49C}
 
   /* ── surfaces ── */
-  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh);margin-bottom:12px}
-  .card-b{padding:13px 15px}
-  .card-h{padding:9px 15px;border-bottom:1px solid var(--line-2);display:flex;align-items:center;gap:10px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
+    box-shadow:var(--sh);margin-bottom:var(--s-3)}
+  .card-b{padding:var(--s-4)}
+  .card-h{padding:var(--s-3) var(--s-4);border-bottom:1px solid var(--line-2);
+    display:flex;align-items:center;gap:var(--s-3);min-height:44px}
   .card-h h2{flex:1;min-width:0}
-  .card-f{padding:9px 15px;border-top:1px solid var(--line-2);background:var(--sunk);border-radius:0 0 var(--r) var(--r)}
+  .card-f{padding:var(--s-3) var(--s-4);border-top:1px solid var(--line-2);background:var(--sunk);
+    border-radius:0 0 var(--r-lg) var(--r-lg)}
 
-  .tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--sh)}
+  .tw{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
+    box-shadow:var(--sh)}
   /* Same scrolling, none of the chrome — for a table already sitting inside a
      card. Applied by hand where it reads well and by the safety net in
      render() everywhere else, because a table that escapes its container
      scrolls the whole page sideways and takes the sticky nav with it. */
   .tws{overflow-x:auto;max-width:100%}
-  table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
-  th,td{text-align:left;padding:5px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+  table{border-collapse:separate;border-spacing:0;width:100%;font-size:var(--t-md)}
+  th,td{text-align:left;padding:0 var(--s-3);border-bottom:1px solid var(--line-2);vertical-align:middle}
   /* Sticky header. A roster runs to hundreds of rows and the whole point of a
      dense table is that you scroll it; a column you can no longer name is a
      column you have to scroll back up to read. */
-  th{position:sticky;top:0;z-index:2;background:var(--sunk);font-size:10.5px;text-transform:uppercase;
-    letter-spacing:.07em;color:var(--ink-2);font-weight:650;white-space:nowrap;padding-top:6px;padding-bottom:6px;
-    border-bottom:1px solid var(--line)}
+  th{position:sticky;top:0;z-index:2;background:var(--sunk);height:var(--ctl-sm);
+    font-size:var(--t-cap);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-2);
+    font-weight:var(--w-semi);white-space:nowrap;border-bottom:1px solid var(--line)}
   tbody td{height:var(--row)}
   tbody tr:last-child td{border-bottom:none}
-  tbody tr:hover td{background:#F7FAFC}
+  tbody tr:hover td{background:var(--hover)}
   tbody tr.click{cursor:pointer}
   tbody tr.click:hover td{background:var(--sunk)}
   /* A whole row dimmed to say "retired" must not dim the buttons that bring it
@@ -226,8 +303,8 @@ export const PORTAL_HTML = `<!doctype html>
      wrapping these. */
   td.nw,th.nw{white-space:nowrap}
   /* The actions column: fixed to the right, never the reason a table scrolls. */
-  th.act,td.act{text-align:right;width:1%;white-space:nowrap;padding-left:6px}
-  td.act .row{justify-content:flex-end;gap:4px;flex-wrap:nowrap}
+  th.act,td.act{text-align:right;width:1%;white-space:nowrap;padding-left:var(--s-2)}
+  td.act .row{justify-content:flex-end;gap:var(--s-1);flex-wrap:nowrap}
 
   /* ── record list ──
      A row that carries the whole object: what it is, what it is called, how it
@@ -236,50 +313,51 @@ export const PORTAL_HTML = `<!doctype html>
      because the cells are not all text; a plain table forces every one of them
      into the same shape and you end up with thirteen thin columns of numbers.
      Columns stay aligned because it is still a grid. */
-  .recs{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  .recs{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
     box-shadow:var(--sh);overflow-x:auto}
   .recw{border-bottom:1px solid var(--line-2)}
   .recw:last-child{border-bottom:none}
-  .rec{display:grid;align-items:center;gap:14px;padding:9px 14px;cursor:pointer;
+  .rec{display:grid;align-items:center;gap:var(--s-4);padding:var(--s-3) var(--s-4);cursor:pointer;
     transition:background .1s}
   .rec.open{background:var(--sunk)}
-  .rec:hover{background:#F7FAFC}
+  .rec:hover{background:var(--hover)}
   .rec.muted{background:var(--bg)}
   .rec.muted .rname{color:var(--ink-3)}
   /* The type badge: one square glyph that says what kind of thing this row is,
      the way a file icon does. */
-  .rec .rt{width:28px;height:28px;border-radius:6px;background:var(--sunk);
+  .rec .rt{width:var(--ctl);height:var(--ctl);border-radius:var(--r);background:var(--sunk);
     border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
     color:var(--ink-2);flex:none}
-  .rec .rid{font-size:10.5px;color:var(--ink-3);font-family:ui-monospace,Menlo,Consolas,monospace;
+  .rec .rid{font-size:var(--t-cap);color:var(--ink-3);font-family:ui-monospace,Menlo,Consolas,monospace;
     letter-spacing:.02em}
-  .rec .rname{font-size:13px;font-weight:650;letter-spacing:-.012em;line-height:1.25}
-  .rec .rsub{font-size:11.5px;color:var(--ink-3);line-height:1.3;margin-top:1px}
+  .rec .rname{font-size:var(--t-md);font-weight:var(--w-semi);letter-spacing:-.012em;line-height:1.3}
+  .rec .rsub{font-size:var(--t-sm);color:var(--ink-3);line-height:1.35;margin-top:1px}
   .rec .rcol{min-width:0}
 
   /* A labelled figure. The caption sits above the number because you read what
      it is before you read what it says. */
-  .metric{display:flex;align-items:center;gap:8px;min-width:0}
+  .metric{display:flex;align-items:center;gap:var(--s-2);min-width:0}
   .metric .mv{min-width:0}
   /* Caption and figure, usable anywhere in a row rather than only inside a
      .metric: a column that is a figure with a caption is the same thing
      whether or not it has a gauge beside it. Scoping these to .metric is how
      "301" and "5 staff" came out rendered as "3015 staff". */
-  .ml{display:block;font-size:10px;font-weight:600;text-transform:uppercase;
-    letter-spacing:.055em;color:var(--ink-3);line-height:1.3;white-space:nowrap}
-  .mn{display:block;font-size:13.5px;font-weight:660;line-height:1.25;
+  .ml{display:block;font-size:var(--t-cap);font-weight:var(--w-semi);text-transform:uppercase;
+    letter-spacing:.07em;color:var(--ink-3);line-height:1.4;white-space:nowrap}
+  .mn{display:block;font-size:var(--t-md);font-weight:var(--w-semi);line-height:1.3;
     font-variant-numeric:tabular-nums;letter-spacing:-.015em}
   .mn.ok{color:var(--ok)} .mn.warn{color:var(--warn)}
-  .mn.err{color:var(--err)} .mn.off{color:var(--ink-3);font-weight:600}
+  .mn.err{color:var(--err)} .mn.off{color:var(--ink-3)}
   .metric .mi{flex:none;display:flex;align-items:center;justify-content:center;
-    width:26px;height:26px;border-radius:50%;background:var(--sunk);color:var(--ink-3)}
+    width:var(--ctl);height:var(--ctl);border-radius:var(--r-full);background:var(--sunk);color:var(--ink-3)}
 
   /* Tag chips, with the ones that did not fit counted rather than dropped. */
   /* A chip is a chip wherever it is. Scoping this to .tagset left the same
      markup rendering as bare text in the detail panel. */
-  .tg{display:inline-block;font-size:10.5px;font-weight:600;padding:1px 7px;border-radius:10px;
-    background:var(--sunk);border:1px solid var(--line);color:var(--ink-2);white-space:nowrap}
-  .tagset{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;min-width:0;overflow:hidden}
+  .tg{display:inline-block;font-family:var(--font);font-size:var(--t-xs);font-weight:var(--w-med);padding:1px var(--s-2);
+    border-radius:var(--r-full);background:var(--sunk);border:1px solid var(--line);color:var(--ink-2);
+    white-space:nowrap;line-height:1.5}
+  .tagset{display:flex;align-items:center;gap:var(--s-1);flex-wrap:nowrap;min-width:0;overflow:hidden}
   /* Only in a row does a chip give way; in the panel it is shown in full. */
   .tagset .tg{overflow:hidden;text-overflow:ellipsis;min-width:0}
   /* The count of what did not fit never shrinks and is never the thing that
@@ -290,64 +368,73 @@ export const PORTAL_HTML = `<!doctype html>
   /* The rest of a record, opened out under its row. A definition grid rather
      than more columns: these are things you look up one at a time, not things
      you scan down a list. */
-  .recd{padding:12px 14px 14px 56px;background:var(--sunk);
+  .recd{padding:var(--s-4) var(--s-4) var(--s-4) 60px;background:var(--sunk);
     border-top:1px solid var(--line)}
   .dgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));
-    gap:10px 18px}
-  .dv{display:block;font-size:12.5px;line-height:1.4;margin-top:1px}
+    gap:var(--s-3) var(--s-5)}
+  .dv{display:block;font-size:var(--t-md);line-height:1.4;margin-top:1px}
   .chev{display:flex;transition:transform .15s}
   .chev.up{transform:rotate(180deg)}
 
   /* A row of counts you can filter by, each saying how many it would leave. */
   .qf{display:inline-flex;align-items:center;gap:2px;background:var(--mute-bg);
-    padding:3px;border-radius:8px;flex-wrap:wrap}
-  .qf button{border:none;background:none;font-size:12px;font-weight:550;padding:4px 10px;
-    border-radius:6px;color:var(--ink-2);display:inline-flex;align-items:center;gap:6px}
+    min-height:var(--ctl);padding:2px;border-radius:var(--r);flex-wrap:wrap}
+  .qf button{border:none;background:none;font-size:var(--t-sm);font-weight:var(--w-med);
+    min-height:var(--ctl-sm);padding:0 var(--s-3);border-radius:var(--r-sm);color:var(--ink-2);
+    display:inline-flex;align-items:center;gap:var(--s-1)}
   .qf button:hover:not(:disabled){background:rgba(255,255,255,.65);border-color:transparent}
-  .qf button.on{background:var(--card);box-shadow:var(--sh);color:var(--ink);font-weight:650}
-  .qf button .c{font-size:10.5px;font-weight:650;color:var(--ink-3);
+  .qf button.on{background:var(--card);box-shadow:var(--sh);color:var(--ink);font-weight:var(--w-semi)}
+  .qf button .c{font-size:var(--t-xs);font-weight:var(--w-semi);color:var(--ink-3);
     font-variant-numeric:tabular-nums}
   .qf button.on .c{color:var(--brand-dk)}
 
-  .pill{display:inline-block;font-size:10px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;
-    padding:1px 6px;border-radius:3px;white-space:nowrap;line-height:1.6}
+  .pill{display:inline-block;font-family:var(--font);font-size:var(--t-cap);font-weight:var(--w-semi);letter-spacing:.05em;
+    text-transform:uppercase;padding:0 var(--s-2);border-radius:var(--r-sm);white-space:nowrap;line-height:18px}
   .pill.ok{background:var(--ok-bg);color:var(--ok)}
   .pill.warn{background:var(--warn-bg);color:var(--warn)}
   .pill.err{background:var(--err-bg);color:var(--err)}
   .pill.info{background:var(--info-bg);color:var(--info)}
   .pill.mute{background:var(--mute-bg);color:var(--mute)}
-  .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:650;background:var(--sunk);
-    border:1px solid var(--line);border-radius:4px;padding:1px 6px;letter-spacing:.04em;font-size:11.5px}
+  .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:var(--w-semi);background:var(--sunk);
+    border:1px solid var(--line);border-radius:var(--r-sm);padding:0 var(--s-2);letter-spacing:.04em;
+    font-size:var(--t-xs);line-height:18px;display:inline-block}
 
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:1px;background:var(--line);
-    border:1px solid var(--line);border-radius:var(--r);overflow:hidden;margin-bottom:12px;box-shadow:var(--sh)}
+  /* ── summary tiles ──
+     Two sizes of the same thing. .stats is the strip that says what this
+     screen is counting; .kpis is the handful of figures a dashboard exists
+     for. Same caption, same colour, same alignment — only the figure changes
+     size, because only the figure is doing different work. */
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;margin-bottom:var(--s-3);
+    box-shadow:var(--sh)}
   /* Label above the figure, flipped with flex order rather than by rewriting
      every call site: the markup stays number-then-label, which is the sensible
      reading order for a screen reader, while the eye gets the caption first. */
-  .stat{background:var(--card);padding:9px 12px;display:flex;flex-direction:column}
-  .stat b{order:2;font-size:19px;font-weight:660;letter-spacing:-.025em;font-variant-numeric:tabular-nums;line-height:1.15}
-  .stat span{order:1;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.055em;
-    color:var(--ink-3);margin-bottom:3px;line-height:1.3}
+  .stat{background:var(--card);padding:var(--s-3) var(--s-4);display:flex;flex-direction:column}
+  .stat b{order:2;font-size:var(--t-xl);font-weight:var(--w-semi);letter-spacing:-.025em;
+    font-variant-numeric:tabular-nums;line-height:1.2}
+  .stat span{order:1;font-size:var(--t-cap);font-weight:var(--w-semi);text-transform:uppercase;
+    letter-spacing:.07em;color:var(--ink-3);margin-bottom:var(--s-1);line-height:1.4}
   .stat.ok b{color:var(--ok)} .stat.warn b{color:var(--warn)}
   .stat.err b{color:var(--err)} .stat.info b{color:var(--info)}
 
-  .msg{border-radius:5px;padding:7px 11px;margin-bottom:11px;font-size:12.5px;border:1px solid transparent}
-  .msg.err{background:var(--err-bg);color:var(--err);border-color:#F0D2CE}
-  .msg.ok{background:var(--ok-bg);color:var(--ok);border-color:#C6E3D8}
-  .msg.warn{background:var(--warn-bg);color:var(--warn);border-color:#EEDFB6}
-  .msg.info{background:var(--info-bg);color:var(--info);border-color:#C3E2F0}
+  .msg{border-radius:var(--r);padding:var(--s-2) var(--s-3);margin-bottom:var(--s-3);
+    font-size:var(--t-md);border:1px solid transparent}
+  .msg.err{background:var(--err-bg);color:var(--err);border-color:var(--err-ln)}
+  .msg.ok{background:var(--ok-bg);color:var(--ok);border-color:var(--ok-ln)}
+  .msg.warn{background:var(--warn-bg);color:var(--warn);border-color:var(--warn-ln)}
+  .msg.info{background:var(--info-bg);color:var(--info);border-color:var(--info-ln)}
 
-  /* ── the two levels of a workspace ──
-     The groups across the top, and — only when the group you are in holds
-     more than one screen — its screens underneath as a segmented control.
-     Two visually different controls on purpose: a second row of tabs reads as
-     one long strip and you lose track of which level you are picking from. */
-  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px;overflow-x:auto}
-  .tab{border:none;background:none;padding:6px 11px;font-weight:600;font-size:12.5px;color:var(--ink-3);
-    border-bottom:2px solid transparent;border-radius:0;white-space:nowrap}
+  /* ── the screens of a workspace ──
+     One row of tabs under the title, in the order the work happens. */
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:var(--s-4);overflow-x:auto}
+  .tab{border:none;background:none;min-height:34px;padding:0 var(--s-3);font-weight:var(--w-med);
+    font-size:var(--t-md);color:var(--ink-2);border-bottom:2px solid transparent;border-radius:0;
+    white-space:nowrap}
   .tab:hover{background:none;color:var(--ink)}
-  .tab.on{color:var(--brand-dk);border-bottom-color:var(--brand)}
-  .tab .n{font-size:11px;background:var(--mute-bg);color:var(--mute);border-radius:9px;padding:1px 6px;margin-left:5px;font-weight:650}
+  .tab.on{color:var(--brand-dk);border-bottom-color:var(--brand);font-weight:var(--w-semi)}
+  .tab .n{font-size:var(--t-xs);background:var(--mute-bg);color:var(--mute);border-radius:var(--r-full);
+    padding:0 6px;margin-left:var(--s-1);font-weight:var(--w-semi);line-height:16px}
   .tab.on .n{background:var(--brand-sf);color:var(--brand-dk)}
   /* Last in the row and not a neighbour of the routine screens beside it. */
   .tab.dang{color:var(--err)}
@@ -357,20 +444,22 @@ export const PORTAL_HTML = `<!doctype html>
   .tabs{scrollbar-width:thin;flex-wrap:nowrap}
   .tabs .tab{white-space:nowrap;flex:0 0 auto}
 
-  .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .row{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap}
   .muted{color:var(--ink-3)}
-  .empty{text-align:center;padding:32px 18px;color:var(--ink-3)}
-  .empty h3{color:var(--ink);margin-bottom:5px}
+  .empty{text-align:center;padding:var(--s-7) var(--s-5);color:var(--ink-3)}
+  .empty h3{color:var(--ink);margin-bottom:var(--s-1)}
 
   /* ── toolbar above a table ──
      One strip: what the table is, then search, then the actions. It keeps the
-     table itself free of chrome so the rows start at the top of the card. */
-  .tbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-  .tbar .sep{width:1px;height:18px;background:var(--line)}
+     table itself free of chrome so the rows start at the top of the card.
+     Every child is --ctl tall, which is the only reason the strip reads as one
+     line rather than as five controls that happen to be near each other. */
+  .tbar{display:flex;align-items:center;gap:var(--s-2);margin-bottom:var(--s-3);flex-wrap:wrap}
+  .tbar .sep{width:1px;height:var(--s-5);background:var(--line);flex:none}
   .tbar input[type=text]{width:auto;min-width:262px}
-  .tbar .ttl{font-size:13px;font-weight:640;letter-spacing:-.014em}
-  .tbar .cnt{font-size:11px;font-weight:600;color:var(--ink-3);background:var(--sunk);
-    border:1px solid var(--line);border-radius:9px;padding:0 7px;line-height:17px}
+  .tbar .ttl{font-size:var(--t-lg);font-weight:var(--w-semi);letter-spacing:-.014em}
+  .tbar .cnt{font-size:var(--t-sm);font-weight:var(--w-med);color:var(--ink-3);background:var(--sunk);
+    border:1px solid var(--line);border-radius:var(--r-full);padding:0 var(--s-2);line-height:26px}
 
   /* ── row action menu ──
      Anchored to the button that opened it and closed by a capture-phase
@@ -383,59 +472,71 @@ export const PORTAL_HTML = `<!doctype html>
      absolutely positioned menu on the last row was clipped away to nothing.
      The button looked pressed and no menu appeared. Fixed positioning takes it
      out of that scroller entirely; render() then puts it under its button. */
-  .menu{position:fixed;z-index:60;min-width:186px;visibility:hidden;
-    background:var(--card);border:1px solid var(--line);border-radius:var(--r);
-    box-shadow:var(--sh-lg);padding:4px;text-align:left}
-  .menu button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:none;
-    background:none;border-radius:4px;padding:5px 8px;font-size:12.5px;font-weight:500;color:var(--ink)}
+  .menu{position:fixed;z-index:60;min-width:196px;visibility:hidden;
+    background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
+    box-shadow:var(--sh-lg);padding:var(--s-1);text-align:left}
+  .menu button{display:flex;align-items:center;gap:var(--s-2);width:100%;text-align:left;border:none;
+    background:none;border-radius:var(--r-sm);min-height:var(--ctl-sm);padding:0 var(--s-2);
+    font-size:var(--t-md);font-weight:var(--w-reg);color:var(--ink)}
   .menu button:hover:not(:disabled){background:var(--sunk);border-color:transparent}
   .menu button svg{color:var(--ink-3);flex:none}
   .menu button.dang{color:var(--err)}
   .menu button.dang svg{color:var(--err)}
   .menu button.dang:hover:not(:disabled){background:var(--err-bg)}
-  .menu .sepm{height:1px;background:var(--line-2);margin:4px 2px}
-  .menu h5{margin:0;padding:5px 8px 3px;font-size:10px;font-weight:650;text-transform:uppercase;
-    letter-spacing:.07em;color:var(--ink-3)}
+  .menu .sepm{height:1px;background:var(--line-2);margin:var(--s-1) 2px}
+  .menu h5{margin:0;padding:var(--s-2) var(--s-2) var(--s-1);font-size:var(--t-cap);
+    font-weight:var(--w-semi);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3)}
 
   /* ── sign-in ── */
-  .sin{max-width:392px;margin:9vh auto;padding:0 20px}
-  .modes{display:flex;gap:2px;background:var(--mute-bg);padding:3px;border-radius:7px;margin-bottom:18px}
-  .modes button{flex:1;border:none;background:none;font-size:13px;padding:6px;border-radius:5px;font-weight:550}
-  .modes button.on{background:var(--card);box-shadow:var(--sh);font-weight:650}
+  .sin{max-width:392px;margin:9vh auto;padding:0 var(--s-5)}
+  .modes{display:flex;gap:2px;background:var(--mute-bg);padding:2px;border-radius:var(--r);
+    margin-bottom:var(--s-5)}
+  .modes button{flex:1;justify-content:center;border:none;background:none;font-size:var(--t-md);
+    min-height:var(--ctl);border-radius:var(--r-sm);font-weight:var(--w-med)}
+  .modes button.on{background:var(--card);box-shadow:var(--sh);font-weight:var(--w-semi)}
 
   /* ── screening ── */
-  .split{display:grid;grid-template-columns:280px 1fr;gap:18px;align-items:start}
+  .split{display:grid;grid-template-columns:280px 1fr;gap:var(--s-5);align-items:start}
   @media(max-width:900px){.split{grid-template-columns:1fr}}
-  .plist{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);
-    max-height:74vh;overflow-y:auto}
-  .pitem{display:block;width:100%;text-align:left;border:none;border-bottom:1px solid var(--line-2);background:none;
-    padding:10px 14px;border-radius:0;font:inherit}
-  .pitem:hover{background:var(--sunk)}
+  .plist{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;
+    box-shadow:var(--sh);max-height:74vh;overflow-y:auto}
+  .pitem{display:block;width:100%;text-align:left;border:none;border-bottom:1px solid var(--line-2);
+    background:none;padding:var(--s-2) var(--s-4);border-radius:0;font:inherit}
+  .pitem:hover{background:var(--sunk);border-color:transparent;border-bottom-color:var(--line-2)}
   .pitem.on{background:var(--brand-sf);box-shadow:inset 3px 0 0 var(--brand)}
-  .pitem b{display:block;font-weight:600;font-size:12.5px}
-  .pitem .sub{font-size:12px;color:var(--ink-3);display:flex;gap:6px;align-items:center;margin-top:2px}
+  .pitem b{display:block;font-weight:var(--w-semi);font-size:var(--t-md)}
+  .pitem .sub{font-size:var(--t-sm);color:var(--ink-3);display:flex;gap:var(--s-2);align-items:center;margin-top:2px}
 
-  .chk{border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
-  .chk-h{background:var(--sunk);padding:9px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-2)}
-  .chk-h b{flex:1;font-size:12.5px}
-  .chk-b{padding:14px}
-  .flagline{font-size:12.5px;padding:8px 14px;border-top:1px solid var(--line-2);background:var(--card)}
+  .chk{border:1px solid var(--line);border-radius:var(--r-lg);margin-bottom:var(--s-3);overflow:hidden}
+  .chk-h{background:var(--sunk);padding:var(--s-2) var(--s-4);display:flex;align-items:center;
+    gap:var(--s-3);min-height:40px;border-bottom:1px solid var(--line-2)}
+  .chk-h b{flex:1;font-size:var(--t-md);font-weight:var(--w-semi)}
+  .chk-b{padding:var(--s-4)}
+  .flagline{font-size:var(--t-md);padding:var(--s-2) var(--s-4);border-top:1px solid var(--line-2);background:var(--card)}
 
-  .kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12.5px}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:var(--s-1) var(--s-4);font-size:var(--t-md)}
   .kv dt{color:var(--ink-3)}
-  .kv dd{margin:0;font-weight:550}
+  .kv dd{margin:0;font-weight:var(--w-med)}
 
-  .drop{border:2px dashed var(--line);border-radius:var(--r);padding:32px 20px;text-align:center;background:var(--card)}
+  .drop{border:2px dashed var(--line);border-radius:var(--r-lg);padding:var(--s-7) var(--s-5);
+    text-align:center;background:var(--card)}
   .drop.over{border-color:var(--brand);background:var(--brand-sf)}
-  .steps{display:flex;gap:7px;align-items:center;margin-bottom:18px;font-size:12.5px;flex-wrap:wrap}
-  .step{display:flex;align-items:center;gap:6px;color:var(--ink-3)}
-  .step b{width:20px;height:20px;border-radius:50%;background:var(--mute-bg);color:var(--mute);
-    display:grid;place-items:center;font-size:11px;font-weight:650}
-  .step.on{color:var(--ink);font-weight:600}
+  .steps{display:flex;gap:var(--s-2);align-items:center;margin-bottom:var(--s-5);font-size:var(--t-md);flex-wrap:wrap}
+  .step{display:flex;align-items:center;gap:var(--s-2);color:var(--ink-3)}
+  .step b{width:20px;height:20px;border-radius:var(--r-full);background:var(--mute-bg);color:var(--mute);
+    display:grid;place-items:center;font-size:var(--t-xs);font-weight:var(--w-semi)}
+  .step.on{color:var(--ink);font-weight:var(--w-semi)}
   .step.on b{background:var(--brand);color:#fff}
   .step.done b{background:var(--ok);color:#fff}
-  .sep{width:16px;height:1px;background:var(--line)}
-  .issues{margin:3px 0 0;padding-left:15px;font-size:12px}
+  /* The number on a step card. The same marker as .step b, because both say
+     the same thing: this is step n of a sequence you are meant to work
+     through in order. */
+  .stepn{width:22px;height:22px;border-radius:var(--r-full);background:var(--brand-sf);
+    color:var(--brand-dk);display:grid;place-items:center;font-size:var(--t-sm);
+    font-weight:var(--w-semi);font-variant-numeric:tabular-nums}
+
+  .sep{width:var(--s-4);height:1px;background:var(--line)}
+  .issues{margin:var(--s-1) 0 0;padding-left:var(--s-4);font-size:var(--t-sm)}
   .issues li.e{color:var(--err)} .issues li.w{color:var(--warn)}
   tbody tr.rowerr{background:var(--err-bg)} tbody tr.rowwarn{background:var(--warn-bg)}
 
@@ -445,16 +546,17 @@ export const PORTAL_HTML = `<!doctype html>
      four bar charts are not worth a network dependency. */
   /* Two panels of comparable weight — .split is a 280px sidebar and squeezes
      the funnel until its labels wrap. */
-  .duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:18px;align-items:start}
+  .duo{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:var(--s-3);align-items:start}
   @media(max-width:1080px){.duo{grid-template-columns:minmax(0,1fr)}}
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:16px}
-  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
-    box-shadow:var(--sh);padding:14px 16px;min-width:0}
-  .kpi .lbl{font-size:11px;font-weight:650;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3)}
-  .kpi .big{font-size:30px;font-weight:700;letter-spacing:-.03em;line-height:1.1;margin-top:6px;
-    font-variant-numeric:tabular-nums;color:var(--ink)}
-  .kpi .big.none{font-size:18px;font-weight:600;color:var(--ink-3);letter-spacing:0}
-  .kpi .sub{font-size:12px;color:var(--ink-3);margin-top:3px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--s-3);margin-bottom:var(--s-3)}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);
+    box-shadow:var(--sh);padding:var(--s-4);min-width:0}
+  .kpi .lbl{font-size:var(--t-cap);font-weight:var(--w-semi);letter-spacing:.07em;
+    text-transform:uppercase;color:var(--ink-3);line-height:1.4}
+  .kpi .big{font-size:var(--t-2xl);font-weight:var(--w-semi);letter-spacing:-.03em;line-height:1.15;
+    margin-top:var(--s-2);font-variant-numeric:tabular-nums;color:var(--ink)}
+  .kpi .big.none{font-size:var(--t-xl);color:var(--ink-3);letter-spacing:0}
+  .kpi .sub{font-size:var(--t-sm);color:var(--ink-3);margin-top:var(--s-1)}
   .kpi.lead{background:linear-gradient(135deg,var(--brand),var(--brand-dk));border-color:transparent}
   .kpi.lead .lbl,.kpi.lead .sub{color:rgba(255,255,255,.82)}
   .kpi.lead .big{color:#fff}
@@ -462,34 +564,47 @@ export const PORTAL_HTML = `<!doctype html>
 
   /* The pathway, read top to bottom. Each row is one stage of A-D. */
   .fun{display:flex;flex-direction:column;gap:2px}
-  .fun .frow{display:grid;grid-template-columns:1fr 62px;align-items:center;gap:10px;padding:3px 0}
-  .fun .ftrack{position:relative;background:var(--sunk);border-radius:5px;height:32px;overflow:hidden}
+  .fun .frow{display:grid;grid-template-columns:1fr 62px;align-items:center;gap:var(--s-3);padding:2px 0}
+  .fun .ftrack{position:relative;background:var(--sunk);border-radius:var(--r-sm);height:var(--ctl-lg);overflow:hidden}
   .fun .ffill{position:absolute;inset:0 auto 0 0;background:var(--brand-sf);border-right:2px solid var(--brand)}
-  .fun .ftx{position:relative;display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;
-    font-size:13px;font-weight:550;color:var(--ink);white-space:nowrap;overflow:hidden}
-  .fun .stg{font-size:10px;font-weight:700;letter-spacing:.06em;color:var(--brand-dk);
-    background:#fff;border:1px solid var(--brand-sf);border-radius:4px;padding:1px 5px;flex:none}
-  .fun .fn{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--ink-2);font-weight:600}
-  .fun .fpc{text-align:right;font-size:13px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--ink-2)}
-  .fun .flost{font-size:11.5px;color:var(--err);padding:1px 0 2px 10px}
+  .fun .ftx{position:relative;display:flex;align-items:center;gap:var(--s-2);height:var(--ctl-lg);
+    padding:0 var(--s-3);font-size:var(--t-md);font-weight:var(--w-med);color:var(--ink);
+    white-space:nowrap;overflow:hidden}
+  .fun .stg{font-size:var(--t-cap);font-weight:var(--w-semi);letter-spacing:.06em;color:var(--brand-dk);
+    background:#fff;border:1px solid var(--brand-sf);border-radius:var(--r-sm);padding:1px var(--s-1);flex:none}
+  .fun .fn{margin-left:auto;font-variant-numeric:tabular-nums;color:var(--ink-2);font-weight:var(--w-semi)}
+  .fun .fpc{text-align:right;font-size:var(--t-md);font-weight:var(--w-semi);font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  .fun .flost{font-size:var(--t-sm);color:var(--err);padding:1px 0 2px var(--s-3)}
 
   /* Prevalence: one stacked bar per check, in the flag colours the app uses. */
-  .sbar{display:flex;height:22px;border-radius:5px;overflow:hidden;background:var(--sunk)}
+  .sbar{display:flex;height:var(--ctl-sm);border-radius:var(--r-sm);overflow:hidden;background:var(--sunk)}
   .sbar i{display:block;height:100%}
   .sbar i.good{background:var(--ok)} .sbar i.watch{background:var(--warn)}
   .sbar i.alert{background:var(--err)} .sbar i.nm{background:#CBD5E1}
-  .legend{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--ink-2);margin-top:10px}
-  .legend span{display:flex;align-items:center;gap:5px}
+  .legend{display:flex;flex-wrap:wrap;gap:var(--s-3);font-size:var(--t-sm);color:var(--ink-2);margin-top:var(--s-3)}
+  .legend span{display:flex;align-items:center;gap:var(--s-1)}
   .legend b{width:9px;height:9px;border-radius:2px;display:block}
 
   .chart{width:100%;height:190px;display:block;overflow:visible}
   .chart .gl{stroke:var(--line-2);stroke-width:1}
-  .chart .ax{fill:var(--ink-3);font-size:10px}
-  .bad{color:var(--err);font-weight:600}
+  .chart .ax{fill:var(--ink-3);font-size:var(--t-cap)}
+  .bad{color:var(--err);font-weight:var(--w-semi)}
+
+  /* ── spacing helpers ──
+     The stack between blocks on a screen, so "a bit of air here" is a rung on
+     the ladder rather than a number somebody typed. */
+  .mt-1{margin-top:var(--s-1)} .mt-2{margin-top:var(--s-2)} .mt-3{margin-top:var(--s-3)}
+  .mt-4{margin-top:var(--s-4)} .mt-5{margin-top:var(--s-5)} .mt-6{margin-top:var(--s-6)}
+  .mb-0{margin-bottom:0} .mb-1{margin-bottom:var(--s-1)} .mb-2{margin-bottom:var(--s-2)}
+  .mb-3{margin-bottom:var(--s-3)} .mb-4{margin-bottom:var(--s-4)} .mb-5{margin-bottom:var(--s-5)}
+  .m-0{margin:0}
+  .sm{font-size:var(--t-sm)}
+  .grow{flex:1;min-width:0}
+  .right{text-align:right}
 
   @media(max-width:820px){
     .shell{grid-template-columns:minmax(0,1fr)}
-    .nav{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding-bottom:8px}
+    .nav{position:static;height:auto;flex-direction:row;flex-wrap:wrap;align-items:center;padding-bottom:var(--s-2)}
     /* min-width:0 is the whole fix: a flex child defaults to min-width:auto,
        so this strip refused to shrink below its buttons and held the entire
        shell open at 424px inside a 390px phone. */
@@ -497,18 +612,18 @@ export const PORTAL_HTML = `<!doctype html>
        on after each other rather than stacking, so the header takes one line
        instead of half the screen. */
     .navscroll{display:flex;overflow-x:auto;overflow-y:visible;flex:1;min-width:0;padding:0}
-    .navsec{display:flex;gap:4px;padding:0 6px 8px;flex:none;min-width:0;align-items:center}
-    .navsec + .navsec{border-top:none;border-left:1px solid #1B2836;margin-top:0}
-    .navi.sub{padding-left:10px}
+    .navsec{display:flex;gap:var(--s-1);padding:0 var(--s-2) var(--s-2);flex:none;min-width:0;align-items:center}
+    .navsec + .navsec{border-top:none;border-left:1px solid var(--nav-line);margin-top:0;padding-top:0}
+    .navi.sub{padding-left:var(--s-3)}
     .nav{max-width:100%;min-width:0}
     /* The signed-in name and role can be long; let the footer wrap rather than
        hold the strip open. */
     .navfoot{flex-wrap:wrap;min-width:0}
     .navsec h4{display:none}
     .navi{width:auto;margin:0}
-    .navfoot{margin:0;border:none;padding:8px 14px;display:flex;align-items:center;gap:12px}
+    .navfoot{margin:0;border:none;padding:var(--s-2) var(--s-3);display:flex;align-items:center;gap:var(--s-3)}
     .navfoot button{width:auto;margin:0}
-    .content{padding:18px 16px 48px}.bar{padding:12px 16px}
+    .content{padding:var(--s-4) var(--s-4) 48px}.bar{padding:var(--s-2) var(--s-4)}
   }
 </style>
 </head>
@@ -664,7 +779,7 @@ export const PORTAL_HTML = `<!doctype html>
    */
   function tagSet(tags, max) {
     var list = (tags || []).filter(Boolean);
-    if (!list.length) return el("span", { class: "muted", style: "font-size:11.5px" }, "\u2014");
+    if (!list.length) return el("span", { class: "muted", style: "font-size:var(--t-sm)" }, "\u2014");
     var shown = list.slice(0, max || 2), rest = list.length - shown.length;
     return el("div", { class: "tagset" },
       shown.map(function (t) { return el("span", { class: "tg" }, t); }),
@@ -1295,8 +1410,8 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "wm big" }, el("i", null, "vita"), el("b", null, "hero")),
         el("div", { class: "tag" }, "Kids health & wellness")),
       el("div", { class: "card" }, el("div", { class: "card-b" },
-        el("h2", { style: "margin-bottom:4px" }, "Sign in"),
-        el("p", { class: "muted", style: "font-size:12.5px" }, "For school staff, screening teams and VitaHero operations."),
+        el("h2", { style: "margin-bottom:var(--s-1)" }, "Sign in"),
+        el("p", { class: "muted" }, "For school staff, screening teams and VitaHero operations."),
         el("div", { class: "modes" },
           el("button", { class: S.signMode === "otp" ? "on" : "", onclick: function () { set({ signMode: "otp", error: "" }); } }, "Staff sign-in"),
           el("button", { class: S.signMode === "key" ? "on" : "", onclick: function () { set({ signMode: "key", error: "" }); } }, "Ops key")),
@@ -1321,7 +1436,7 @@ export const PORTAL_HTML = `<!doctype html>
                     otpI = el("input", { type: "text", inputmode: "numeric", maxlength: "6", placeholder: "000000",
                       onkeydown: function (e) { if (e.key === "Enter") verify(); } })),
                   el("button", { class: "pri", style: "width:100%", disabled: S.busy, onclick: verify }, S.busy ? "Verifying\\u2026" : "Verify and sign in"),
-                  el("button", { class: "lnk", style: "display:block;margin:10px auto 0",
+                  el("button", { class: "lnk", style: "display:block;margin:var(--s-3) auto 0",
                     onclick: function () { set({ otp: null, notice: "" }); } }, "Use a different number")))
       )));
   }
@@ -1452,7 +1567,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (!o) return el("div", { class: "empty" }, "Loading\\u2026");
     var cs = o.campStatus || {};
     return el("div", null,
-      isOps() ? el("div", { class: "row", style: "margin-bottom:14px" },
+      isOps() ? el("div", { class: "row", style: "margin-bottom:var(--s-4)" },
         el("div", { style: "flex:1" }),
         el("button", { onclick: loadProgrammeReport }, S.programme ? "Hide programme report" : "Programme report")) : null,
       S.programme ? programmePanel() : null,
@@ -1477,15 +1592,15 @@ export const PORTAL_HTML = `<!doctype html>
           ? (isOps() && !o.schools
               ? el("div", { class: "empty" },
                   el("h3", null, "Nothing set up yet"),
-                  el("p", { style: "font-size:12.5px" },
+                  el("p", null,
                     "A programme starts with a school. Add one, import its roster, "
                     + "and camps are scheduled from there."),
-                  el("button", { class: "pri", style: "margin-top:10px", onclick: function () {
+                  el("button", { class: "pri", style: "margin-top:var(--s-3)", onclick: function () {
                     S.view = "schools"; S.schoolQuery = ""; render(); loadSchools();
                   } }, "Add the first school"))
               : el("div", { class: "empty" },
                   el("h3", null, "No camps scheduled"),
-                  el("p", { style: "font-size:12.5px" },
+                  el("p", null,
                     isOps()
                       ? "Open a school and schedule one to get started."
                       : "Schedule one from the Camps tab of your school.")))
@@ -1629,10 +1744,10 @@ export const PORTAL_HTML = `<!doctype html>
         var t = r.total || 1;
         var pc = function (v) { return (v / t) * 100 + "%"; };
         var flagged = r.watch + r.alert;
-        return el("div", { style: "margin-bottom:12px" },
-          el("div", { class: "row", style: "justify-content:space-between;margin-bottom:5px" },
-            el("b", { style: "font-size:12.5px" }, r.checkType),
-            el("span", { class: "muted", style: "font-size:12px" },
+        return el("div", { style: "margin-bottom:var(--s-3)" },
+          el("div", { class: "row", style: "justify-content:space-between;margin-bottom:var(--s-1)" },
+            el("b", null, r.checkType),
+            el("span", { class: "muted", style: "font-size:var(--t-sm)" },
               flagged + " of " + r.total + " flagged"
               + (r.notMeasured ? " · " + r.notMeasured + " not measured" : ""))),
           el("div", { class: "sbar" },
@@ -1680,7 +1795,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "duo" },
         el("div", { class: "card" },
           el("div", { class: "card-h" }, el("h2", null, "Where the pathway stands"),
-            el("span", { class: "muted", style: "font-size:12px" }, "Stages B–D")),
+            el("span", { class: "muted", style: "font-size:var(--t-sm)" }, "Stages B–D")),
           el("div", { class: "card-b" }, funnel(a.funnel))),
         el("div", { class: "card" },
           el("div", { class: "card-h" }, el("h2", null, "Last twelve months")),
@@ -1706,7 +1821,7 @@ export const PORTAL_HTML = `<!doctype html>
               el("tbody", null, a.bySchool.map(function (sc) {
                 return el("tr", { class: "click", onclick: function () { openSchool(sc.id); } },
                   el("td", null, el("b", null, sc.name),
-                    sc.city ? el("div", { class: "muted", style: "font-size:11.5px" }, sc.city) : null),
+                    sc.city ? el("div", { class: "muted", style: "font-size:var(--t-sm)" }, sc.city) : null),
                   el("td", { class: "muted" }, sc.district || "—"),
                   el("td", { class: "num" }, sc.students),
                   el("td", { class: "num" }, sc.screened),
@@ -1723,7 +1838,7 @@ export const PORTAL_HTML = `<!doctype html>
       a.byDistrict.length
         ? el("div", { class: "card" },
             el("div", { class: "card-h" }, el("h2", null, "By district"),
-              el("span", { class: "muted", style: "font-size:12px" }, "Aggregate only — no school, no child")),
+              el("span", { class: "muted", style: "font-size:var(--t-sm)" }, "Aggregate only — no school, no child")),
             el("div", { class: "tws" }, el("table", null,
               el("thead", null, el("tr", null,
                 el("th", null, "District"), el("th", { class: "num" }, "Schools"),
@@ -1750,7 +1865,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", { class: "card" },
       el("div", { class: "card-h" }, el("h2", null, "Across every school")),
       el("div", { class: "card-b" },
-        el("div", { class: "stats", style: "margin-bottom:16px" },
+        el("div", { class: "stats", style: "margin-bottom:var(--s-4)" },
           el("div", { class: "stat" }, el("b", null, t.schools), el("span", null, "schools")),
           el("div", { class: "stat" }, el("b", null, t.students), el("span", null, "students")),
           el("div", { class: "stat ok" }, el("b", null, t.screened), el("span", null, "children screened")),
@@ -1758,15 +1873,15 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "stat ok" }, el("b", null, t.closureRate === null ? "—" : t.closureRate + "%"),
             el("span", null, "closure rate"))),
         d.prevalence.length
-          ? el("div", null, el("h4", { style: "margin-bottom:8px" }, "Anonymised prevalence"),
-              el("table", { style: "margin-bottom:16px" }, el("tbody", null, d.prevalence.map(function (p2) {
+          ? el("div", null, el("h4", { style: "margin-bottom:var(--s-2)" }, "Anonymised prevalence"),
+              el("table", { style: "margin-bottom:var(--s-4)" }, el("tbody", null, d.prevalence.map(function (p2) {
                 return el("tr", null, el("td", null, p2.checkType),
                   el("td", { class: "num muted" }, p2.measured + " measured"),
                   el("td", { class: "num" }, el("span", { class: "pill " + (p2.flaggedRate > 25 ? "warn" : "mute") },
                     (p2.flaggedRate === null ? "—" : p2.flaggedRate + "%") + " flagged")));
               }))))
           : null,
-        el("h4", { style: "margin-bottom:8px" }, "By school"),
+        el("h4", { style: "margin-bottom:var(--s-2)" }, "By school"),
         el("div", { class: "tw" }, el("table", null,
           el("thead", null, el("tr", null, el("th", null, "School"), el("th", { class: "num" }, "Students"),
             el("th", { class: "num" }, "Camps"), el("th", { class: "num" }, "Released"),
@@ -1774,7 +1889,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("th", { class: "num" }, "Guardians"))),
           el("tbody", null, d.schools.map(function (s) {
             return el("tr", { class: "click", onclick: function () { openSchool(s.id); } },
-              el("td", null, el("b", null, s.name), el("div", { class: "muted", style: "font-size:12px" }, s.city)),
+              el("td", null, el("b", null, s.name), el("div", { class: "muted", style: "font-size:var(--t-sm)" }, s.city)),
               el("td", { class: "num" }, s.students),
               el("td", { class: "num" }, s.camps),
               el("td", { class: "num" }, s.campsReleased),
@@ -1911,7 +2026,7 @@ export const PORTAL_HTML = `<!doctype html>
       rows.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, all.length ? "Nothing matches" : "No schools yet"),
-            el("p", { style: "font-size:12.5px" }, all.length
+            el("p", null, all.length
               ? "Change the filter or clear the search."
               : "Add the first school to begin onboarding students."),
             !all.length && isOps()
@@ -1931,7 +2046,7 @@ export const PORTAL_HTML = `<!doctype html>
       // agreed to are reference — you look them up for one school, you do not
       // compare them down a column — and chips squeezed to "D..." say nothing
       // at all. They are in the panel underneath, in full.
-      style: "grid-template-columns:28px minmax(220px,1.6fr) "
+      style: "grid-template-columns:28px minmax(220px,1.6fr)"
         + "repeat(4,minmax(118px,.9fr)) minmax(76px,.5fr) 84px 64px",
       onclick: function () { openSchool(s.id); },
     },
@@ -2021,18 +2136,18 @@ export const PORTAL_HTML = `<!doctype html>
         f("Consent given", s.consented + " of " + s.participants),
         f("Children screened", s.screened + " of " + s.participants),
         f("Referrals still open", String(s.openReferrals || 0))),
-      el("div", { style: "margin-top:10px" },
+      el("div", { style: "margin-top:var(--s-3)" },
         el("span", { class: "ml" }, "Checks this school has agreed to"),
-        el("div", { class: "chips", style: "margin-top:4px" },
+        el("div", { class: "chips", style: "margin-top:var(--s-1)" },
           (s.checksOffered || []).length
             ? (s.checksOffered || []).map(function (c) { return el("span", { class: "tg" }, c); })
-            : el("span", { class: "muted", style: "font-size:12px" }, "None set \u2014 a camp here can record nothing"))),
+            : el("span", { class: "muted", style: "font-size:var(--t-sm)" }, "None set \u2014 a camp here can record nothing"))),
       s.description
-        ? el("div", { style: "margin-top:10px" },
+        ? el("div", { style: "margin-top:var(--s-3)" },
             el("span", { class: "ml" }, "Notes"),
             el("div", { class: "dv" }, s.description))
         : null,
-      el("div", { class: "row", style: "margin-top:12px" },
+      el("div", { class: "row", style: "margin-top:var(--s-3)" },
         el("button", { class: "sm", onclick: function () { openSchool(s.id); } },
           icon("open", 13), " Open school"),
         isOps() ? el("button", { class: "sm", onclick: function () { openSchool(s.id, "programme"); } },
@@ -2102,7 +2217,7 @@ export const PORTAL_HTML = `<!doctype html>
       rows.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No parents"),
-            el("p", { style: "font-size:12.5px" },
+            el("p", null,
               S.parentQuery || S.parentSchool || S.parentOnApp
                 ? "Nothing matches. Change the filter or clear the search."
                 : "Guardians appear here once a school's roster has been imported.")))
@@ -2112,7 +2227,7 @@ export const PORTAL_HTML = `<!doctype html>
   function parentRow(g) {
     return el("div", { class: "recw" }, el("div", {
       class: "rec" + (g.usingApp ? "" : " muted"),
-      style: "grid-template-columns:28px minmax(200px,1.4fr) minmax(150px,1fr) "
+      style: "grid-template-columns:28px minmax(200px,1.4fr) minmax(150px,1fr)"
         + "minmax(180px,1.2fr) minmax(120px,.8fr) minmax(110px,.7fr) 96px",
       onclick: function () { if (g.schoolId) openSchool(g.schoolId); },
     },
@@ -2125,7 +2240,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "rcol" },
         el("span", { class: "ml" }, "Mobile"),
         g.canSignIn
-          ? el("span", { class: "mn mono", style: "font-size:12.5px" }, g.phone)
+          ? el("span", { class: "mn mono" }, g.phone)
           : el("span", { class: "pill err" }, g.phone ? "Not a mobile" : "No number")),
 
       el("div", { class: "rcol" },
@@ -2276,7 +2391,7 @@ export const PORTAL_HTML = `<!doctype html>
   function dangerZone(s) {
     var d = S.danger;
     if (!d || d.schoolId !== s.id) {
-      return el("div", { class: "card", style: "margin-top:24px" },
+      return el("div", { class: "card", style: "margin-top:var(--s-6)" },
         el("div", { class: "card-b" }, el("span", { class: "muted" }, "Checking what is attached to this school\\u2026")));
     }
 
@@ -2303,15 +2418,15 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     function stat(n, label) {
-      return el("div", { class: "row", style: "gap:6px" },
-        el("b", null, String(n)), el("span", { class: "muted", style: "font-size:12.5px" }, label));
+      return el("div", { class: "row", style: "gap:var(--s-2)" },
+        el("b", null, String(n)), el("span", { class: "muted" }, label));
     }
 
-    return el("div", { class: "card", style: "margin-top:24px;border-color:#f0c9c9" },
+    return el("div", { class: "card", style: "margin-top:var(--s-6);border-color:#f0c9c9" },
       el("div", { class: "card-h" }, el("h2", null, "Closing this school down"),
         archived ? el("span", { class: "pill mute" }, "Archived") : null),
       el("div", { class: "card-b" },
-        el("div", { class: "row", style: "gap:18px;flex-wrap:wrap;margin-bottom:14px" },
+        el("div", { class: "row", style: "gap:var(--s-5);flex-wrap:wrap;margin-bottom:var(--s-4)" },
           stat(fp.students, "students"),
           stat(fp.camps, "camps"),
           stat(fp.findings, "findings recorded"),
@@ -2320,7 +2435,7 @@ export const PORTAL_HTML = `<!doctype html>
 
         el("div", { class: "fld" },
           el("label", null, archived ? "Reopen" : "Archive"),
-          el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 8px" },
+          el("p", { class: "muted", style: "margin:0 0 var(--s-2)" },
             archived
               ? "This school is closed. Reopening lets its staff sign in and camps be scheduled again."
               : "Stops the school running and signs its staff out. Nothing recorded about a child is touched, and this can be undone."),
@@ -2328,11 +2443,11 @@ export const PORTAL_HTML = `<!doctype html>
             onclick: function () { setArchived(!archived); } },
             archived ? "Reopen school" : "Archive school")),
 
-        el("div", { class: "fld", style: "margin-top:18px;padding-top:18px;border-top:1px solid #eee" },
+        el("div", { class: "fld", style: "margin-top:var(--s-5);padding-top:var(--s-5);border-top:1px solid #eee" },
           el("label", null, "Delete permanently"),
           d.canDelete
             ? el("div", null,
-                el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 8px" },
+                el("p", { class: "muted", style: "margin:0 0 var(--s-2)" },
                   "No child has been screened here, so there is nothing clinical to lose. This removes the school, its classes, its roster batches and its draft camps. Students keep their own records and stop belonging to a school."),
                 deleteConfirmField(d, s.name, destroy))
             : el("div", { class: "msg err", style: "margin:0" }, d.reason))));
@@ -2343,7 +2458,7 @@ export const PORTAL_HTML = `<!doctype html>
   // it used to take the caret with it. The button is toggled directly instead,
   // so the only thing that changes while typing is one disabled attribute.
   function deleteConfirmField(d, name, destroy) {
-    var btn = el("button", { class: "dang", style: "margin-top:10px",
+    var btn = el("button", { class: "dang", style: "margin-top:var(--s-3)",
       disabled: S.busy || trim(d.confirm).toLowerCase() !== trim(name).toLowerCase(),
       onclick: destroy }, S.busy ? "Deleting\u2026" : "Delete this school");
     var box = el("input", { type: "text", id: "school-delete-confirm", value: d.confirm,
@@ -2380,7 +2495,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Classes and sections")),
         el("div", { class: "card-b" },
-          el("p", { class: "muted", style: "font-size:12.5px" },
+          el("p", { class: "muted" },
             "Every class in the school for one year. Roster uploads and camps are checked against this list."),
           el("div", { class: "g3" },
             el("div", { class: "fld" }, el("label", null, "Academic year"),
@@ -2389,7 +2504,7 @@ export const PORTAL_HTML = `<!doctype html>
               el("input", { type: "text", value: g.grades, oninput: function (e) { g.grades = e.target.value; } })),
             el("div", { class: "fld" }, el("label", null, "Sections"),
               el("input", { type: "text", value: g.sections, oninput: function (e) { g.sections = e.target.value; } }))),
-          el("div", { class: "hint", style: "margin-bottom:12px" }, "Comma separated, exactly as they appear in your roster file."),
+          el("div", { class: "hint", style: "margin-bottom:var(--s-3)" }, "Comma separated, exactly as they appear in your roster file."),
           el("button", { class: "pri", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save classes"))),
       c.classes.length
         ? el("div", { class: "tw" }, el("table", null,
@@ -2417,10 +2532,10 @@ export const PORTAL_HTML = `<!doctype html>
         loadSchoolTab();
       });
     }
-    return el("div", { class: "card", style: "margin-top:16px" },
+    return el("div", { class: "card", style: "margin-top:var(--s-4)" },
       el("div", { class: "card-h" }, el("h2", null, "Start a new academic year")),
       el("div", { class: "card-b" },
-        el("p", { class: "muted", style: "font-size:12.5px" },
+        el("p", { class: "muted" },
           "Moves every student up one class, using this school's own class list. Students in the final class are marked as having left — their guardians keep access to the history."),
         el("div", { class: "g2" },
           el("div", { class: "fld" }, el("label", null, "From"),
@@ -2429,7 +2544,7 @@ export const PORTAL_HTML = `<!doctype html>
             yearSelect(f.toYear, function (e) { f.toYear = e.target.value; }))),
         f.plan
           ? el("div", null,
-              el("table", { style: "margin-bottom:12px" }, el("tbody", null, f.plan.map(function (x) {
+              el("table", { style: "margin-bottom:var(--s-3)" }, el("tbody", null, f.plan.map(function (x) {
                 return el("tr", null, el("td", null, x.grade),
                   el("td", { class: "num muted" }, x.students + " students"),
                   el("td", null, x.becomes === "LEAVING"
@@ -2504,7 +2619,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Add someone")),
         el("div", { class: "card-b" },
-          el("p", { class: "muted", style: "font-size:12.5px" },
+          el("p", { class: "muted" },
             "They sign in here with this mobile number and a one-time code. Use a number not already registered as a parent."),
           el("div", { class: "g3" },
             el("div", { class: "fld" }, el("label", null, "Name"),
@@ -2516,7 +2631,7 @@ export const PORTAL_HTML = `<!doctype html>
                 el("option", { value: "SCHOOL_ADMIN", selected: f.kind === "SCHOOL_ADMIN" }, "Administrator"),
                 el("option", { value: "SCREENER", selected: f.kind === "SCREENER" }, "Screening team"),
                 el("option", { value: "PHYSICIAN", selected: f.kind === "PHYSICIAN" }, "Supervising physician")))),
-          el("div", { class: "hint", style: "margin-bottom:12px" },
+          el("div", { class: "hint", style: "margin-bottom:var(--s-3)" },
             f.kind === "PHYSICIAN" ? "A physician reviews and approves every result before guardians see it."
               : f.kind === "SCREENER" ? "Screeners record measurements on camp day. They cannot approve or release."
               : "Administrators manage the roster, classes and camps for this school."),
@@ -2611,7 +2726,7 @@ export const PORTAL_HTML = `<!doctype html>
         S.roster = null; loadSchoolTab();
       });
     }
-    return el("div", { class: "card", style: "margin-bottom:14px" },
+    return el("div", { class: "card", style: "margin-bottom:var(--s-4)" },
       el("div", { class: "card-h" }, el("h2", null, "Add one child")),
       el("div", { class: "card-b" },
         el("div", { class: "g3" },
@@ -2711,7 +2826,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("span", null, "guardians using the app")),
         el("div", { class: "stat" }, el("b", null, uniq(r.students.map(function (s) { return s.guardianPhone; })).length),
           el("span", null, "guardian numbers"))),
-      el("div", { class: "row", style: "margin-bottom:14px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-4)" },
         el("button", { class: "pri", onclick: function () { set({ upload: { step: 1 }, error: "", notice: "" }); } },
           icon("upload", 14), " Import from CSV"),
         el("button", { onclick: function () {
@@ -2719,7 +2834,7 @@ export const PORTAL_HTML = `<!doctype html>
             section: "", guardianName: "", guardianPhone: "" }, error: "", notice: "" });
         } }, icon("plus", 14), " Add one child"),
         el("button", { onclick: dlTemplate }, icon("download", 14), " CSV template"),
-        r.total ? el("button", { onclick: exportRoster }, "Export roster") : null,
+        r.total ? el("button", { onclick: exportRoster }, icon("download", 14), " Export roster") : null,
         notOnApp.length
           ? el("button", { onclick: function () { invite(null); } },
               icon("message", 14),
@@ -2730,7 +2845,7 @@ export const PORTAL_HTML = `<!doctype html>
       r.students.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No students yet"),
-            el("p", { style: "font-size:12.5px" },
+            el("p", null,
               "Import the school's roster as a CSV, or add children one at a time. "
               + "Everything else \u2014 camps, consent, screening \u2014 works from this list.")))
         : el("div", { class: "tw" }, el("table", null,
@@ -2739,7 +2854,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("tbody", null, r.students.map(function (s) {
               return el("tr", null,
                 el("td", null, el("b", null, s.name),
-                  s.studentRef ? el("div", { class: "muted mono", style: "font-size:11.5px" }, s.studentRef.replace(/^sid_/, "")) : null),
+                  s.studentRef ? el("div", { class: "muted mono", style: "font-size:var(--t-sm)" }, s.studentRef.replace(/^sid_/, "")) : null),
                 el("td", null, (s.grade || "") + (s.section ? " " + s.section : "")),
                 el("td", { class: "mono" }, s.dob || el("span", { class: "muted" }, "age " + (s.age || "?"))),
                 el("td", null, s.guardianName || el("span", { class: "muted" }, "\\u2014")),
@@ -2749,9 +2864,9 @@ export const PORTAL_HTML = `<!doctype html>
                   : s.guardianPhone
                     ? el("button", { class: "sm", disabled: S.busy,
                         onclick: function () { invite(s.profileId); } }, "Invite")
-                    : el("span", { class: "muted", style: "font-size:12px" }, "no number")));
+                    : el("span", { class: "muted", style: "font-size:var(--t-sm)" }, "no number")));
             })))),
-      r.total > r.students.length ? el("p", { class: "muted", style: "margin-top:10px;font-size:12.5px" },
+      r.total > r.students.length ? el("p", { class: "muted", style: "margin-top:var(--s-3)" },
         "Showing " + r.students.length + " of " + r.total + ".") : null);
   }
 
@@ -2772,7 +2887,7 @@ export const PORTAL_HTML = `<!doctype html>
   function uploadWizard() {
     var u = S.upload;
     return el("div", null,
-      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ upload: null, error: "" }); } }, "\\u2190 Back to roster"),
+      el("button", { class: "lnk", style: "margin-bottom:var(--s-3)", onclick: function () { set({ upload: null, error: "" }); } }, "\\u2190 Back to roster"),
       el("div", { class: "steps" }, stepPill(1, "Choose file", u.step), el("span", { class: "sep" }),
         stepPill(2, "Review", u.step), el("span", { class: "sep" }), stepPill(3, "Done", u.step)),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
@@ -2803,15 +2918,15 @@ export const PORTAL_HTML = `<!doctype html>
         ondragover: function (e) { e.preventDefault(); if (!S.dragOver) set({ dragOver: true }); },
         ondragleave: function () { set({ dragOver: false }); },
         ondrop: function (e) { e.preventDefault(); S.dragOver = false; handle(e.dataTransfer.files && e.dataTransfer.files[0]); } },
-        el("p", { style: "font-size:15px;font-weight:600;margin-bottom:4px" }, "Drop your roster CSV here"),
-        el("p", { class: "muted", style: "font-size:12.5px" }, "or choose a file from your computer"),
+        el("p", { style: "font-size:var(--t-lg);font-weight:var(--w-semi);margin-bottom:var(--s-1)" }, "Drop your roster CSV here"),
+        el("p", { class: "muted" }, "or choose a file from your computer"),
         input = el("input", { type: "file", accept: ".csv,text/csv", style: "display:none",
           onchange: function (e) { handle(e.target.files[0]); } }),
         el("button", { class: "pri", disabled: S.busy, onclick: function () { input.click(); } }, S.busy ? "Checking\\u2026" : "Choose file"),
-        el("div", { style: "margin-top:12px" }, el("button", { class: "lnk", onclick: dlTemplate }, "Download the template"))),
-      el("div", { class: "card", style: "margin-top:16px" }, el("div", { class: "card-b" },
-        el("h3", { style: "margin-bottom:8px" }, "What the file needs"),
-        el("ul", { style: "font-size:12.5px;margin:0;padding-left:17px;color:var(--ink-2);line-height:1.7" },
+        el("div", { style: "margin-top:var(--s-3)" }, el("button", { class: "lnk", onclick: dlTemplate }, "Download the template"))),
+      el("div", { class: "card", style: "margin-top:var(--s-4)" }, el("div", { class: "card-b" },
+        el("h3", { style: "margin-bottom:var(--s-2)" }, "What the file needs"),
+        el("ul", { style: "margin:0;padding-left:var(--s-4);color:var(--ink-2);line-height:1.7" },
           el("li", null, el("b", null, "Required: "), "student name, guardian mobile, class, and either a date of birth or an age"),
           el("li", null, el("b", null, "Strongly recommended: "), "admission or roll number \\u2014 without it, renaming a student later creates a duplicate"),
           el("li", null, el("b", null, "Dates: "), "DD/MM/YYYY. Ambiguous dates are flagged, not guessed"),
@@ -2848,14 +2963,14 @@ export const PORTAL_HTML = `<!doctype html>
       rep.knownClasses.length === 0
         ? el("div", { class: "msg info" }, "No classes are configured for " + rep.academicYear + ", so class names were not checked. Any classes in this file will be created.")
         : null,
-      el("div", { class: "row", style: "margin-bottom:12px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-3)" },
         el("button", { class: "pri", disabled: S.busy || rep.errors > 0, onclick: function () { commit(false); } },
           S.busy ? "Importing\\u2026" : "Import " + (rep.create + rep.update) + " students"),
         rep.errors > 0 ? el("button", { disabled: S.busy, onclick: function () { commit(true); } },
           "Import the " + (rep.create + rep.update) + " good rows") : null,
         (rep.errors + rep.warnings) > 0 ? el("button", { onclick: dlIssues }, "Download problem list") : null,
         el("button", { onclick: function () { set({ upload: { step: 1 }, showAll: false }); } }, "Different file")),
-      el("div", { class: "row", style: "margin-bottom:8px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-2)" },
         el("h3", { style: "flex:1" }, all ? "Every row" : (probs.length ? "Rows needing attention" : "First 25 rows")),
         rep.rows.length > shown.length || all
           ? el("button", { class: "lnk", onclick: function () { set({ showAll: !all }); } }, all ? "Show only problems" : "Show all " + rep.total) : null),
@@ -2871,7 +2986,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("td", null, (r.grade || "") + (r.section ? " " + r.section : "")),
             el("td", { class: "mono" }, r.dob || (r.age !== null ? "age " + r.age : "\\u2014")),
             el("td", null, el("div", null, r.guardianName || el("span", { class: "muted" }, "\\u2014")),
-              el("div", { class: "muted mono", style: "font-size:11.5px" }, r.phone)),
+              el("div", { class: "muted mono", style: "font-size:var(--t-sm)" }, r.phone)),
             el("td", null, el("span", { class: "pill " + (r.action === "create" ? "ok" : r.action === "update" ? "info" : r.action === "skip" ? "err" : "mute") }, r.action)),
             el("td", null, r.issues.length
               ? el("ul", { class: "issues" }, r.issues.map(function (i) { return el("li", { class: i.severity === "error" ? "e" : "w" }, i.message); }))
@@ -2884,8 +2999,8 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "msg ok" }, el("b", null, "Roster imported. "),
         r.create + " added, " + r.update + " updated, " + r.unchanged + " already up to date."),
       el("div", { class: "card" }, el("div", { class: "card-b" },
-        el("h3", { style: "margin-bottom:6px" }, "What happens next"),
-        el("p", { class: "muted", style: "font-size:12.5px;margin:0" },
+        el("h3", { style: "margin-bottom:var(--s-2)" }, "What happens next"),
+        el("p", { class: "muted", style: "margin:0" },
           "These students are on the roll for " + r.academicYear + ". Guardians see nothing yet \\u2014 schedule a camp, then request consent."))),
       el("div", { class: "row" },
         el("button", { class: "pri", onclick: function () { set({ upload: null, notice: "" }); loadSchoolTab(); } }, "Back to roster"),
@@ -2920,7 +3035,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("span", null, "closure rate"))),
       el("div", { class: "msg info" },
         "Closure rate is the number that shows the screening changed something. It counts referrals a clinician has closed, over those a family has not declined."),
-      el("div", { class: "row", style: "margin-bottom:12px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-3)" },
         el("select", { style: "max-width:200px", onchange: function (e) { set({ refFilter: e.target.value }); } },
           [["", "All statuses"], ["OPEN", "Not acted on"], ["BOOKED", "Booked"], ["ATTENDED", "Seen"],
            ["CLOSED", "Closed"], ["DECLINED", "Declined"], ["EXPIRED", "Expired"]].map(function (o) {
@@ -2939,7 +3054,7 @@ export const PORTAL_HTML = `<!doctype html>
       shown.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "Nothing here"),
-            el("p", { style: "font-size:12.5px" }, "Referrals appear once a camp is released with flagged results.")))
+            el("p", null, "Referrals appear once a camp is released with flagged results.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"), el("th", null, "For"),
               el("th", null, "Urgency"), el("th", null, "Due"), el("th", null, "Guardian"),
@@ -2950,11 +3065,11 @@ export const PORTAL_HTML = `<!doctype html>
               return el("tr", { class: "click", onclick: function () { openReferral(r.id); } },
                 el("td", null, el("b", null, r.kidName)),
                 el("td", { class: "muted" }, r.grade),
-                el("td", null, r.specialty, el("div", { class: "muted", style: "font-size:12px" }, r.checkType)),
+                el("td", null, r.specialty, el("div", { class: "muted", style: "font-size:var(--t-sm)" }, r.checkType)),
                 el("td", null, urgencyPill(r.urgency) || el("span", { class: "muted" }, "—")),
                 el("td", null, overdue ? el("span", { class: "pill err" }, "Overdue") : fmtDate(r.dueBy)),
                 el("td", null, r.guardianName || el("span", { class: "muted" }, "—"),
-                  el("div", { class: "muted mono", style: "font-size:11.5px" }, r.guardianPhone)),
+                  el("div", { class: "muted mono", style: "font-size:var(--t-sm)" }, r.guardianPhone)),
                 el("td", null, statusPill(r.status)),
                 el("td", null, el("button", { class: "sm" }, r.status === "CLOSED" ? "View" : "Record outcome")));
             })))));
@@ -2987,13 +3102,13 @@ export const PORTAL_HTML = `<!doctype html>
         function () { S.notice = "Outcome recorded for " + r.kidName + "."; S.refKid = null; S.referrals = null; loadSchoolTab(); });
     }
     return el("div", null,
-      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ refKid: null, refDetail: null, error: "" }); } },
+      el("button", { class: "lnk", style: "margin-bottom:var(--s-3)", onclick: function () { set({ refKid: null, refDetail: null, error: "" }); } },
         "← Back to follow-ups"),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       el("div", { class: "card" },
         el("div", { class: "card-h" },
           el("div", { style: "flex:1" }, el("h2", null, r.kidName),
-            el("div", { class: "muted", style: "font-size:12.5px" },
+            el("div", { class: "muted" },
               [r.grade, r.age ? r.age + " years" : "", r.gender].filter(Boolean).join(" · "))),
           urgencyPill(r.urgency), statusPill(r.status)),
         el("div", { class: "card-b" },
@@ -3003,11 +3118,11 @@ export const PORTAL_HTML = `<!doctype html>
             el("dt", null, "From"), el("dd", null, (r.campTitle || "") + (r.campDate ? " on " + fmtDate(r.campDate) : "")),
             el("dt", null, "Due by"), el("dd", null, fmtDate(r.dueBy)),
             el("dt", null, "Guardian"), el("dd", null, (r.guardianName || "—") + " · " + r.guardianPhone)),
-          d.finding ? el("div", { class: "msg info", style: "margin-top:14px" },
+          d.finding ? el("div", { class: "msg info", style: "margin-top:var(--s-4)" },
             el("b", null, "At the camp: "), d.finding.rationale || d.finding.summary) : null)),
       closed
         ? el("div", { class: "card" }, el("div", { class: "card-b" },
-            el("h3", { style: "margin-bottom:8px" }, "Outcome"),
+            el("h3", { style: "margin-bottom:var(--s-2)" }, "Outcome"),
             el("dl", { class: "kv" },
               el("dt", null, "Result"), el("dd", null, r.outcome || r.status),
               el("dt", null, "Diagnosis"), el("dd", null, r.diagnosis || "—"),
@@ -3036,7 +3151,7 @@ export const PORTAL_HTML = `<!doctype html>
                   el("input", { type: "text", value: f.note, oninput: function (e) { f.note = e.target.value; } }))),
               el("button", { class: "pri big", disabled: S.busy, onclick: save },
                 S.busy ? "Saving…" : "Close this follow-up"),
-              el("div", { class: "hint", style: "margin-top:8px" },
+              el("div", { class: "hint", style: "margin-top:var(--s-2)" },
                 "This is what turns a flagged child into a closed loop. It feeds the school's closure rate."))));
   }
 
@@ -3047,14 +3162,14 @@ export const PORTAL_HTML = `<!doctype html>
     if (!d.camps.length) {
       return el("div", { class: "card" }, el("div", { class: "empty" },
         el("h3", null, "No camps yet for " + (d.academicYear || "this year")),
-        el("p", { style: "font-size:12.5px" }, d.note || "")));
+        el("p", null, d.note || "")));
     }
     var c = d.coverage, ref = d.referrals, imp = d.improvement;
     return el("div", null,
-      el("div", { class: "row", style: "margin-bottom:14px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-4)" },
         el("h3", { style: "flex:1" }, d.school.name + " · " + d.academicYear),
         el("button", { onclick: exportReport }, "Export report")),
-      el("h4", { style: "margin-bottom:8px" }, "Coverage"),
+      el("h4", { style: "margin-bottom:var(--s-2)" }, "Coverage"),
       el("div", { class: "stats" },
         el("div", { class: "stat" }, el("b", null, c.rostered), el("span", null, "children on camps")),
         el("div", { class: "stat" }, el("b", null, c.consented), el("span", null, "consented")),
@@ -3062,7 +3177,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat" }, el("b", null, c.absent), el("span", null, "absent")),
         el("div", { class: "stat info" }, el("b", null, c.screenedRate === null ? "—" : c.screenedRate + "%"),
           el("span", null, "of the roll screened"))),
-      el("h4", { style: "margin:18px 0 8px" }, "What was found"),
+      el("h4", { style: "margin:var(--s-5) 0 var(--s-2)" }, "What was found"),
       el("div", { class: "tw" }, el("table", null,
         el("thead", null, el("tr", null, el("th", null, "Check"), el("th", { class: "num" }, "Measured"),
           el("th", { class: "num" }, "On track"), el("th", { class: "num" }, "Watch"),
@@ -3075,7 +3190,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("td", { class: "num" }, p.alert ? el("span", { class: "pill err" }, p.alert) : "0"),
             el("td", { class: "num" }, p.flaggedRate === null ? "—" : p.flaggedRate + "%"));
         })))),
-      el("h4", { style: "margin:18px 0 8px" }, "Did families act?"),
+      el("h4", { style: "margin:var(--s-5) 0 var(--s-2)" }, "Did families act?"),
       el("div", { class: "stats" },
         el("div", { class: "stat" }, el("b", null, ref.total), el("span", null, "referrals raised")),
         el("div", { class: "stat ok" }, el("b", null, ref.closed), el("span", null, "closed by a clinician")),
@@ -3084,13 +3199,13 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat ok" }, el("b", null, ref.closureRate === null ? "—" : ref.closureRate + "%"),
           el("span", null, "closure rate"))),
       imp && imp.compared
-        ? el("div", null, el("h4", { style: "margin:18px 0 8px" }, "Change since the previous camp"),
+        ? el("div", null, el("h4", { style: "margin:var(--s-5) 0 var(--s-2)" }, "Change since the previous camp"),
             el("div", { class: "stats" },
               el("div", { class: "stat" }, el("b", null, imp.compared), el("span", null, "children compared")),
               el("div", { class: "stat ok" }, el("b", null, imp.improved), el("span", null, "improved")),
               el("div", { class: "stat" }, el("b", null, imp.unchanged), el("span", null, "unchanged")),
               el("div", { class: "stat err" }, el("b", null, imp.worse), el("span", null, "worse"))))
-        : el("div", { class: "msg info", style: "margin-top:18px" },
+        : el("div", { class: "msg info", style: "margin-top:var(--s-5)" },
             "Change over time appears once children have been screened at two camps."));
   }
 
@@ -3126,26 +3241,26 @@ export const PORTAL_HTML = `<!doctype html>
         "Guardians can ask for a detail about their child to be corrected. A guardian cannot change a record themselves — you accept or reject, and either way it is recorded."),
       S.corrections.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
-            el("h3", null, "No requests"), el("p", { style: "font-size:12.5px" }, "Nothing to review.")))
+            el("h3", null, "No requests"), el("p", null, "Nothing to review.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Field"),
               el("th", null, "Currently"), el("th", null, "Should be"), el("th", null, "Guardian"),
               el("th", null, "Status"), el("th", null, ""))),
             el("tbody", null, S.corrections.map(function (c) {
               return el("tr", null,
-                el("td", null, el("b", null, c.kidName), el("div", { class: "muted", style: "font-size:12px" }, c.grade)),
+                el("td", null, el("b", null, c.kidName), el("div", { class: "muted", style: "font-size:var(--t-sm)" }, c.grade)),
                 el("td", { class: "mono" }, c.field),
                 el("td", null, c.currentValue || el("span", { class: "muted" }, "—")),
                 el("td", null, el("b", null, c.requestedValue)),
-                el("td", null, c.guardianName, c.note ? el("div", { class: "muted", style: "font-size:12px" }, c.note) : null),
+                el("td", null, c.guardianName, c.note ? el("div", { class: "muted", style: "font-size:var(--t-sm)" }, c.note) : null),
                 el("td", null, statusPill(c.status)),
                 el("td", null, c.status === "OPEN"
                   ? el("div", { class: "row" },
                       el("button", { class: "sm pri", onclick: function () { resolve(c, true); } }, "Apply"),
                       el("button", { class: "sm dang", onclick: function () { resolve(c, false); } }, "Reject"))
-                  : el("span", { class: "muted", style: "font-size:12.5px" }, c.resolutionNote || "—")));
+                  : el("span", { class: "muted" }, c.resolutionNote || "—")));
             })))),
-      open.length ? el("p", { class: "muted", style: "margin-top:10px;font-size:12.5px" },
+      open.length ? el("p", { class: "muted", style: "margin-top:var(--s-3)" },
         open.length + " waiting.") : null);
   }
 
@@ -3183,7 +3298,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat warn" }, el("b", null, q.counts ? (q.counts.waiting_on_us || 0) : 0), el("span", null, "waiting on you")),
         el("div", { class: "stat err" }, el("b", null, overdue), el("span", null, "overdue")),
         el("div", { class: "stat ok" }, el("b", null, q.counts ? (q.counts.closed || 0) : 0), el("span", null, "closed"))),
-      el("div", { class: "row", style: "margin-bottom:12px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-3)" },
         el("span", { class: "pill " + (q.enabled ? "ok" : "") }, q.enabled ? "Open to questions" : "Closed"),
         el("button", { class: "sm" + (q.enabled ? " dang" : ""), disabled: S.busy,
           onclick: function () { toggleChannel(!q.enabled); } },
@@ -3191,7 +3306,7 @@ export const PORTAL_HTML = `<!doctype html>
       q.threads.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No questions"),
-            el("p", { style: "font-size:12.5px" }, "Nothing waiting.")))
+            el("p", null, "Nothing waiting.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Family"), el("th", null, "Child"),
               el("th", null, "Last message"), el("th", { class: "num" }, "Waiting"),
@@ -3199,9 +3314,9 @@ export const PORTAL_HTML = `<!doctype html>
             el("tbody", null, q.threads.map(function (t) {
               return el("tr", { class: "click", onclick: function () { openThread(t); } },
                 el("td", null, el("b", null, t.guardianName || "\u2014"),
-                  el("div", { class: "muted mono", style: "font-size:12px" }, t.guardianPhone || "")),
+                  el("div", { class: "muted mono", style: "font-size:var(--t-sm)" }, t.guardianPhone || "")),
                 el("td", null, t.kidName || el("span", { class: "muted" }, "\u2014")),
-                el("td", { class: "muted", style: "font-size:12.5px" },
+                el("td", { class: "muted" },
                   (t.lastMessage || "").slice(0, 90) + ((t.lastMessage || "").length > 90 ? "\u2026" : "")),
                 el("td", { class: "num" }, t.awaiting === "SCHOOL"
                   ? el("span", { class: "pill " + (t.waitingDays > q.responseWindowDays ? "err" : "warn") },
@@ -3224,18 +3339,18 @@ export const PORTAL_HTML = `<!doctype html>
     }
     return el("div", null,
       el("button", { class: "sm", onclick: function () { set({ thread: null }); } }, "\u2190 All questions"),
-      el("div", { class: "card", style: "margin-top:12px" },
+      el("div", { class: "card", style: "margin-top:var(--s-3)" },
         el("div", { class: "card-h" },
           el("div", { style: "flex:1" }, el("h2", null, t.subject || "Question"),
-            el("div", { class: "muted", style: "font-size:12.5px" },
+            el("div", { class: "muted" },
               [t.kidName, t.schoolName].filter(Boolean).join(" \u00b7 "))),
           statusPill(t.status)),
         el("div", { class: "card-b" },
           d.messages.map(function (m) {
-            return el("div", { style: "margin-bottom:12px;padding-left:" + (m.side === "SCHOOL" ? "28px" : "0") },
-              el("div", { class: "muted", style: "font-size:12px" },
+            return el("div", { style: "margin-bottom:var(--s-3);padding-left:" + (m.side === "SCHOOL" ? "28px" : "0") },
+              el("div", { class: "muted", style: "font-size:var(--t-sm)" },
                 (m.side === "SCHOOL" ? "You \u00b7 " : "") + (m.name || "") + " \u00b7 " + fmtDate(m.at)),
-              el("div", { style: "font-size:12.5px;white-space:pre-wrap" }, m.body));
+              el("div", { style: "white-space:pre-wrap" }, m.body));
           }))),
       t.status === "CLOSED"
         ? el("div", { class: "msg info" }, "This question is closed. The family can open a new one if they need to.")
@@ -3244,7 +3359,7 @@ export const PORTAL_HTML = `<!doctype html>
               el("div", { class: "fld" },
                 el("label", null, "Your reply"),
                 box = el("textarea", { rows: 4, placeholder: "Answer plainly. If it is clinical, say what the physician advised." })),
-              el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 10px" },
+              el("p", { class: "muted", style: "margin:0 0 var(--s-3)" },
                 "This goes to the family in the app. Do not put anything here that belongs in a referral letter.")),
             el("div", { class: "card-f" }, el("div", { class: "row" },
               el("button", { class: "pri", disabled: S.busy, onclick: function () { send(false); } }, "Send reply"),
@@ -3314,7 +3429,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat warn" }, el("b", null, v.notJoined), el("span", null, "not yet")),
         el("div", { class: "stat" }, el("b", null, pct + "%"), el("span", null, "reachable")),
         el("div", { class: "stat info" }, el("b", null, v.neverInvited), el("span", null, "never texted"))),
-      el("div", { class: "row", style: "margin:14px 0" },
+      el("div", { class: "row", style: "margin:var(--s-4) 0" },
         el("button", { class: "pri", disabled: S.busy || !v.notJoined,
           onclick: function () { send(true); } },
           icon("send", 14), " Invite the " + v.notJoined + " not on the app"),
@@ -3322,7 +3437,7 @@ export const PORTAL_HTML = `<!doctype html>
           "Message everyone again"),
         el("div", { style: "flex:1" }),
         el("button", { onclick: exportList }, icon("download", 14), " Export CSV")),
-      el("div", { class: "hint", style: "margin-bottom:14px" },
+      el("div", { class: "hint", style: "margin-bottom:var(--s-4)" },
         "Each message carries a link that opens the app on the guardian\u2019s own number. Re-messaging everyone includes families already using it, so keep it for a reason."),
       el("div", { class: "tw" }, el("table", null,
         el("thead", null, el("tr", null, el("th", null, "Guardian"), el("th", null, "Mobile"),
@@ -3335,7 +3450,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("td", null, g.usingApp
               ? el("span", { class: "pill ok" }, "Installed")
               : el("span", { class: "pill warn" }, "Not yet")),
-            el("td", { class: "muted", style: "font-size:12.5px" },
+            el("td", { class: "muted" },
               g.invitedAt ? fmtDate(g.invitedAt.slice(0, 10)) : "Never"));
         })))));
   }
@@ -3414,7 +3529,7 @@ export const PORTAL_HTML = `<!doctype html>
                 el("dt", null, "Year"), el("dd", null, c.academicYear || "\u2014"),
                 el("dt", null, "Period"), el("dd", null, (c.startsOn || "\u2014") + " to " + (c.endsOn || "\u2014")),
                 el("dt", null, "Notes"), el("dd", null, c.notes || "\u2014"))
-            : el("p", { class: "muted", style: "font-size:12.5px;margin:0" },
+            : el("p", { class: "muted", style: "margin:0" },
                 "No contract yet. Nothing can be invoiced until VitaHero operations sets one.")),
         isOps() ? el("div", { class: "card-f" }, el("div", { class: "row" },
           el("button", { onclick: function () {
@@ -3430,7 +3545,7 @@ export const PORTAL_HTML = `<!doctype html>
         !invs
           ? el("div", { class: "empty" }, "Loading\u2026")
           : invs.length === 0
-            ? el("div", { class: "empty" }, el("p", { style: "font-size:12.5px;margin:0" }, "None raised."))
+            ? el("div", { class: "empty" }, el("p", { style: "margin:0" }, "None raised."))
             : el("table", null,
                 el("thead", null, el("tr", null, el("th", null, "Number"), el("th", null, "Year"),
                   el("th", { class: "num" }, "Amount"), el("th", null, "Status"), el("th", null, ""))),
@@ -3454,7 +3569,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.form && S.form.newCamp) return newCampForm();
     if (!S.camps) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     return el("div", null,
-      el("div", { class: "row", style: "margin-bottom:14px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-4)" },
         el("div", { style: "flex:1" }),
         el("button", { class: "pri", onclick: function () { set({ form: { newCamp: true, title: "Annual Health Camp", date: "",
           time: "09:00", venue: "", checks: (S.school.checksOffered || []).slice(), grades: [], sections: [], consentDeadline: "" } }); } },
@@ -3462,14 +3577,14 @@ export const PORTAL_HTML = `<!doctype html>
       S.camps.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No camps yet"),
-            el("p", { style: "font-size:12.5px" }, "A camp is what turns your roster into health records.")))
+            el("p", null, "A camp is what turns your roster into health records.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Camp"), el("th", null, "Date"), el("th", null, "Classes"),
               el("th", { class: "num" }, "Children"), el("th", { class: "num" }, "Consented"),
               el("th", { class: "num" }, "Screened"), el("th", null, "Status"), el("th", null, ""))),
             el("tbody", null, S.camps.map(function (c) {
               return el("tr", { class: "click", onclick: function () { openCamp(c.id); } },
-                el("td", null, el("b", null, c.title), c.venue ? el("div", { class: "muted", style: "font-size:12.5px" }, c.venue) : null),
+                el("td", null, el("b", null, c.title), c.venue ? el("div", { class: "muted" }, c.venue) : null),
                 el("td", null, fmtDate(c.date)),
                 el("td", { class: "muted" }, (c.grades || []).join(", ") || "\\u2014"),
                 el("td", { class: "num" }, c.participants || 0),
@@ -3498,7 +3613,7 @@ export const PORTAL_HTML = `<!doctype html>
       });
     }
     return el("div", null,
-      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ form: null, error: "" }); } }, "\\u2190 Back to camps"),
+      el("button", { class: "lnk", style: "margin-bottom:var(--s-3)", onclick: function () { set({ form: null, error: "" }); } }, "\\u2190 Back to camps"),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       offered.length === 0
         // The classes warning below this one offers two buttons that take you
@@ -3507,7 +3622,7 @@ export const PORTAL_HTML = `<!doctype html>
         // levels away.
         ? el("div", { class: "msg warn" },
             el("div", null, "This school has no agreed checks yet, so there is nothing a camp could screen for."),
-            el("div", { class: "row", style: "margin-top:8px" },
+            el("div", { class: "row", style: "margin-top:var(--s-2)" },
               el("button", { class: "sm pri", onclick: function () {
                 S.form = null; S.schoolTab = "programme"; S.error = ""; render(); loadSchoolTab();
               } }, "Set the agreed checks")))
@@ -3531,7 +3646,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "fld" }, el("label", null, "Classes covered"),
             grades.length
               ? el("div", null,
-                  el("div", { class: "row", style: "margin-bottom:8px" },
+                  el("div", { class: "row", style: "margin-bottom:var(--s-2)" },
                     el("button", { class: "sm", onclick: function () {
                       f.grades = grades.slice(); render();
                     } }, "Select all"),
@@ -3539,7 +3654,7 @@ export const PORTAL_HTML = `<!doctype html>
                       f.grades = []; render();
                     } }, "Clear"),
                     S.classes && S.classes.derived
-                      ? el("span", { class: "muted", style: "font-size:12.5px" },
+                      ? el("span", { class: "muted" },
                           "From the roster \\u2014 these are the classes your imported children are in.")
                       : null),
                   el("div", { class: "chips" }, grades.map(function (g) {
@@ -3551,7 +3666,7 @@ export const PORTAL_HTML = `<!doctype html>
               // having no classes. Now it takes you there.
               : el("div", { class: "msg warn", style: "margin:0" },
                   el("div", null, "No classes yet. A camp covers classes, so there is nothing to schedule against."),
-                  el("div", { class: "row", style: "margin-top:8px" },
+                  el("div", { class: "row", style: "margin-top:var(--s-2)" },
                     el("button", { class: "sm pri", onclick: function () {
                       S.form = null; S.schoolTab = "classes"; S.error = ""; render(); loadSchoolTab();
                     } }, "Set up classes"),
@@ -3612,7 +3727,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "Camp setup")),
         el("div", { class: "card-b" },
-          el("dl", { class: "kv", style: "margin:0 0 16px" },
+          el("dl", { class: "kv", style: "margin:0 0 var(--s-4)" },
             el("dt", null, "Date"), el("dd", null, fmtDate(c.date) + (c.time ? " at " + c.time : "")),
             el("dt", null, "Venue"), el("dd", null, c.venue || "\\u2014"),
             el("dt", null, "Classes"), el("dd", null, (c.grades || []).join(", ") + (c.sections && c.sections.length ? " \\u00b7 sections " + c.sections.join(", ") : " \\u00b7 all sections")),
@@ -3622,7 +3737,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("button", { class: "pri", disabled: S.busy, onclick: build },
               (c.participants ? "Rebuild" : "Build") + " the list of children"),
             c.participants ? el("button", { disabled: S.busy, onclick: requestConsent }, "Request consent by SMS") : null),
-          el("div", { class: "hint", style: "margin-top:8px" },
+          el("div", { class: "hint", style: "margin-top:var(--s-2)" },
             c.participants
               ? c.participants + " children are on this camp. Rebuild after changing classes or uploading a new roster."
               : "This pulls every child in the selected classes onto the camp. Nothing can happen until you do this."))),
@@ -3630,7 +3745,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "Team on this camp")),
         staff.length === 0
           ? el("div", { class: "empty" },
-              el("p", { style: "font-size:12.5px;margin:0" }, "Nobody assigned yet. Add screeners and a physician under the school's People tab, then assign them here."))
+              el("p", { style: "margin:0" }, "Nobody assigned yet. Add screeners and a physician under the school's People tab, then assign them here."))
           : el("table", null, el("tbody", null, staff.map(function (s) {
               // Access is ended, not deleted: the assignment is how we know who
               // screened whom, and it survives the camp.
@@ -3645,7 +3760,7 @@ export const PORTAL_HTML = `<!doctype html>
               }
               var on = s.active !== false;
               return el("tr", { class: on ? "" : "muted" },
-                el("td", null, el("b", null, s.name), el("div", { class: "muted mono", style: "font-size:12px" }, s.phone)),
+                el("td", null, el("b", null, s.name), el("div", { class: "muted mono", style: "font-size:var(--t-sm)" }, s.phone)),
                 el("td", null, el("span", { class: "pill " + (s.role === "PHYSICIAN" ? "info" : "warn") },
                   s.role === "PHYSICIAN" ? "Physician" : "Screener")),
                 el("td", null, on
@@ -3676,7 +3791,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { style: "flex:1" }, el("h2", null, "Photographs")),
         el("span", { class: "pill " + (c.photosEnabled ? "warn" : "") }, c.photosEnabled ? "On" : "Off")),
       el("div", { class: "card-b" },
-        el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 10px" },
+        el("p", { class: "muted", style: "margin:0 0 var(--s-3)" },
           c.photosEnabled
             ? "A screener can attach a photograph to a finding, but only for a child whose guardian said yes to photographs specifically. Every photograph opened is recorded against the person who opened it."
             : "Off, which is right for almost every camp. Turn this on only where a picture changes a clinical decision \\u2014 a skin lesion, a squint, a caries pattern."),
@@ -3684,7 +3799,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("button", { class: c.photosEnabled ? "dang" : "", disabled: S.busy,
             onclick: function () { toggle(!c.photosEnabled); } },
             c.photosEnabled ? "Turn photographs off" : "Turn photographs on"),
-          el("span", { class: "muted", style: "font-size:12.5px" },
+          el("span", { class: "muted" },
             c.photosEnabled
               ? "Cannot be switched off once photographs exist \\u2014 delete them first."
               : "Guardians are not shown the photography question while this is off.")))); 
@@ -3727,7 +3842,7 @@ export const PORTAL_HTML = `<!doctype html>
   function assignStaffRow(c) {
     if (!loadOnce("staff", "/api/admin/schools/" + c.schoolId + "/staff",
         function (r) { return (r && r.staff) || []; })) {
-      return el("span", { class: "muted", style: "font-size:12.5px" }, "Loading team\\u2026");
+      return el("span", { class: "muted" }, "Loading team\\u2026");
     }
     var assigned = S.camp.staff.map(function (s) { return s.profileId; });
     var avail = S.staff.filter(function (s) { return assigned.indexOf(s.profileId) < 0; });
@@ -3745,7 +3860,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("select", { onchange: b("role") },
               el("option", { value: "SCREENER", selected: f.role === "SCREENER" }, "Screener"),
               el("option", { value: "PHYSICIAN", selected: f.role === "PHYSICIAN" }, "Physician")))),
-        el("div", { class: "hint", style: "margin-bottom:10px" },
+        el("div", { class: "hint", style: "margin-bottom:var(--s-3)" },
           "They sign in to this console with that mobile number \\u2014 no password. A physician can approve results; a screener can only record them."),
         el("div", { class: "row" },
           el("button", { class: "pri", disabled: S.busy, onclick: function () {
@@ -3780,7 +3895,7 @@ export const PORTAL_HTML = `<!doctype html>
         avail.length
           ? sel = el("select", { style: "max-width:280px" }, avail.map(function (s) {
               return el("option", { value: s.profileId }, s.name + " — " + (s.role === "PHYSICIAN" ? "Physician" : "Screener")); }))
-          : el("span", { class: "muted", style: "font-size:12.5px" },
+          : el("span", { class: "muted" },
               S.staff.length ? "Everyone at this school is already on this camp." : "No screeners or physicians yet."),
         avail.length
           ? el("button", { disabled: S.busy, onclick: function () {
@@ -3791,11 +3906,11 @@ export const PORTAL_HTML = `<!doctype html>
         el("button", { class: avail.length ? "" : "pri", onclick: function () {
           set({ form: { newStaff: true, name: "", phone: "", role: "SCREENER" } });
         } }, icon("userPlus", 14), " Add someone new")),
-      el("div", { class: "row", style: "margin-top:10px" },
+      el("div", { class: "row", style: "margin-top:var(--s-3)" },
         docs.length
           ? docSel = el("select", { style: "max-width:280px" }, docs.map(function (d) {
               return el("option", { value: d.id }, d.name + " — " + d.specialty); }))
-          : el("span", { class: "muted", style: "font-size:12.5px" },
+          : el("span", { class: "muted" },
               !S.doctors ? "Loading doctors…" : "No directory doctor with a mobile number to add."),
         docs.length
           ? el("button", { disabled: S.busy, onclick: function () {
@@ -3806,7 +3921,7 @@ export const PORTAL_HTML = `<!doctype html>
               });
             } }, icon("stethoscope", 14), " Assign a doctor")
           : null),
-      el("div", { class: "hint", style: "margin-top:8px" },
+      el("div", { class: "hint", style: "margin-top:var(--s-2)" },
         "A doctor from the Hospitals directory signs in to the Android app with the mobile "
         + "number held there, and sees only the camps they are assigned to. End their access "
         + "when the camp is done — with no active camp they cannot sign in at all."));
@@ -3843,7 +3958,7 @@ export const PORTAL_HTML = `<!doctype html>
 
     var noApp = all.filter(function (p) { return !p.usingApp; }).length;
     return el("div", null,
-      el("div", { class: "row", style: "margin-bottom:12px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-3)" },
         el("input", { value: S.peopleQuery, placeholder: "Search child, guardian or number",
           style: "max-width:300px",
           oninput: function (e) { S.peopleQuery = e.target.value; render(); } }),
@@ -3861,7 +3976,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("tbody", null, rows.map(function (p) {
           return el("tr", null,
             el("td", null, el("b", null, p.kidName),
-              p.studentRef ? el("div", { class: "muted mono", style: "font-size:12px" },
+              p.studentRef ? el("div", { class: "muted mono", style: "font-size:var(--t-sm)" },
                 p.studentRef.replace(/^sid_/, "")) : null),
             el("td", null, (p.grade || "") + (p.section ? " " + p.section : "")),
             el("td", null, p.guardianName || el("span", { class: "muted" }, "\u2014")),
@@ -3874,7 +3989,7 @@ export const PORTAL_HTML = `<!doctype html>
               ? el("span", { class: "muted" }, "\u2014") : statusPill(p.attendance)),
             el("td", null, statusPill(p.status)));
         })))),
-      el("p", { class: "muted", style: "margin-top:10px;font-size:12.5px" },
+      el("p", { class: "muted", style: "margin-top:var(--s-3)" },
         rows.length + " of " + all.length + " shown."));
   }
 
@@ -3935,10 +4050,10 @@ export const PORTAL_HTML = `<!doctype html>
     }
 
     function step(n, label, hint, button) {
-      return el("div", { class: "card", style: "flex:1;min-width:190px;padding:12px 14px" },
-        el("div", { style: "font-size:22px;font-weight:700;line-height:1.1" }, String(n)),
-        el("div", { style: "font-size:12.5px;font-weight:600;margin-top:2px" }, label),
-        el("div", { class: "muted", style: "font-size:11.5px;margin:2px 0 8px" }, hint),
+      return el("div", { class: "card", style: "flex:1;min-width:190px;padding:var(--s-3) var(--s-4)" },
+        el("div", { class: "stepn" }, String(n)),
+        el("div", { style: "font-weight:var(--w-semi);margin-top:var(--s-2)" }, label),
+        el("div", { class: "muted", style: "font-size:var(--t-sm);margin:2px 0 var(--s-2)" }, hint),
         button);
     }
 
@@ -3947,31 +4062,31 @@ export const PORTAL_HTML = `<!doctype html>
         "Consent is per camp and per child. A child cannot be screened without it \\u2014 that rule is enforced by the server, not by this screen."),
       // E1/E3 — the two ways forward, side by side: paper for the families
       // who will never open an app, and a chase for the ones who would.
-      el("div", { class: "row", style: "gap:10px;align-items:stretch;margin-bottom:12px;flex-wrap:wrap" },
+      el("div", { class: "row", style: "gap:var(--s-3);align-items:stretch;margin-bottom:var(--s-3);flex-wrap:wrap" },
         step(noApp.length, "without the app",
           "They cannot answer on a phone they have not got.",
           noApp.length
             ? el("button", { class: "sm", disabled: S.busy, onclick: inviteAllMissing },
                 icon("message", 13), " Invite all " + noApp.length)
-            : el("span", { class: "muted", style: "font-size:11.5px" }, "Nobody waiting on an invitation.")),
+            : el("span", { class: "muted", style: "font-size:var(--t-sm)" }, "Nobody waiting on an invitation.")),
         step(waiting.length, "asked, not answered",
           "They have the app and the request.",
           waiting.length
             ? el("button", { class: "sm", disabled: S.busy,
                 onclick: function () { chase(waiting.map(function (p) { return p.guardianProfileId; })); } },
                 icon("message", 13), " Remind all " + waiting.length)
-            : el("span", { class: "muted", style: "font-size:11.5px" }, "Nobody left to remind.")),
+            : el("span", { class: "muted", style: "font-size:var(--t-sm)" }, "Nobody left to remind.")),
         step(answered, "answered",
           "Granted, declined or recorded on paper.",
-          el("span", { class: "muted", style: "font-size:11.5px" },
+          el("span", { class: "muted", style: "font-size:var(--t-sm)" },
             answered === S.participants.length && answered > 0
               ? "Everybody has answered."
               : "Recorded against the camp."))),
       // The paper round. A school hands these out in the classroom and keys
       // the answers back in below; the wording is the app's own, so the two
       // routes cannot ask different questions.
-      el("div", { class: "row", style: "gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap" },
-        el("span", { style: "font-size:12.5px;font-weight:600" }, "Paper consent slips"),
+      el("div", { class: "row", style: "gap:var(--s-2);align-items:center;margin-bottom:var(--s-3);flex-wrap:wrap" },
+        el("span", { style: "font-weight:var(--w-semi)" }, "Paper consent slips"),
         el("select", { style: "width:auto",
           onchange: function (e) { S.consentLang = e.target.value; } },
           [["en", "English"], ["hi", "\\u0939\\u093F\\u0928\\u094D\\u0926\\u0940"], ["te", "\\u0C24\\u0C46\\u0C32\\u0C41\\u0C17\\u0C41"]].map(function (o) {
@@ -3987,7 +4102,7 @@ export const PORTAL_HTML = `<!doctype html>
             printPage("/api/admin/camps/" + c.id + "/consent/form?only=all&lang="
                       + (S.consentLang || "en"));
           } }, "Print the whole roster"),
-        el("span", { class: "muted", style: "font-size:11.5px" },
+        el("span", { class: "muted", style: "font-size:var(--t-sm)" },
           "One page per child, pre-filled with their name and class.")),
       c.photosEnabled
         ? el("div", { class: "msg warn" },
@@ -4018,7 +4133,7 @@ export const PORTAL_HTML = `<!doctype html>
                       p.consentPhotos ? "Allowed" : "Not allowed"))
               : null,
             el("td", null, p.consentStatus !== "PENDING"
-              ? el("span", { class: "muted", style: "font-size:12.5px" }, "\u2014")
+              ? el("span", { class: "muted" }, "\u2014")
               : p.guardianUsingApp
                 ? el("button", { class: "sm", disabled: S.busy,
                     onclick: function () { chase([p.guardianProfileId]); } }, "Remind")
@@ -4032,7 +4147,7 @@ export const PORTAL_HTML = `<!doctype html>
                     ? el("button", { class: "sm", onclick: function () { paper(p, "PAPER", true); } }, "Check-up + photographs")
                     : null,
                   el("button", { class: "sm dang", onclick: function () { paper(p, "DECLINED"); } }, "Declined"))
-              : el("span", { class: "muted", style: "font-size:12.5px" }, "Answered")));
+              : el("span", { class: "muted" }, "Answered")));
         })))),
       // "Remind all" used to live down here, under the table, as the only
       // bulk action. It is up in the loop now, split from the invitation,
@@ -4054,7 +4169,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "card" }, el("div", { class: "empty" },
           offline
             ? el("div", null, el("h3", null, "No camp downloaded"),
-                el("p", { style: "font-size:12.5px" },
+                el("p", null,
                   "This device is offline and has no pack for this camp. Reconnect and download it before the camp starts."))
             : "Loading\\u2026")));
     }
@@ -4088,9 +4203,9 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "split" },
         el("div", null,
           el("input", { type: "text", placeholder: "Search name or roll number", value: S.search || "",
-            oninput: function (e) { S.search = e.target.value; render(); }, style: "margin-bottom:10px" }),
+            oninput: function (e) { S.search = e.target.value; render(); }, style: "margin-bottom:var(--s-3)" }),
           el("div", { class: "plist" }, list.length === 0
-            ? el("div", { class: "empty", style: "padding:24px 14px" },
+            ? el("div", { class: "empty", style: "padding:var(--s-6) var(--s-4)" },
                 source.length ? "No match." : el("span", null, "No children on this camp yet. An administrator needs to build the list under Setup."))
             : list.map(function (p) {
                 return el("button", { class: "pitem" + (selected === p.kidId ? " on" : ""),
@@ -4104,7 +4219,7 @@ export const PORTAL_HTML = `<!doctype html>
               }))),
         el("div", null, selected ? screeningPanel() : el("div", { class: "card" }, el("div", { class: "empty" },
           el("h3", null, "Choose a child"),
-          el("p", { style: "font-size:12.5px" }, "Pick someone from the list to record their check-up."))))));
+          el("p", null, "Pick someone from the list to record their check-up."))))));
   }
 
   function campDayBar(pack, queued, offline) {
@@ -4118,14 +4233,14 @@ export const PORTAL_HTML = `<!doctype html>
         S.notice = "Downloaded " + d.participants.length + " children. You can now work without a signal.";
       });
     }
-    return el("div", { class: "card", style: "margin-bottom:14px" },
-      el("div", { class: "card-b", style: "padding:12px 16px" },
+    return el("div", { class: "card", style: "margin-bottom:var(--s-4)" },
+      el("div", { class: "card-b", style: "padding:var(--s-3) var(--s-4)" },
         el("div", { class: "row" },
           el("span", { class: "pill " + (offline ? "warn" : "ok") }, offline ? "Offline" : "Online"),
           pack
-            ? el("span", { class: "muted", style: "font-size:12.5px" },
+            ? el("span", { class: "muted" },
                 pack.participants.length + " children downloaded " + fmtDate(pack.downloadedAt))
-            : el("span", { class: "muted", style: "font-size:12.5px" }, "Not downloaded for offline use"),
+            : el("span", { class: "muted" }, "Not downloaded for offline use"),
           queued.length ? el("span", { class: "pill info" }, queued.length + " waiting to sync") : null,
           el("span", { style: "flex:1" }),
           !offline ? el("button", { class: "sm", disabled: S.busy, onclick: download },
@@ -4137,7 +4252,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("button", { class: "sm ghost", onclick: function () { set({ forceOffline: !S.forceOffline }); } },
             S.forceOffline ? "Rejoin network" : "Test offline")),
         offline && queued.length
-          ? el("div", { class: "hint", style: "margin-top:8px" },
+          ? el("div", { class: "hint", style: "margin-top:var(--s-2)" },
               "Captures are saved on this device and upload when you are back on a network. Do not clear your browser data.")
           : null));
   }
@@ -4210,12 +4325,12 @@ export const PORTAL_HTML = `<!doctype html>
     var h = S.symptoms;
     if (!h || !h.events || h.events.length === 0) return null;
     var sevLabel = { MILD: "Mild", MODERATE: "Moderate" };
-    return el("div", { class: "card", style: "margin-bottom:14px" },
+    return el("div", { class: "card", style: "margin-bottom:var(--s-4)" },
       el("div", { class: "card-h" },
         el("h2", null, "What the family reported"),
         el("span", { class: "pill warn" }, "Not examined")),
       el("div", { class: "card-b" },
-        el("p", { class: "muted", style: "font-size:12.5px;margin-top:0" }, h.caution),
+        el("p", { class: "muted", style: "margin-top:0" }, h.caution),
         el("div", { class: "tws" }, el("table", null,
           el("thead", null, el("tr", null,
             el("th", null, "What"), el("th", null, "When"), el("th", null, "How bad"),
@@ -4286,13 +4401,13 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "card-h" },
           el("div", { style: "flex:1" },
             el("h2", null, ch.name),
-            el("div", { class: "muted", style: "font-size:12.5px" },
+            el("div", { class: "muted" },
               [(ch.grade || "") + (ch.section ? " " + ch.section : ""), ch.gender, ch.age ? ch.age + " years" : "", ch.studentRef.replace(/^sid_/, "")]
                 .filter(Boolean).join(" \\u00b7 "))),
           statusPill(d.consentStatus)),
         el("div", { class: "card-b" },
-          el("div", { class: "row", style: "margin-bottom:4px" },
-            el("span", { class: "muted", style: "font-size:12.5px" }, "Attendance:"),
+          el("div", { class: "row", style: "margin-bottom:var(--s-1)" },
+            el("span", { class: "muted" }, "Attendance:"),
             el("button", { class: "sm" + (d.attendance === "PRESENT" ? " pri" : ""), onclick: function () { mark("PRESENT"); } }, "Present"),
             el("button", { class: "sm" + (d.attendance === "ABSENT" ? " pri" : ""), onclick: function () { mark("ABSENT"); } }, "Absent"),
             el("button", { class: "sm" + (d.attendance === "REFUSED" ? " pri" : ""), onclick: function () { mark("REFUSED"); } }, "Refused")))),
@@ -4327,13 +4442,13 @@ export const PORTAL_HTML = `<!doctype html>
         : null,
 
       S.saved ? el("div", { class: "card" }, el("div", { class: "card-b" },
-        el("h3", { style: "margin-bottom:8px" }, "Recorded"),
+        el("h3", { style: "margin-bottom:var(--s-2)" }, "Recorded"),
         S.saved.map(function (s) {
-          return el("div", { class: "row", style: "margin-bottom:5px" }, flagPill(s.flag),
-            el("b", { style: "font-size:12.5px" }, s.checkType),
-            el("span", { class: "muted", style: "font-size:12.5px" }, s.rationale));
+          return el("div", { class: "row", style: "margin-bottom:var(--s-1)" }, flagPill(s.flag),
+            el("b", null, s.checkType),
+            el("span", { class: "muted" }, s.rationale));
         }),
-        el("p", { class: "muted", style: "font-size:12.5px;margin:10px 0 0" },
+        el("p", { class: "muted", style: "margin:var(--s-3) 0 0" },
           "A physician confirms every result before the guardian sees it."))) : null,
 
       blocked ? null : el("div", null,
@@ -4399,23 +4514,23 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { style: "flex:1" }, el("h2", null, "Photographs")),
         el("span", { class: "pill warn" }, "Consented")),
       el("div", { class: "card-b" },
-        el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 10px" },
+        el("p", { class: "muted", style: "margin:0 0 var(--s-3)" },
           "Only where a picture changes the decision. Four per child, 220 KB each. The guardian and this camp's clinical team can see them; the school office cannot. Every time one is opened, it is recorded."),
         (S.photos || []).length
           ? el("table", null, el("tbody", null, (S.photos || []).map(function (ph) {
               return el("tr", null,
                 el("td", null, el("b", null, ph.checkType),
-                  ph.caption ? el("div", { class: "muted", style: "font-size:12.5px" }, ph.caption) : null),
-                el("td", { class: "muted", style: "font-size:12px" }, Math.round(ph.bytes / 1024) + " KB \\u00b7 " + (ph.uploadedBy || "")),
+                  ph.caption ? el("div", { class: "muted" }, ph.caption) : null),
+                el("td", { class: "muted", style: "font-size:var(--t-sm)" }, Math.round(ph.bytes / 1024) + " KB \\u00b7 " + (ph.uploadedBy || "")),
                 el("td", { style: "text-align:right" }, el("div", { class: "row" },
                   el("button", { class: "sm", onclick: function () { open(ph.id); } }, "View"),
                   el("button", { class: "sm dang", onclick: function () { remove(ph.id); } }, "Delete"))));
             })))
-          : el("p", { class: "muted", style: "font-size:12.5px;margin:0" }, "None attached."),
+          : el("p", { class: "muted", style: "margin:0" }, "None attached."),
         S.photoOpen
-          ? el("div", { style: "margin-top:12px" },
+          ? el("div", { style: "margin-top:var(--s-3)" },
               el("img", { src: "data:" + S.photoOpen.mime + ";base64," + S.photoOpen.base64,
-                style: "max-width:320px;border-radius:10px;border:1px solid var(--line)" }),
+                style: "max-width:320px;border-radius:var(--r-lg);border:1px solid var(--line)" }),
               el("div", null, el("button", { class: "sm", onclick: function () { set({ photoOpen: null }); } }, "Close")))
           : null),
       el("div", { class: "card-f" },
@@ -4474,7 +4589,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", { class: "chk" },
       el("div", { class: "chk-h" }, el("b", null, ct)),
       el("div", { class: "chk-b" }, body(),
-        el("div", { class: "fld", style: "margin:10px 0 0" }, el("label", null, "Note (required to override the suggested result)"),
+        el("div", { class: "fld", style: "margin:var(--s-3) 0 0" }, el("label", null, "Note (required to override the suggested result)"),
           el("input", { type: "text", value: d.__note || "", oninput: bind("__note"), placeholder: "Optional" }))));
   }
 
@@ -4485,20 +4600,20 @@ export const PORTAL_HTML = `<!doctype html>
     var c = S.camp.camp;
     var pending = S.queue.filter(function (q) { return q.status === "SCREENED"; });
     return el("div", null,
-      el("div", { class: "row", style: "margin-bottom:14px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-4)" },
         el("div", { style: "flex:1" },
-          el("span", { class: "muted", style: "font-size:12.5px" },
+          el("span", { class: "muted" },
             pending.length + " awaiting review \\u00b7 " + (c.approved || 0) + " approved \\u00b7 " + (c.released || 0) + " released")),
         // No release button. Sending a camp to its guardians happens in the
         // app, on the phone the clinician screened with, and the server
         // refuses it from here whoever is signed in. A button that always
         // answers 403 is worse than no button.
-        el("span", { class: "muted", style: "font-size:12px" },
+        el("span", { class: "muted", style: "font-size:var(--t-sm)" },
           "Approving and releasing happen in the VitaHero app.")),
       c.released ? el("div", { class: "msg ok" }, c.released + " results are already with guardians.") : null,
       S.queue.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
-            el("h3", null, "Nothing to review"), el("p", { style: "font-size:12.5px" }, "Results appear here once the screening team records them.")))
+            el("h3", null, "Nothing to review"), el("p", null, "Results appear here once the screening team records them.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"),
               el("th", { class: "num" }, "Refer"), el("th", { class: "num" }, "Watch"),
@@ -4529,31 +4644,31 @@ export const PORTAL_HTML = `<!doctype html>
     if (!d) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var e = S.reviewEdit;
     return el("div", null,
-      el("button", { class: "lnk", style: "margin-bottom:10px", onclick: function () { set({ reviewKid: null, reviewData: null, error: "" }); } }, "\\u2190 Back to the queue"),
+      el("button", { class: "lnk", style: "margin-bottom:var(--s-3)", onclick: function () { set({ reviewKid: null, reviewData: null, error: "" }); } }, "\\u2190 Back to the queue"),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
       el("div", { class: "card" },
         el("div", { class: "card-h" },
           el("div", { style: "flex:1" }, el("h2", null, d.child.name),
-            el("div", { class: "muted", style: "font-size:12.5px" },
+            el("div", { class: "muted" },
               [d.child.grade, d.child.gender, d.child.age ? d.child.age + " years" : ""].filter(Boolean).join(" \\u00b7 "))),
           statusPill(d.status)),
         el("div", { class: "card-b" },
-          el("h4", { style: "margin-bottom:10px" }, "What the screening team recorded"),
+          el("h4", { style: "margin-bottom:var(--s-3)" }, "What the screening team recorded"),
           d.findings.length === 0 ? el("p", { class: "muted" }, "No findings recorded.") : null,
           d.findings.map(function (f) {
             return el("div", { class: "chk" },
               el("div", { class: "chk-h" }, el("b", null, f.checkType),
                 f.overridden ? el("span", { class: "pill warn" }, "Screener overrode") : null,
-                el("span", { class: "muted", style: "font-size:12px" }, f.screenerName || "")),
+                el("span", { class: "muted", style: "font-size:var(--t-sm)" }, f.screenerName || "")),
               el("div", { class: "chk-b" },
-                el("div", { class: "row", style: "margin-bottom:8px" },
-                  el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Measured"),
-                  el("b", { style: "font-size:12.5px" }, f.rationale || "\\u2014")),
-                f.screenerNote ? el("div", { class: "row", style: "margin-bottom:8px" },
-                  el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Note"),
-                  el("span", { style: "font-size:12.5px" }, f.screenerNote)) : null,
+                el("div", { class: "row", style: "margin-bottom:var(--s-2)" },
+                  el("span", { class: "muted", style: "min-width:74px" }, "Measured"),
+                  el("b", null, f.rationale || "\\u2014")),
+                f.screenerNote ? el("div", { class: "row", style: "margin-bottom:var(--s-2)" },
+                  el("span", { class: "muted", style: "min-width:74px" }, "Note"),
+                  el("span", null, f.screenerNote)) : null,
                 el("div", { class: "row" },
-                  el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Your call"),
+                  el("span", { class: "muted", style: "min-width:74px" }, "Your call"),
                   ["GOOD","WATCH","ALERT","NOT_MEASURED"].map(function (fl) {
                     return el("button", { class: "sm" + (e.flags[f.checkType] === fl ? " pri" : ""),
                       onclick: function () { e.flags[f.checkType] = fl; render(); } },
@@ -4573,7 +4688,7 @@ export const PORTAL_HTML = `<!doctype html>
               : "Previously saved. Edit if anything has changed.")),
           el("div", { class: "row" },
             el("button", { onclick: function () { set({ reviewKid: null, reviewData: null }); } }, "Close")),
-          el("div", { class: "hint", style: "margin-top:8px" },
+          el("div", { class: "hint", style: "margin-top:var(--s-2)" },
             "This record is read-only here. The physician who screened this child "
             + "approves it in the VitaHero app, and the camp is released from there too."))));
   }
@@ -4584,7 +4699,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (!S.myCamps.length) {
       return el("div", { class: "card" }, el("div", { class: "empty" },
         el("h3", null, "No camps assigned"),
-        el("p", { style: "font-size:12.5px" }, "A school administrator assigns you to a camp. Once they do, it appears here with its list of children.")));
+        el("p", null, "A school administrator assigns you to a camp. Once they do, it appears here with its list of children.")));
     }
     return el("div", { class: "tw" }, el("table", null,
       el("thead", null, el("tr", null, el("th", null, "Camp"), el("th", null, "School"), el("th", null, "Date"),
@@ -4680,7 +4795,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       el("div", { class: "msg info" },
         "This is what families read after a camp. Write plainly, in the second person, and never write anything that reads like a diagnosis \u2014 the physician's recommendation does that job."),
-      el("div", { class: "row", style: "margin-bottom:14px" },
+      el("div", { class: "row", style: "margin-bottom:var(--s-4)" },
         el("div", { style: "flex:1" }),
         el("button", { class: "pri", onclick: function () { edit(null); } }, "New article")),
       el("div", { class: "tw" }, el("table", null,
@@ -4689,9 +4804,9 @@ export const PORTAL_HTML = `<!doctype html>
         el("tbody", null, lib.articles.map(function (a) {
           return el("tr", null,
             el("td", null, el("b", null, a.title),
-              el("div", { class: "muted mono", style: "font-size:12px" }, a.slug)),
+              el("div", { class: "muted mono", style: "font-size:var(--t-sm)" }, a.slug)),
             el("td", null, a.locale),
-            el("td", { class: "muted", style: "font-size:12.5px" },
+            el("td", { class: "muted" },
               (a.checkTypes || []).length
                 ? (a.checkTypes.join(", ") + ((a.flags || []).length ? " \u00b7 " + a.flags.join("/") : ""))
                 : "Everyone"),
@@ -4793,7 +4908,7 @@ export const PORTAL_HTML = `<!doctype html>
       return el("tr", null,
         el("td", null, el("b", null, h.name),
           h.isCampPartner
-            ? el("span", { class: "pill ok", style: "margin-left:6px" }, "Camp partner")
+            ? el("span", { class: "pill ok", style: "margin-left:var(--s-2)" }, "Camp partner")
             : null),
         el("td", { class: "muted" }, h.district || h.city || "—"),
         el("td", { class: "num" }, h.sent),
@@ -4824,7 +4939,7 @@ export const PORTAL_HTML = `<!doctype html>
     var noneYet = el("div", { class: "card" },
       el("div", { class: "empty" },
         el("h3", null, "No referrals have reached a partner yet"),
-        el("p", { style: "font-size:12.5px" },
+        el("p", null,
           "A referral is attributed here once a family books through the app.")));
 
     // The referrals that never reached a partner at all. Reported next to the
@@ -4837,7 +4952,7 @@ export const PORTAL_HTML = `<!doctype html>
     var neverUsed = el("div", { class: "card" },
       el("div", { class: "card-h" },
         el("h2", null, "On the list, never used"),
-        el("span", { class: "muted", style: "font-size:12px" },
+        el("span", { class: "muted", style: "font-size:var(--t-sm)" },
           "No rate is shown — nothing has been sent")),
       el("div", { class: "card-b" },
         el("div", { class: "chips" }, unused.map(function (h) {
@@ -4845,7 +4960,7 @@ export const PORTAL_HTML = `<!doctype html>
         }))));
 
     return el("div", null,
-      el("p", { class: "muted", style: "margin:0 0 14px;font-size:12.5px" }, d.note),
+      el("p", { class: "muted", style: "margin:0 0 var(--s-4)" }, d.note),
       d.notBooked.total ? ownDoctor : null,
       used.length === 0 ? noneYet : usedTable,
       unused.length ? neverUsed : null);
@@ -4861,7 +4976,7 @@ export const PORTAL_HTML = `<!doctype html>
       S.accessDays = n; S.access = null; render(); loadOversightTab();
     }
 
-    var window_ = el("div", { class: "row", style: "margin-bottom:14px" },
+    var window_ = el("div", { class: "row", style: "margin-bottom:var(--s-4)" },
       [7, 30, 90].map(function (n) {
         return el("button", { class: days === n ? "pri" : "",
           onclick: function () { setDays(n); } }, "Last " + n + " days");
@@ -4894,7 +5009,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("td", null, el("b", null, e.kidName || e.kidId)),
         el("td", { class: "muted" }, e.schoolName || "—"),
         el("td", null, e.actorName || e.actorId,
-          el("div", { class: "muted", style: "font-size:11.5px" }, e.actorRole)),
+          el("div", { class: "muted", style: "font-size:var(--t-sm)" }, e.actorRole)),
         el("td", { class: "muted" }, surfaceLabel(e.surface)));
     }
 
@@ -4911,11 +5026,11 @@ export const PORTAL_HTML = `<!doctype html>
 
     var nothing = el("div", { class: "empty" },
       el("h3", null, "Nothing in this window"),
-      el("p", { style: "font-size:12.5px" },
+      el("p", null,
         "No one has opened a child's record in this period."));
 
     return el("div", null,
-      el("p", { class: "muted", style: "margin:0 0 12px;font-size:12.5px" }, d.note),
+      el("p", { class: "muted", style: "margin:0 0 var(--s-3)" }, d.note),
       window_,
       d.byActor.length ? byPerson : null,
       el("div", { class: "card" },
@@ -4948,8 +5063,8 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "Retention")),
         el("div", { class: "card-b" },
-          el("p", { class: "muted", style: "font-size:12.5px;margin-top:0" }, d.note),
-          el("div", { class: "kpis", style: "margin-top:14px" },
+          el("p", { class: "muted", style: "margin-top:0" }, d.note),
+          el("div", { class: "kpis", style: "margin-top:var(--s-4)" },
             Object.keys(d).filter(function (k) {
               return typeof d[k] === "number";
             }).map(function (k) {
@@ -5000,7 +5115,7 @@ export const PORTAL_HTML = `<!doctype html>
                     }))))),
             el("div", { class: "card" },
               el("div", { class: "card-h" }, el("h2", null, "Who has opened this record"),
-                el("span", { class: "muted", style: "font-size:12px" }, "Reads, not changes")),
+                el("span", { class: "muted", style: "font-size:var(--t-sm)" }, "Reads, not changes")),
               !d.reads || d.reads.length === 0
                 ? el("div", { class: "empty" }, "No one has opened this record.")
                 : el("div", { class: "tws" }, el("table", null,
@@ -5099,17 +5214,17 @@ export const PORTAL_HTML = `<!doctype html>
         + "has agreed \u2014 the column below says which \u2014 and everyone else appears as "
         + "\u201ca pupil in Class 5\u201d. Write about what they did, never about what a check found."),
 
-      cur ? el("div", { class: "card", style: "margin-bottom:12px" }, el("div", { class: "card-b" },
+      cur ? el("div", { class: "card", style: "margin-bottom:var(--s-3)" }, el("div", { class: "card-b" },
         el("h3", null, S.hero.month + " already has a VitaHero"),
         el("p", null, el("b", null, cur.name),
           cur.published ? " was chosen. " : " was chosen but is not published yet. ",
           "Families see them as \u201c", el("b", null, shownAs(cur)), "\u201d."),
         cur.achievement ? el("p", { class: "muted" }, cur.achievement) : null,
         cur.story ? el("p", { class: "muted", style: "white-space:pre-wrap" }, cur.story) : null,
-        el("p", { class: "muted", style: "font-size:12.5px;margin-bottom:0" },
+        el("p", { class: "muted", style: "margin-bottom:0" },
           "There is one hero per school per month, so choosing again below replaces this."))) : null,
 
-      f ? el("div", { class: "card", style: "margin-bottom:12px" }, el("div", { class: "card-b" },
+      f ? el("div", { class: "card", style: "margin-bottom:var(--s-3)" }, el("div", { class: "card-b" },
         el("h3", null, "VitaHero for " + S.hero.month + " \u2014 " + f.name),
         el("div", { class: "fld" }, el("label", null, "What they did (one line)"),
           el("input", { value: f.achievement,
@@ -5119,9 +5234,9 @@ export const PORTAL_HTML = `<!doctype html>
           el("textarea", { rows: 5, value: f.story,
             onchange: function (e) { f.story = e.target.value; } })),
         f.mayBeNamed
-          ? el("p", { class: "muted", style: "font-size:12.5px" },
+          ? el("p", { class: "muted" },
               "Their guardian has agreed to their first name being shown.")
-          : el("div", { class: "msg warn", style: "margin:0 0 10px" },
+          : el("div", { class: "msg warn", style: "margin:0 0 var(--s-3)" },
               "Their guardian has not agreed to naming, so this publishes as \u201c"
               + shownAs(f) + "\u201d. That is fine \u2014 the achievement is still theirs. "
               + "Do not put their name in the story to get round it."),
@@ -5224,7 +5339,7 @@ export const PORTAL_HTML = `<!doctype html>
           set({ dieForm: { name: "", phone: "", qualification: "", city: "", active: true } });
         } }, icon("plus", 14), " Add a dietician")),
 
-      f ? el("div", { class: "card", style: "margin-bottom:12px" }, el("div", { class: "card-b" },
+      f ? el("div", { class: "card", style: "margin-bottom:var(--s-3)" }, el("div", { class: "card-b" },
         el("h3", null, f.id ? "Edit dietician" : "Add a dietician"),
         el("div", { class: "g2" },
           el("div", { class: "fld" }, el("label", null, "Name"),
@@ -5237,10 +5352,10 @@ export const PORTAL_HTML = `<!doctype html>
               placeholder: "e.g. RD, MSc Nutrition" })),
           el("div", { class: "fld" }, el("label", null, "City"),
             el("input", { value: f.city, onchange: bindDie("city") }))),
-        el("p", { class: "muted", style: "font-size:12.5px;margin-top:8px" },
+        el("p", { class: "muted", style: "margin-top:var(--s-2)" },
           "The mobile number is how they sign in to the app \u2014 a one-time code goes to it. "
           + "A number that already belongs to a parent or a clinician is refused."),
-        el("div", { class: "row", style: "margin-top:10px" },
+        el("div", { class: "row", style: "margin-top:var(--s-3)" },
           el("button", { class: "pri", disabled: S.busy, onclick: save }, "Save"),
           el("button", { onclick: function () { set({ dieForm: null }); } }, "Cancel")))) : null,
 
@@ -5254,24 +5369,24 @@ export const PORTAL_HTML = `<!doctype html>
             el("tbody", null, rows.map(function (d) {
               return el("tr", null,
                 el("td", null, el("b", null, d.name),
-                  d.active ? null : el("span", { class: "pill mute", style: "margin-left:6px" }, "Retired")),
+                  d.active ? null : el("span", { class: "pill mute", style: "margin-left:var(--s-2)" }, "Retired")),
                 el("td", { class: "mono" }, d.phone),
                 el("td", null, d.qualification || el("span", { class: "muted" }, "\u2014")),
                 el("td", null,
                   d.schools.length === 0
-                    ? el("span", { class: "muted", style: "font-size:12.5px" }, "None yet")
-                    : el("div", { class: "row", style: "gap:4px;flex-wrap:wrap" },
+                    ? el("span", { class: "muted" }, "None yet")
+                    : el("div", { class: "row", style: "gap:var(--s-1);flex-wrap:wrap" },
                         d.schools.map(function (sc) {
                           // A chip, not a status pill: .pill shouts its text
                           // in capitals, which is right for SCREENED and
                           // wrong for a school's name.
                           return el("span", { class: "tg" }, sc.name,
-                            el("button", { class: "sm", style: "margin-left:4px",
+                            el("button", { class: "sm", style: "margin-left:var(--s-1)",
                               title: "Remove",
                               onclick: function () { setSchool(d, sc.schoolId, false); } }, "\u00d7"));
                         })),
                   d.active
-                    ? el("select", { style: "width:auto;margin-top:6px",
+                    ? el("select", { style: "width:auto;margin-top:var(--s-2)",
                         onchange: function (e) { setSchool(d, e.target.value, true); e.target.value = ""; } },
                         [el("option", { value: "" }, "\u2014 assign a school \u2014")].concat(
                           (S.schools || []).filter(function (sc) {
@@ -5283,7 +5398,7 @@ export const PORTAL_HTML = `<!doctype html>
                             return el("option", { value: sc.id }, sc.name);
                           })))
                     : null),
-                el("td", null, el("div", { class: "row", style: "gap:6px" },
+                el("td", null, el("div", { class: "row", style: "gap:var(--s-2)" },
                   el("button", { class: "sm", onclick: function () {
                     set({ dieForm: { id: d.id, name: d.name, phone: d.phone,
                       qualification: d.qualification, city: d.city, active: d.active } });
@@ -5397,7 +5512,7 @@ export const PORTAL_HTML = `<!doctype html>
               el("input", { value: f.lng, oninput: hb("lng"), placeholder: "78.39" }))),
           el("div", { class: "hint" },
             "Coordinates are optional. With them the app can sort hospitals by how far they are from the family."),
-          el("label", { class: "chip" + (f.isCampPartner ? " on" : ""), style: "margin-top:10px" },
+          el("label", { class: "chip" + (f.isCampPartner ? " on" : ""), style: "margin-top:var(--s-3)" },
             el("input", { type: "checkbox", checked: !!f.isCampPartner,
               onchange: function (e) { f.isCampPartner = e.target.checked; render(); } }),
             "Camp partner \u2014 shown first to these families")),
@@ -5432,7 +5547,7 @@ export const PORTAL_HTML = `<!doctype html>
                         ? " \u00b7 " + sp.checks.join(", ")
                         : " \u00b7 referral only"));
                   }))),
-              el("div", { class: "hint", style: "margin-top:6px" }, specialtyHint(g.specialty)))),
+              el("div", { class: "hint", style: "margin-top:var(--s-2)" }, specialtyHint(g.specialty)))),
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Hospital"),
               el("select", { onchange: db("hospitalId") },
@@ -5450,14 +5565,14 @@ export const PORTAL_HTML = `<!doctype html>
           // directory row and nothing else, so the number the form had just
           // insisted on was not registered anywhere, and the doctor was turned
           // away at the door with "this number isn't registered".
-          el("div", { class: "fld", style: "margin-top:10px" },
+          el("div", { class: "fld", style: "margin-top:var(--s-3)" },
             el("label", { class: "chip" + (g.canSignIn !== false ? " on" : ""), style: "cursor:pointer" },
               el("input", {
-                type: "checkbox", checked: g.canSignIn !== false, style: "margin-right:6px",
+                type: "checkbox", checked: g.canSignIn !== false, style: "margin-right:var(--s-2)",
                 onchange: function (e) { g.canSignIn = e.target.checked; render(); },
               }),
               "Can sign in to VitaHero"),
-            el("div", { class: "hint", style: "margin-top:6px" },
+            el("div", { class: "hint", style: "margin-top:var(--s-2)" },
               g.canSignIn !== false
                 ? "This number will be able to request a code and sign in. Until a school puts "
                   + "them on a camp they will see \u201cNo camps assigned\u201d \u2014 which is the truth, "
@@ -5493,7 +5608,7 @@ export const PORTAL_HTML = `<!doctype html>
       hs.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "No hospitals"),
-            el("p", { style: "font-size:12.5px" }, "Add the hospitals your families can actually reach.")))
+            el("p", null, "Add the hospitals your families can actually reach.")))
         : el("div", { class: "tw" }, el("table", null,
             el("thead", null, el("tr", null, el("th", null, "Hospital"), el("th", null, "City"),
               el("th", null, "Phone"), el("th", { class: "num" }, "Doctors"),
@@ -5501,7 +5616,7 @@ export const PORTAL_HTML = `<!doctype html>
             el("tbody", null, hs.map(function (h) {
               return el("tr", { class: h.active ? "" : "muted" },
                 el("td", null, el("b", null, h.name),
-                  h.address ? el("div", { class: "muted", style: "font-size:12.5px" }, h.address) : null),
+                  h.address ? el("div", { class: "muted" }, h.address) : null),
                 el("td", null, [h.city, h.district].filter(Boolean).join(" \u00b7 ")),
                 el("td", { class: "mono" }, h.phone || "\u2014"),
                 el("td", { class: "num" }, h.doctorCount),
@@ -5533,7 +5648,7 @@ export const PORTAL_HTML = `<!doctype html>
                   : null));
             })))),
 
-      el("div", { class: "tbar", style: "margin-top:18px" },
+      el("div", { class: "tbar", style: "margin-top:var(--s-5)" },
         el("span", { class: "ttl" }, "Doctors"),
         S.doctors && (S.doctors.doctors || []).length
           ? el("span", { class: "cnt" }, String(S.doctors.doctors.length)) : null,
@@ -5561,7 +5676,7 @@ export const PORTAL_HTML = `<!doctype html>
         ? el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"))
         : (S.doctors.doctors || []).length === 0
           ? el("div", { class: "card" }, el("div", { class: "empty" },
-              el("p", { style: "font-size:12.5px;margin:0" },
+              el("p", { style: "margin:0" },
                 S.docHospital || S.docQuery ? "No doctor matches that." : "None yet.")))
           : el("div", { class: "tw" }, el("table", null,
               el("thead", null, el("tr", null, el("th", null, "Doctor"), el("th", null, "Specialty"),
@@ -5633,6 +5748,19 @@ export const PORTAL_HTML = `<!doctype html>
                       ], "Manage " + d.name)
                     : null));
               })))));
+  }
+
+  /**
+   * A named group of destinations, or nothing at all.
+   *
+   * A heading over an empty group is how a school admin ends up looking at
+   * the word "Directory" with no directory under it: every item in these
+   * groups is conditional on the role, so the group has to be too.
+   */
+  function navSection(label) {
+    var items = [].slice.call(arguments, 1).filter(Boolean);
+    if (!items.length) return null;
+    return el("div", { class: "navsec" }, el("h4", null, label), items);
   }
 
   function navItem(name, label, view, onclick) {
@@ -5808,7 +5936,7 @@ export const PORTAL_HTML = `<!doctype html>
                 : null),
             d.matches.length === 0
               ? el("div", { class: "card" }, el("div", { class: "empty" },
-                  el("p", { style: "font-size:12.5px;margin:0" },
+                  el("p", { style: "margin:0" },
                     "Nobody in the programme has that number.")))
               : el("div", { class: "tw" }, el("table", null,
                   el("thead", null, el("tr", null, el("th", null, "Found as"), el("th", null, "Name"),
@@ -5874,11 +6002,11 @@ export const PORTAL_HTML = `<!doctype html>
 
     function option(key, label, detail, n) {
       var on = S[key] !== false;
-      return el("label", { class: "chip" + (on ? " on" : ""), style: "margin-right:8px" },
+      return el("label", { class: "chip" + (on ? " on" : ""), style: "margin-right:var(--s-2)" },
         el("input", { type: "checkbox", checked: on,
           onchange: function (e) { var p = {}; p[key] = e.target.checked; set(p); } }),
-        label, el("span", { class: "cnt", style: "margin-left:6px" }, String(n)),
-        detail ? el("span", { class: "muted", style: "margin-left:6px;font-weight:500" }, detail) : null);
+        label, el("span", { class: "cnt", style: "margin-left:var(--s-2)" }, String(n)),
+        detail ? el("span", { class: "muted", style: "margin-left:var(--s-2);font-weight:var(--w-med)" }, detail) : null);
     }
 
     var rows = [
@@ -5930,13 +6058,13 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "What stays whatever you choose")),
         el("div", { class: "card-b" },
-          el("ul", { style: "margin:0;padding-left:18px;font-size:12.5px;line-height:1.7" },
+          el("ul", { style: "margin:0;padding-left:var(--s-5);line-height:1.7" },
             (d.keeps || []).map(function (k) { return el("li", null, k); })))),
 
       d.total === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "Already empty"),
-            el("p", { style: "font-size:12.5px" }, "There is nothing left to remove.")))
+            el("p", null, "There is nothing left to remove.")))
         : el("div", { class: "card" },
             el("div", { class: "card-h" }, el("h2", null, "Confirm")),
             el("div", { class: "card-b" },
@@ -5970,22 +6098,27 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "brand" }, brandMark(26),
         el("span", { class: "wm" }, el("i", null, "vita"), el("b", null, "hero"))),
       el("div", { class: "navscroll" },
-        el("div", { class: "navsec" },
-          el("h4", null, "Menu"),
+        // Three groups, in the order the work happens: run the programme,
+        // then the people and places it refers children to, then what it
+        // leaves behind. A flat list of seven gave no answer to "where do I
+        // start" — every line looked equally like the first one.
+        navSection("Programme",
           canManage() ? navItem("home", "Overview", "overview", function () { set({ view: "overview" }); if (!S.overview) boot(); }) : null,
           canManage() ? navItem("school", isSchoolAdmin() ? "My school" : "Schools", "schools", function () {
             if (isSchoolAdmin() && S.school) openSchool(S.school.id); else loadSchools();
           }) : null,
-          isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null,
+          isClinical() ? navItem("stethoscope", "My camps", "mycamps", loadMyCamps) : null),
+        navSection("Directory",
           isOps() ? navItem("building", "Hospitals", "hospitals", loadHospitals) : null,
           isOps() ? navItem("users", "Dieticians", "dieticians", loadDieticians) : null,
-          isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
           // Parents sit beside Schools rather than inside one. A guardian
           // belongs to the programme, not to a school: they move between
           // schools, they have children at more than one, and the question
           // asked about them at the office — "is this parent on the app" — is
           // never scoped to a school you already know.
-          canManage() ? navItem("users", "Parents", "parents", function () { loadParents(); }) : null,
+          canManage() ? navItem("users", "Parents", "parents", function () { loadParents(); }) : null),
+        navSection("Records",
+          isOps() ? navItem("book", "Library", "library", loadLibrary) : null,
           isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null)),
       el("div", { class: "navfoot" },
         el("b", null, S.auth.name),
@@ -6031,14 +6164,14 @@ export const PORTAL_HTML = `<!doctype html>
 
   function brokenScreen(err) {
     return el("div", { class: "card" }, el("div", { class: "card-b" },
-      el("h2", { style: "margin-bottom:4px" }, "This screen could not be drawn"),
-      el("p", { class: "muted", style: "font-size:12.5px" },
+      el("h2", { style: "margin-bottom:var(--s-1)" }, "This screen could not be drawn"),
+      el("p", { class: "muted" },
         "The data it was given is not the shape it expected. Nothing has been " +
         "lost \u2014 reloading usually clears it. If it keeps happening, send " +
         "this line to VitaHero support."),
-      el("p", { class: "mono", style: "font-size:12px;color:var(--err);margin-top:8px" },
+      el("p", { class: "mono", style: "font-size:var(--t-sm);color:var(--err);margin-top:var(--s-2)" },
         String((err && err.message) || err)),
-      el("div", { class: "row", style: "margin-top:12px" },
+      el("div", { class: "row", style: "margin-top:var(--s-3)" },
         el("button", { class: "pri", onclick: function () { location.reload(); } }, "Reload"))));
   }
 
