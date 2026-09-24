@@ -160,10 +160,6 @@ export const PORTAL_HTML = `<!doctype html>
   .wm b{font-weight:700;color:var(--blue)}
   .nav .wm i{color:#F9A45C}
   .nav .wm b{color:#6FC7EE}
-  .wm.big{font-size:30px}
-  .signbrand{display:flex;flex-direction:column;align-items:center;gap:var(--s-2);margin-bottom:var(--s-5)}
-  .signbrand .tag{font-size:var(--t-xs);font-weight:var(--w-semi);letter-spacing:.13em;
-    text-transform:uppercase;color:var(--blue)}
   /* The nav is now long enough to need its own scroll, so the brand stays put
      at the top and sign-out stays put at the bottom. */
   .navscroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:var(--s-2)}
@@ -487,8 +483,64 @@ export const PORTAL_HTML = `<!doctype html>
   .menu h5{margin:0;padding:var(--s-2) var(--s-2) var(--s-1);font-size:var(--t-cap);
     font-weight:var(--w-semi);text-transform:uppercase;letter-spacing:.07em;color:var(--ink-3)}
 
-  /* ── sign-in ── */
-  .sin{max-width:392px;margin:9vh auto;padding:0 var(--s-5)}
+  /* ── sign-in ──
+     Two halves: the form on the left, and on the right the same four slides
+     the app shows a family on first run. The right half is decoration and
+     says so \u2014 it disappears below 900px rather than stacking under the
+     form, because nobody signing in on a phone wants to scroll past a
+     carousel to reach the password field. */
+  .auth{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.04fr);
+    min-height:100vh;background:var(--card)}
+  .auth-form{display:flex;flex-direction:column;justify-content:center;
+    padding:var(--s-7) var(--s-6);min-width:0}
+  .auth-in{width:100%;max-width:352px;margin:0 auto}
+  .auth-mark{display:flex;flex-direction:column;align-items:center;gap:var(--s-2);
+    margin-bottom:var(--s-6)}
+  .auth-in h1{text-align:center;margin-bottom:var(--s-1)}
+  .auth-in .lede{text-align:center;color:var(--ink-2);margin-bottom:var(--s-5)}
+  .auth-foot{margin-top:var(--s-6);text-align:center;color:var(--ink-3);font-size:var(--t-sm)}
+  .auth-art{padding:var(--s-5) var(--s-5) var(--s-5) 0;display:flex;min-width:0}
+  @media(max-width:900px){
+    .auth{grid-template-columns:minmax(0,1fr)}
+    .auth-art{display:none}
+    .auth-form{padding:var(--s-6) var(--s-5)}
+  }
+
+  /* One slide. The art is a wash in the slide's own accent until a photograph
+     is dropped in; SLIDES carries an image field for exactly that, and the
+     <img> takes over the panel the moment one is set. */
+  .slide{position:relative;flex:1;min-width:0;border-radius:22px;overflow:hidden;
+    display:flex;flex-direction:column;justify-content:flex-end;padding:var(--s-5)}
+  .slide .photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .slide .blob{position:absolute;border-radius:50%;filter:blur(40px);opacity:.42}
+  .slide .b1{width:44%;padding-bottom:44%;top:-6%;right:8%}
+  .slide .b2{width:40%;padding-bottom:40%;bottom:4%;left:-8%;opacity:.5}
+  .slide .b3{width:30%;padding-bottom:30%;top:34%;right:-6%;opacity:.3}
+  .slide .smark{position:absolute;top:var(--s-5);left:var(--s-5);z-index:1;
+    background:rgba(255,255,255,.7);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);
+    border-radius:var(--r-lg);padding:var(--s-2);box-shadow:var(--sh)}
+  /* The caption card: frosted, so it reads over a photograph as well as it
+     reads over the wash it currently sits on. */
+  /* Solid enough to read on a photograph and on the wash alike \u2014 at .76 it
+     vanished wherever the wash had already faded to white. */
+  .slide .scap{position:relative;background:rgba(255,255,255,.93);
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    border:1px solid var(--line);border-radius:var(--r-lg);
+    padding:var(--s-4);box-shadow:var(--sh-lg)}
+  .slide .scap h2{margin-bottom:var(--s-1);letter-spacing:-.02em}
+  .slide .scap p{margin:0;color:var(--ink-2);font-size:var(--t-sm);line-height:1.5}
+  .slide .snav{position:relative;display:flex;align-items:center;gap:var(--s-2);
+    margin-top:var(--s-3)}
+  .dots{display:flex;gap:var(--s-1);flex:1}
+  .dots button{width:22px;height:4px;padding:0;min-height:0;border:none;border-radius:var(--r-full);
+    background:rgba(15,23,42,.18)}
+  .dots button:hover:not(:disabled){background:rgba(15,23,42,.32)}
+  .dots button.on{background:var(--ink)}
+  .slide .arrow{width:var(--ctl-lg);min-height:var(--ctl-lg);padding:0;justify-content:center;
+    border-radius:var(--r-full);background:rgba(255,255,255,.88);border-color:transparent;
+    color:var(--ink);box-shadow:var(--sh-lg)}
+  .slide .arrow:hover:not(:disabled){background:#fff;border-color:transparent}
+
   .modes{display:flex;gap:2px;background:var(--mute-bg);padding:2px;border-radius:var(--r);
     margin-bottom:var(--s-5)}
   .modes button{flex:1;justify-content:center;border:none;background:none;font-size:var(--t-md);
@@ -688,6 +740,8 @@ export const PORTAL_HTML = `<!doctype html>
     ban: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20ZM4.9 4.9l14.2 14.2",
     x: "M18 6 6 18M6 6l12 12",
     chevron: "m6 9 6 6 6-6",
+    arrowLeft: "M19 12H5M12 19l-7-7 7-7",
+    arrowRight: "M5 12h14M12 5l7 7-7 7",
     mail: "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2ZM22 7l-10 6L2 7",
   };
 
@@ -836,7 +890,7 @@ export const PORTAL_HTML = `<!doctype html>
       classes: null, admins: null, staff: null, roster: null, batches: null,
       camps: null, camp: null, campTab: "setup", participants: null, queue: null,
       screenKid: null, screenForm: null, reviewKid: null, reviewData: null,
-      myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
+      myCamps: null, upload: null, otp: null, signMode: "otp", slide: 0, form: null,
       referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
       programme: null, rollover: null, refForm: null, refFilter: "",
       forceOffline: false, syncRejects: null,
@@ -1263,7 +1317,7 @@ export const PORTAL_HTML = `<!doctype html>
   function isClinical() { return role() === "SCREENER" || role() === "PHYSICIAN"; }
   function canManage() { return isOps() || isSchoolAdmin(); }
   function roleLabel() {
-    var m = { ADMIN: "VitaHero operations", SUPERADMIN: "VitaHero operations",
+    var m = { ADMIN: "VitaHero admin", SUPERADMIN: "VitaHero admin",
       SCHOOL_ADMIN: "School administrator", SCREENER: "Screening team", PHYSICIAN: "Supervising physician" };
     return m[role()] || "";
   }
@@ -1377,7 +1431,7 @@ export const PORTAL_HTML = `<!doctype html>
     function useKey() {
       var k = keyI.value.trim();
       if (!k) { set({ error: "Enter the admin API key" }); return; }
-      S.auth = { mode: "key", key: k, name: "VitaHero Ops", role: "SUPERADMIN", schoolId: null };
+      S.auth = { mode: "key", key: k, name: "VitaHero Admin", role: "SUPERADMIN", schoolId: null };
       run(api("/api/admin/overview"), function (d) { saveAuth(S.auth); S.overview = d; S.view = "overview"; });
     }
     function send() {
@@ -1405,16 +1459,21 @@ export const PORTAL_HTML = `<!doctype html>
         saveAuth(S.auth); S.otp = null; S.notice = ""; boot();
       });
     }
-    return el("div", { class: "sin" },
-      el("div", { class: "signbrand" }, brandMark(64),
-        el("div", { class: "wm big" }, el("i", null, "vita"), el("b", null, "hero")),
-        el("div", { class: "tag" }, "Kids health & wellness")),
-      el("div", { class: "card" }, el("div", { class: "card-b" },
-        el("h2", { style: "margin-bottom:var(--s-1)" }, "Sign in"),
-        el("p", { class: "muted" }, "For school staff, screening teams and VitaHero operations."),
+    return el("div", { class: "auth" },
+      el("div", { class: "auth-form" }, el("div", { class: "auth-in" },
+        el("div", { class: "auth-mark" }, brandMark(44),
+          el("div", { class: "wm" }, el("i", null, "vita"), el("b", null, "hero"))),
+        el("h1", null, "Sign in to your account"),
+        el("p", { class: "lede" }, "For school staff, screening teams and VitaHero admins."),
+        // Two doors, not two products. Staff is first and is the door almost
+        // everyone uses: a mobile number VitaHero already registered. The
+        // admin key is the way in when there is no registered number to use
+        // yet \\u2014 the first sign-in on a fresh worker, or a locked-out account.
         el("div", { class: "modes" },
-          el("button", { class: S.signMode === "otp" ? "on" : "", onclick: function () { set({ signMode: "otp", error: "" }); } }, "Staff sign-in"),
-          el("button", { class: S.signMode === "key" ? "on" : "", onclick: function () { set({ signMode: "key", error: "" }); } }, "Ops key")),
+          el("button", { class: S.signMode === "otp" ? "on" : "",
+            onclick: function () { set({ signMode: "otp", error: "" }); } }, "Staff"),
+          el("button", { class: S.signMode === "key" ? "on" : "",
+            onclick: function () { set({ signMode: "key", error: "" }); } }, "Admin")),
         S.error ? el("div", { class: "msg err" }, S.error) : null,
         S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
         S.signMode === "key"
@@ -1437,8 +1496,61 @@ export const PORTAL_HTML = `<!doctype html>
                       onkeydown: function (e) { if (e.key === "Enter") verify(); } })),
                   el("button", { class: "pri", style: "width:100%", disabled: S.busy, onclick: verify }, S.busy ? "Verifying\\u2026" : "Verify and sign in"),
                   el("button", { class: "lnk", style: "display:block;margin:var(--s-3) auto 0",
-                    onclick: function () { set({ otp: null, notice: "" }); } }, "Use a different number")))
-      )));
+                    onclick: function () { set({ otp: null, notice: "" }); } }, "Use a different number"))),
+        el("div", { class: "auth-foot" }, "Families use the VitaHero app, not this console."))),
+      authSlides());
+  }
+
+  /**
+   * The four slides the app shows a family on first run, on the other half of
+   * the sign-in screen.
+   *
+   * The copy and the accents are the app's own, from LocaleStrings.kt and
+   * OnboardingScreen.kt, so the two products say the same thing in the same
+   * order. image is empty for the same reason it is empty in the app \\u2014 that
+   * photography does not exist yet. Set one and the <img> takes the panel;
+   * until then each slide is a wash in its own accent.
+   */
+  var SLIDES = [
+    { image: "", accent: "#F47B20", tint: "#1FA2DD",
+      title: "Track your kid\\u2019s growth heroically",
+      text: "School camps, diet plans, doctor support and rewards \\u2014 all in one place." },
+    { image: "", accent: "#1FA2DD", tint: "#10B981",
+      title: "Free school health camps",
+      text: "Identify growth, dental and eye issues early with regular school screenings." },
+    { image: "", accent: "#8B5CF6", tint: "#F47B20",
+      title: "All your kids in one place",
+      text: "Personalised diet plans, progress tracking and hero badges for every child." },
+    { image: "", accent: "#F59E0B", tint: "#8B5CF6",
+      title: "Your kid\\u2019s health companion",
+      text: "AI-powered diet tips, appointment booking and shareable health reports." },
+  ];
+
+  function authSlides() {
+    var n = SLIDES.length;
+    var i = ((S.slide || 0) % n + n) % n;
+    var sl = SLIDES[i];
+    function go(k) { set({ slide: (k % n + n) % n }); }
+    return el("div", { class: "auth-art" },
+      el("div", { class: "slide", style: "background:linear-gradient(155deg,#FFFDFB 0%,#F1F7FC 100%)" },
+        sl.image
+          ? el("img", { class: "photo", src: sl.image, alt: "" })
+          : [el("i", { class: "blob b1", style: "background:" + sl.accent }),
+             el("i", { class: "blob b2", style: "background:" + sl.tint }),
+             el("i", { class: "blob b3", style: "background:" + sl.accent })],
+        el("div", { class: "smark" }, brandMark(30)),
+        el("div", { class: "scap" },
+          el("h2", null, sl.title),
+          el("p", null, sl.text)),
+        el("div", { class: "snav" },
+          el("div", { class: "dots" }, SLIDES.map(function (x, k) {
+            return el("button", { class: k === i ? "on" : "", title: x.title,
+              onclick: function () { go(k); } });
+          })),
+          el("button", { class: "arrow", title: "Previous slide",
+            onclick: function () { go(i - 1); } }, icon("arrowLeft", 16)),
+          el("button", { class: "arrow", title: "Next slide",
+            onclick: function () { go(i + 1); } }, icon("arrowRight", 16)))));
   }
 
   // ══════════════════════════════════════ loaders
@@ -2352,7 +2464,7 @@ export const PORTAL_HTML = `<!doctype html>
       // is a school-level, monthly thing, which is what this tab is for.
       viewHero(),
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "School details"),
-          !isOps() ? el("span", { class: "pill mute" }, "Some fields are ops-only") : null),
+          !isOps() ? el("span", { class: "pill mute" }, "Some fields are admin-only") : null),
         el("div", { class: "card-b" },
           el("div", { class: "fld" }, el("label", null, "School name"),
             el("input", { type: "text", value: f.name, oninput: b("name"), disabled: !isOps() })),
@@ -3530,7 +3642,7 @@ export const PORTAL_HTML = `<!doctype html>
                 el("dt", null, "Period"), el("dd", null, (c.startsOn || "\u2014") + " to " + (c.endsOn || "\u2014")),
                 el("dt", null, "Notes"), el("dd", null, c.notes || "\u2014"))
             : el("p", { class: "muted", style: "margin:0" },
-                "No contract yet. Nothing can be invoiced until VitaHero operations sets one.")),
+                "No contract yet. Nothing can be invoiced until a VitaHero admin sets one.")),
         isOps() ? el("div", { class: "card-f" }, el("div", { class: "row" },
           el("button", { onclick: function () {
             set({ form: { contract: true, shape: c ? c.shape : "PER_STUDENT_YEAR",

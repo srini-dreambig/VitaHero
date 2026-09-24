@@ -19,7 +19,7 @@ async function session() {
   p.on("pageerror", (e) => errs.push("pageerror: " + e.message));
   await p.addInitScript(() => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "Ops", role: "SUPERADMIN", schoolId: null }));
+      mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", schoolId: null }));
     const CAMP = {
       id: "cmp_1", schoolId: "sch_1", schoolName: "Silver Oaks", title: "Annual check-up",
       date: "2027-09-10", time: "09:00", venue: "Hall", status: "SCHEDULED",

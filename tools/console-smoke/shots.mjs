@@ -63,7 +63,7 @@ await (async () => {
 
   await p.addInitScript(([A, R]) => {
     localStorage.setItem("vh_console", JSON.stringify({
-      mode: "key", key: "k", name: "Ops", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
+      mode: "key", key: "k", name: "VitaHero Admin", role: "SUPERADMIN", profileId: "ph_1", schoolId: null,
     }));
     const D = {
       "/api/admin/overview": { schools: 2, students: 520, guardians: 500, guardiansActivated: 210,
@@ -165,6 +165,32 @@ await (async () => {
   if (await tryGo("Hospitals")) await shot("07-hospitals");
   if (await tryGo("Doctors")) await shot("08-doctors");
   if (await tryGo("Library")) await shot("09-library");
+
+  // The signed-out screen, which needs a page with no stored session.
+  const p2 = await b.newPage({ viewport: { width: 1440, height: 950 }, deviceScaleFactor: 2 });
+  p2.on("pageerror", (e) => errs.push("pageerror(signin): " + e.message));
+  await p2.addInitScript(() => {
+    localStorage.removeItem("vh_console");
+    const real = window.fetch;
+    window.fetch = (u, o) => String(u).startsWith("/api/") || /\/api\//.test(String(u))
+      ? Promise.resolve(new Response("{}", { headers: { "content-type": "application/json" } }))
+      : real(u, o);
+  });
+  await p2.goto(URL, { waitUntil: "networkidle" });
+  await p2.waitForTimeout(700);
+  await p2.screenshot({ path: OUT + "/00-sign-in.png" });
+  console.log("shot  00-sign-in");
+  // And the second slide, to prove the arrows move it.
+  await p2.evaluate(() => [...document.querySelectorAll(".slide .arrow")].pop().click());
+  await p2.waitForTimeout(350);
+  await p2.screenshot({ path: OUT + "/00-sign-in-2.png" });
+  console.log("shot  00-sign-in-2");
+  // And the other door.
+  await p2.evaluate(() => [...document.querySelectorAll(".modes button")]
+    .find((n) => n.textContent.trim() === "Admin").click());
+  await p2.waitForTimeout(300);
+  await p2.screenshot({ path: OUT + "/00-sign-in-admin.png" });
+  console.log("shot  00-sign-in-admin");
 
   if (errs.length) console.log(errs.join("\n"));
   await b.close();
