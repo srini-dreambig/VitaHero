@@ -166,7 +166,7 @@ before assuming: Firebase Console → Project settings → Your apps → the
 **The fingerprint that matters is not the upload key.** With Play App Signing,
 Google strips your upload signature and re-signs the bundle with the app
 signing key, so the certificate on a real user's phone is Google's, not the one
-in `releases/`. Register all three:
+in `docs/upload-key.md`. Register all three:
 
 | Key | Where to find its SHA-1 and SHA-256 | Needed for |
 |---|---|---|
@@ -255,10 +255,15 @@ these three settings are the whole of it:
 
 **The root directory is the one that matters.** Pointed at the repository root
 instead, Workers Builds finds no `wrangler.toml` — it lives in `functions/` —
-falls back to publishing static assets, and serves `presentation/index.html`.
-What you get is a Worker with no script at all: the console and every `/api`
-route return 404, and the dashboard says *"Metrics is unavailable for Workers
-with only static assets"*. If you ever see that line, this is why.
+falls back to publishing static assets. What you get is a Worker with no script
+at all: the console and every `/api` route return 404, and the dashboard says
+*"Metrics is unavailable for Workers with only static assets"*. If you ever see
+that line, this is why.
+
+This is not fixed by having fewer files at the repository root. It used to
+serve `presentation/index.html`, a partner deck that has since been removed;
+with nothing there to serve it publishes an empty site instead, which is the
+same outage wearing a blanker face. Only the root directory setting fixes it.
 
 To recover: **Workers & Pages → vitahero → Deployments**, find the last version
 that was the real worker, and roll back. Then fix the root directory.

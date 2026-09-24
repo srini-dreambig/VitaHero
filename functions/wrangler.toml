@@ -32,11 +32,14 @@
 #
 # The root directory is the one that matters. Pointed at the repository root,
 # Workers Builds finds no wrangler config — this file is in functions/, not up
-# there — falls back to publishing static assets, and serves presentation/
-# index.html. The result is a Worker with no script: the console 404s, every
-# /api route 404s, and the dashboard reports "Metrics is unavailable for
-# Workers with only static assets". That happened, on a commit that changed one
-# Python file and nothing else.
+# there — falls back to publishing static assets. The result is a Worker with
+# no script: the console 404s, every /api route 404s, and the dashboard reports
+# "Metrics is unavailable for Workers with only static assets". That happened,
+# on a commit that changed one Python file and nothing else.
+#
+# Emptying the repository root does not fix it. What it served was a partner
+# deck that has since been removed; with nothing to serve it publishes an empty
+# site, which is the same outage with less to look at.
 #
 # There is no second deploy path. The GitHub Actions workflow runs the tests
 # and does not deploy, because two things deploying one Worker is what let this

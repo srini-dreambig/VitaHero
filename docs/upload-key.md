@@ -3,7 +3,8 @@
 **The key this file used to describe is burned. It must be replaced before
 the first upload to Google Play.**
 
-`releases/vitahero-upload-key.jks` and `android/app/play-upload-key.jks` were
+`releases/vitahero-upload-key.jks` (since removed) and
+`android/app/play-upload-key.jks` were
 both committed to this repository, and the store and key passwords were
 written in plain text in this file beside them. Deleting them does not undo
 that: every clone and every fork still has them, and so does anyone who has
