@@ -65,6 +65,7 @@ import kallam.healthcare.ui.theme.HeroOrange
 import kallam.healthcare.ui.theme.HeroPurple
 import android.content.Intent
 import android.net.Uri
+import kallam.healthcare.BuildConfig
 
 @Composable
 fun ProfileScreen(
@@ -121,7 +122,12 @@ fun ProfileScreen(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                if (phone.isNotBlank()) "+91 $phone" else t(S.phonePlaceholder),
+                                // The server stores E.164, so the number already
+                                // begins +91. Prefixing it again printed
+                                // "+91 +918107994567" on a doctor's own profile.
+                                if (phone.isNotBlank()) {
+                                    if (phone.startsWith("+")) phone else "+91 $phone"
+                                } else t(S.phonePlaceholder),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -279,7 +285,10 @@ fun ProfileScreen(
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                "VitaHero v1.0\n" + t(S.medicalDisclaimer),
+                // Read, not typed. This said v1.0 while the build was 1.1.0,
+                // so the one screen a person looks at to report a problem was
+                // naming the wrong release.
+                "VitaHero v" + BuildConfig.VERSION_NAME + "\n" + t(S.medicalDisclaimer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.fillMaxWidth(),

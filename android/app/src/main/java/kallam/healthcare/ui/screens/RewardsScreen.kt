@@ -85,7 +85,14 @@ fun RewardsScreen(
     val badges = progress.badges
     val earned = badges.count { it.earned }
     val leaderboard = leaderboards[selectedKidId] ?: progress.leaderboard
-    val kidName = active?.name ?: "Hero"
+    // Null when no child is selected, not the word "Hero".
+    //
+    // The fallback used to be the literal string "Hero", which reads as a
+    // child's name and is not one: a guardian with no children linked was
+    // shown "Hero — Hero Badges" and "Hero is a rising hero!", as though the
+    // app knew a child it did not. The headings drop the name entirely in
+    // that case rather than inventing one.
+    val kidName = active?.name
 
     LazyColumn(
         modifier = Modifier
@@ -159,12 +166,17 @@ fun RewardsScreen(
                     Spacer(Modifier.width(18.dp))
                     Column {
                         Text("$earned / ${badges.size} ${t(S.earned)}", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text(tf(S.risingHero, kidName), color = Color.White.copy(alpha = 0.95f), style = MaterialTheme.typography.bodyMedium)
+                        if (kidName != null) {
+                            Text(tf(S.risingHero, kidName), color = Color.White.copy(alpha = 0.95f), style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
-            Text(tf(S.kidBadges, kidName), style = MaterialTheme.typography.headlineSmall)
+            Text(
+                if (kidName != null) tf(S.kidBadges, kidName) else t(S.badges),
+                style = MaterialTheme.typography.headlineSmall,
+            )
             Spacer(Modifier.height(12.dp))
         }
 
