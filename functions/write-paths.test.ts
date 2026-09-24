@@ -512,6 +512,50 @@ describe("the destructive writes, on a school that exists only for them", () => 
     });
   }
 
+  // The collision this file did not cover, and a doctor spent a day in the
+  // family app because of it.
+  //
+  // Every row above uses a clean phone number, so POST /api/admin/doctors was
+  // only ever driven down its happy path and reported as covered. In
+  // production the number belonged to a guardian already. grantDoctorSignIn
+  // refused it — correctly — but it ran after the doctors row had been
+  // inserted, with no transaction around the two. The save "failed", the
+  // directory entry stayed, no role changed, and the number went on signing in
+  // to the parent app as what it actually was.
+  test("POST a doctor on a guardian's number is refused, and writes nothing", async () => {
+    const guardianPhone = "9876543210"; // the guardian seeded at the top
+    const before = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.doctors`;
+
+    const r = await fire("POST", "/api/admin/doctors", {
+      name: "Dr Clash", specialty: "Dentistry", city: "Hyderabad",
+      phone: guardianPhone, canSignIn: true,
+    }, "ops");
+
+    expect(r.status, `expected a refusal, got ${r.status} ${r.body}`).toBe(409);
+    expect(r.body).toContain("PHONE_IS_PARENT");
+
+    // The half that was missing: nothing may be left behind.
+    const after = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.doctors`;
+    expect(after[0].n, "a refused save still created the doctor").toBe(before[0].n);
+
+    // And the guardian is still a guardian, not quietly promoted.
+    const who = await sql`
+      SELECT role FROM vita_hero.profiles WHERE id = ${guardianId}`;
+    expect(who[0].role).toBe("PARENT");
+  });
+
+  test("but the same doctor saves as a referral entry", async () => {
+    // Untick "Can sign in" and it is a directory row with no login, which is a
+    // legitimate thing to want and must still work.
+    const r = await fire("POST", "/api/admin/doctors", {
+      name: "Dr Referral", specialty: "Dentistry", city: "Hyderabad",
+      phone: "9876543210", canSignIn: false,
+    }, "ops");
+    expect(r.status, r.body).toBeLessThan(300);
+    const who = await sql`SELECT role FROM vita_hero.profiles WHERE id = ${guardianId}`;
+    expect(who[0].role, "a referral entry must not touch the profile").toBe("PARENT");
+  });
+
   // The erasure paths. These are the ones a family has a legal right to, so
   // "it answered 200" is not the assertion — what was removed is.
   test("POST a guardian withdraws consent", async () => {

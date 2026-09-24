@@ -219,6 +219,13 @@ export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string, se
       (SELECT p.provisioned FROM vita_hero.profiles p
          WHERE p.id = 'ph_' || RIGHT(REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', '', 'g'), 10)
            AND p.role = 'PHYSICIAN' LIMIT 1) AS sign_in,
+      -- Why not, when not. "Referral only" is the same words whether somebody
+      -- unticked the box or the number belongs to a family, and those need
+      -- opposite actions: one is a choice, the other means this person can
+      -- never sign in on that number however many times you try.
+      (SELECT p.role FROM vita_hero.profiles p
+         WHERE p.id = 'ph_' || RIGHT(REGEXP_REPLACE(COALESCE(d.phone, ''), '[^0-9]', '', 'g'), 10)
+         LIMIT 1) AS phone_role,
       (SELECT COUNT(*)::int FROM vita_hero.camp_staff cs2
          WHERE cs2.doctor_id = d.id) AS camps_ever
     FROM vita_hero.doctors d
@@ -261,6 +268,9 @@ export async function listDoctors(sql: Sql, actor: Actor, hospitalId: string, se
       //   headed "Sign-in".
       hasMobile: normalizeMobile((r.phone as string) || "") !== null,
       canSignIn: r.sign_in === true,
+      // "PARENT" here means the number is a guardian's, so no amount of
+      // ticking "Can sign in" will ever work — it needs a different mobile.
+      phoneRole: (r.phone_role as string) || "",
       campCount: (r.camp_count as number) || 0,
       campsEver: (r.camps_ever as number) || 0,
       rating: Number(r.rating) || 0,
@@ -344,6 +354,32 @@ export async function upsertDoctor(sql: Sql, actor: Actor, body: Record<string, 
   // them unable to sign in is the surprising outcome, not the safe one.
   // Untick it for a referral-only entry.
   const wantsSignIn = body.canSignIn !== false;
+
+  // Asked before anything is written, not after.
+  //
+  // grantDoctorSignIn refuses a number that already belongs to a parent, and
+  // it used to be called after the doctors row had been inserted. There is no
+  // transaction around the two, so the refusal left the directory entry behind
+  // and changed no role: the screen said "already registered as a parent"
+  // while the doctor appeared in the list, and the number still signed in to
+  // the family app. A dentist was added that way and spent a day looking like
+  // a parent, because that is what the number was.
+  //
+  // The same question, asked here, refuses the whole save and writes nothing.
+  if (wantsSignIn) {
+    const clash = await sql`
+      SELECT role FROM vita_hero.profiles
+      WHERE id = ${profileIdForPhone(norm.last10)} LIMIT 1`;
+    if (clash.length && String(clash[0].role || "") === "PARENT") {
+      throw new ApiError(
+        409,
+        `${phone} is already registered as a parent. A number can only belong to `
+        + `one person, so ${name} needs a different mobile — or untick "Can sign `
+        + `in" to add them as a referral entry only.`,
+        "PHONE_IS_PARENT"
+      );
+    }
+  }
 
   const id = String(body.id || "").trim() || `doc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
   await sql`

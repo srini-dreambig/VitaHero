@@ -5594,9 +5594,14 @@ export const PORTAL_HTML = `<!doctype html>
                       ? (d.campCount
                           ? el("span", { class: "pill ok" }, "Can sign in")
                           : el("span", { class: "pill ok" }, "Can sign in \u00b7 no camp yet"))
-                      : d.campsEver
-                        ? el("span", { class: "pill warn", title: "Every camp assignment has been revoked" }, "Access ended")
-                        : el("span", { class: "pill mute", title: "Referral entry only \u2014 this number cannot sign in" }, "Referral only")),
+                      : d.phoneRole === "PARENT"
+                        ? el("span", { class: "pill err",
+                            title: "This mobile is already registered to a guardian. A number "
+                              + "belongs to one person, so this doctor cannot sign in on it \u2014 "
+                              + "they need a different mobile." }, "Guardian's number")
+                        : d.campsEver
+                          ? el("span", { class: "pill warn", title: "Every camp assignment has been revoked" }, "Access ended")
+                          : el("span", { class: "pill mute", title: "Referral entry only \u2014 this number cannot sign in" }, "Referral only")),
                   el("td", { class: "num" }, d.campCount || 0),
                   el("td", { class: "num" }, d.rating ? d.rating.toFixed(1) : "\u2014"),
                   el("td", null, d.active === false
