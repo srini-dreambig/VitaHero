@@ -4024,7 +4024,7 @@ export const PORTAL_HTML = `<!doctype html>
                     onclick: function () { chase([p.guardianProfileId]); } }, "Remind")
                 : el("button", { class: "sm", disabled: S.busy,
                     onclick: function () { inviteOne(p.guardianProfileId, p.guardianName); } }, "Invite")),
-            el("td", null, p.consentStatus === "PENDING"
+            el("td", null, p.status === "NOT_SCREENED" || p.consentStatus === "PENDING"
               ? el("div", { class: "row" },
                   el("button", { class: "sm", onclick: function () { paper(p, "PAPER", false); } },
                     c.photosEnabled ? "Check-up only" : "Granted on paper"),
@@ -4032,7 +4032,7 @@ export const PORTAL_HTML = `<!doctype html>
                     ? el("button", { class: "sm", onclick: function () { paper(p, "PAPER", true); } }, "Check-up + photographs")
                     : null,
                   el("button", { class: "sm dang", onclick: function () { paper(p, "DECLINED"); } }, "Declined"))
-              : el("span", { class: "muted", style: "font-size:12.5px" }, "Answered")));
+              : el("span", { class: "muted", style: "font-size:12.5px" }, "Screened")));
         })))),
       // "Remind all" used to live down here, under the table, as the only
       // bulk action. It is up in the loop now, split from the invitation,
@@ -4304,8 +4304,22 @@ export const PORTAL_HTML = `<!doctype html>
       blocked
         ? el("div", { class: "msg warn" },
             d.consentStatus === "DECLINED"
-              ? "This guardian declined consent. This child must not be screened."
-              : "No consent on file yet. Record it under the Consent tab before screening.")
+              ? el("div", { class: "row", style: "align-items:center;justify-content:space-between" },
+                  el("span", null, "This guardian declined consent. This child must not be screened."),
+                  d.status === "NOT_SCREENED"
+                    ? el("button", { class: "sm", onclick: function () {
+                        run(api("/api/admin/camps/" + c.id + "/consent/record", { method: "POST",
+                          body: { kidId: ch.kidId || ch.id, decision: "PAPER", source: "PAPER", consentPhotos: false, note: "Granted on paper in console" } }),
+                          function () { S.participants = null; S.notice = "Consent recorded for " + ch.name + "."; openScreening(ch.kidId || ch.id); });
+                      } }, "Grant paper consent")
+                    : null)
+              : el("div", { class: "row", style: "align-items:center;justify-content:space-between" },
+                  el("span", null, "No consent on file yet. Record it under the Consent tab or grant below:"),
+                  el("button", { class: "sm pri", onclick: function () {
+                      run(api("/api/admin/camps/" + c.id + "/consent/record", { method: "POST",
+                        body: { kidId: ch.kidId || ch.id, decision: "PAPER", source: "PAPER", consentPhotos: false, note: "Granted on paper in console" } }),
+                        function () { S.participants = null; S.notice = "Consent recorded for " + ch.name + "."; openScreening(ch.kidId || ch.id); });
+                    } }, "Grant paper consent")))
         : null,
 
       d.excludedByConsent && d.excludedByConsent.length
