@@ -67,7 +67,11 @@ private fun flagWord(flag: String) = when (flag) {
 
 /** Snellen acuities, in the order clinical.ts ranks them. */
 private val ACUITY = listOf("6/6", "6/9", "6/12", "6/18", "6/24", "6/36", "6/60", "<6/60")
-private val GUMS = listOf("healthy", "bleeding", "swollen")
+private val GUMS = listOf("healthy", "bleeding", "swollen", "recession")
+private val HYGIENE = listOf("good", "fair", "poor")
+private val FLUOROSIS = listOf("none", "mild", "moderate", "severe")
+private val MALOCCLUSION = listOf("normal", "crowding", "crossbite", "overbite")
+private val TREATMENTS = listOf("Cleaning", "Filling", "Extraction", "Orthodontics", "Urgent Visit")
 
 /**
  * One child's screening, scoped to the clinician's own specialty.
@@ -281,12 +285,34 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             Spacer(Modifier.height(6.dp))
             ToggleField("Squint noted", fields, "squint")
         }
-        "Dental" -> Column {
-            NumberField("Carious teeth", fields, "cariesCount", Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
-            ChoiceField("Gums", GUMS, fields, "gums", Modifier.fillMaxWidth())
-            Spacer(Modifier.height(6.dp))
-            ToggleField("Reports pain", fields, "pain")
+        "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Tooth Index (dmft/DMFT)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                NumberField("Carious", fields, "cariesCount", Modifier.weight(1f))
+                NumberField("Missing", fields, "missingCount", Modifier.weight(1f))
+                NumberField("Filled", fields, "filledCount", Modifier.weight(1f))
+            }
+
+            Spacer(Modifier.height(2.dp))
+            Text("Gums & Oral Hygiene", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ChoiceField("Gums Condition", GUMS, fields, "gums", Modifier.fillMaxWidth())
+            ChoiceField("Oral Hygiene Index", HYGIENE, fields, "hygiene", Modifier.fillMaxWidth())
+            ToggleField("Stains / Tartar / Calculus noted", fields, "stainsTartar")
+
+            Spacer(Modifier.height(2.dp))
+            Text("Enamel & Alignment", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ChoiceField("Dental Fluorosis", FLUOROSIS, fields, "fluorosis", Modifier.fillMaxWidth())
+            ChoiceField("Occlusion / Alignment", MALOCCLUSION, fields, "malocclusion", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(2.dp))
+            Text("Symptoms & Trauma", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ToggleField("Reports Toothache / Pain", fields, "pain")
+            ToggleField("Hot/Cold Sensitivity", fields, "sensitivity")
+            ToggleField("Chipped / Fractured Tooth", fields, "trauma")
+
+            Spacer(Modifier.height(2.dp))
+            Text("Recommended Treatment", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            MultiChoiceField(TREATMENTS, fields, "treatmentNeeded")
         }
         "Haemoglobin" -> NumberField("Haemoglobin (g/dL)", fields, "hb", Modifier.fillMaxWidth())
         else -> Text(
@@ -362,6 +388,65 @@ private fun ToggleField(label: String, fields: MutableMap<String, String>, key: 
             onCheckedChange = { fields[key] = if (it) "true" else "false" },
         )
         Text(label, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun MultiChoiceField(
+    options: List<String>,
+    fields: MutableMap<String, String>,
+    key: String,
+) {
+    val selected = remember(fields[key]) {
+        (fields[key] ?: "").split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (o in options.take(3)) {
+                val on = o in selected
+                Text(
+                    o,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(
+                            if (on) HeroOrange.copy(alpha = 0.16f)
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        .clickable {
+                            val newSet = if (on) selected - o else selected + o
+                            fields[key] = newSet.joinToString(",")
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+                    color = if (on) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (options.size > 3) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                for (o in options.drop(3)) {
+                    val on = o in selected
+                    Text(
+                        o,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                if (on) HeroOrange.copy(alpha = 0.16f)
+                                else MaterialTheme.colorScheme.surfaceVariant
+                            )
+                            .clickable {
+                                val newSet = if (on) selected - o else selected + o
+                                fields[key] = newSet.joinToString(",")
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+                        color = if (on) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
     }
 }
 

@@ -385,31 +385,85 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
 
     case "Dental": {
       const caries = num(d.cariesCount);
+      const missing = num(d.missingCount);
+      const filled = num(d.filledCount);
       const gums = String(d.gums || "").toLowerCase();
-      const pain = d.pain === true;
-      if (caries === null && !gums) return notMeasured("Dental check not recorded");
+      const hygiene = String(d.hygiene || "").toLowerCase();
+      const fluorosis = String(d.fluorosis || "").toLowerCase();
+      const malocclusion = String(d.malocclusion || "").toLowerCase();
+      const pain = d.pain === true || String(d.pain) === "true";
+      const sensitivity = d.sensitivity === true || String(d.sensitivity) === "true";
+      const trauma = d.trauma === true || String(d.trauma) === "true";
+      const stainsTartar = d.stainsTartar === true || String(d.stainsTartar) === "true";
+      const treatment = Array.isArray(d.treatmentNeeded)
+        ? (d.treatmentNeeded as unknown[]).map(String).filter(Boolean)
+        : String(d.treatmentNeeded || "").split(",").map((s) => s.trim()).filter(Boolean);
+
+      if (caries === null && missing === null && filled === null && !gums && !hygiene && !pain && !sensitivity && !trauma && !fluorosis && !malocclusion) {
+        return notMeasured("Dental check not recorded");
+      }
       let flag: Flag = "GOOD";
       const parts: string[] = [];
-      if (caries !== null) {
+
+      if (caries !== null && caries > 0) {
         parts.push(`${caries} carious ${caries === 1 ? "tooth" : "teeth"}`);
         if (caries >= 3) flag = "ALERT";
-        else if (caries >= 1) flag = "WATCH";
+        else if (caries >= 1 && flag === "GOOD") flag = "WATCH";
+      } else if (caries === 0) {
+        parts.push("0 cavities");
       }
-      if (gums === "bleeding" || gums === "swollen") {
+
+      if (missing !== null && missing > 0) {
+        parts.push(`${missing} missing ${missing === 1 ? "tooth" : "teeth"}`);
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (filled !== null && filled > 0) {
+        parts.push(`${filled} filled ${filled === 1 ? "tooth" : "teeth"}`);
+      }
+      if (gums === "bleeding" || gums === "swollen" || gums === "recession") {
         parts.push(`${gums} gums`);
         if (flag === "GOOD") flag = "WATCH";
       }
-      if (pain) {
-        parts.push("reports pain");
+      if (hygiene === "poor") {
+        parts.push("poor oral hygiene");
+        if (flag === "GOOD") flag = "WATCH";
+      } else if (hygiene === "fair") {
+        parts.push("fair oral hygiene");
+      }
+      if (stainsTartar) {
+        parts.push("stains/calculus noted");
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (fluorosis && fluorosis !== "none") {
+        parts.push(`dental fluorosis (${fluorosis})`);
+        if ((fluorosis === "moderate" || fluorosis === "severe") && flag !== "ALERT") flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (malocclusion && malocclusion !== "normal") {
+        parts.push(`malocclusion (${malocclusion})`);
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (sensitivity) parts.push("sensitivity noted");
+      if (trauma) {
+        parts.push("chipped/fractured tooth");
         flag = "ALERT";
       }
-      if (parts.length === 0) parts.push("no findings");
+      if (pain) {
+        parts.push("reports tooth pain");
+        flag = "ALERT";
+      }
+      if (treatment.length > 0) {
+        parts.push(`rec: ${treatment.join(", ")}`);
+      }
+
+      if (parts.length === 0) parts.push("healthy oral status");
+
       return {
         flag,
         rationale: parts.join(", "),
-        valueNum: caries,
+        valueNum: caries ?? 0,
         valueText: parts.join(", "),
-        urgency: flag === "ALERT" ? (pain ? "URGENT" : "SOON") : flag === "WATCH" ? "ROUTINE" : "NONE",
+        urgency: flag === "ALERT" ? (pain || trauma ? "URGENT" : "SOON") : flag === "WATCH" ? "ROUTINE" : "NONE",
       };
     }
 

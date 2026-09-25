@@ -4466,15 +4466,45 @@ export const PORTAL_HTML = `<!doctype html>
             el("input", { type: "checkbox", id: "vision-squint", checked: !!d.squint, onchange: function (e) { d.squint = e.target.checked; render(); } }), "Squint noted"));
       }
       if (ct === "Dental") {
-        return el("div", null, el("div", { class: "g2" },
-          el("div", { class: "fld" }, el("label", null, "Carious teeth"),
-            el("input", { type: "number", min: "0", value: d.cariesCount === undefined ? "" : d.cariesCount, oninput: bind("cariesCount") })),
-          el("div", { class: "fld" }, el("label", null, "Gums"),
-            el("select", { onchange: bind("gums") }, el("option", { value: "" }, "\\u2014"),
-              ["healthy","bleeding","swollen"].map(function (g) {
-                return el("option", { value: g, selected: d.gums === g }, g.charAt(0).toUpperCase() + g.slice(1)); })))),
-          el("label", { class: "chip" + (d.pain ? " on" : "") },
-            el("input", { type: "checkbox", id: "dental-pain", checked: !!d.pain, onchange: function (e) { d.pain = e.target.checked; render(); } }), "Reports pain"));
+        return el("div", null,
+          el("h4", { style: "margin-bottom:6px" }, "Tooth Index (dmft/DMFT)"),
+          el("div", { class: "g3" },
+            el("div", { class: "fld" }, el("label", null, "Carious (Decayed)"),
+              el("input", { type: "number", min: "0", value: d.cariesCount === undefined ? "" : d.cariesCount, oninput: bind("cariesCount") })),
+            el("div", { class: "fld" }, el("label", null, "Missing"),
+              el("input", { type: "number", min: "0", value: d.missingCount === undefined ? "" : d.missingCount, oninput: bind("missingCount") })),
+            el("div", { class: "fld" }, el("label", null, "Filled"),
+              el("input", { type: "number", min: "0", value: d.filledCount === undefined ? "" : d.filledCount, oninput: bind("filledCount") }))),
+          el("h4", { style: "margin:10px 0 6px" }, "Gums & Oral Hygiene"),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Gums Condition"),
+              el("select", { onchange: bind("gums") }, el("option", { value: "" }, "\\u2014"),
+                ["healthy","bleeding","swollen","recession"].map(function (g) {
+                  return el("option", { value: g, selected: d.gums === g }, g.charAt(0).toUpperCase() + g.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "Oral Hygiene Index"),
+              el("select", { onchange: bind("hygiene") }, el("option", { value: "" }, "\\u2014"),
+                ["good","fair","poor"].map(function (h) {
+                  return el("option", { value: h, selected: d.hygiene === h }, h.charAt(0).toUpperCase() + h.slice(1)); })))),
+          el("label", { class: "chip" + (d.stainsTartar ? " on" : "") },
+            el("input", { type: "checkbox", id: "dental-stains", checked: !!d.stainsTartar, onchange: function (e) { d.stainsTartar = e.target.checked; render(); } }), "Stains / Calculus noted"),
+          el("h4", { style: "margin:10px 0 6px" }, "Enamel & Alignment"),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Fluorosis"),
+              el("select", { onchange: bind("fluorosis") }, el("option", { value: "" }, "\\u2014"),
+                ["none","mild","moderate","severe"].map(function (f) {
+                  return el("option", { value: f, selected: d.fluorosis === f }, f.charAt(0).toUpperCase() + f.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "Occlusion / Alignment"),
+              el("select", { onchange: bind("malocclusion") }, el("option", { value: "" }, "\\u2014"),
+                ["normal","crowding","crossbite","overbite"].map(function (m) {
+                  return el("option", { value: m, selected: d.malocclusion === m }, m.charAt(0).toUpperCase() + m.slice(1)); })))),
+          el("h4", { style: "margin:10px 0 6px" }, "Symptoms & Trauma"),
+          el("div", { class: "row", style: "gap:10px;flex-wrap:wrap" },
+            el("label", { class: "chip" + (d.pain ? " on" : "") },
+              el("input", { type: "checkbox", id: "dental-pain", checked: !!d.pain, onchange: function (e) { d.pain = e.target.checked; render(); } }), "Reports Pain"),
+            el("label", { class: "chip" + (d.sensitivity ? " on" : "") },
+              el("input", { type: "checkbox", id: "dental-sensitivity", checked: !!d.sensitivity, onchange: function (e) { d.sensitivity = e.target.checked; render(); } }), "Sensitivity"),
+            el("label", { class: "chip" + (d.trauma ? " on" : "") },
+              el("input", { type: "checkbox", id: "dental-trauma", checked: !!d.trauma, onchange: function (e) { d.trauma = e.target.checked; render(); } }), "Chipped / Fractured Tooth")));
       }
       if (ct === "Haemoglobin") {
         return el("div", { class: "fld", style: "max-width:220px" }, el("label", null, "Haemoglobin (g/dL)"),
