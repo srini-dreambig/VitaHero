@@ -30,14 +30,13 @@ export const DESIGNED_CHECKS = [
   "Vision",
   "Dental",
   "Haemoglobin",
-] as const;
-
-export const PLANNED_CHECKS = [
   "ENT",
   "Skin",
   "Spine",
   "Immunisation review",
 ] as const;
+
+export const PLANNED_CHECKS = [] as const;
 
 export const CHECK_TYPES = [...DESIGNED_CHECKS, ...PLANNED_CHECKS] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
@@ -355,7 +354,14 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       if (!left && !right) return notMeasured("Vision not tested");
       const worst = Math.max(acuityRank(left), acuityRank(right));
       if (worst < 0) return notMeasured("Vision result not recognised");
-      const squint = d.squint === true;
+      const squint = d.squint === true || String(d.squint) === "true";
+      const glassesWorn = String(d.glassesWorn || "").trim();
+      const colorVision = String(d.colorVision || "").trim();
+      const externalExam = String(d.externalExam || "").trim();
+      const treatmentsRecommended = Array.isArray(d.treatmentsRecommended)
+        ? (d.treatmentsRecommended as unknown[]).map(String).filter(Boolean)
+        : String(d.treatmentsRecommended || "").split(",").map((s) => s.trim()).filter(Boolean);
+
       const worstLabel = ACUITY_ORDER[worst];
       let flag: Flag = "GOOD";
       let why = `Worse eye ${worstLabel}`;
@@ -368,11 +374,23 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       } else {
         why += " — normal";
       }
-      if (squint && flag === "GOOD") {
-        flag = "WATCH";
+      if (squint) {
+        if (flag === "GOOD") flag = "WATCH";
         why += ", squint noted";
-      } else if (squint) {
-        why += ", squint noted";
+      }
+      if (glassesWorn && glassesWorn !== "none") {
+        why += `, glasses: ${glassesWorn}`;
+      }
+      if (colorVision && colorVision !== "normal") {
+        why += `, color vision: ${colorVision}`;
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (externalExam && externalExam !== "normal") {
+        why += `, external: ${externalExam}`;
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (treatmentsRecommended.length > 0) {
+        why += `, rec: ${treatmentsRecommended.join(", ")}`;
       }
       return {
         flag,
@@ -469,46 +487,231 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
 
     case "Haemoglobin": {
       const hb = num(d.hb);
-      if (hb === null) return notMeasured("Haemoglobin not measured");
+      const pallor = String(d.pallor || "").trim().toLowerCase();
+      const hbTreatment = Array.isArray(d.hbTreatment)
+        ? (d.hbTreatment as unknown[]).map(String).filter(Boolean)
+        : String(d.hbTreatment || "").split(",").map((s) => s.trim()).filter(Boolean);
+
+      if (hb === null && !pallor && hbTreatment.length === 0) return notMeasured("Haemoglobin not measured");
       // WHO cut-offs for children, simplified by age band.
       const age = ctx.ageYears;
       const mild = age < 5 ? 11.0 : age < 12 ? 11.5 : 12.0;
       const severe = 8.0;
       let flag: Flag = "GOOD";
-      let why = `${hb} g/dL`;
-      if (hb < severe) {
-        flag = "ALERT";
-        why += " — severe anaemia";
-      } else if (hb < mild) {
-        flag = "WATCH";
-        why += ` — below the ${mild} g/dL cut-off for this age`;
-      } else {
-        why += " — normal";
+      let why = hb !== null ? `${hb} g/dL` : "pallor evaluation";
+      if (hb !== null) {
+        if (hb < severe) {
+          flag = "ALERT";
+          why += " — severe anaemia";
+        } else if (hb < mild) {
+          flag = "WATCH";
+          why += ` — below the ${mild} g/dL cut-off for this age`;
+        } else {
+          why += " — normal";
+        }
+      }
+      if (pallor && pallor !== "none") {
+        why += `, pallor: ${pallor}`;
+        if (pallor.includes("severe") || pallor.includes("palmar")) flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (hbTreatment.length > 0) {
+        why += `, rec: ${hbTreatment.join(", ")}`;
       }
       return {
         flag,
         rationale: why,
         valueNum: hb,
-        valueText: `${hb} g/dL`,
+        valueText: why,
         urgency: flag === "ALERT" ? "URGENT" : flag === "WATCH" ? "ROUTINE" : "NONE",
       };
     }
 
-    // Observational checks: the screener says normal or abnormal, and a note.
-    case "ENT":
-    case "Skin":
-    case "Spine":
-    case "Immunisation review": {
+    case "ENT": {
+      const leftH = String(d.leftHearing || "").toLowerCase();
+      const rightH = String(d.rightHearing || "").toLowerCase();
+      const ear = String(d.earExam || "").toLowerCase();
+      const nasal = String(d.nasalExam || "").toLowerCase();
+      const throat = String(d.throatExam || "").toLowerCase();
+      const treatment = Array.isArray(d.entTreatment)
+        ? (d.entTreatment as unknown[]).map(String).filter(Boolean)
+        : String(d.entTreatment || "").split(",").map((s) => s.trim()).filter(Boolean);
       const outcome = String(d.outcome || "").toLowerCase();
-      if (!outcome) return notMeasured(`${input.checkType} not recorded`);
       const note = String(d.note || "").trim();
-      const flag: Flag =
-        outcome === "referral" ? "ALERT" : outcome === "abnormal" ? "WATCH" : "GOOD";
+
+      if (!leftH && !rightH && !ear && !nasal && !throat && !outcome && !note) {
+        return notMeasured("ENT check not recorded");
+      }
+
+      let flag: Flag = "GOOD";
+      const parts: string[] = [];
+
+      if ((leftH && leftH !== "normal") || (rightH && rightH !== "normal")) {
+        parts.push(`Hearing: L ${leftH || "normal"} / R ${rightH || "normal"}`);
+        if (leftH.includes("severe") || rightH.includes("severe")) flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (ear && ear !== "normal") {
+        parts.push(`Ear: ${ear}`);
+        if (ear.includes("perforat") || ear.includes("discharge")) flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (nasal && nasal !== "normal") {
+        parts.push(`Nasal: ${nasal}`);
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (throat && throat !== "normal") {
+        parts.push(`Throat: ${throat}`);
+        if (throat.includes("adenoid") || throat.includes("obstruction")) flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (outcome === "referral" && flag !== "ALERT") flag = "ALERT";
+      else if (outcome === "abnormal" && flag === "GOOD") flag = "WATCH";
+      if (note) parts.push(note);
+      if (treatment.length > 0) parts.push(`rec: ${treatment.join(", ")}`);
+      if (parts.length === 0) parts.push("healthy ENT status");
+
       return {
         flag,
-        rationale: note || (flag === "GOOD" ? "No findings" : outcome),
+        rationale: parts.join(", "),
         valueNum: null,
-        valueText: note || outcome,
+        valueText: parts.join(", "),
+        urgency: flag === "ALERT" ? "SOON" : flag === "WATCH" ? "ROUTINE" : "NONE",
+      };
+    }
+
+    case "Skin": {
+      const condition = String(d.skinCondition || "").toLowerCase();
+      const location = String(d.skinLocation || "").toLowerCase();
+      const itching = d.itching === true || String(d.itching) === "true";
+      const lice = d.lice === true || String(d.lice) === "true";
+      const treatment = Array.isArray(d.skinTreatment)
+        ? (d.skinTreatment as unknown[]).map(String).filter(Boolean)
+        : String(d.skinTreatment || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const outcome = String(d.outcome || "").toLowerCase();
+      const note = String(d.note || "").trim();
+
+      if (!condition && !itching && !lice && !outcome && !note) {
+        return notMeasured("Skin check not recorded");
+      }
+
+      let flag: Flag = "GOOD";
+      const parts: string[] = [];
+
+      if (condition && condition !== "healthy" && condition !== "normal") {
+        parts.push(location ? `${condition} (${location})` : condition);
+        if (condition.includes("scabies") || condition.includes("impetigo") || condition.includes("bacterial")) flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (itching) parts.push("pruritus/itching");
+      if (lice) {
+        parts.push("scalp pediculosis/lice");
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (outcome === "referral" && flag !== "ALERT") flag = "ALERT";
+      else if (outcome === "abnormal" && flag === "GOOD") flag = "WATCH";
+      if (note) parts.push(note);
+      if (treatment.length > 0) parts.push(`rec: ${treatment.join(", ")}`);
+      if (parts.length === 0) parts.push("normal skin status");
+
+      return {
+        flag,
+        rationale: parts.join(", "),
+        valueNum: null,
+        valueText: parts.join(", "),
+        urgency: flag === "ALERT" ? "SOON" : flag === "WATCH" ? "ROUTINE" : "NONE",
+      };
+    }
+
+    case "Spine": {
+      const posture = String(d.posture || "").toLowerCase();
+      const gait = String(d.gaitLimb || "").toLowerCase();
+      const jointPain = d.jointPain === true || String(d.jointPain) === "true";
+      const restricted = d.restrictedMotion === true || String(d.restrictedMotion) === "true";
+      const treatment = Array.isArray(d.spineTreatment)
+        ? (d.spineTreatment as unknown[]).map(String).filter(Boolean)
+        : String(d.spineTreatment || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const outcome = String(d.outcome || "").toLowerCase();
+      const note = String(d.note || "").trim();
+
+      if (!posture && !gait && !jointPain && !restricted && !outcome && !note) {
+        return notMeasured("Spine check not recorded");
+      }
+
+      let flag: Flag = "GOOD";
+      const parts: string[] = [];
+
+      if (posture && posture !== "normal") {
+        parts.push(`posture: ${posture}`);
+        if (posture.includes("scoliosis") && flag !== "ALERT") flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (gait && gait !== "normal") {
+        parts.push(`gait/limb: ${gait}`);
+        if (gait.includes("limp") && flag !== "ALERT") flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (jointPain) {
+        parts.push("joint pain/swelling");
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (restricted) {
+        parts.push("restricted motion");
+        flag = "ALERT";
+      }
+      if (outcome === "referral" && flag !== "ALERT") flag = "ALERT";
+      else if (outcome === "abnormal" && flag === "GOOD") flag = "WATCH";
+      if (note) parts.push(note);
+      if (treatment.length > 0) parts.push(`rec: ${treatment.join(", ")}`);
+      if (parts.length === 0) parts.push("normal spinal alignment");
+
+      return {
+        flag,
+        rationale: parts.join(", "),
+        valueNum: null,
+        valueText: parts.join(", "),
+        urgency: flag === "ALERT" ? "SOON" : flag === "WATCH" ? "ROUTINE" : "NONE",
+      };
+    }
+
+    case "Immunisation review": {
+      const status = String(d.vaccineStatus || "").toLowerCase();
+      const missed = Array.isArray(d.missedVaccines)
+        ? (d.missedVaccines as unknown[]).map(String).filter(Boolean)
+        : String(d.missedVaccines || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const treatment = Array.isArray(d.vaccineTreatment)
+        ? (d.vaccineTreatment as unknown[]).map(String).filter(Boolean)
+        : String(d.vaccineTreatment || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const outcome = String(d.outcome || "").toLowerCase();
+      const note = String(d.note || "").trim();
+
+      if (!status && missed.length === 0 && !outcome && !note) {
+        return notMeasured("Immunisation review not recorded");
+      }
+
+      let flag: Flag = "GOOD";
+      const parts: string[] = [];
+
+      if (status && status !== "up to date") {
+        parts.push(`status: ${status}`);
+        if (status.includes("incomplete") || status.includes("missed")) flag = "WATCH";
+      }
+      if (missed.length > 0) {
+        parts.push(`missed: ${missed.join(", ")}`);
+        if (missed.length >= 2) flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (outcome === "referral" && flag !== "ALERT") flag = "ALERT";
+      else if (outcome === "abnormal" && flag === "GOOD") flag = "WATCH";
+      if (note) parts.push(note);
+      if (treatment.length > 0) parts.push(`rec: ${treatment.join(", ")}`);
+      if (parts.length === 0) parts.push("immunisation up to date");
+
+      return {
+        flag,
+        rationale: parts.join(", "),
+        valueNum: null,
+        valueText: parts.join(", "),
         urgency: flag === "ALERT" ? "SOON" : flag === "WATCH" ? "ROUTINE" : "NONE",
       };
     }
@@ -561,12 +764,20 @@ export function summariseForApp(
 
   const growth = by("Height & weight");
   const hb = by("Haemoglobin");
+  const ent = by("ENT");
+  const skin = by("Skin");
+  const spine = by("Spine");
+  const imm = by("Immunisation review");
   const dental = by("Dental");
   const vision = by("Vision");
 
   const nutrition = worstFlag([
     growth ? growth.flag : "NOT_MEASURED",
     hb ? hb.flag : "NOT_MEASURED",
+    ent ? ent.flag : "NOT_MEASURED",
+    skin ? skin.flag : "NOT_MEASURED",
+    spine ? spine.flag : "NOT_MEASURED",
+    imm ? imm.flag : "NOT_MEASURED",
   ]);
 
   const heightCm = growth ? num(growth.detail.heightCm) : null;

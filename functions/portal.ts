@@ -4455,15 +4455,31 @@ export const PORTAL_HTML = `<!doctype html>
             el("input", { type: "number", step: "0.1", value: d.weightKg || "", oninput: bind("weightKg") })));
       }
       if (ct === "Vision") {
-        return el("div", null, el("div", { class: "g2" },
-          el("div", { class: "fld" }, el("label", null, "Left eye"),
-            el("select", { onchange: bind("leftAcuity") }, el("option", { value: "" }, "\\u2014"),
-              ACUITY.map(function (a) { return el("option", { value: a, selected: d.leftAcuity === a }, a); }))),
-          el("div", { class: "fld" }, el("label", null, "Right eye"),
-            el("select", { onchange: bind("rightAcuity") }, el("option", { value: "" }, "\\u2014"),
-              ACUITY.map(function (a) { return el("option", { value: a, selected: d.rightAcuity === a }, a); })))),
-          el("label", { class: "chip" + (d.squint ? " on" : "") },
-            el("input", { type: "checkbox", id: "vision-squint", checked: !!d.squint, onchange: function (e) { d.squint = e.target.checked; render(); } }), "Squint noted"));
+        return el("div", null,
+          el("h4", { style: "margin-bottom:6px" }, "Visual Acuity (Snellen)"),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Left eye"),
+              el("select", { onchange: bind("leftAcuity") }, el("option", { value: "" }, "\u2014"),
+                ACUITY.map(function (a) { return el("option", { value: a, selected: d.leftAcuity === a }, a); }))),
+            el("div", { class: "fld" }, el("label", null, "Right eye"),
+              el("select", { onchange: bind("rightAcuity") }, el("option", { value: "" }, "\u2014"),
+                ACUITY.map(function (a) { return el("option", { value: a, selected: d.rightAcuity === a }, a); })))),
+          el("h4", { style: "margin:10px 0 6px" }, "Eye Health & Alignment"),
+          el("div", { class: "g3" },
+            el("div", { class: "fld" }, el("label", null, "Glasses Status"),
+              el("select", { onchange: bind("glassesWorn") }, el("option", { value: "" }, "\u2014"),
+                ["none","prescribed","not worn","broken"].map(function (g) {
+                  return el("option", { value: g, selected: d.glassesWorn === g }, g.charAt(0).toUpperCase() + g.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "Color Vision"),
+              el("select", { onchange: bind("colorVision") }, el("option", { value: "" }, "\u2014"),
+                ["normal","red-green deficit","uncooperative"].map(function (c) {
+                  return el("option", { value: c, selected: d.colorVision === c }, c.charAt(0).toUpperCase() + c.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "External Exam"),
+              el("select", { onchange: bind("externalExam") }, el("option", { value: "" }, "\u2014"),
+                ["normal","conjunctivitis","discharge","ptosis"].map(function (e) {
+                  return el("option", { value: e, selected: d.externalExam === e }, e.charAt(0).toUpperCase() + e.slice(1)); })))),
+          el("label", { class: "chip" + (d.squint ? " on" : ""), style: "margin-top:8px" },
+            el("input", { type: "checkbox", id: "vision-squint", checked: !!d.squint, onchange: function (e) { d.squint = e.target.checked; render(); } }), "Strabismus / Squint noted"));
       }
       if (ct === "Dental") {
         return el("div", null,
@@ -4478,11 +4494,11 @@ export const PORTAL_HTML = `<!doctype html>
           el("h4", { style: "margin:10px 0 6px" }, "Gums & Oral Hygiene"),
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Gums Condition"),
-              el("select", { onchange: bind("gums") }, el("option", { value: "" }, "\\u2014"),
+              el("select", { onchange: bind("gums") }, el("option", { value: "" }, "\u2014"),
                 ["healthy","bleeding","swollen","recession"].map(function (g) {
                   return el("option", { value: g, selected: d.gums === g }, g.charAt(0).toUpperCase() + g.slice(1)); }))),
             el("div", { class: "fld" }, el("label", null, "Oral Hygiene Index"),
-              el("select", { onchange: bind("hygiene") }, el("option", { value: "" }, "\\u2014"),
+              el("select", { onchange: bind("hygiene") }, el("option", { value: "" }, "\u2014"),
                 ["good","fair","poor"].map(function (h) {
                   return el("option", { value: h, selected: d.hygiene === h }, h.charAt(0).toUpperCase() + h.slice(1)); })))),
           el("label", { class: "chip" + (d.stainsTartar ? " on" : "") },
@@ -4490,11 +4506,11 @@ export const PORTAL_HTML = `<!doctype html>
           el("h4", { style: "margin:10px 0 6px" }, "Enamel & Alignment"),
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Fluorosis"),
-              el("select", { onchange: bind("fluorosis") }, el("option", { value: "" }, "\\u2014"),
+              el("select", { onchange: bind("fluorosis") }, el("option", { value: "" }, "\u2014"),
                 ["none","mild","moderate","severe"].map(function (f) {
                   return el("option", { value: f, selected: d.fluorosis === f }, f.charAt(0).toUpperCase() + f.slice(1)); }))),
             el("div", { class: "fld" }, el("label", null, "Occlusion / Alignment"),
-              el("select", { onchange: bind("malocclusion") }, el("option", { value: "" }, "\\u2014"),
+              el("select", { onchange: bind("malocclusion") }, el("option", { value: "" }, "\u2014"),
                 ["normal","crowding","crossbite","overbite"].map(function (m) {
                   return el("option", { value: m, selected: d.malocclusion === m }, m.charAt(0).toUpperCase() + m.slice(1)); })))),
           el("h4", { style: "margin:10px 0 6px" }, "Symptoms & Trauma"),
@@ -4506,9 +4522,92 @@ export const PORTAL_HTML = `<!doctype html>
             el("label", { class: "chip" + (d.trauma ? " on" : "") },
               el("input", { type: "checkbox", id: "dental-trauma", checked: !!d.trauma, onchange: function (e) { d.trauma = e.target.checked; render(); } }), "Chipped / Fractured Tooth")));
       }
+      if (ct === "ENT") {
+        return el("div", null,
+          el("h4", { style: "margin-bottom:6px" }, "Hearing Screening"),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Left Ear"),
+              el("select", { onchange: bind("leftHearing") }, el("option", { value: "" }, "\u2014"),
+                ["normal","mild loss","moderate/severe"].map(function (h) {
+                  return el("option", { value: h, selected: d.leftHearing === h }, h.charAt(0).toUpperCase() + h.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "Right Ear"),
+              el("select", { onchange: bind("rightHearing") }, el("option", { value: "" }, "\u2014"),
+                ["normal","mild loss","moderate/severe"].map(function (h) {
+                  return el("option", { value: h, selected: d.rightHearing === h }, h.charAt(0).toUpperCase() + h.slice(1)); })))),
+          el("h4", { style: "margin:10px 0 6px" }, "Clinical Examination"),
+          el("div", { class: "g3" },
+            el("div", { class: "fld" }, el("label", null, "Ear Canals / Tympanic"),
+              el("select", { onchange: bind("earExam") }, el("option", { value: "" }, "\u2014"),
+                ["normal","wax impaction","otitis media","perforation"].map(function (e) {
+                  return el("option", { value: e, selected: d.earExam === e }, e.charAt(0).toUpperCase() + e.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "Nasal Cavity"),
+              el("select", { onchange: bind("nasalExam") }, el("option", { value: "" }, "\u2014"),
+                ["normal","allergic rhinitis","septal deviation","polyp"].map(function (n) {
+                  return el("option", { value: n, selected: d.nasalExam === n }, n.charAt(0).toUpperCase() + n.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "Throat & Tonsils"),
+              el("select", { onchange: bind("throatExam") }, el("option", { value: "" }, "\u2014"),
+                ["normal","tonsillar hypertrophy","pharyngitis"].map(function (t) {
+                  return el("option", { value: t, selected: d.throatExam === t }, t.charAt(0).toUpperCase() + t.slice(1)); })))));
+      }
+      if (ct === "Skin") {
+        return el("div", null,
+          el("h4", { style: "margin-bottom:6px" }, "Dermatological Exam"),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Primary Finding"),
+              el("select", { onchange: bind("skinCondition") }, el("option", { value: "" }, "\u2014"),
+                ["normal","eczema","fungal / tinea","scabies","impetigo"].map(function (s) {
+                  return el("option", { value: s, selected: d.skinCondition === s }, s.charAt(0).toUpperCase() + s.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "Location"),
+              el("select", { onchange: bind("skinLocation") }, el("option", { value: "" }, "\u2014"),
+                ["face / neck","arms / hands","legs / feet","trunk"].map(function (l) {
+                  return el("option", { value: l, selected: d.skinLocation === l }, l.charAt(0).toUpperCase() + l.slice(1)); })))),
+          el("h4", { style: "margin:10px 0 6px" }, "Symptoms & Parasitic Screening"),
+          el("div", { class: "row", style: "gap:10px;flex-wrap:wrap" },
+            el("label", { class: "chip" + (d.itching ? " on" : "") },
+              el("input", { type: "checkbox", id: "skin-itching", checked: !!d.itching, onchange: function (e) { d.itching = e.target.checked; render(); } }), "Pruritus / Itching"),
+            el("label", { class: "chip" + (d.lice ? " on" : "") },
+              el("input", { type: "checkbox", id: "skin-lice", checked: !!d.lice, onchange: function (e) { d.lice = e.target.checked; render(); } }), "Head Lice / Pediculosis")));
+      }
+      if (ct === "Spine") {
+        return el("div", null,
+          el("h4", { style: "margin-bottom:6px" }, "Musculoskeletal Assessment"),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Posture & Alignment"),
+              el("select", { onchange: bind("posture") }, el("option", { value: "" }, "\u2014"),
+                ["normal","slouching","scoliosis suspected","kyphosis"].map(function (p) {
+                  return el("option", { value: p, selected: d.posture === p }, p.charAt(0).toUpperCase() + p.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "Gait & Lower Limb"),
+              el("select", { onchange: bind("gaitLimb") }, el("option", { value: "" }, "\u2014"),
+                ["normal","limp","flat feet","knock-knees"].map(function (g) {
+                  return el("option", { value: g, selected: d.gaitLimb === g }, g.charAt(0).toUpperCase() + g.slice(1)); })))),
+          el("h4", { style: "margin:10px 0 6px" }, "Functional Symptoms"),
+          el("div", { class: "row", style: "gap:10px;flex-wrap:wrap" },
+            el("label", { class: "chip" + (d.jointPain ? " on" : "") },
+              el("input", { type: "checkbox", id: "spine-joint-pain", checked: !!d.jointPain, onchange: function (e) { d.jointPain = e.target.checked; render(); } }), "Joint Pain / Swelling"),
+            el("label", { class: "chip" + (d.restrictedMotion ? " on" : "") },
+              el("input", { type: "checkbox", id: "spine-restricted", checked: !!d.restrictedMotion, onchange: function (e) { d.restrictedMotion = e.target.checked; render(); } }), "Restricted Motion")));
+      }
+      if (ct === "Immunisation review") {
+        return el("div", null,
+          el("h4", { style: "margin-bottom:6px" }, "Immunization Status"),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Vaccine Status"),
+              el("select", { onchange: bind("vaccineStatus") }, el("option", { value: "" }, "\u2014"),
+                ["up to date","partially completed","significantly delayed"].map(function (v) {
+                  return el("option", { value: v, selected: d.vaccineStatus === v }, v.charAt(0).toUpperCase() + v.slice(1)); }))),
+            el("div", { class: "fld" }, el("label", null, "Missed Vaccine(s)"),
+              el("input", { type: "text", placeholder: "e.g. MMR, DPT", value: d.missedVaccines || "", oninput: bind("missedVaccines") }))));
+      }
       if (ct === "Haemoglobin") {
-        return el("div", { class: "fld", style: "max-width:220px" }, el("label", null, "Haemoglobin (g/dL)"),
-          el("input", { type: "number", step: "0.1", value: d.hb || "", oninput: bind("hb") }));
+        return el("div", null,
+          el("h4", { style: "margin-bottom:6px" }, "Anaemia Screening"),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Haemoglobin (g/dL)"),
+              el("input", { type: "number", step: "0.1", value: d.hb || "", oninput: bind("hb") })),
+            el("div", { class: "fld" }, el("label", null, "Pallor Sign"),
+              el("select", { onchange: bind("pallor") }, el("option", { value: "" }, "\u2014"),
+                ["none","mild conjunctival","moderate","severe palmar"].map(function (p) {
+                  return el("option", { value: p, selected: d.pallor === p }, p.charAt(0).toUpperCase() + p.slice(1)); })))));
       }
       return el("div", { class: "fld" }, el("label", null, "Result"),
         el("select", { onchange: bind("outcome") }, el("option", { value: "" }, "\\u2014"),

@@ -67,11 +67,37 @@ private fun flagWord(flag: String) = when (flag) {
 
 /** Snellen acuities, in the order clinical.ts ranks them. */
 private val ACUITY = listOf("6/6", "6/9", "6/12", "6/18", "6/24", "6/36", "6/60", "<6/60")
+private val GLASSES_STATUS = listOf("none", "prescribed", "not worn", "broken")
+private val COLOR_VISION = listOf("normal", "red-green deficit", "uncooperative")
+private val EYE_EXTERNAL = listOf("normal", "conjunctivitis", "discharge", "ptosis")
+private val VISION_TREATMENTS = listOf("Refraction Test", "Prescription Glasses", "Eye Drops", "Ophthalmologist Referral")
+
 private val GUMS = listOf("healthy", "bleeding", "swollen", "recession")
 private val HYGIENE = listOf("good", "fair", "poor")
 private val FLUOROSIS = listOf("none", "mild", "moderate", "severe")
 private val MALOCCLUSION = listOf("normal", "crowding", "crossbite", "overbite")
-private val TREATMENTS = listOf("Cleaning", "Filling", "Extraction", "Orthodontics", "Urgent Visit")
+private val DENTAL_TREATMENTS = listOf("Cleaning", "Filling", "Extraction", "Orthodontics", "Urgent Visit")
+
+private val HEARING_ACUITY = listOf("normal", "mild loss", "moderate/severe")
+private val EAR_EXAM = listOf("normal", "wax impaction", "otitis media", "perforation")
+private val NASAL_EXAM = listOf("normal", "allergic rhinitis", "septal deviation", "polyp")
+private val THROAT_EXAM = listOf("normal", "tonsillar hypertrophy", "pharyngitis")
+private val ENT_TREATMENTS = listOf("Ear Drops / Wax", "Antihistamines", "Antibiotics", "ENT Referral")
+
+private val SKIN_CONDITIONS = listOf("normal", "eczema", "fungal / tinea", "scabies", "impetigo")
+private val SKIN_LOCATIONS = listOf("face / neck", "arms / hands", "legs / feet", "trunk")
+private val SKIN_TREATMENTS = listOf("Topical Ointment", "Antihistamines", "Medicated Soap", "Dermatology Referral")
+
+private val POSTURE_ALIGN = listOf("normal", "slouching", "scoliosis suspected", "kyphosis")
+private val GAIT_LIMB = listOf("normal", "limp", "flat feet", "knock-knees")
+private val SPINE_TREATMENTS = listOf("Posture Guidance", "Physical Therapy", "Orthotics", "Orthopaedic Referral")
+
+private val VACCINE_STATUS = listOf("up to date", "partially completed", "significantly delayed")
+private val MISSED_VACCINES = listOf("MMR", "DPT / Tetanus", "Polio", "Hepatitis B", "Typhoid")
+private val VACCINE_TREATMENTS = listOf("Schedule Catch-up", "PHC Referral", "Parent Counseling")
+
+private val PALLOR = listOf("none", "mild conjunctival", "moderate", "severe palmar")
+private val HB_TREATMENTS = listOf("Iron Supplement", "Dietary Counseling", "Deworming", "Pediatrician Referral")
 
 /**
  * One child's screening, scoped to the clinician's own specialty.
@@ -277,13 +303,22 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             NumberField("Height (cm)", fields, "heightCm", Modifier.weight(1f))
             NumberField("Weight (kg)", fields, "weightKg", Modifier.weight(1f))
         }
-        "Vision" -> Column {
+        "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Visual Acuity (Snellen)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ChoiceField("Left eye", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
                 ChoiceField("Right eye", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
             }
-            Spacer(Modifier.height(6.dp))
-            ToggleField("Squint noted", fields, "squint")
+            Spacer(Modifier.height(2.dp))
+            Text("Eye Health & Alignment", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ChoiceField("Glasses Status", GLASSES_STATUS, fields, "glassesWorn", Modifier.fillMaxWidth())
+            ChoiceField("Color Vision", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
+            ChoiceField("External Anterior Exam", EYE_EXTERNAL, fields, "externalExam", Modifier.fillMaxWidth())
+            ToggleField("Strabismus / Squint noted", fields, "squint")
+
+            Spacer(Modifier.height(2.dp))
+            Text("Recommended Vision Interventions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            MultiChoiceField(VISION_TREATMENTS, fields, "treatmentsRecommended")
         }
         "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text("Tooth Index (dmft/DMFT)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
@@ -312,9 +347,73 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
 
             Spacer(Modifier.height(2.dp))
             Text("Recommended Treatment", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            MultiChoiceField(TREATMENTS, fields, "treatmentNeeded")
+            MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded")
         }
-        "Haemoglobin" -> NumberField("Haemoglobin (g/dL)", fields, "hb", Modifier.fillMaxWidth())
+        "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Hearing Screening", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Left Ear", HEARING_ACUITY, fields, "leftHearing", Modifier.weight(1f))
+                ChoiceField("Right Ear", HEARING_ACUITY, fields, "rightHearing", Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(2.dp))
+            Text("Clinical Examination", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ChoiceField("Ear Canals / Tympanic", EAR_EXAM, fields, "earExam", Modifier.fillMaxWidth())
+            ChoiceField("Nasal Cavity", NASAL_EXAM, fields, "nasalExam", Modifier.fillMaxWidth())
+            ChoiceField("Throat & Tonsils", THROAT_EXAM, fields, "throatExam", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(2.dp))
+            Text("Recommended ENT Care", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            MultiChoiceField(ENT_TREATMENTS, fields, "entTreatment")
+        }
+        "Skin" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Dermatological Exam", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ChoiceField("Primary Skin Finding", SKIN_CONDITIONS, fields, "skinCondition", Modifier.fillMaxWidth())
+            ChoiceField("Lesion Distribution / Location", SKIN_LOCATIONS, fields, "skinLocation", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(2.dp))
+            Text("Symptoms & Parasitic Screening", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ToggleField("Pruritus / Active Itching", fields, "itching")
+            ToggleField("Scalp Pediculosis / Head Lice", fields, "lice")
+
+            Spacer(Modifier.height(2.dp))
+            Text("Recommended Dermatology Interventions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            MultiChoiceField(SKIN_TREATMENTS, fields, "skinTreatment")
+        }
+        "Spine" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Musculoskeletal Assessment", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ChoiceField("Spinal Posture & Alignment", POSTURE_ALIGN, fields, "posture", Modifier.fillMaxWidth())
+            ChoiceField("Gait & Lower Limb Assessment", GAIT_LIMB, fields, "gaitLimb", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(2.dp))
+            Text("Functional Symptoms", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ToggleField("Joint Pain or Swelling", fields, "jointPain")
+            ToggleField("Restricted Range of Motion", fields, "restrictedMotion")
+
+            Spacer(Modifier.height(2.dp))
+            Text("Recommended Orthopaedic Interventions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            MultiChoiceField(SPINE_TREATMENTS, fields, "spineTreatment")
+        }
+        "Immunisation review" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Immunization Status", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            ChoiceField("Overall Vaccine Status", VACCINE_STATUS, fields, "vaccineStatus", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(2.dp))
+            Text("Missed Routine Immunizations", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            MultiChoiceField(MISSED_VACCINES, fields, "missedVaccines")
+
+            Spacer(Modifier.height(2.dp))
+            Text("Recommended Action", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            MultiChoiceField(VACCINE_TREATMENTS, fields, "vaccineTreatment")
+        }
+        "Haemoglobin" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("Anaemia Screening", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            NumberField("Haemoglobin Level (g/dL)", fields, "hb", Modifier.fillMaxWidth())
+            ChoiceField("Clinical Pallor Sign", PALLOR, fields, "pallor", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(2.dp))
+            Text("Recommended Anaemia Management", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            MultiChoiceField(HB_TREATMENTS, fields, "hbTreatment")
+        }
         else -> Text(
             "This check has no form in the app yet. Record it in the console.",
             style = MaterialTheme.typography.bodySmall,

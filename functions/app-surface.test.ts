@@ -124,9 +124,9 @@ describe("the app can show what a camp screens for", () => {
     }
   });
 
-  test("a specialty with no app surface screens nothing, whatever the console can capture", () => {
-    for (const name of ["Dermatology", "Orthopaedics", "ENT"]) {
-      expect(screeningChecksFor(name), name).toEqual([]);
+  test("every specialty doctor screen is designed and screenable", () => {
+    for (const name of ["Dermatology", "Orthopaedics", "ENT", "Ophthalmology", "Dentistry", "Paediatrics", "General physician"]) {
+      expect(screeningChecksFor(name).length, name).toBeGreaterThan(0);
     }
   });
 });
@@ -427,16 +427,9 @@ describe("a specialty is offered only when there is something to record", () => 
     ).toEqual([]);
   });
 
-  test("and the ones with no screen say so rather than being hidden", () => {
-    // Not filtered out of the directory: a dermatologist is a perfectly good
-    // referral target, and a school should be able to record that they exist.
-    // What they cannot be is a camp clinician.
+  test("and every specialty in the directory has screening checks configured", () => {
     const unbuilt = specialtyOptions().filter((s) => !s.canScreen).map((s) => s.name);
-    expect(unbuilt.length, "every specialty screens, so this check proves nothing")
-      .toBeGreaterThan(0);
-    for (const name of unbuilt) {
-      expect(screeningChecksFor(name), `${name} claims no screen but returns checks`).toEqual([]);
-    }
+    expect(unbuilt).toEqual([]);
   });
 
   test("both assignment paths refuse a specialty with no form", () => {
