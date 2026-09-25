@@ -21,9 +21,13 @@ data class VitaHeroViewModels(
 
 @Composable
 fun rememberVitaHeroViewModels(): VitaHeroViewModels {
-    val application = LocalContext.current.applicationContext as VitaHeroApplication
-    val factory = remember(application) {
-        VitaHeroViewModelFactory(application, application.appContainer)
+    val context = LocalContext.current.applicationContext
+    val app = context as? VitaHeroApplication
+    val container = remember(context) {
+        app?.appContainer ?: AppContainer(context as android.app.Application)
+    }
+    val factory = remember(context, container) {
+        VitaHeroViewModelFactory(context as android.app.Application, container)
     }
     return VitaHeroViewModels(
         app = viewModel(factory = factory),

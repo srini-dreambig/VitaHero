@@ -44,15 +44,39 @@ object SessionStore {
 
     private fun prefs(context: Context): SharedPreferences =
         cached ?: synchronized(this) {
-            cached ?: EncryptedSharedPreferences.create(
-                context.applicationContext,
-                PREFS,
-                MasterKey.Builder(context.applicationContext)
-                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                    .build(),
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-            ).also { cached = it }
+            cached ?: try {
+                EncryptedSharedPreferences.create(
+                    context.applicationContext,
+                    PREFS,
+                    MasterKey.Builder(context.applicationContext)
+                        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                        .build(),
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+                )
+            } catch (e: Exception) {
+                try {
+                    runCatching {
+                        val ks = java.security.KeyStore.getInstance("AndroidKeyStore")
+                        ks.load(null)
+                        ks.deleteEntry("_androidx_security_master_key_")
+                    }
+                    context.applicationContext.deleteSharedPreferences(PREFS)
+                    EncryptedSharedPreferences.create(
+                        context.applicationContext,
+                        PREFS,
+                        MasterKey.Builder(context.applicationContext)
+                            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                            .build(),
+                        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+                    )
+                } catch (_: Exception) {
+                    val fallback = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                    runCatching { fallback.edit().clear().apply() }
+                    fallback
+                }
+            }.also { cached = it }
         }
 
     fun saveToken(context: Context, token: String) {

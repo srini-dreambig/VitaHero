@@ -105,9 +105,9 @@ class AppViewModel(
     private fun initApp() {
         viewModelScope.launch {
             val app = getApplication<Application>()
+            state.resetSession()
             val restored = withContext(Dispatchers.IO) { auth.tryRestoreSession() }
             withContext(Dispatchers.Main) {
-                state.resetSession()
                 if (restored) {
                     container.retryPendingSync()
                     fetchAndApplyBackendData()

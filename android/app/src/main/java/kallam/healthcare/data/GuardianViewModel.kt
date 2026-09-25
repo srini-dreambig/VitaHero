@@ -95,6 +95,19 @@ class GuardianViewModel(
     private val _referralTargets = MutableStateFlow(ReferralSpecialtiesDto())
     val referralTargets: StateFlow<ReferralSpecialtiesDto> = _referralTargets.asStateFlow()
 
+    // ── VitaHero of the month ──
+    private val _hero = MutableStateFlow<Map<String, HeroOfMonthDto>>(emptyMap())
+    val hero: StateFlow<Map<String, HeroOfMonthDto>> = _hero.asStateFlow()
+
+    private val _heroNameConsent = MutableStateFlow<Map<String, HeroNameConsentDto>>(emptyMap())
+    val heroNameConsent: StateFlow<Map<String, HeroNameConsentDto>> =
+        _heroNameConsent.asStateFlow()
+
+    // ── meal photographs ──
+    private val _mealPhotoConsent = MutableStateFlow<Map<String, MealPhotoConsentDto>>(emptyMap())
+    val mealPhotoConsent: StateFlow<Map<String, MealPhotoConsentDto>> =
+        _mealPhotoConsent.asStateFlow()
+
     private val _inFlight = MutableStateFlow(0)
     val busy: StateFlow<Boolean> = _inFlight
         .map { it > 0 }
@@ -140,25 +153,25 @@ class GuardianViewModel(
      */
     private fun forgetSession() {
         loaded.clear()
-        _pendingConsents.value = emptyList()
-        _dietPlans.value = emptyMap()
-        _mealPhotoConsent.value = emptyMap()
-        _hero.value = emptyMap()
-        _heroNameConsent.value = emptyMap()
-        _result.value = null
-        _photos.value = emptyList()
-        _openPhoto.value = null
-        _questionPolicy.value = QuestionPolicyDto()
-        _threads.value = emptyList()
-        _openThread.value = null
-        _library.value = LibraryDto()
-        _openArticle.value = null
-        _referrals.value = emptyList()
-        _symptomLog.value = SymptomLogDto()
-        _symptomAdvice.value = ""
-        _entitlements.value = EntitlementsDto()
-        _dataRights.value = emptyList()
-        _referralTargets.value = ReferralSpecialtiesDto()
+        runCatching { _pendingConsents.value = emptyList() }
+        runCatching { _dietPlans.value = emptyMap() }
+        runCatching { _mealPhotoConsent.value = emptyMap() }
+        runCatching { _hero.value = emptyMap() }
+        runCatching { _heroNameConsent.value = emptyMap() }
+        runCatching { _result.value = null }
+        runCatching { _photos.value = emptyList() }
+        runCatching { _openPhoto.value = null }
+        runCatching { _questionPolicy.value = QuestionPolicyDto() }
+        runCatching { _threads.value = emptyList() }
+        runCatching { _openThread.value = null }
+        runCatching { _library.value = LibraryDto() }
+        runCatching { _openArticle.value = null }
+        runCatching { _referrals.value = emptyList() }
+        runCatching { _symptomLog.value = SymptomLogDto() }
+        runCatching { _symptomAdvice.value = "" }
+        runCatching { _entitlements.value = EntitlementsDto() }
+        runCatching { _dataRights.value = emptyList() }
+        runCatching { _referralTargets.value = ReferralSpecialtiesDto() }
     }
 
     init {
@@ -208,13 +221,6 @@ class GuardianViewModel(
     }
 
     // ── VitaHero of the month ──
-    private val _hero = MutableStateFlow<Map<String, HeroOfMonthDto>>(emptyMap())
-    val hero: StateFlow<Map<String, HeroOfMonthDto>> = _hero.asStateFlow()
-
-    private val _heroNameConsent = MutableStateFlow<Map<String, HeroNameConsentDto>>(emptyMap())
-    val heroNameConsent: StateFlow<Map<String, HeroNameConsentDto>> =
-        _heroNameConsent.asStateFlow()
-
     fun loadHero(kidId: String, force: Boolean = false) = once("hero:$kidId", force) {
         val h = repo.heroOfMonth(kidId)
         // Absent means no hero published this month, which is most months at
@@ -246,10 +252,6 @@ class GuardianViewModel(
     // ── meal photographs ──
     //
     // Per child, because the consent is per child. Absent means not asked.
-    private val _mealPhotoConsent = MutableStateFlow<Map<String, MealPhotoConsentDto>>(emptyMap())
-    val mealPhotoConsent: StateFlow<Map<String, MealPhotoConsentDto>> =
-        _mealPhotoConsent.asStateFlow()
-
     fun loadMealPhotoConsent(kidId: String, force: Boolean = false) =
         once("mealphoto:$kidId", force) {
             _mealPhotoConsent.update { it + (kidId to repo.mealPhotoConsent(kidId)) }

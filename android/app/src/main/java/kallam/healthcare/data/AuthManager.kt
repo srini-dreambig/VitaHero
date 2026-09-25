@@ -101,6 +101,12 @@ class AuthManager(private val app: Application) {
     suspend fun tryRestoreSession(): Boolean = withContext(Dispatchers.IO) {
         val token = SessionStore.getToken(app) ?: return@withContext false
         ApiService.sessionToken = token
+        withContext(Dispatchers.Main) {
+            _sessionToken.value = token
+            _role.value = SessionStore.role(app)
+            _isLoggedIn.value = true
+            _onboardingComplete.value = SessionStore.isOnboardingComplete(app)
+        }
         when (val outcome = api.fetchMyProfileOutcome()) {
             is RestoreOutcome.Ok -> {
                 SessionSignals.reset()
@@ -117,11 +123,8 @@ class AuthManager(private val app: Application) {
                 false
             }
             RestoreOutcome.Unreachable -> {
-                // Keep the token. The parent stays signed in and the app says
-                // it cannot reach the server, which is the truth and is also
-                // recoverable without anyone typing a code from an SMS.
                 SessionSignals.noteUnreachable()
-                false
+                true
             }
         }
     }

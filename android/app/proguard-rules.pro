@@ -14,38 +14,19 @@
 }
 
 # ── Ktor ──────────────────────────────────────────────────────
--keep class io.ktor.** { *; }
 -dontwarn io.ktor.**
+-keepclassmembers class io.ktor.** {
+    *** Companion;
+}
 
 # ── Coil ──────────────────────────────────────────────────────
 -dontwarn coil3.**
 
-# ── API DTOs (reflection-safe) ────────────────────────────────
--keep class kallam.healthcare.data.ProfileDto { *; }
--keep class kallam.healthcare.data.KidDto { *; }
--keep class kallam.healthcare.data.CampDto { *; }
--keep class kallam.healthcare.data.AppointmentDto { *; }
--keep class kallam.healthcare.data.MealItemDto { *; }
--keep class kallam.healthcare.data.GrowthPointDto { *; }
--keep class kallam.healthcare.data.StreakDto { *; }
--keep class kallam.healthcare.data.CoParentDto { *; }
-
-# ── Models (used in serialization) ────────────────────────────
--keep class kallam.healthcare.data.ModelsKt { *; }
-
-# ── Guava (Android variant) ────────────────────────────────────
--dontwarn com.google.common.**
--keep class com.google.common.** { *; }
--dontwarn com.google.errorprone.annotations.**
--dontwarn com.google.j2objc.annotations.**
--dontwarn javax.annotation.**
--dontwarn org.checkerframework.**
-
--keep class kallam.healthcare.data.SyncBatch { *; }
--keep class kallam.healthcare.data.SyncBatch$$serializer { *; }
+# ── Application, Activities, ViewModels & Screens ────────────────
+-keep class kallam.healthcare.** { *; }
+-keepclassmembers class kallam.healthcare.** { *; }
 
 # ── ML Kit ────────────────────────────────────────────────────
--keep class com.google.mlkit.** { *; }
 -dontwarn com.google.mlkit.**
 
 # ── General Kotlin ────────────────────────────────────────────

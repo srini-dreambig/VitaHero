@@ -65,12 +65,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        NotificationScheduler.createChannels(this)
+        runCatching { NotificationScheduler.createChannels(this) }
         handleInviteDeepLink(intent)
 
         setContent {
-            val app = application as VitaHeroApplication
-            val factory = remember { VitaHeroViewModelFactory(app, app.appContainer) }
+            val app = runCatching { application as VitaHeroApplication }.getOrNull()
+            val container = app?.let {
+                runCatching { it.appContainer }.getOrNull()
+            } ?: remember { kallam.healthcare.data.AppContainer(application) }
+            val factory = remember(container) { VitaHeroViewModelFactory(application, container) }
             appViewModel = viewModel(factory = factory)
             kidsViewModel = viewModel(factory = factory)
 

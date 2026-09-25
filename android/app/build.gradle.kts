@@ -41,8 +41,8 @@ android {
         // uploaded — this is the first upload, and everything since then is
         // in it: one sign-in door, the clinician's review and release, the
         // dietician, server-side badges, the printable consent slip.
-        versionCode = 4
-        versionName = "1.1.0"
+        versionCode = 1789668235
+        versionName = "1.1.1"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //
@@ -97,11 +97,15 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             signingConfig = signingConfigs.findByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
         }
     }
 

@@ -187,6 +187,7 @@ fun AppNavigation(
     var pendingName by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(isLoggedIn, role) {
+        val currentRoute = navController.currentDestination?.route
         if (isLoggedIn) {
             // Keyed on the role as well as the session. The role arrives with
             // the profile, a moment after isLoggedIn flips, so keying on the
@@ -197,11 +198,13 @@ fun AppNavigation(
                 isDietician -> Routes.DIETICIAN
                 else -> Routes.MAIN
             }
-            navController.navigate(home) {
-                popUpTo(Routes.SPLASH) { inclusive = true }
-                launchSingleTop = true
+            if (currentRoute != home) {
+                navController.navigate(home) {
+                    popUpTo(Routes.SPLASH) { inclusive = true }
+                    launchSingleTop = true
+                }
             }
-        } else if (navController.currentDestination?.route !in SIGNED_OUT_ROUTES) {
+        } else if (currentRoute != null && currentRoute !in SIGNED_OUT_ROUTES) {
             // The session ended while the app was open — the server rejected
             // the token, rather than anyone tapping Log out. Only the explicit
             // logout used to navigate, so a parent whose session ended stayed

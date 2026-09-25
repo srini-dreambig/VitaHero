@@ -5,8 +5,18 @@ import android.util.Log
 import kallam.healthcare.data.AppContainer
 
 class VitaHeroApplication : Application() {
-    lateinit var appContainer: AppContainer
-        private set
+
+    private var _appContainer: AppContainer? = null
+
+    val appContainer: AppContainer
+        get() = _appContainer ?: synchronized(this) {
+            _appContainer ?: try {
+                AppContainer(this)
+            } catch (e: Exception) {
+                Log.e("VitaHero", "Failed to initialize AppContainer lazily", e)
+                AppContainer(this)
+            }.also { _appContainer = it }
+        }
 
     override fun onCreate() {
         super.onCreate()
@@ -18,6 +28,10 @@ class VitaHeroApplication : Application() {
             Log.e("VitaHero", "Uncaught exception on ${thread.name}", e)
             platform?.uncaughtException(thread, e)
         }
-        appContainer = AppContainer(this)
+        try {
+            _appContainer = AppContainer(this)
+        } catch (e: Exception) {
+            Log.e("VitaHero", "Failed to initialize AppContainer on onCreate", e)
+        }
     }
 }
