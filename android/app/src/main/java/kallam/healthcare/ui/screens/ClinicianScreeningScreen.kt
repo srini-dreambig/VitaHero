@@ -441,6 +441,14 @@ private fun NumberField(
     )
 }
 
+private fun formatOptionLabel(option: String): String {
+    if (option.startsWith("<") || option.contains("6/")) return option
+    return option.split(" ").joinToString(" ") { word ->
+        if (word == "/" || word == "&") word
+        else word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+    }
+}
+
 /** A short closed list, as chips: a dropdown is two taps for four options. */
 @Composable
 private fun ChoiceField(
@@ -457,23 +465,28 @@ private fun ChoiceField(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(6.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (o in options) {
-                val on = fields[key] == o
-                Text(
-                    o,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            if (on) HeroOrange.copy(alpha = 0.16f)
-                            else MaterialTheme.colorScheme.surfaceVariant
+        val rows = options.chunked(3)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            for (row in rows) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    for (o in row) {
+                        val on = fields[key] == o
+                        Text(
+                            formatOptionLabel(o),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(
+                                    if (on) HeroOrange.copy(alpha = 0.16f)
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .clickable { fields[key] = if (on) "" else o }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
+                            color = if (on) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        .clickable { fields[key] = if (on) "" else o }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
-                    color = if (on) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                    }
+                }
             }
         }
     }
@@ -499,35 +512,14 @@ private fun MultiChoiceField(
     val selected = remember(fields[key]) {
         (fields[key] ?: "").split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
     }
+    val rows = options.chunked(3)
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (o in options.take(3)) {
-                val on = o in selected
-                Text(
-                    o,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            if (on) HeroOrange.copy(alpha = 0.16f)
-                            else MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        .clickable {
-                            val newSet = if (on) selected - o else selected + o
-                            fields[key] = newSet.joinToString(",")
-                        }
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
-                    color = if (on) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        if (options.size > 3) {
+        for (row in rows) {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (o in options.drop(3)) {
+                for (o in row) {
                     val on = o in selected
                     Text(
-                        o,
+                        formatOptionLabel(o),
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
                             .background(
