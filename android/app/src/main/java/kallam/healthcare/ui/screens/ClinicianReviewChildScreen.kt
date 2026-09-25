@@ -262,6 +262,28 @@ fun ClinicianReviewChildScreen(
     }
 }
 
+private fun formatDetailKey(key: String): String = when (key) {
+    "heightCm" -> "height"
+    "weightKg" -> "weight"
+    "leftAcuity" -> "left eye"
+    "rightAcuity" -> "right eye"
+    "leftHearing" -> "left ear"
+    "rightHearing" -> "right ear"
+    "cariesCount" -> "caries"
+    "missingCount" -> "missing"
+    "filledCount" -> "filled"
+    "stainsTartar" -> "stains/tartar"
+    "skinCondition" -> "condition"
+    "skinLocation" -> "location"
+    "gaitLimb" -> "gait/limb"
+    "jointPain" -> "joint pain"
+    "restrictedMotion" -> "restricted motion"
+    "vaccineStatus" -> "vaccine status"
+    "missedVaccines" -> "missed vaccines"
+    "entTreatment", "skinTreatment", "spineTreatment", "vaccineTreatment", "hbTreatment", "treatmentNeeded", "treatmentsRecommended" -> "rec"
+    else -> key.replace(Regex("([a-z])([A-Z])"), "$1 $2").lowercase()
+}
+
 @Composable
 private fun FindingCard(
     finding: ReviewFindingDto,
@@ -278,12 +300,12 @@ private fun FindingCard(
             // What was actually measured, in the clinician's own terms. Without
             // it a physician is asked to endorse a flag without seeing the
             // number behind it.
-            val measured = finding.detail.entries.joinToString("  ") { (k, v) ->
-                // .content, not toString(): a JSON string renders itself with
-                // its quotes, so a gum reading came out as gums "bleeding".
-                val shown = (v as? JsonPrimitive)?.content ?: v.toString()
-                "$k $shown"
-            }
+            val measured = finding.detail.entries
+                .filter { (k, _) -> k != "__note" }
+                .joinToString(" · ") { (k, v) ->
+                    val shown = (v as? JsonPrimitive)?.content ?: v.toString()
+                    "${formatDetailKey(k)}: $shown"
+                }
             if (measured.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
