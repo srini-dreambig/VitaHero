@@ -38,9 +38,11 @@ class ClinicianRepository {
 
     private suspend fun <T> io(block: suspend () -> T): T = withContext(Dispatchers.IO) { block() }
 
+    private val isDemo: Boolean get() = !configured || ApiService.sessionToken?.startsWith("demo_") == true
+
     /** The camps this clinician has been put on, and nothing else. */
     suspend fun myCamps(): List<ClinicianCampDto> = io {
-        if (!configured) return@io mockCamps()
+        if (isDemo) return@io mockCamps()
         try {
             val resp = http.get("$base/api/admin/my-camps") {
                 headers().forEach { (k, v) -> header(k, v) }
@@ -53,7 +55,7 @@ class ClinicianRepository {
     }
 
     suspend fun roster(campId: String): CampRosterDto = io {
-        if (!configured) return@io mockRoster()
+        if (isDemo) return@io mockRoster()
         try {
             val resp = http.get("$base/api/admin/camps/$campId/participants") {
                 headers().forEach { (k, v) -> header(k, v) }
@@ -66,7 +68,7 @@ class ClinicianRepository {
     }
 
     suspend fun screeningForm(campId: String, kidId: String): ScreeningFormDto? = io {
-        if (!configured) return@io mockForm(kidId)
+        if (isDemo) return@io mockForm(kidId)
         try {
             val resp = http.get("$base/api/admin/camps/$campId/screening/$kidId") {
                 headers().forEach { (k, v) -> header(k, v) }
