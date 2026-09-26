@@ -41,8 +41,8 @@ android {
         // uploaded — this is the first upload, and everything since then is
         // in it: one sign-in door, the clinician's review and release, the
         // dietician, server-side badges, the printable consent slip.
-        versionCode = 1789668236
-        versionName = "1.1.2"
+        versionCode = 1789668237
+        versionName = "1.1.3"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //

@@ -37,6 +37,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.ClinicianViewModel
 import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.HeroSingleSelectDropdown
+import kallam.healthcare.ui.components.HeroMultiSelectDropdown
+import kallam.healthcare.ui.components.HeroFormSectionHeader
 import kallam.healthcare.ui.components.Notice
 import kallam.healthcare.ui.components.PrimaryGradientButton
 import kallam.healthcare.ui.components.StatusBarSpacer
@@ -304,24 +307,24 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             NumberField("Weight (kg)", fields, "weightKg", Modifier.weight(1f))
         }
         "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Visual Acuity (Snellen)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Visual Acuity (Snellen)")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ChoiceField("Left eye", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
                 ChoiceField("Right eye", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
             }
             Spacer(Modifier.height(2.dp))
-            Text("Eye Health & Alignment", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Eye Health & Alignment")
             ChoiceField("Glasses Status", GLASSES_STATUS, fields, "glassesWorn", Modifier.fillMaxWidth())
             ChoiceField("Color Vision", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
             ChoiceField("External Anterior Exam", EYE_EXTERNAL, fields, "externalExam", Modifier.fillMaxWidth())
             ToggleField("Strabismus / Squint noted", fields, "squint")
 
             Spacer(Modifier.height(2.dp))
-            Text("Recommended Vision Interventions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            MultiChoiceField(VISION_TREATMENTS, fields, "treatmentsRecommended")
+            HeroFormSectionHeader("Recommended Interventions")
+            MultiChoiceField(VISION_TREATMENTS, fields, "treatmentsRecommended", label = "")
         }
         "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Tooth Index (dmft/DMFT)", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Tooth Index (dmft/DMFT)")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NumberField("Carious", fields, "cariesCount", Modifier.weight(1f))
                 NumberField("Missing", fields, "missingCount", Modifier.weight(1f))
@@ -329,90 +332,90 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             }
 
             Spacer(Modifier.height(2.dp))
-            Text("Gums & Oral Hygiene", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Gums & Oral Hygiene")
             ChoiceField("Gums Condition", GUMS, fields, "gums", Modifier.fillMaxWidth())
             ChoiceField("Oral Hygiene Index", HYGIENE, fields, "hygiene", Modifier.fillMaxWidth())
             ToggleField("Stains / Tartar / Calculus noted", fields, "stainsTartar")
 
             Spacer(Modifier.height(2.dp))
-            Text("Enamel & Alignment", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Enamel & Alignment")
             ChoiceField("Dental Fluorosis", FLUOROSIS, fields, "fluorosis", Modifier.fillMaxWidth())
             ChoiceField("Occlusion / Alignment", MALOCCLUSION, fields, "malocclusion", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            Text("Symptoms & Trauma", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Symptoms & Trauma")
             ToggleField("Reports Toothache / Pain", fields, "pain")
             ToggleField("Hot/Cold Sensitivity", fields, "sensitivity")
             ToggleField("Chipped / Fractured Tooth", fields, "trauma")
 
             Spacer(Modifier.height(2.dp))
-            Text("Recommended Treatment", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded")
+            HeroFormSectionHeader("Recommended Treatment")
+            MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded", label = "")
         }
         "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Hearing Screening", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Hearing Screening")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ChoiceField("Left Ear", HEARING_ACUITY, fields, "leftHearing", Modifier.weight(1f))
                 ChoiceField("Right Ear", HEARING_ACUITY, fields, "rightHearing", Modifier.weight(1f))
             }
             Spacer(Modifier.height(2.dp))
-            Text("Clinical Examination", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Clinical Examination")
             ChoiceField("Ear Canals / Tympanic", EAR_EXAM, fields, "earExam", Modifier.fillMaxWidth())
             ChoiceField("Nasal Cavity", NASAL_EXAM, fields, "nasalExam", Modifier.fillMaxWidth())
             ChoiceField("Throat & Tonsils", THROAT_EXAM, fields, "throatExam", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            Text("Recommended ENT Care", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            MultiChoiceField(ENT_TREATMENTS, fields, "entTreatment")
+            HeroFormSectionHeader("Recommended ENT Care")
+            MultiChoiceField(ENT_TREATMENTS, fields, "entTreatment", label = "")
         }
         "Skin" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Dermatological Exam", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Dermatological Exam")
             ChoiceField("Primary Skin Finding", SKIN_CONDITIONS, fields, "skinCondition", Modifier.fillMaxWidth())
             ChoiceField("Lesion Distribution / Location", SKIN_LOCATIONS, fields, "skinLocation", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            Text("Symptoms & Parasitic Screening", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Symptoms & Parasitic Screening")
             ToggleField("Pruritus / Active Itching", fields, "itching")
             ToggleField("Scalp Pediculosis / Head Lice", fields, "lice")
 
             Spacer(Modifier.height(2.dp))
-            Text("Recommended Dermatology Interventions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            MultiChoiceField(SKIN_TREATMENTS, fields, "skinTreatment")
+            HeroFormSectionHeader("Recommended Interventions")
+            MultiChoiceField(SKIN_TREATMENTS, fields, "skinTreatment", label = "")
         }
         "Spine" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Musculoskeletal Assessment", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Musculoskeletal Assessment")
             ChoiceField("Spinal Posture & Alignment", POSTURE_ALIGN, fields, "posture", Modifier.fillMaxWidth())
             ChoiceField("Gait & Lower Limb Assessment", GAIT_LIMB, fields, "gaitLimb", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            Text("Functional Symptoms", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Functional Symptoms")
             ToggleField("Joint Pain or Swelling", fields, "jointPain")
             ToggleField("Restricted Range of Motion", fields, "restrictedMotion")
 
             Spacer(Modifier.height(2.dp))
-            Text("Recommended Orthopaedic Interventions", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            MultiChoiceField(SPINE_TREATMENTS, fields, "spineTreatment")
+            HeroFormSectionHeader("Recommended Interventions")
+            MultiChoiceField(SPINE_TREATMENTS, fields, "spineTreatment", label = "")
         }
         "Immunisation review" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Immunization Status", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Immunization Status")
             ChoiceField("Overall Vaccine Status", VACCINE_STATUS, fields, "vaccineStatus", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            Text("Missed Routine Immunizations", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            MultiChoiceField(MISSED_VACCINES, fields, "missedVaccines")
+            HeroFormSectionHeader("Missed Routine Immunizations")
+            MultiChoiceField(MISSED_VACCINES, fields, "missedVaccines", label = "")
 
             Spacer(Modifier.height(2.dp))
-            Text("Recommended Action", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            MultiChoiceField(VACCINE_TREATMENTS, fields, "vaccineTreatment")
+            HeroFormSectionHeader("Recommended Action")
+            MultiChoiceField(VACCINE_TREATMENTS, fields, "vaccineTreatment", label = "")
         }
         "Haemoglobin" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("Anaemia Screening", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            HeroFormSectionHeader("Anaemia Screening")
             NumberField("Haemoglobin Level (g/dL)", fields, "hb", Modifier.fillMaxWidth())
             ChoiceField("Clinical Pallor Sign", PALLOR, fields, "pallor", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            Text("Recommended Anaemia Management", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-            MultiChoiceField(HB_TREATMENTS, fields, "hbTreatment")
+            HeroFormSectionHeader("Recommended Anaemia Management")
+            MultiChoiceField(HB_TREATMENTS, fields, "hbTreatment", label = "")
         }
         else -> Text(
             "This check has no form in the app yet. Record it in the console.",
@@ -449,7 +452,7 @@ private fun formatOptionLabel(option: String): String {
     }
 }
 
-/** A short closed list, as chips: a dropdown is two taps for four options. */
+/** Standardized Single-Select Dropdown Field. */
 @Composable
 private fun ChoiceField(
     label: String,
@@ -458,38 +461,13 @@ private fun ChoiceField(
     key: String,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(6.dp))
-        val rows = options.chunked(3)
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            for (row in rows) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (o in row) {
-                        val on = fields[key] == o
-                        Text(
-                            formatOptionLabel(o),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(
-                                    if (on) HeroOrange.copy(alpha = 0.16f)
-                                    else MaterialTheme.colorScheme.surfaceVariant
-                                )
-                                .clickable { fields[key] = if (on) "" else o }
-                                .padding(horizontal = 10.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
-                            color = if (on) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-    }
+    HeroSingleSelectDropdown(
+        label = label,
+        options = options,
+        selected = fields[key] ?: "",
+        onSelect = { fields[key] = it },
+        modifier = modifier
+    )
 }
 
 @Composable
@@ -503,42 +481,25 @@ private fun ToggleField(label: String, fields: MutableMap<String, String>, key: 
     }
 }
 
+/** Standardized Multi-Select Dropdown Field. */
 @Composable
 private fun MultiChoiceField(
     options: List<String>,
     fields: MutableMap<String, String>,
     key: String,
+    modifier: Modifier = Modifier,
+    label: String = "Recommended Interventions"
 ) {
-    val selected = remember(fields[key]) {
+    val selectedSet = remember(fields[key]) {
         (fields[key] ?: "").split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
     }
-    val rows = options.chunked(3)
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (row in rows) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                for (o in row) {
-                    val on = o in selected
-                    Text(
-                        formatOptionLabel(o),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(
-                                if (on) HeroOrange.copy(alpha = 0.16f)
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            .clickable {
-                                val newSet = if (on) selected - o else selected + o
-                                fields[key] = newSet.joinToString(",")
-                            }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (on) FontWeight.Bold else FontWeight.Medium,
-                        color = if (on) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
+    HeroMultiSelectDropdown(
+        label = label,
+        options = options,
+        selected = selectedSet,
+        onSelect = { newSet -> fields[key] = newSet.joinToString(",") },
+        modifier = modifier
+    )
 }
 
 /** A plain copy of the live field map, taken at the moment Save is pressed. */

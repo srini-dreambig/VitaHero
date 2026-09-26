@@ -43,6 +43,8 @@ import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.S
 import kallam.healthcare.data.SymptomEventDto
 import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.HeroSingleSelectDropdown
+import kallam.healthcare.ui.components.HeroSegmentedPicker
 import kallam.healthcare.ui.components.PrimaryGradientButton
 import kallam.healthcare.ui.components.StatusBarSpacer
 import kallam.healthcare.ui.components.t
@@ -174,35 +176,26 @@ fun SymptomScreen(
         item {
             HeroCard(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp)) {
-                    Text(
-                        t(S.whatHappened),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
+                    HeroSingleSelectDropdown(
+                        label = t(S.whatHappened),
+                        options = log.symptoms,
+                        selected = symptom,
+                        onSelect = { symptom = it },
+                        placeholder = "Select reported symptom..."
                     )
-                    Spacer(Modifier.height(10.dp))
-                    ChipGrid(log.symptoms, symptom) { symptom = it }
+
+                    val mildText = t(S.severityMild)
+                    val modText = t(S.severityModerate)
+                    HeroSegmentedPicker(
+                        label = t(S.howBad),
+                        options = listOf(mildText, modText),
+                        selected = if (severity == "MILD") mildText else modText,
+                        onSelect = { chosen ->
+                            severity = if (chosen == mildText) "MILD" else "MODERATE"
+                        }
+                    )
 
                     Spacer(Modifier.height(16.dp))
-                    Text(
-                        t(S.howBad),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Choice(t(S.severityMild), severity == "MILD") { severity = "MILD" }
-                        Choice(t(S.severityModerate), severity == "MODERATE") { severity = "MODERATE" }
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-                    Text(
-                        t(S.whenStarted),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    // Days back rather than a date picker: a parent remembers
-                    // "the day before yesterday", not the 14th.
                     val dayChoices = listOf(
                         0 to t(S.dayToday),
                         1 to t(S.dayYesterday),
@@ -211,12 +204,15 @@ fun SymptomScreen(
                         5 to tf(S.dayNAgo, "5"),
                         7 to tf(S.dayNAgo, "7"),
                     )
-                    ChipGrid(
+                    HeroSingleSelectDropdown(
+                        label = t(S.whenStarted),
                         options = dayChoices.map { it.second },
-                        selected = dayChoices.first { it.first == daysAgo }.second,
-                    ) { chosen ->
-                        daysAgo = dayChoices.first { it.second == chosen }.first
-                    }
+                        selected = dayChoices.firstOrNull { it.first == daysAgo }?.second ?: "",
+                        onSelect = { chosen ->
+                            daysAgo = dayChoices.firstOrNull { it.second == chosen }?.first ?: 0
+                        },
+                        placeholder = "Select start day..."
+                    )
 
                     Spacer(Modifier.height(14.dp))
                     CheckRow(t(S.stillUnwell), stillGoing) { stillGoing = it }
