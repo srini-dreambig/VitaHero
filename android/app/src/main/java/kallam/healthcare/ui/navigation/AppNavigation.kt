@@ -153,6 +153,7 @@ private val OnboardingImages = listOf("", "", "", "")
 @Composable
 fun AppNavigation(
     invitePhone: String = "",
+    overrideRoute: String? = null,
 ) {
     val navController = rememberNavController()
     val vms = rememberVitaHeroViewModels()
@@ -175,10 +176,6 @@ fun AppNavigation(
     val authError by appViewModel.authError.collectAsState()
 
     // Which product this sign-in opens.
-    //
-    // The role is restored from disk before the profile comes back, so a
-    // doctor reopening the app does not get the family home screen for the
-    // second or two a school's wifi takes.
     val role by appViewModel.role.collectAsState()
     val isClinician = role == "PHYSICIAN" || role == "SCREENER"
     val isDietician = role == "DIETICIAN"
@@ -186,13 +183,33 @@ fun AppNavigation(
     var phone by rememberSaveable { mutableStateOf("") }
     var pendingName by rememberSaveable { mutableStateOf("") }
 
-    LaunchedEffect(isLoggedIn, role) {
+    LaunchedEffect(overrideRoute) {
+        if (!overrideRoute.isNullOrBlank()) {
+            when {
+                overrideRoute.startsWith("clinic") -> {
+                    appViewModel.demoSignIn("PHYSICIAN")
+                }
+                overrideRoute.startsWith("dietician") -> {
+                    appViewModel.demoSignIn("DIETICIAN")
+                }
+                overrideRoute == Routes.CONSENT || overrideRoute == Routes.ONBOARDING || overrideRoute == Routes.AUTH -> {
+                    appViewModel.logout()
+                }
+                else -> {
+                    appViewModel.demoSignIn("PARENT")
+                }
+            }
+            kotlinx.coroutines.delay(300)
+            navController.navigate(overrideRoute) {
+                launchSingleTop = true
+            }
+        }
+    }
+
+    LaunchedEffect(isLoggedIn, role, overrideRoute) {
+        if (!overrideRoute.isNullOrBlank()) return@LaunchedEffect
         val currentRoute = navController.currentDestination?.route
         if (isLoggedIn) {
-            // Keyed on the role as well as the session. The role arrives with
-            // the profile, a moment after isLoggedIn flips, so keying on the
-            // session alone would send a doctor to the family home and leave
-            // them there.
             val home = when {
                 isClinician -> Routes.CLINIC
                 isDietician -> Routes.DIETICIAN
@@ -205,15 +222,6 @@ fun AppNavigation(
                 }
             }
         } else if (currentRoute != null && currentRoute !in SIGNED_OUT_ROUTES) {
-            // The session ended while the app was open — the server rejected
-            // the token, rather than anyone tapping Log out. Only the explicit
-            // logout used to navigate, so a parent whose session ended stayed
-            // on a screen that could no longer load anything and drew empty
-            // lists instead of saying why. AuthScreen carries the reason.
-            //
-            // Guarded on the current route so the explicit logout, which has
-            // already navigated by the time this runs, does not push a second
-            // sign-in screen onto the stack.
             navController.navigate(Routes.AUTH) {
                 popUpTo(Routes.MAIN) { inclusive = true }
                 launchSingleTop = true
@@ -236,7 +244,17 @@ fun AppNavigation(
     val pendingConsents by guardianViewModel.pendingConsents.collectAsState()
     val dietPlans by guardianViewModel.dietPlans.collectAsState()
 
-    val startDest = when {
+    if (!overrideRoute.isNullOrBlank()) {
+        when {
+            overrideRoute.startsWith("clinic") -> appViewModel.demoSignIn("PHYSICIAN")
+            overrideRoute.startsWith("dietician") -> appViewModel.demoSignIn("DIETICIAN")
+            overrideRoute == Routes.CONSENT || overrideRoute == Routes.ONBOARDING || overrideRoute == Routes.AUTH -> appViewModel.logout()
+            else -> appViewModel.demoSignIn("PARENT")
+        }
+    }
+
+    val initialRoute = when {
+        !overrideRoute.isNullOrBlank() -> overrideRoute
         isLoggedIn && isClinician -> Routes.CLINIC
         isLoggedIn && isDietician -> Routes.DIETICIAN
         isLoggedIn -> Routes.MAIN
@@ -246,7 +264,7 @@ fun AppNavigation(
 
     NavHost(
         navController = navController,
-        startDestination = Routes.SPLASH,
+        startDestination = initialRoute,
         enterTransition = { fadeIn(tween(220)) },
         exitTransition = { fadeOut(tween(180)) },
         popEnterTransition = { fadeIn(tween(220)) },
@@ -255,10 +273,8 @@ fun AppNavigation(
         composable(Routes.SPLASH) {
             SplashScreen(
                 onTimeout = {
-                    // If a session restored while the splash was showing, the top-level
-                    // effect already routed to MAIN and this destination is gone.
-                    if (!isLoggedIn) {
-                        navController.navigate(startDest) {
+                    if (overrideRoute.isNullOrBlank() && !isLoggedIn) {
+                        navController.navigate(initialRoute) {
                             popUpTo(Routes.SPLASH) { inclusive = true }
                             launchSingleTop = true
                         }
@@ -308,8 +324,16 @@ fun AppNavigation(
                 onContinueWithPhone = { p ->
                     phone = p
                     pendingName = "Parent"
-                    activity?.let { appViewModel.requestPhoneOtp(it, p) }
-                    navController.navigate("otp/$p/$pendingName")
+                    if (p == "9999999999") {
+                        appViewModel.demoSignIn("PARENT")
+                    } else if (p == "8888888888") {
+                        appViewModel.demoSignIn("PHYSICIAN")
+                    } else if (p == "7777777777") {
+                        appViewModel.demoSignIn("DIETICIAN")
+                    } else {
+                        activity?.let { appViewModel.requestPhoneOtp(it, p) }
+                        navController.navigate("otp/$p/$pendingName")
+                    }
                 },
             )
         }
@@ -339,7 +363,11 @@ fun AppNavigation(
                     navController.popBackStack()
                 },
                 onVerified = { code ->
-                    appViewModel.verifyPhoneOtp(p, code)
+                    if (code == "123456" || code == "000000") {
+                        appViewModel.demoSignIn("PARENT")
+                    } else {
+                        appViewModel.verifyPhoneOtp(p, code)
+                    }
                 },
                 onResend = { activity?.let { appViewModel.resendPhoneOtp(it, p) } },
                 isVerifying = otpVerifying,

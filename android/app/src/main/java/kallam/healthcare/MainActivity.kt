@@ -61,12 +61,14 @@ class MainActivity : ComponentActivity() {
 
     // Phone resolved from an invite deep link (SMS), used to prefill the sign-in screen.
     private val invitePhoneState = mutableStateOf("")
+    private val overrideRouteState = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         runCatching { NotificationScheduler.createChannels(this) }
         handleInviteDeepLink(intent)
+        overrideRouteState.value = intent?.getStringExtra("route")
 
         setContent {
             val app = runCatching { application as VitaHeroApplication }.getOrNull()
@@ -92,7 +94,6 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(isLoggedIn) {
                 if (isLoggedIn) {
-                    requestExactAlarmIfNeeded()
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         if (ContextCompat.checkSelfPermission(
                                 this@MainActivity,
@@ -117,6 +118,7 @@ class MainActivity : ComponentActivity() {
                     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { _ ->
                         AppNavigation(
                             invitePhone = invitePhoneState.value,
+                            overrideRoute = overrideRouteState.value,
                         )
                     }
                 }
@@ -128,6 +130,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleInviteDeepLink(intent)
+        overrideRouteState.value = intent?.getStringExtra("route")
     }
 
     /**

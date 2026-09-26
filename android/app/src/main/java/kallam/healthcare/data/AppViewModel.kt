@@ -140,6 +140,46 @@ class AppViewModel(
     }
 
     fun completeOnboarding() = auth.completeOnboarding()
+    fun demoSignIn(role: String = "PARENT") {
+        auth.demoSignIn(role)
+        val sampleKid = Kid(
+            id = "k1",
+            name = "Aarav Kallam",
+            age = 7,
+            gender = "Boy",
+            school = "Oakridge International School",
+            grade = "Grade 2",
+            heightCm = 122f,
+            weightKg = 24f,
+            avatarColor = 0xFF10B981L,
+            overallScore = 88,
+            growth = listOf(
+                GrowthPoint(id = "gp1", label = "Jan 2026", height = 120f, weight = 23f),
+                GrowthPoint(id = "gp2", label = "Sep 2026", height = 122f, weight = 24f)
+            ),
+            dental = HealthFlag.GOOD,
+            eyesight = HealthFlag.WATCH,
+            nutrition = HealthFlag.GOOD,
+            lastCheckup = "2026-08-15"
+        )
+        val sampleCamp = Camp(
+            id = "c1",
+            title = "Oakridge Annual Health Screening 2026",
+            school = "Oakridge International School",
+            date = "2026-09-26",
+            time = "09:00 AM",
+            status = CampStatus.IN_PROGRESS,
+            checks = listOf("General", "Dental", "Vision"),
+            resultSummary = "Screening in progress"
+        )
+        container.state.uiState.update { current ->
+            current.copy(
+                kids = listOf(sampleKid),
+                camps = listOf(sampleCamp),
+                parentName = if (role == "PHYSICIAN") "Dr. Kallam" else "Kallam Family"
+            )
+        }
+    }
 
     fun requestPhoneOtp(activity: Activity, phone: String) = auth.requestPhoneOtp(activity, phone)
     fun resendPhoneOtp(activity: Activity, phone: String) = auth.resendPhoneOtp(activity, phone)

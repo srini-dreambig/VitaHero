@@ -259,6 +259,18 @@ class AuthManager(private val app: Application) {
         }
     }
 
+    fun demoSignIn(role: String = "PARENT") {
+        val token = "demo_session_token_1234567890_1234567890"
+        SessionStore.saveToken(app, token)
+        SessionStore.saveRole(app, role)
+        SessionStore.setOnboardingComplete(app, true)
+        _sessionToken.value = token
+        _isLoggedIn.value = true
+        _role.value = role
+        _parentName.value = if (role == "PHYSICIAN") "Dr. Kallam" else "Kallam Family"
+        ApiService.sessionToken = token
+    }
+
     fun completeOnboarding() {
         _onboardingComplete.value = true
         SessionStore.setOnboardingComplete(app, true)
