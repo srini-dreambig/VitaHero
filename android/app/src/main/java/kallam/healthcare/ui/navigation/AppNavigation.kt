@@ -192,15 +192,26 @@ fun AppNavigation(
                 overrideRoute.startsWith("dietician") -> {
                     appViewModel.demoSignIn("DIETICIAN")
                 }
-                overrideRoute == Routes.CONSENT || overrideRoute == Routes.ONBOARDING || overrideRoute == Routes.AUTH -> {
+                overrideRoute == Routes.CONSENT -> {
                     appViewModel.logout()
+                }
+                overrideRoute == Routes.ONBOARDING -> {
+                    appViewModel.logout()
+                    appViewModel.acceptConsent("FAM123")
+                    appViewModel.setOnboardingComplete(false)
+                }
+                overrideRoute == Routes.AUTH -> {
+                    appViewModel.logout()
+                    appViewModel.acceptConsent("FAM123")
+                    appViewModel.setOnboardingComplete(true)
                 }
                 else -> {
                     appViewModel.demoSignIn("PARENT")
                 }
             }
-            kotlinx.coroutines.delay(300)
+            kotlinx.coroutines.delay(100)
             navController.navigate(overrideRoute) {
+                popUpTo(0) { inclusive = true }
                 launchSingleTop = true
             }
         }
@@ -248,7 +259,17 @@ fun AppNavigation(
         when {
             overrideRoute.startsWith("clinic") -> appViewModel.demoSignIn("PHYSICIAN")
             overrideRoute.startsWith("dietician") -> appViewModel.demoSignIn("DIETICIAN")
-            overrideRoute == Routes.CONSENT || overrideRoute == Routes.ONBOARDING || overrideRoute == Routes.AUTH -> appViewModel.logout()
+            overrideRoute == Routes.CONSENT -> appViewModel.logout()
+            overrideRoute == Routes.ONBOARDING -> {
+                appViewModel.logout()
+                appViewModel.acceptConsent("FAM123")
+                appViewModel.setOnboardingComplete(false)
+            }
+            overrideRoute == Routes.AUTH -> {
+                appViewModel.logout()
+                appViewModel.acceptConsent("FAM123")
+                appViewModel.setOnboardingComplete(true)
+            }
             else -> appViewModel.demoSignIn("PARENT")
         }
     }

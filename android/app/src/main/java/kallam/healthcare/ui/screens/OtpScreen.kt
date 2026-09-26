@@ -249,7 +249,7 @@ fun OtpScreen(
                                     } else {
                                         Text(
                                             char,
-                                            fontSize = 24.sp,
+                                            style = MaterialTheme.typography.headlineLarge,
                                             fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )

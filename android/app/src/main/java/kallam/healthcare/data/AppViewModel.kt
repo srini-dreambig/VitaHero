@@ -140,6 +140,7 @@ class AppViewModel(
     }
 
     fun completeOnboarding() = auth.completeOnboarding()
+    fun setOnboardingComplete(v: Boolean) = auth.setOnboardingComplete(v)
     fun demoSignIn(role: String = "PARENT") {
         auth.demoSignIn(role)
         val sampleKid = Kid(

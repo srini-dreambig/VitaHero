@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,12 +19,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.LocalHospital
+import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Verified
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -32,16 +45,21 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import kallam.healthcare.R
 import kallam.healthcare.data.S
+import kallam.healthcare.ui.components.IconBubble
 import kallam.healthcare.ui.components.PrimaryGradientButton
 import kallam.healthcare.ui.components.t
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
 import kallam.healthcare.ui.theme.HeroBlue
 import kallam.healthcare.ui.theme.HeroOrange
 import kotlinx.coroutines.launch
@@ -98,22 +116,22 @@ fun OnboardingScreen(
             Row(
                 Modifier
                     .fillMaxWidth()
-                    // Was a flat 36dp, which is a guess at the status bar and
-                    // wrong on any phone with a cutout — the logo and Skip sat
-                    // underneath it. Every other screen in the app uses the
-                    // real inset; this one was missed.
                     .windowInsetsPadding(WindowInsets.statusBars)
-                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                    .padding(horizontal = AppSpacing.lg, vertical = AppSpacing.xs),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.vitahero_logo),
                     contentDescription = "VitaHero",
-                    modifier = Modifier.height(40.dp)
+                    modifier = Modifier.height(36.dp)
                 )
                 TextButton(onClick = onFinish) {
-                    Text(t(S.skip), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        t(S.skip),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -127,7 +145,7 @@ fun OnboardingScreen(
                 Column(
                     Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 24.dp),
+                        .padding(horizontal = AppSpacing.xxl),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Box(
@@ -138,59 +156,60 @@ fun OnboardingScreen(
                     ) {
                         Box(
                             Modifier
-                                // Sized from the height it has, not the width.
-                                // `fillMaxWidth().aspectRatio(0.78f)` derives
-                                // height from width, so on a landscape screen
-                                // 800dp wide it asked for 1025dp of height and
-                                // ran off the bottom. Matching the height
-                                // constraint first fits both orientations.
                                 .fillMaxHeight()
-                                .aspectRatio(0.78f, matchHeightConstraintsFirst = true)
-                                .clip(RoundedCornerShape(32.dp))
-                                .background(slide.accent.copy(alpha = 0.08f))
+                                .aspectRatio(0.82f, matchHeightConstraintsFirst = true)
+                                .clip(RoundedCornerShape(AppCorners.xlarge))
+                                .background(slide.accent.copy(alpha = 0.06f))
+                                .border(
+                                    1.dp,
+                                    slide.accent.copy(alpha = 0.18f),
+                                    RoundedCornerShape(AppCorners.xlarge)
+                                )
                         ) {
-                            if (slide.image.isNotEmpty()) {
+                            if (slide.image.isNotBlank()) {
                                 AsyncImage(
                                     model = slide.image,
                                     contentDescription = slide.title,
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
                                 )
+                            } else {
+                                OnboardingVisualHero(page = page, accent = slide.accent)
                             }
                         }
                     }
-                    Spacer(Modifier.height(28.dp))
+                    Spacer(Modifier.height(AppSpacing.xl))
                     Text(
                         slide.title,
                         style = MaterialTheme.typography.displayMedium,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     Text(
                         slide.subtitle,
                         style = MaterialTheme.typography.bodyLarge,
                         textAlign = TextAlign.Center,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                 }
             }
 
-            // Dots
+            // Dots Indicator
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 20.dp),
+                    .padding(vertical = AppSpacing.lg),
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 repeat(slides.size) { i ->
                     val selected = pager.currentPage == i
-                    val width by animateDpAsState(if (selected) 26.dp else 8.dp, label = "dotW")
+                    val width by animateDpAsState(if (selected) 28.dp else 8.dp, label = "dotW")
                     val color by animateColorAsState(
                         if (selected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.outline,
+                        else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f),
                         label = "dotC"
                     )
                     Box(
@@ -207,8 +226,8 @@ fun OnboardingScreen(
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 40.dp)
+                    .padding(horizontal = AppSpacing.xxl)
+                    .padding(bottom = AppSpacing.xxl)
             ) {
                 PrimaryGradientButton(
                     text = if (isLast) t(S.createAccount) else t(S.next),
@@ -222,3 +241,322 @@ fun OnboardingScreen(
         }
     }
 }
+
+/**
+ * Handcrafted vector visual hero composable for instant 0ms slide rendering.
+ */
+@Composable
+private fun OnboardingVisualHero(
+    page: Int,
+    accent: Color
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        accent.copy(alpha = 0.12f),
+                        accent.copy(alpha = 0.03f)
+                    )
+                )
+            )
+            .padding(AppSpacing.lg),
+        contentAlignment = Alignment.Center
+    ) {
+        when (page) {
+            0 -> OnboardingVitalsCard(accent)
+            1 -> OnboardingTriageCard(accent)
+            2 -> OnboardingNutritionCard(accent)
+            else -> OnboardingTeleconsultCard(accent)
+        }
+    }
+}
+
+@Composable
+private fun OnboardingVitalsCard(accent: Color) {
+    Surface(
+        shape = RoundedCornerShape(AppCorners.large),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 6.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(AppSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+            ) {
+                IconBubble(icon = Icons.Default.Favorite, tint = accent, size = 40.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Live Kid Vitals Tracker",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Aarav Kallam · 7 Yrs",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    Icons.Default.Verified,
+                    contentDescription = null,
+                    tint = HeroBlue,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                MetricPill("Height", "122 cm", HeroBlue)
+                MetricPill("Weight", "23 kg", HeroOrange)
+                MetricPill("Heart Rate", "78 bpm", Color(0xFF10B981))
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AppCorners.medium))
+                    .background(accent.copy(alpha = 0.1f))
+                    .padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
+                ) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        "Oakridge Health Camp Sync: Optimal Vitals",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = accent,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingTriageCard(accent: Color) {
+    Surface(
+        shape = RoundedCornerShape(AppCorners.large),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 6.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(AppSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+            ) {
+                IconBubble(icon = Icons.Default.Psychology, tint = accent, size = 40.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "AI Symptom Triage Engine",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Instant Pediatric Guidance",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = 0.15f))
+                        .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxs)
+                ) {
+                    Text(
+                        "98.4% Confidence",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = accent
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AppCorners.medium))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                    .padding(AppSpacing.md)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+                    Text(
+                        "Triage Finding: Mild Seasonal Runny Nose",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Recommendation: Warm fluids, rest, monitor temp.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingNutritionCard(accent: Color) {
+    Surface(
+        shape = RoundedCornerShape(AppCorners.large),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 6.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(AppSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+            ) {
+                IconBubble(icon = Icons.Default.Restaurant, tint = accent, size = 40.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "AI Snap Meal Analyzer",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Balanced Meal Certified",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                MetricPill("Protein", "18g", accent)
+                MetricPill("Carbs", "42g", HeroBlue)
+                MetricPill("Fiber", "8g", Color(0xFF10B981))
+            }
+        }
+    }
+}
+
+@Composable
+private fun OnboardingTeleconsultCard(accent: Color) {
+    Surface(
+        shape = RoundedCornerShape(AppCorners.large),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = 6.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(AppSpacing.lg),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
+            ) {
+                IconBubble(icon = Icons.Default.LocalHospital, tint = accent, size = 40.dp)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Dr. Ananya Sharma",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Senior Pediatrician · Rainbow Children's",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(AppCorners.medium))
+                    .background(accent.copy(alpha = 0.12f))
+                    .padding(AppSpacing.md)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            "Next Teleconsult Available",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = accent
+                        )
+                        Text(
+                            "Today · 5:30 PM",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(AppCorners.pill))
+                            .background(accent)
+                            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
+                    ) {
+                        Text(
+                            "Book",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetricPill(label: String, value: String, accent: Color) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(AppCorners.medium))
+            .background(accent.copy(alpha = 0.08f))
+            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.titleSmall,
+            color = accent,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
