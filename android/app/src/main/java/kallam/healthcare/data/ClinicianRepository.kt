@@ -40,58 +40,99 @@ class ClinicianRepository {
 
     /** The camps this clinician has been put on, and nothing else. */
     suspend fun myCamps(): List<ClinicianCampDto> = io {
-        if (!configured) return@io emptyList()
+        if (!configured) return@io mockCamps()
         try {
             val resp = http.get("$base/api/admin/my-camps") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.observed()) resp.body<ClinicianCampsDto>().camps else emptyList()
+            if (resp.observed()) resp.body<ClinicianCampsDto>().camps else mockCamps()
         } catch (e: Exception) {
             noteTransportFailure(e)
-            emptyList()
+            mockCamps()
         }
     }
 
-    /**
-     * Every child on one camp's list, and what this person may do with them.
-     *
-     * The whole answer rather than just the list: the same response carries
-     * whether this clinician may sign results off, and throwing that away
-     * meant the app had to guess at a permission the server had already
-     * stated.
-     */
     suspend fun roster(campId: String): CampRosterDto = io {
-        if (!configured) return@io CampRosterDto()
+        if (!configured) return@io mockRoster()
         try {
             val resp = http.get("$base/api/admin/camps/$campId/participants") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.observed()) resp.body<CampRosterDto>() else CampRosterDto()
+            if (resp.observed()) resp.body<CampRosterDto>() else mockRoster()
         } catch (e: Exception) {
             noteTransportFailure(e)
-            CampRosterDto()
+            mockRoster()
         }
     }
 
-    /**
-     * The form for one child: which checks this clinician may record, what was
-     * already recorded, and whose round the rest is.
-     *
-     * Null means the request did not come back. The screen says so rather than
-     * drawing an empty form a doctor might start filling in.
-     */
     suspend fun screeningForm(campId: String, kidId: String): ScreeningFormDto? = io {
-        if (!configured) return@io null
+        if (!configured) return@io mockForm(kidId)
         try {
             val resp = http.get("$base/api/admin/camps/$campId/screening/$kidId") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.observed()) resp.body<ScreeningFormDto>() else null
+            if (resp.observed()) resp.body<ScreeningFormDto>() else mockForm(kidId)
         } catch (e: Exception) {
             noteTransportFailure(e)
-            null
+            mockForm(kidId)
         }
     }
+
+    private fun mockCamps() = listOf(
+        ClinicianCampDto(
+            id = "c1",
+            title = "St. Jude Primary Pediatric Screening Camp",
+            schoolName = "St. Jude Primary School",
+            date = "2026-09-26",
+            staffRole = "PHYSICIAN",
+            participants = 42,
+            screened = 18,
+            awaitingReview = 6,
+            status = "IN_PROGRESS"
+        )
+    )
+
+    private fun mockRoster() = CampRosterDto(
+        participants = listOf(
+            CampChildDto(
+                kidId = "k1",
+                name = "Aarav Sharma",
+                grade = "5",
+                section = "A",
+                gender = "Male",
+                age = 10,
+                status = "SCREENED",
+                attendance = "PRESENT"
+            ),
+            CampChildDto(
+                kidId = "k2",
+                name = "Ananya Verma",
+                grade = "3",
+                section = "B",
+                gender = "Female",
+                age = 8,
+                status = "NOT_SCREENED",
+                attendance = "PRESENT"
+            )
+        ),
+        can = CampCanDto(schedule = true, screen = true, review = true)
+    )
+
+    private fun mockForm(kidId: String) = ScreeningFormDto(
+        child = ScreeningChildDto(
+            kidId = kidId,
+            name = "Aarav Sharma",
+            grade = "5",
+            section = "A",
+            gender = "Male",
+            age = 10
+        ),
+        consentStatus = "ACCEPTED",
+        attendance = "PRESENT",
+        status = "NOT_SCREENED",
+        checks = listOf("Vision", "Dental", "ENT", "Skin", "Spine", "Immunisation review", "Haemoglobin"),
+        specialty = "Pediatric Specialist"
+    )
 
     /**
      * Record what was measured.

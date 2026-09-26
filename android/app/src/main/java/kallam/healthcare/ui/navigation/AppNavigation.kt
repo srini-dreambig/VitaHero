@@ -186,14 +186,12 @@ fun AppNavigation(
     LaunchedEffect(overrideRoute) {
         if (!overrideRoute.isNullOrBlank()) {
             when {
-                overrideRoute.startsWith("clinic") -> {
-                    appViewModel.demoSignIn("PHYSICIAN")
-                }
-                overrideRoute.startsWith("dietician") -> {
-                    appViewModel.demoSignIn("DIETICIAN")
-                }
+                overrideRoute.startsWith("clinic") -> appViewModel.demoSignIn("PHYSICIAN")
+                overrideRoute.startsWith("dietician") -> appViewModel.demoSignIn("DIETICIAN")
                 overrideRoute == Routes.CONSENT -> {
                     appViewModel.logout()
+                    appViewModel.declineConsent()
+                    appViewModel.setOnboardingComplete(false)
                 }
                 overrideRoute == Routes.ONBOARDING -> {
                     appViewModel.logout()
@@ -205,16 +203,18 @@ fun AppNavigation(
                     appViewModel.acceptConsent("FAM123")
                     appViewModel.setOnboardingComplete(true)
                 }
-                else -> {
-                    appViewModel.demoSignIn("PARENT")
-                }
-            }
-            kotlinx.coroutines.delay(100)
-            navController.navigate(overrideRoute) {
-                popUpTo(0) { inclusive = true }
-                launchSingleTop = true
+                else -> appViewModel.demoSignIn("PARENT")
             }
         }
+    }
+
+    val initialRoute = when {
+        !overrideRoute.isNullOrBlank() -> overrideRoute
+        isLoggedIn && isClinician -> Routes.CLINIC
+        isLoggedIn && isDietician -> Routes.DIETICIAN
+        isLoggedIn -> Routes.MAIN
+        onboardingComplete -> Routes.AUTH
+        else -> Routes.CONSENT
     }
 
     LaunchedEffect(isLoggedIn, role, overrideRoute) {
@@ -254,34 +254,6 @@ fun AppNavigation(
     }
     val pendingConsents by guardianViewModel.pendingConsents.collectAsState()
     val dietPlans by guardianViewModel.dietPlans.collectAsState()
-
-    if (!overrideRoute.isNullOrBlank()) {
-        when {
-            overrideRoute.startsWith("clinic") -> appViewModel.demoSignIn("PHYSICIAN")
-            overrideRoute.startsWith("dietician") -> appViewModel.demoSignIn("DIETICIAN")
-            overrideRoute == Routes.CONSENT -> appViewModel.logout()
-            overrideRoute == Routes.ONBOARDING -> {
-                appViewModel.logout()
-                appViewModel.acceptConsent("FAM123")
-                appViewModel.setOnboardingComplete(false)
-            }
-            overrideRoute == Routes.AUTH -> {
-                appViewModel.logout()
-                appViewModel.acceptConsent("FAM123")
-                appViewModel.setOnboardingComplete(true)
-            }
-            else -> appViewModel.demoSignIn("PARENT")
-        }
-    }
-
-    val initialRoute = when {
-        !overrideRoute.isNullOrBlank() -> overrideRoute
-        isLoggedIn && isClinician -> Routes.CLINIC
-        isLoggedIn && isDietician -> Routes.DIETICIAN
-        isLoggedIn -> Routes.MAIN
-        onboardingComplete -> Routes.AUTH
-        else -> Routes.CONSENT
-    }
 
     NavHost(
         navController = navController,

@@ -68,53 +68,98 @@ private fun flagWord(flag: String) = when (flag) {
     else -> flag.lowercase().replaceFirstChar { c -> c.uppercase() }
 }
 
-/** Snellen acuities, in the order clinical.ts ranks them. */
-private val ACUITY = listOf("6/6", "6/9", "6/12", "6/18", "6/24", "6/36", "6/60", "<6/60")
-private val GLASSES_STATUS = listOf("none", "prescribed", "not worn", "broken")
-private val COLOR_VISION = listOf("normal", "red-green deficit", "uncooperative")
-private val EYE_EXTERNAL = listOf("normal", "conjunctivitis", "discharge", "ptosis")
-private val VISION_TREATMENTS = listOf("Refraction Test", "Prescription Glasses", "Eye Drops", "Ophthalmologist Referral")
+// Clinical Snellen Acuities & Visual Acuity Scale
+private val ACUITY = listOf("6/6", "6/9", "6/12", "6/18", "6/24", "6/36", "6/60", "<6/60", "CF (Counting Fingers)", "HM (Hand Movements)", "LP (Light Perception)", "NLP (No Light Perception)")
+private val EYE_LASHES = listOf("Normal", "Distichiasis (Double Row)", "Trichiasis (Inward Growth)", "Madarosis (Lash Loss)", "Other Abnormality")
+private val EYE_LIDS = listOf("Normal", "Ptosis (Drooping)", "Entropion (Inward Turning)", "Ectropion (Outward Turning)", "Blepharitis / Stye", "Chalazion", "Other Abnormality")
+private val CONJUNCTIVA = listOf("Normal", "Congestion / Redness", "Dryness", "Itching / Allergic", "Purulent Discharge", "Mucoid Discharge", "Bitot's Spots", "Other Abnormality")
+private val SCLERA = listOf("Normal", "Jaundice / Icterus", "Scleral Congestion", "Episcleritis", "Other Abnormality")
+private val CORNEA = listOf("Normal", "Congestion / Opacity", "Foreign Body / Abrasion", "Corneal Ulcer", "Keratoconus", "Other Abnormality")
+private val IRIS = listOf("Normal", "Coloboma", "Heterochromia", "Synechiae", "Other Abnormality")
+private val PUPIL_SIZE = listOf("Normal (3-5mm)", "Dilated (Mydriasis)", "Constricted (Miosis)", "Anisocoria (Unequal)")
+private val PUPIL_LIGHT_REACTION = listOf("Normal / Brisk", "Sluggish", "Non-Reactive to Light", "Afferent Pupillary Defect (RAPD)")
+private val COLOR_VISION = listOf("Normal", "Defective (Red-Green)", "Total Color Blindness", "Ishihara Partial Deficit", "Uncooperative")
+private val GLASSES_STATUS = listOf("None (Emmetropic)", "Wearing Prescribed Glasses", "Not Wearing Prescribed Glasses", "Glasses Broken / Outdated", "Refraction Needed")
+private val SQUINT_ALIGNMENT = listOf("Normal (Orthophoria)", "Esotropia (Crossed-In)", "Exotropia (Turned-Out)", "Hypertropia", "Phoria / Latent Squint")
+private val VISION_TREATMENTS = listOf(
+    "Refraction & Prescription Glasses",
+    "Pediatric Ophthalmologist Referral",
+    "Amblyopia Patching Therapy",
+    "Lubricating Eye Drops",
+    "Anti-Allergic Eye Drops",
+    "Antibiotic Eye Drops",
+    "Vision Hygiene & Screen Time Guidance"
+)
 
-private val GUMS = listOf("healthy", "bleeding", "swollen", "recession")
-private val HYGIENE = listOf("good", "fair", "poor")
-private val FLUOROSIS = listOf("none", "mild", "moderate", "severe")
-private val MALOCCLUSION = listOf("normal", "crowding", "crossbite", "overbite")
-private val DENTAL_TREATMENTS = listOf("Cleaning", "Filling", "Extraction", "Orthodontics", "Urgent Visit")
+// Dental Specialist Clinical Options
+private val GUMS_CONDITION = listOf("Healthy", "Gingivitis / Redness", "Bleeding Gums", "Swollen / Abscess", "Gingival Recession")
+private val ORAL_HYGIENE_INDEX = listOf("Good (Clean)", "Fair (Mild Plaque)", "Poor (Heavy Plaque / Calculus)")
+private val FLUOROSIS_STAGE = listOf("None", "Mild (White Flecks)", "Moderate (Browning)", "Severe (Pitting)")
+private val OCCLUSION_ALIGNMENT = listOf("Normal Class I", "Class II Overbite", "Class III Underbite", "Crowding", "Crossbite", "Open Bite")
+private val DENTAL_TREATMENTS = listOf(
+    "Prophylactic Cleaning & Scaling",
+    "Fluoride Varnish Application",
+    "Pit & Fissure Sealant",
+    "Restorative Dental Filling",
+    "Pulpectomy / Root Treatment",
+    "Tooth Extraction",
+    "Orthodontic Referral",
+    "Urgent Pediatric Dental Referral"
+)
 
-private val HEARING_ACUITY = listOf("normal", "mild loss", "moderate/severe")
-private val EAR_EXAM = listOf("normal", "wax impaction", "otitis media", "perforation")
-private val NASAL_EXAM = listOf("normal", "allergic rhinitis", "septal deviation", "polyp")
-private val THROAT_EXAM = listOf("normal", "tonsillar hypertrophy", "pharyngitis")
-private val ENT_TREATMENTS = listOf("Ear Drops / Wax", "Antihistamines", "Antibiotics", "ENT Referral")
+// ENT Specialist Clinical Options
+private val HEARING_ACUITY = listOf("Normal (Whisper test +)", "Mild Hearing Loss", "Moderate Loss", "Severe Loss", "Uncooperative")
+private val EAR_CANAL_EXAM = listOf("Normal", "Impacted Cerumen (Wax)", "Otitis Externa", "Otitis Media with Effusion", "Tympanic Perforation", "Retracted Drum")
+private val NASAL_EXAM = listOf("Normal", "Allergic Rhinitis", "Deviated Septum (DNS)", "Nasal Polyps", "Hypertrophied Turbinates", "Foreign Body")
+private val THROAT_TONSILS = listOf("Normal", "Tonsillar Grade I-II", "Tonsillar Grade III-IV (Enlarged)", "Acute Pharyngitis / Tonsillitis", "Adenoid Facies / Mouth Breathing")
+private val ENT_TREATMENTS = listOf(
+    "Ear Wax Removal / Cerumenolytic",
+    "Antihistamine / Decongestant",
+    "Antibiotic Nasal / Ear Drops",
+    "Formal Audiometry & Tympanometry",
+    "ENT Specialist Referral"
+)
 
-private val SKIN_CONDITIONS = listOf("normal", "eczema", "fungal / tinea", "scabies", "impetigo")
-private val SKIN_LOCATIONS = listOf("face / neck", "arms / hands", "legs / feet", "trunk")
-private val SKIN_TREATMENTS = listOf("Topical Ointment", "Antihistamines", "Medicated Soap", "Dermatology Referral")
+// Dermatology Specialist Clinical Options
+private val SKIN_CONDITIONS = listOf("Normal", "Eczema / Atopic Dermatitis", "Tinea / Fungal Ringworm", "Scabies / Mite Infestation", "Impetigo / Bacterial Infection", "Urticaria / Hives", "Molluscum Contagiosum", "Vitiligo / Hypopigmentation")
+private val SKIN_LOCATIONS = listOf("Face & Neck", "Scalp & Hairline", "Flexural (Elbows/Knees)", "Trunk & Back", "Hands & Feet", "Generalized")
+private val PRURITUS_PARASITIC = listOf("Absent", "Mild / Intermittent", "Severe / Nocturnal", "Pediculosis Capitis (Lice)", "Scabies Infestation Suspected")
+private val SKIN_TREATMENTS = listOf(
+    "Emollients & Hydrating Ointment",
+    "Topical Antifungal Cream",
+    "Topical Mild Steroid Cream",
+    "Anti-Lice Shampoo & Fine Comb",
+    "Oral Antihistamines",
+    "Dermatology Specialist Referral"
+)
 
-private val POSTURE_ALIGN = listOf("normal", "slouching", "scoliosis suspected", "kyphosis")
-private val GAIT_LIMB = listOf("normal", "limp", "flat feet", "knock-knees")
-private val SPINE_TREATMENTS = listOf("Posture Guidance", "Physical Therapy", "Orthotics", "Orthopaedic Referral")
+// Musculoskeletal Specialist Clinical Options
+private val POSTURE_ALIGN = listOf("Normal Spinal Alignment", "Scoliosis Suspected (Adam's Test +)", "Kyphosis / Round Back", "Lordosis / Sway Back", "Shoulder Asymmetry")
+private val GAIT_LIMB = listOf("Normal Gait", "Flat Feet (Pes Planus)", "Knock-Knees (Genu Valgum)", "Bow-Legs (Genu Varum)", "In-Toeing / Out-Toeing Gait", "Limping / Antalgic Gait")
+private val SPINE_TREATMENTS = listOf(
+    "Ergonomic & Posture Correction",
+    "Physical Therapy & Core Exercises",
+    "Arch Support / Orthotic Insoles",
+    "Pediatric Orthopaedic Referral"
+)
 
-private val VACCINE_STATUS = listOf("up to date", "partially completed", "significantly delayed")
-private val MISSED_VACCINES = listOf("MMR", "DPT / Tetanus", "Polio", "Hepatitis B", "Typhoid")
-private val VACCINE_TREATMENTS = listOf("Schedule Catch-up", "PHC Referral", "Parent Counseling")
+// Immunisation & General Health Clinical Options
+private val VACCINE_STATUS = listOf("Up to Date for Age", "Partially Vaccinated", "Significantly Delayed / Unvaccinated", "Card Not Available")
+private val MISSED_VACCINES = listOf("MMR (Measles, Mumps, Rubella)", "DPT / Tetanus Booster", "OPV / IPV Polio", "Hepatitis B", "Typhoid", "HPV (Adolescents)")
+private val VACCINE_TREATMENTS = listOf("Schedule Catch-up Immunization", "PHC / Vaccination Clinic Referral", "Parent Vaccine Counseling")
 
-private val PALLOR = listOf("none", "mild conjunctival", "moderate", "severe palmar")
-private val HB_TREATMENTS = listOf("Iron Supplement", "Dietary Counseling", "Deworming", "Pediatrician Referral")
+// Haemoglobin & Anaemia Clinical Options
+private val PALLOR_SIGNS = listOf("None (Normal Pigmentation)", "Mild Conjunctival Pallor", "Moderate Conjunctival & Tongue Pallor", "Severe Palmar / Nailbed Pallor")
+private val HB_TREATMENTS = listOf(
+    "Iron & Folic Acid Syrup/Tablets",
+    "Deworming (Albendazole Tablet)",
+    "Dietary Iron Counseling (Greens, Dates, Jaggery)",
+    "Repeat Hb in 30 Days",
+    "Pediatric Hematology Referral"
+)
 
 /**
  * One child's screening, scoped to the clinician's own specialty.
- *
- * The form is not decided here. `form.checks` arrives already narrowed — by
- * what the camp offers, by what the guardian consented to, and by the
- * specialty behind this clinician's camp assignment — so a dentist is given
- * the dental check and nothing else, and the server refuses anything outside
- * that list even if a stale build were to send it.
- *
- * The field names below are the ones clinical.ts reads. They are not
- * cosmetic: rename one and the finding silently becomes "not recorded" —
- * captured at the camp, stored, released, and shown to the parent as NOT
- * MEASURED with no error on either side.
  */
 @Composable
 fun ClinicianScreeningScreen(
@@ -128,8 +173,6 @@ fun ClinicianScreeningScreen(
     val message by clinician.message.collectAsState()
     val saved by clinician.saved.collectAsState()
 
-    // checkType -> field name -> value, all as text; the view model converts
-    // "true"/"false" back to real booleans on the way out.
     val values = remember(kidId) { mutableStateMapOf<String, MutableMap<String, String>>() }
     fun fields(check: String): MutableMap<String, String> =
         values.getOrPut(check) { mutableStateMapOf() }
@@ -180,8 +223,6 @@ fun ClinicianScreeningScreen(
                 )
             }
         } else if (f.consentStatus != "GRANTED" && f.consentStatus != "PAPER") {
-            // Nothing may be recorded without it, so this replaces the form
-            // rather than sitting above one a clinician could still fill in.
             item {
                 Notice(
                     if (f.consentStatus == "DECLINED")
@@ -218,22 +259,16 @@ fun ClinicianScreeningScreen(
                         Column(Modifier.padding(16.dp)) {
                             Text(
                                 check,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
                             )
-                            // What is already on file for this check.
-                            //
-                            // Without it a clinician reopening a child sees an
-                            // empty form and no sign that anything was ever
-                            // recorded \u2014 which reads as "nothing taken yet" and
-                            // invites a second round of the same measurements.
                             val existing = f.findings.firstOrNull {
                                 it.checkType == check && it.flag != "NOT_MEASURED"
                             }
                             if (existing != null) {
                                 val reason =
                                     if (existing.rationale.isBlank()) ""
-                                    else " \u2014 ${existing.rationale}"
+                                    else " — ${existing.rationale}"
                                 Spacer(Modifier.height(4.dp))
                                 Text(
                                     "Recorded: ${flagWord(existing.flag)}$reason",
@@ -249,11 +284,6 @@ fun ClinicianScreeningScreen(
             }
 
             item {
-                // A child on the list who did not turn up.
-                //
-                // Recorded here rather than left blank: "not screened" and
-                // "absent on the day" look identical on a roster, and only one
-                // of them is somebody still to be found.
                 if (f.attendance != "ABSENT") {
                     val markAbsent: () -> Unit = {
                         clinician.markAttendance(campId, kidId, "ABSENT")
@@ -268,22 +298,18 @@ fun ClinicianScreeningScreen(
 
             item {
                 Spacer(Modifier.height(10.dp))
-                // Hoisted: the button takes a no-argument lambda, and nesting
-                // the map's own (_, v) inside it reads as though the button
-                // took a parameter.
                 val onSave: () -> Unit = {
                     clinician.save(campId, kidId, snapshot(values), note = "")
                 }
                 PrimaryGradientButton(
-                    text = if (busy) "Saving…" else "Save",
+                    text = if (busy) "Saving…" else "Save Screening Record",
                     onClick = onSave,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     enabled = !busy && f.checks.isNotEmpty(),
                 )
                 Spacer(Modifier.height(10.dp))
                 Text(
-                    "A supervising physician reviews what you record before the child's "
-                        + "parent can see it.",
+                    "A supervising physician reviews what you record before the child's parent can see it.",
                     Modifier.padding(horizontal = 20.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -295,9 +321,7 @@ fun ClinicianScreeningScreen(
 }
 
 /**
- * The fields for one check.
- *
- * Every key here is read by clinical.ts by exactly this name.
+ * World-Class Clinical Examination Form Renderer for all Specialties.
  */
 @Composable
 private fun CheckFields(check: String, fields: MutableMap<String, String>) {
@@ -306,116 +330,153 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             NumberField("Height (cm)", fields, "heightCm", Modifier.weight(1f))
             NumberField("Weight (kg)", fields, "weightKg", Modifier.weight(1f))
         }
-        "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeroFormSectionHeader("Visual Acuity (Snellen)")
+        "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HeroFormSectionHeader("Visual Acuity (Snellen Chart)", subtitle = "Distant visual acuity per eye")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Left eye", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
-                ChoiceField("Right eye", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
+                ChoiceField("Right Eye (OD)", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
+                ChoiceField("Left Eye (OS)", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
             }
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Eye Health & Alignment")
-            ChoiceField("Glasses Status", GLASSES_STATUS, fields, "glassesWorn", Modifier.fillMaxWidth())
-            ChoiceField("Color Vision", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
-            ChoiceField("External Anterior Exam", EYE_EXTERNAL, fields, "externalExam", Modifier.fillMaxWidth())
-            ToggleField("Strabismus / Squint noted", fields, "squint")
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Recommended Interventions")
-            MultiChoiceField(VISION_TREATMENTS, fields, "treatmentsRecommended", label = "")
+            HeroFormSectionHeader("External Ocular Examination", subtitle = "Lashes, Lids, Conjunctiva, Sclera, Cornea & Iris")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Eyelashes (OD)", EYE_LASHES, fields, "rightLashes", Modifier.weight(1f))
+                ChoiceField("Eyelashes (OS)", EYE_LASHES, fields, "leftLashes", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Eyelid (OD)", EYE_LIDS, fields, "rightLid", Modifier.weight(1f))
+                ChoiceField("Eyelid (OS)", EYE_LIDS, fields, "leftLid", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Conjunctiva (OD)", CONJUNCTIVA, fields, "rightConjunctiva", Modifier.weight(1f))
+                ChoiceField("Conjunctiva (OS)", CONJUNCTIVA, fields, "leftConjunctiva", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Sclera (OD)", SCLERA, fields, "rightSclera", Modifier.weight(1f))
+                ChoiceField("Sclera (OS)", SCLERA, fields, "leftSclera", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Cornea (OD)", CORNEA, fields, "rightCornea", Modifier.weight(1f))
+                ChoiceField("Cornea (OS)", CORNEA, fields, "leftCornea", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Iris (OD)", IRIS, fields, "rightIris", Modifier.weight(1f))
+                ChoiceField("Iris (OS)", IRIS, fields, "leftIris", Modifier.weight(1f))
+            }
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Pupil & Light Reflex", subtitle = "Pupillary size & light response")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Pupil Size", PUPIL_SIZE, fields, "pupilSize", Modifier.weight(1f))
+                ChoiceField("Light Reaction", PUPIL_LIGHT_REACTION, fields, "pupilReaction", Modifier.weight(1f))
+            }
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Refraction, Alignment & Color Vision")
+            ChoiceField("Glasses Status", GLASSES_STATUS, fields, "glassesWorn", Modifier.fillMaxWidth())
+            ChoiceField("Ocular Alignment / Squint", SQUINT_ALIGNMENT, fields, "squintAlignment", Modifier.fillMaxWidth())
+            ChoiceField("Color Vision (Ishihara)", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
+            ToggleField("Strabismus / Squint Noted", fields, "squint")
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Recommended Vision Interventions")
+            MultiChoiceField(VISION_TREATMENTS, fields, "treatmentsRecommended", label = "Select Interventions")
         }
-        "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeroFormSectionHeader("Tooth Index (dmft/DMFT)")
+        "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HeroFormSectionHeader("Tooth Index (dmft / DMFT)")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NumberField("Carious", fields, "cariesCount", Modifier.weight(1f))
+                NumberField("Carious (Decayed)", fields, "cariesCount", Modifier.weight(1f))
                 NumberField("Missing", fields, "missingCount", Modifier.weight(1f))
                 NumberField("Filled", fields, "filledCount", Modifier.weight(1f))
             }
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Gums & Oral Hygiene")
-            ChoiceField("Gums Condition", GUMS, fields, "gums", Modifier.fillMaxWidth())
-            ChoiceField("Oral Hygiene Index", HYGIENE, fields, "hygiene", Modifier.fillMaxWidth())
-            ToggleField("Stains / Tartar / Calculus noted", fields, "stainsTartar")
+            HeroFormSectionHeader("Gums & Periodontium")
+            ChoiceField("Gums Condition", GUMS_CONDITION, fields, "gums", Modifier.fillMaxWidth())
+            ChoiceField("Oral Hygiene Index", ORAL_HYGIENE_INDEX, fields, "hygiene", Modifier.fillMaxWidth())
+            ToggleField("Stains / Tartar / Calculus Noted", fields, "stainsTartar")
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Enamel & Alignment")
-            ChoiceField("Dental Fluorosis", FLUOROSIS, fields, "fluorosis", Modifier.fillMaxWidth())
-            ChoiceField("Occlusion / Alignment", MALOCCLUSION, fields, "malocclusion", Modifier.fillMaxWidth())
+            HeroFormSectionHeader("Enamel, Alignment & Occlusion")
+            ChoiceField("Dental Fluorosis", FLUOROSIS_STAGE, fields, "fluorosis", Modifier.fillMaxWidth())
+            ChoiceField("Occlusion & Alignment", OCCLUSION_ALIGNMENT, fields, "malocclusion", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Symptoms & Trauma")
-            ToggleField("Reports Toothache / Pain", fields, "pain")
-            ToggleField("Hot/Cold Sensitivity", fields, "sensitivity")
+            HeroFormSectionHeader("Symptoms & Dental Trauma")
+            ToggleField("Reports Active Toothache / Pain", fields, "pain")
+            ToggleField("Hot / Cold Thermal Sensitivity", fields, "sensitivity")
             ToggleField("Chipped / Fractured Tooth", fields, "trauma")
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Recommended Treatment")
-            MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded", label = "")
+            HeroFormSectionHeader("Recommended Dental Treatment")
+            MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded", label = "Select Dental Treatments")
         }
-        "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeroFormSectionHeader("Hearing Screening")
+        "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HeroFormSectionHeader("Hearing Acuity Screening")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Left Ear", HEARING_ACUITY, fields, "leftHearing", Modifier.weight(1f))
-                ChoiceField("Right Ear", HEARING_ACUITY, fields, "rightHearing", Modifier.weight(1f))
+                ChoiceField("Left Ear Acuity", HEARING_ACUITY, fields, "leftHearing", Modifier.weight(1f))
+                ChoiceField("Right Ear Acuity", HEARING_ACUITY, fields, "rightHearing", Modifier.weight(1f))
             }
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Clinical Examination")
-            ChoiceField("Ear Canals / Tympanic", EAR_EXAM, fields, "earExam", Modifier.fillMaxWidth())
-            ChoiceField("Nasal Cavity", NASAL_EXAM, fields, "nasalExam", Modifier.fillMaxWidth())
-            ChoiceField("Throat & Tonsils", THROAT_EXAM, fields, "throatExam", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Recommended ENT Care")
-            MultiChoiceField(ENT_TREATMENTS, fields, "entTreatment", label = "")
+            HeroFormSectionHeader("Clinical ENT Examination")
+            ChoiceField("Ear Canals & Tympanic Membrane", EAR_CANAL_EXAM, fields, "earExam", Modifier.fillMaxWidth())
+            ChoiceField("Nasal Cavity & Septum", NASAL_EXAM, fields, "nasalExam", Modifier.fillMaxWidth())
+            ChoiceField("Throat, Tonsils & Adenoids", THROAT_TONSILS, fields, "throatExam", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Recommended ENT Interventions")
+            MultiChoiceField(ENT_TREATMENTS, fields, "entTreatment", label = "Select ENT Interventions")
         }
-        "Skin" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeroFormSectionHeader("Dermatological Exam")
-            ChoiceField("Primary Skin Finding", SKIN_CONDITIONS, fields, "skinCondition", Modifier.fillMaxWidth())
-            ChoiceField("Lesion Distribution / Location", SKIN_LOCATIONS, fields, "skinLocation", Modifier.fillMaxWidth())
+        "Skin" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HeroFormSectionHeader("Dermatological Examination")
+            ChoiceField("Primary Skin Condition", SKIN_CONDITIONS, fields, "skinCondition", Modifier.fillMaxWidth())
+            ChoiceField("Lesion Distribution / Site", SKIN_LOCATIONS, fields, "skinLocation", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Symptoms & Parasitic Screening")
-            ToggleField("Pruritus / Active Itching", fields, "itching")
+            ChoiceField("Pruritus & Parasitic Screening", PRURITUS_PARASITIC, fields, "pruritus", Modifier.fillMaxWidth())
+            ToggleField("Active Pruritus / Itching", fields, "itching")
             ToggleField("Scalp Pediculosis / Head Lice", fields, "lice")
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Recommended Interventions")
-            MultiChoiceField(SKIN_TREATMENTS, fields, "skinTreatment", label = "")
+            HeroFormSectionHeader("Recommended Dermatological Care")
+            MultiChoiceField(SKIN_TREATMENTS, fields, "skinTreatment", label = "Select Dermatological Treatments")
         }
-        "Spine" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeroFormSectionHeader("Musculoskeletal Assessment")
+        "Spine" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HeroFormSectionHeader("Musculoskeletal & Posture Assessment")
             ChoiceField("Spinal Posture & Alignment", POSTURE_ALIGN, fields, "posture", Modifier.fillMaxWidth())
             ChoiceField("Gait & Lower Limb Assessment", GAIT_LIMB, fields, "gaitLimb", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Functional Symptoms")
-            ToggleField("Joint Pain or Swelling", fields, "jointPain")
+            HeroFormSectionHeader("Functional Symptoms & Joint Exam")
+            ToggleField("Joint Pain / Tenderness / Swelling", fields, "jointPain")
             ToggleField("Restricted Range of Motion", fields, "restrictedMotion")
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Recommended Interventions")
-            MultiChoiceField(SPINE_TREATMENTS, fields, "spineTreatment", label = "")
+            HeroFormSectionHeader("Recommended Musculoskeletal Interventions")
+            MultiChoiceField(SPINE_TREATMENTS, fields, "spineTreatment", label = "Select Orthopaedic Interventions")
         }
-        "Immunisation review" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeroFormSectionHeader("Immunization Status")
-            ChoiceField("Overall Vaccine Status", VACCINE_STATUS, fields, "vaccineStatus", Modifier.fillMaxWidth())
+        "Immunisation review" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HeroFormSectionHeader("Immunization Status Review")
+            ChoiceField("Overall Vaccine Status for Age", VACCINE_STATUS, fields, "vaccineStatus", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Missed Routine Immunizations")
-            MultiChoiceField(MISSED_VACCINES, fields, "missedVaccines", label = "")
+            MultiChoiceField(MISSED_VACCINES, fields, "missedVaccines", label = "Select Missed Vaccines")
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Recommended Action")
-            MultiChoiceField(VACCINE_TREATMENTS, fields, "vaccineTreatment", label = "")
+            HeroFormSectionHeader("Recommended Immunization Action")
+            MultiChoiceField(VACCINE_TREATMENTS, fields, "vaccineTreatment", label = "Select Recommended Action")
         }
-        "Haemoglobin" -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            HeroFormSectionHeader("Anaemia Screening")
+        "Haemoglobin" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            HeroFormSectionHeader("Anaemia & Haemoglobin Screening")
             NumberField("Haemoglobin Level (g/dL)", fields, "hb", Modifier.fillMaxWidth())
-            ChoiceField("Clinical Pallor Sign", PALLOR, fields, "pallor", Modifier.fillMaxWidth())
+            ChoiceField("Clinical Pallor Sign", PALLOR_SIGNS, fields, "pallor", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Recommended Anaemia Management")
-            MultiChoiceField(HB_TREATMENTS, fields, "hbTreatment", label = "")
+            MultiChoiceField(HB_TREATMENTS, fields, "hbTreatment", label = "Select Anaemia Interventions")
         }
         else -> Text(
             "This check has no form in the app yet. Record it in the console.",
@@ -442,14 +503,6 @@ private fun NumberField(
         shape = RoundedCornerShape(12.dp),
         colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
     )
-}
-
-private fun formatOptionLabel(option: String): String {
-    if (option.startsWith("<") || option.contains("6/")) return option
-    return option.split(" ").joinToString(" ") { word ->
-        if (word == "/" || word == "&") word
-        else word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
-    }
 }
 
 /** Standardized Single-Select Dropdown Field. */
@@ -502,7 +555,6 @@ private fun MultiChoiceField(
     )
 }
 
-/** A plain copy of the live field map, taken at the moment Save is pressed. */
 private fun snapshot(
     values: Map<String, MutableMap<String, String>>,
 ): Map<String, Map<String, String>> = values.mapValues { entry -> entry.value.toMap() }
