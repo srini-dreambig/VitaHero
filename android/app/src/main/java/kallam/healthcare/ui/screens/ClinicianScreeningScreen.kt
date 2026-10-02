@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -48,11 +50,6 @@ import kallam.healthcare.ui.theme.HeroOrange
 
 /**
  * A flag in words, and in a colour that means the same thing.
- *
- * The server's vocabulary is GOOD / WATCH / ALERT. Shown raw it reads as
- * shouting, and shown in one colour it reads as decoration \u2014 a clinician
- * glancing at a card needs to see at once whether the last person to look at
- * this child found something.
  */
 @Composable
 private fun flagColour(flag: String) = when (flag) {
@@ -68,27 +65,185 @@ private fun flagWord(flag: String) = when (flag) {
     else -> flag.lowercase().replaceFirstChar { c -> c.uppercase() }
 }
 
-// Clinical Snellen Acuities & Visual Acuity Scale
-private val ACUITY = listOf("6/6", "6/9", "6/12", "6/18", "6/24", "6/36", "6/60", "<6/60", "CF (Counting Fingers)", "HM (Hand Movements)", "LP (Light Perception)", "NLP (No Light Perception)")
+// ─── CLINICAL CONSTANTS FROM SPECIALIST DOCTORS (IMAGES 1, 2, 3, 4, 5) ───
+
+// Visual Acuity (Snellen & Low Vision Scale - Image 3)
+private val ACUITY = listOf(
+    "6/6", "6/9", "6/12", "6/18", "6/24", "6/36", "6/60",
+    "3/60", "2/60", "1/60", "<6/60",
+    "CF @ 1/2 meter", "CF CF (Close to Face)",
+    "HM+ (Hand Movements)",
+    "PL + PR Accurate", "PL + PR Inaccurate",
+    "NLP (No Light Perception)"
+)
+
+// Near Vision Scale (Image 3)
+private val NEAR_VISION = listOf(
+    "N6 (Normal)", "N8", "N10", "N12", "N18", "N24", "N36"
+)
+
+// Testing Condition (Image 3)
+private val VISION_TEST_CONDITION = listOf(
+    "Unaided", "Aided (With Present Glasses)", "Pinhole (PH)"
+)
+
+// External Anterior Symptoms / Signs (Image 3)
+private val EXTERNAL_SIGNS = listOf(
+    "Ptosis (Lid Droop)",
+    "Swelling / Edema",
+    "Redness / Congestion",
+    "Watering / Epiphora",
+    "Purulent Discharge",
+    "Mucoid Discharge",
+    "Foreign Body Sensation"
+)
+
+// Anterior Segment Examination (Image 4)
 private val EYE_LASHES = listOf("Normal", "Distichiasis (Double Row)", "Trichiasis (Inward Growth)", "Madarosis (Lash Loss)", "Other Abnormality")
 private val EYE_LIDS = listOf("Normal", "Ptosis (Drooping)", "Entropion (Inward Turning)", "Ectropion (Outward Turning)", "Blepharitis / Stye", "Chalazion", "Other Abnormality")
 private val CONJUNCTIVA = listOf("Normal", "Congestion / Redness", "Dryness", "Itching / Allergic", "Purulent Discharge", "Mucoid Discharge", "Bitot's Spots", "Other Abnormality")
 private val SCLERA = listOf("Normal", "Jaundice / Icterus", "Scleral Congestion", "Episcleritis", "Other Abnormality")
-private val CORNEA = listOf("Normal", "Congestion / Opacity", "Foreign Body / Abrasion", "Corneal Ulcer", "Keratoconus", "Other Abnormality")
-private val IRIS = listOf("Normal", "Coloboma", "Heterochromia", "Synechiae", "Other Abnormality")
+private val CORNEA = listOf("Normal / Clear", "Congestion / Opacity", "Foreign Body / Abrasion", "Corneal Ulcer", "Keratoconus", "Other Abnormality")
+private val ANTERIOR_CHAMBER = listOf("Normal / Quiet", "Shallow AC", "Deep AC", "Cells / Flare (+)", "Hyphema", "Hypopyon")
+private val IRIS = listOf("Normal", "Coloboma", "Heterochromia", "Synechiae", "Atrophy", "Other Abnormality")
 private val PUPIL_SIZE = listOf("Normal (3-5mm)", "Dilated (Mydriasis)", "Constricted (Miosis)", "Anisocoria (Unequal)")
 private val PUPIL_LIGHT_REACTION = listOf("Normal / Brisk", "Sluggish", "Non-Reactive to Light", "Afferent Pupillary Defect (RAPD)")
-private val COLOR_VISION = listOf("Normal", "Defective (Red-Green)", "Total Color Blindness", "Ishihara Partial Deficit", "Uncooperative")
-private val GLASSES_STATUS = listOf("None (Emmetropic)", "Wearing Prescribed Glasses", "Not Wearing Prescribed Glasses", "Glasses Broken / Outdated", "Refraction Needed")
-private val SQUINT_ALIGNMENT = listOf("Normal (Orthophoria)", "Esotropia (Crossed-In)", "Exotropia (Turned-Out)", "Hypertropia", "Phoria / Latent Squint")
+private val EYE_LENS = listOf("Normal / Clear", "Congenital Cataract", "Cataractous Opacity", "Subluxation / Dislocated", "Aphakia", "Pseudophakia (IOL)")
+
+// Posterior Segment / Fundus Examination (Image 4)
+private val VITREOUS = listOf("Normal / Clear", "Vitreous Floaters", "Vitreous Hemorrhage", "Asteroid Hyalosis")
+private val OPTIC_DISC = listOf("Normal Pink (C:D 0.3)", "Pale / Optic Atrophy", "Papilledema / Swollen", "Cupping (C:D > 0.5)")
+private val MACULA = listOf("Normal Foveal Reflex", "Dull Reflex", "Macular Edema", "Macular Scar", "Cherry-Red Spot")
+private val RETINA = listOf("Normal Background", "Retinal Hemorrhages", "Hard Exudates", "ROP Retinopathy Signs", "Retinitis Pigmentosa", "Retinal Detachment / Tear")
+private val BLOOD_VESSELS = listOf("Normal (A:V 2:3)", "Tortuous / Dilated", "Attenuated / Narrow", "Neovascularization")
+
+// Alignment, Motility, Tonometry & Color Vision (Images 3, 4, 5)
+private val OCULAR_MOTILITY = listOf("Full in all 9 Gazes", "Restricted Elevation", "Restricted Depression", "Restricted Abduction", "Restricted Adduction", "Nystagmus")
+private val SQUINT_ALIGNMENT = listOf("Normal (Orthophoria)", "Esotropia (Crossed-In)", "Exotropia (Turned-Out)", "Alternating Squint", "Hypertropia", "Hypotropia", "Phoria / Latent Squint")
+private val COLOR_VISION = listOf("17/17 (Normal Pass)", "15-16/17 (Borderline)", "<15/17 (Defective Red-Green)", "Total Color Blindness", "Ishihara Partial Deficit", "Uncooperative")
+private val GONIOSCOPY = listOf("Grade 4 (Open Angle)", "Grade 3 Open", "Grade 2 Narrow", "Grade 1 Narrow", "Closed Angle")
+private val DOMINANT_EYE = listOf("Right Eye (RE)", "Left Eye (LE)")
+private val DILATATION_STATUS = listOf("No (Undilated)", "Yes - Tropicamide + Phenylephrine", "Yes - Cyclopentolate 1%", "Yes - Homatropine 2%", "Yes - Atropine 1%")
+private val GLASSES_STATUS = listOf("None (Emmetropic)", "Wearing Prescribed Glasses (<1 yr)", "Wearing Glasses (1-2 yrs)", "Wearing Glasses (>2 yrs)", "Glasses Broken / Outdated", "Refraction Needed")
+
+// Vision Interventions & Treatments (Images 3, 4)
 private val VISION_TREATMENTS = listOf(
-    "Refraction & Prescription Glasses",
+    "Rx Prescribed (Eye Drops / Medications)",
+    "Glasses Prescribed (Spectacle Correction)",
+    "Refraction Needed / Schedule Formal Exam",
     "Pediatric Ophthalmologist Referral",
     "Amblyopia Patching Therapy",
-    "Lubricating Eye Drops",
+    "Lubricating / Artificial Tear Drops",
     "Anti-Allergic Eye Drops",
     "Antibiotic Eye Drops",
     "Vision Hygiene & Screen Time Guidance"
+)
+
+// Image 1: Ocular Investigations
+private val OCULAR_INVESTIGATIONS = listOf(
+    "Keratometry",
+    "A - Scan",
+    "ORA WaveTech",
+    "Orbscan",
+    "Aberrometry",
+    "Specular Microscopy",
+    "Ant. OCT (Anterior Segment OCT)",
+    "Post. OCT (Posterior / Macular OCT)",
+    "B - Scan (Ultrasound)",
+    "FFA (Fundus Fluorescein Angiography)",
+    "HVF (Humphrey Visual Field)",
+    "CCT (Central Corneal Thickness)"
+)
+
+// Image 1: General & Blood Investigations
+private val GENERAL_INVESTIGATIONS = listOf(
+    "CBP (Complete Blood Picture)",
+    "ESR",
+    "RBS (Random Blood Sugar)",
+    "FBS (Fasting Blood Sugar)",
+    "PLBS / PPBS (Post Lunch Blood Sugar)",
+    "HbA1c",
+    "Blood Urea",
+    "Serum Creatinine",
+    "Lipid Profile",
+    "CUE (Complete Urine Examination)",
+    "ECG",
+    "BT, CT (Bleeding Time, Clotting Time)",
+    "PT / INR",
+    "HIV (I & II)",
+    "HBsAg",
+    "HCV"
+)
+
+// Image 1: Additional Diagnostic & Specialized Tests
+private val ADDITIONAL_INVESTIGATIONS = listOf(
+    "Serum Electrolytes",
+    "Liver Function Test (LFT)",
+    "Thyroid Profile (T3, T4, TSH)",
+    "Mantoux (Tuberculin Skin Test)",
+    "QuantiFERON TB Gold",
+    "TB IgG & IgM",
+    "TORCH IgG & IgM",
+    "Serum ACE",
+    "ANA Profile",
+    "RA Factor",
+    "CRP",
+    "ANCA",
+    "X-Ray Chest (PA View)",
+    "CT Brain / Orbit",
+    "MRI Brain / Orbit",
+    "Blood Group & Rh Type",
+    "Coagulation Profile"
+)
+
+// Image 2: Birth & Perinatal History
+private val GESTATIONAL_AGE = listOf("Full Term (37-40 weeks)", "Premature (<37 weeks)", "Post-term (>40 weeks)")
+private val CONSANGUINITY_MARRIAGE = listOf("Non-Consanguineous", "Consanguineous Marriage (Parents Related)")
+private val PARENTAL_MYOPIA = listOf("No Family History", "One Parent Myopic", "Both Parents Myopic", "High Myopia / Eye Disorder in Family")
+
+// Image 2 & 5: Systemic Health Issues
+private val SYSTEMIC_DISEASES = listOf(
+    "Diabetes Mellitus (DM)",
+    "Hypertension (HTN)",
+    "CVA (Stroke / Neurological)",
+    "Asthma / Respiratory",
+    "Heart Disease / Congenital",
+    "Polio",
+    "Paralysis / Cerebral Palsy",
+    "Epilepsy / Seizures"
+)
+
+// Image 5: Drug Allergies
+private val ALLERGIES_LIST = listOf(
+    "Nil Known Drug Allergies",
+    "Penicillin",
+    "Xylocaine (Lidocaine)",
+    "Sulpha Drugs",
+    "Atropine",
+    "Drosyn (Phenylephrine)",
+    "NSAIDs / Aspirin",
+    "Other Allergies"
+)
+
+// Image 5: Current Treatment & Medications
+private val CURRENT_TREATMENTS = listOf(
+    "None",
+    "Anticoagulants",
+    "Insulin Therapy",
+    "Antipsychotics / Neurological",
+    "Anti-hypertensives",
+    "Bronchodilators / Inhalers",
+    "Other Medications"
+)
+
+// Image 5: Nutritional Screening
+private val NUTRITIONAL_STATUS = listOf(
+    "Normal / Well-Nourished",
+    "Mild Malnutrition",
+    "Severe Malnutrition",
+    "Underweight for Age",
+    "Overweight / Obese",
+    "Stunted Growth"
 )
 
 // Dental Specialist Clinical Options
@@ -96,6 +251,7 @@ private val GUMS_CONDITION = listOf("Healthy", "Gingivitis / Redness", "Bleeding
 private val ORAL_HYGIENE_INDEX = listOf("Good (Clean)", "Fair (Mild Plaque)", "Poor (Heavy Plaque / Calculus)")
 private val FLUOROSIS_STAGE = listOf("None", "Mild (White Flecks)", "Moderate (Browning)", "Severe (Pitting)")
 private val OCCLUSION_ALIGNMENT = listOf("Normal Class I", "Class II Overbite", "Class III Underbite", "Crowding", "Crossbite", "Open Bite")
+private val DENTAL_HABITS = listOf("None", "Thumb Sucking", "Tongue Thrusting", "Mouth Breathing", "Bruxism (Teeth Grinding)")
 private val DENTAL_TREATMENTS = listOf(
     "Prophylactic Cleaning & Scaling",
     "Fluoride Varnish Application",
@@ -112,6 +268,7 @@ private val HEARING_ACUITY = listOf("Normal (Whisper test +)", "Mild Hearing Los
 private val EAR_CANAL_EXAM = listOf("Normal", "Impacted Cerumen (Wax)", "Otitis Externa", "Otitis Media with Effusion", "Tympanic Perforation", "Retracted Drum")
 private val NASAL_EXAM = listOf("Normal", "Allergic Rhinitis", "Deviated Septum (DNS)", "Nasal Polyps", "Hypertrophied Turbinates", "Foreign Body")
 private val THROAT_TONSILS = listOf("Normal", "Tonsillar Grade I-II", "Tonsillar Grade III-IV (Enlarged)", "Acute Pharyngitis / Tonsillitis", "Adenoid Facies / Mouth Breathing")
+private val SPEECH_VOICE = listOf("Normal Speech", "Hypernasality", "Stuttering / Stammering", "Articulation Disorder")
 private val ENT_TREATMENTS = listOf(
     "Ear Wax Removal / Cerumenolytic",
     "Antihistamine / Decongestant",
@@ -121,7 +278,7 @@ private val ENT_TREATMENTS = listOf(
 )
 
 // Dermatology Specialist Clinical Options
-private val SKIN_CONDITIONS = listOf("Normal", "Eczema / Atopic Dermatitis", "Tinea / Fungal Ringworm", "Scabies / Mite Infestation", "Impetigo / Bacterial Infection", "Urticaria / Hives", "Molluscum Contagiosum", "Vitiligo / Hypopigmentation")
+private val SKIN_CONDITIONS = listOf("Normal", "Eczema / Atopic Dermatitis", "Tinea / Fungal Ringworm", "Scabies / Mite Infestation", "Impetigo / Bacterial Infection", "Urticaria / Hives", "Molluscum Contagiosum", "Vitiligo / Hypopigmentation", "Psoriasis", "Alopecia Areata")
 private val SKIN_LOCATIONS = listOf("Face & Neck", "Scalp & Hairline", "Flexural (Elbows/Knees)", "Trunk & Back", "Hands & Feet", "Generalized")
 private val PRURITUS_PARASITIC = listOf("Absent", "Mild / Intermittent", "Severe / Nocturnal", "Pediculosis Capitis (Lice)", "Scabies Infestation Suspected")
 private val SKIN_TREATMENTS = listOf(
@@ -134,7 +291,7 @@ private val SKIN_TREATMENTS = listOf(
 )
 
 // Musculoskeletal Specialist Clinical Options
-private val POSTURE_ALIGN = listOf("Normal Spinal Alignment", "Scoliosis Suspected (Adam's Test +)", "Kyphosis / Round Back", "Lordosis / Sway Back", "Shoulder Asymmetry")
+private val POSTURE_ALIGN = listOf("Normal Spinal Alignment", "Scoliosis Suspected (Adam's Test +)", "Kyphosis / Round Back", "Lordosis / Sway Back", "Shoulder Asymmetry", "Scapular Winging")
 private val GAIT_LIMB = listOf("Normal Gait", "Flat Feet (Pes Planus)", "Knock-Knees (Genu Valgum)", "Bow-Legs (Genu Varum)", "In-Toeing / Out-Toeing Gait", "Limping / Antalgic Gait")
 private val SPINE_TREATMENTS = listOf(
     "Ergonomic & Posture Correction",
@@ -145,7 +302,7 @@ private val SPINE_TREATMENTS = listOf(
 
 // Immunisation & General Health Clinical Options
 private val VACCINE_STATUS = listOf("Up to Date for Age", "Partially Vaccinated", "Significantly Delayed / Unvaccinated", "Card Not Available")
-private val MISSED_VACCINES = listOf("MMR (Measles, Mumps, Rubella)", "DPT / Tetanus Booster", "OPV / IPV Polio", "Hepatitis B", "Typhoid", "HPV (Adolescents)")
+private val MISSED_VACCINES = listOf("BCG", "OPV / IPV Polio", "Hepatitis B", "DPT / Pentavalent", "Rotavirus", "PCV", "MMR (Measles, Mumps, Rubella)", "Typhoid", "Varicella (Chickenpox)", "Hepatitis A", "HPV (Adolescents)")
 private val VACCINE_TREATMENTS = listOf("Schedule Catch-up Immunization", "PHC / Vaccination Clinic Referral", "Parent Vaccine Counseling")
 
 // Haemoglobin & Anaemia Clinical Options
@@ -283,6 +440,42 @@ fun ClinicianScreeningScreen(
                 }
             }
 
+            // Universal Pediatric History & Diagnostic Investigations Requisition Card
+            item(key = "history_investigations") {
+                HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp)) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        HeroFormSectionHeader(
+                            "Birth History & Co-morbidities (Images 2 & 5)",
+                            subtitle = "Perinatal history, chronic illness & allergies"
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            ChoiceField("Gestational Status", GESTATIONAL_AGE, fields("Systemic"), "gestationalAge", Modifier.weight(1f))
+                            NumberField("Birth Weight (kg)", fields("Systemic"), "birthWeightKg", Modifier.weight(1f))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            ChoiceField("Consanguinity", CONSANGUINITY_MARRIAGE, fields("Systemic"), "consanguinity", Modifier.weight(1f))
+                            ChoiceField("Parental Myopia", PARENTAL_MYOPIA, fields("Systemic"), "parentalMyopia", Modifier.weight(1f))
+                        }
+                        ToggleField("Incubation / NICU Stay Required", fields("Systemic"), "incubationStay")
+
+                        Spacer(Modifier.height(4.dp))
+                        HeroFormSectionHeader("Systemic Health Issues & Allergies")
+                        MultiChoiceField(SYSTEMIC_DISEASES, fields("Systemic"), "systemicDiseases", label = "Systemic Diseases (DM, Polio, Paralysis...)")
+                        MultiChoiceField(ALLERGIES_LIST, fields("Systemic"), "drugAllergies", label = "Drug Allergies (Penicillin, Xylocaine, Sulpha...)")
+                        MultiChoiceField(CURRENT_TREATMENTS, fields("Systemic"), "currentTreatments", label = "Current Medications (Insulin, Anticoagulants...)")
+                        ChoiceField("Nutritional Screening", NUTRITIONAL_STATUS, fields("Systemic"), "nutritionalStatus", Modifier.fillMaxWidth())
+
+                        Spacer(Modifier.height(4.dp))
+                        HeroFormSectionHeader(
+                            "Diagnostic Lab Requisition Orders (Image 1)",
+                            subtitle = "Maxivision clinical pathology & imaging tests"
+                        )
+                        MultiChoiceField(GENERAL_INVESTIGATIONS, fields("Investigations"), "generalLabs", label = "Routine Blood & Urine Tests (CBP, RBS, HbA1c...)")
+                        MultiChoiceField(ADDITIONAL_INVESTIGATIONS, fields("Investigations"), "specialistTests", label = "Specialist & Imaging (LFT, Thyroid, Mantoux, MRI...)")
+                    }
+                }
+            }
+
             item {
                 if (f.attendance != "ABSENT") {
                     val markAbsent: () -> Unit = {
@@ -331,14 +524,67 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             NumberField("Weight (kg)", fields, "weightKg", Modifier.weight(1f))
         }
         "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            HeroFormSectionHeader("Visual Acuity (Snellen Chart)", subtitle = "Distant visual acuity per eye")
+            HeroFormSectionHeader("Visual Acuity (Distant & Near) - Image 3", subtitle = "Snellen distance & near reading metrics per eye")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Right Eye (OD)", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
-                ChoiceField("Left Eye (OS)", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
+                ChoiceField("Distance OD (Right)", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
+                ChoiceField("Distance OS (Left)", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Near OD (Right)", NEAR_VISION, fields, "rightNearVision", Modifier.weight(1f))
+                ChoiceField("Near OS (Left)", NEAR_VISION, fields, "leftNearVision", Modifier.weight(1f))
+            }
+            ChoiceField("Testing Condition", VISION_TEST_CONDITION, fields, "testingCondition", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("External Anterior Symptoms / Signs (Image 3)")
+            MultiChoiceField(EXTERNAL_SIGNS, fields, "externalSigns", label = "Select External Signs (Ptosis, Swelling, Watering...)")
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Present Glasses Prescription (Image 5)")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SimpleTextField("OD Sph", fields, "presentOdSph", Modifier.weight(1f), placeholder = "-1.50")
+                SimpleTextField("OD Cyl", fields, "presentOdCyl", Modifier.weight(1f), placeholder = "-0.50")
+                SimpleTextField("OD Axi", fields, "presentOdAxi", Modifier.weight(1f), placeholder = "180")
+                SimpleTextField("OD CVA", fields, "presentOdCva", Modifier.weight(1f), placeholder = "6/6")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SimpleTextField("OS Sph", fields, "presentOsSph", Modifier.weight(1f), placeholder = "-1.75")
+                SimpleTextField("OS Cyl", fields, "presentOsCyl", Modifier.weight(1f), placeholder = "-0.50")
+                SimpleTextField("OS Axi", fields, "presentOsAxi", Modifier.weight(1f), placeholder = "175")
+                SimpleTextField("OS CVA", fields, "presentOsCva", Modifier.weight(1f), placeholder = "6/6")
             }
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("External Ocular Examination", subtitle = "Lashes, Lids, Conjunctiva, Sclera, Cornea & Iris")
+            HeroFormSectionHeader("New Glasses Prescription (Image 5)")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SimpleTextField("OD UVA", fields, "newOdUva", Modifier.weight(1f), placeholder = "6/18")
+                SimpleTextField("OD Sph", fields, "newOdSph", Modifier.weight(1f), placeholder = "-2.00")
+                SimpleTextField("OD Cyl", fields, "newOdCyl", Modifier.weight(1f), placeholder = "-0.75")
+                SimpleTextField("OD Axi", fields, "newOdAxi", Modifier.weight(1f), placeholder = "180")
+                SimpleTextField("OD CVA", fields, "newOdCva", Modifier.weight(1f), placeholder = "6/6")
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                SimpleTextField("OS UVA", fields, "newOsUva", Modifier.weight(1f), placeholder = "6/24")
+                SimpleTextField("OS Sph", fields, "newOsSph", Modifier.weight(1f), placeholder = "-2.25")
+                SimpleTextField("OS Cyl", fields, "newOsCyl", Modifier.weight(1f), placeholder = "-0.75")
+                SimpleTextField("OS Axi", fields, "newOsAxi", Modifier.weight(1f), placeholder = "175")
+                SimpleTextField("OS CVA", fields, "newOsCva", Modifier.weight(1f), placeholder = "6/6")
+            }
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Tonometry & Dilatation (Image 5)")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                NumberField("NCT IOP RE (mmHg)", fields, "rightNctIop", Modifier.weight(1f))
+                NumberField("NCT IOP LE (mmHg)", fields, "leftNctIop", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Dominant Eye", DOMINANT_EYE, fields, "dominantEye", Modifier.weight(1f))
+                ChoiceField("Dilatation Status", DILATATION_STATUS, fields, "dilatation", Modifier.weight(1f))
+            }
+            SimpleTextField("Dilatation Time", fields, "dilatationTime", Modifier.fillMaxWidth(), placeholder = "e.g. 10:30 AM")
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Anterior Segment Examination (Image 4)", subtitle = "Lashes, Lids, Conjunctiva, Sclera, Cornea, AC, Iris, Pupil & Lens")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ChoiceField("Eyelashes (OD)", EYE_LASHES, fields, "rightLashes", Modifier.weight(1f))
                 ChoiceField("Eyelashes (OS)", EYE_LASHES, fields, "leftLashes", Modifier.weight(1f))
@@ -360,27 +606,63 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
                 ChoiceField("Cornea (OS)", CORNEA, fields, "leftCornea", Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Anterior Chamber (OD)", ANTERIOR_CHAMBER, fields, "rightAc", Modifier.weight(1f))
+                ChoiceField("Anterior Chamber (OS)", ANTERIOR_CHAMBER, fields, "leftAc", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ChoiceField("Iris (OD)", IRIS, fields, "rightIris", Modifier.weight(1f))
                 ChoiceField("Iris (OS)", IRIS, fields, "leftIris", Modifier.weight(1f))
             }
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Pupil & Light Reflex", subtitle = "Pupillary size & light response")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ChoiceField("Pupil Size", PUPIL_SIZE, fields, "pupilSize", Modifier.weight(1f))
                 ChoiceField("Light Reaction", PUPIL_LIGHT_REACTION, fields, "pupilReaction", Modifier.weight(1f))
             }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Crystalline Lens (OD)", EYE_LENS, fields, "rightLens", Modifier.weight(1f))
+                ChoiceField("Crystalline Lens (OS)", EYE_LENS, fields, "leftLens", Modifier.weight(1f))
+            }
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Refraction, Alignment & Color Vision")
-            ChoiceField("Glasses Status", GLASSES_STATUS, fields, "glassesWorn", Modifier.fillMaxWidth())
+            HeroFormSectionHeader("Posterior Segment / Fundus Examination (Image 4)", subtitle = "Vitreous, Optic Disc, Macula, Retina & Blood Vessels")
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Optic Disc (OD)", OPTIC_DISC, fields, "rightOpticDisc", Modifier.weight(1f))
+                ChoiceField("Optic Disc (OS)", OPTIC_DISC, fields, "leftOpticDisc", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Macula & Fovea (OD)", MACULA, fields, "rightMacula", Modifier.weight(1f))
+                ChoiceField("Macula & Fovea (OS)", MACULA, fields, "leftMacula", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Background Retina (OD)", RETINA, fields, "rightRetina", Modifier.weight(1f))
+                ChoiceField("Background Retina (OS)", RETINA, fields, "leftRetina", Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                ChoiceField("Blood Vessels (OD)", BLOOD_VESSELS, fields, "rightVessels", Modifier.weight(1f))
+                ChoiceField("Blood Vessels (OS)", BLOOD_VESSELS, fields, "leftVessels", Modifier.weight(1f))
+            }
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Motility, Alignment, Gonioscopy & Color Vision")
+            ChoiceField("Ocular Motility (9 Gazes)", OCULAR_MOTILITY, fields, "ocularMotility", Modifier.fillMaxWidth())
             ChoiceField("Ocular Alignment / Squint", SQUINT_ALIGNMENT, fields, "squintAlignment", Modifier.fillMaxWidth())
-            ChoiceField("Color Vision (Ishihara)", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
+            ChoiceField("Color Vision (Ishihara /17)", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
+            ChoiceField("Gonioscopy Angle", GONIOSCOPY, fields, "gonioscopy", Modifier.fillMaxWidth())
+            ChoiceField("Glasses Status", GLASSES_STATUS, fields, "glassesWorn", Modifier.fillMaxWidth())
             ToggleField("Strabismus / Squint Noted", fields, "squint")
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Recommended Vision Interventions")
-            MultiChoiceField(VISION_TREATMENTS, fields, "treatmentsRecommended", label = "Select Interventions")
+            HeroFormSectionHeader("Ocular Diagnostic Investigations (Image 1)")
+            MultiChoiceField(OCULAR_INVESTIGATIONS, fields, "ocularInvestigations", label = "Order Ocular Tests (Keratometry, A-Scan, OCT, FFA...)")
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Recommended Vision Interventions (Images 3, 4)")
+            MultiChoiceField(VISION_TREATMENTS, fields, "treatmentsRecommended", label = "Select Vision Interventions")
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Diagnosis & Plan of Care (Image 4)")
+            SimpleTextField("Provisional Diagnosis", fields, "provisionalDiagnosis", Modifier.fillMaxWidth(), placeholder = "e.g. Myopic Astigmatism OD/OS")
+            SimpleTextField("Plan of Care", fields, "planOfCare", Modifier.fillMaxWidth(), placeholder = "Corrective glasses, repeat exam in 6 months...")
+            SimpleTextField("Final Diagnosis", fields, "finalDiagnosis", Modifier.fillMaxWidth(), placeholder = "e.g. Simple Myopia OD -2.00, OS -2.25")
         }
         "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Tooth Index (dmft / DMFT)")
@@ -406,6 +688,7 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             ToggleField("Reports Active Toothache / Pain", fields, "pain")
             ToggleField("Hot / Cold Thermal Sensitivity", fields, "sensitivity")
             ToggleField("Chipped / Fractured Tooth", fields, "trauma")
+            MultiChoiceField(DENTAL_HABITS, fields, "dentalHabits", label = "Oral Habits (Thumb sucking, mouth breathing...)")
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Recommended Dental Treatment")
@@ -423,6 +706,7 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             ChoiceField("Ear Canals & Tympanic Membrane", EAR_CANAL_EXAM, fields, "earExam", Modifier.fillMaxWidth())
             ChoiceField("Nasal Cavity & Septum", NASAL_EXAM, fields, "nasalExam", Modifier.fillMaxWidth())
             ChoiceField("Throat, Tonsils & Adenoids", THROAT_TONSILS, fields, "throatExam", Modifier.fillMaxWidth())
+            ChoiceField("Speech & Voice", SPEECH_VOICE, fields, "speechVoice", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Recommended ENT Interventions")
@@ -463,7 +747,7 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Missed Routine Immunizations")
-            MultiChoiceField(MISSED_VACCINES, fields, "missedVaccines", label = "Select Missed Vaccines")
+            MultiChoiceField(MISSED_VACCINES, fields, "missedVaccines", label = "Select Missed Routine Vaccines")
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Recommended Immunization Action")
@@ -484,6 +768,26 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+@Composable
+private fun SimpleTextField(
+    label: String,
+    fields: MutableMap<String, String>,
+    key: String,
+    modifier: Modifier = Modifier,
+    placeholder: String = ""
+) {
+    OutlinedTextField(
+        value = fields[key] ?: "",
+        onValueChange = { fields[key] = it },
+        modifier = modifier,
+        label = { Text(label) },
+        placeholder = if (placeholder.isNotBlank()) { { Text(placeholder) } } else null,
+        singleLine = true,
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
+    )
 }
 
 @Composable

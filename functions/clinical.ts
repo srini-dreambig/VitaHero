@@ -300,11 +300,27 @@ const num = (v: unknown): number | null => {
  * Referral thresholds follow the usual school-screening convention: 6/12 or
  * worse warrants a look, 6/24 or worse warrants a referral.
  */
-const ACUITY_ORDER = ["6/6", "6/9", "6/12", "6/18", "6/24", "6/36", "6/60", "<6/60"];
+const ACUITY_ORDER = [
+  "6/6", "6/9", "6/12", "6/18", "6/24", "6/36", "6/60",
+  "3/60", "2/60", "1/60", "<6/60",
+  "CF @ 1/2 meter", "CF (Counting Fingers)", "CF CF",
+  "HM+ (Hand Movements)", "HM", "HM+",
+  "PL + PR Accurate", "PL + PR Inaccurate", "LP (Light Perception)", "LP",
+  "NLP (No Light Perception)", "NLP"
+];
 
 export function acuityRank(v: string): number {
-  const i = ACUITY_ORDER.indexOf((v || "").trim());
-  return i < 0 ? -1 : i;
+  const raw = (v || "").trim();
+  if (!raw) return -1;
+  const exact = ACUITY_ORDER.findIndex((a) => a.toLowerCase() === raw.toLowerCase());
+  if (exact >= 0) return exact;
+  const prefix = ACUITY_ORDER.findIndex((a) => raw.toLowerCase().startsWith(a.toLowerCase()));
+  if (prefix >= 0) return prefix;
+  if (raw.includes("CF") || raw.includes("Finger")) return ACUITY_ORDER.indexOf("CF (Counting Fingers)");
+  if (raw.includes("HM") || raw.includes("Hand")) return ACUITY_ORDER.indexOf("HM+ (Hand Movements)");
+  if (raw.includes("PL") || raw.includes("Light")) return ACUITY_ORDER.indexOf("PL + PR Accurate");
+  if (raw.includes("NLP")) return ACUITY_ORDER.indexOf("NLP (No Light Perception)");
+  return -1;
 }
 
 export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal {
@@ -378,12 +394,34 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
         if (flag === "GOOD") flag = "WATCH";
         why += ", squint noted";
       }
-      if (glassesWorn && glassesWorn !== "none") {
+      if (glassesWorn && !glassesWorn.toLowerCase().startsWith("none")) {
         why += `, glasses: ${glassesWorn}`;
       }
-      if (colorVision && colorVision !== "normal") {
+      if (colorVision && !colorVision.toLowerCase().startsWith("17/17") && !colorVision.toLowerCase().startsWith("normal")) {
         why += `, color vision: ${colorVision}`;
         if (flag === "GOOD") flag = "WATCH";
+      }
+      const externalSigns = Array.isArray(d.externalSigns)
+        ? (d.externalSigns as unknown[]).map(String).filter(Boolean)
+        : String(d.externalSigns || "").split(",").map((s) => s.trim()).filter(Boolean);
+      if (externalSigns.length > 0) {
+        why += `, signs: ${externalSigns.join("; ")}`;
+        if (flag === "GOOD") flag = "WATCH";
+        if (externalSigns.some(s => s.toLowerCase().includes("foreign") || s.toLowerCase().includes("purulent"))) {
+          flag = "ALERT";
+        }
+      }
+      const rightIop = num(d.rightApplanationIop || d.rightNctIop);
+      const leftIop = num(d.leftApplanationIop || d.leftNctIop);
+      if ((rightIop && rightIop > 21) || (leftIop && leftIop > 21)) {
+        why += `, elevated IOP (R ${rightIop || "—"} / L ${leftIop || "—"} mmHg)`;
+        flag = "ALERT";
+      }
+      const ocularInv = Array.isArray(d.ocularInvestigations)
+        ? (d.ocularInvestigations as unknown[]).map(String).filter(Boolean)
+        : String(d.ocularInvestigations || "").split(",").map((s) => s.trim()).filter(Boolean);
+      if (ocularInv.length > 0) {
+        why += `, ordered: ${ocularInv.join(", ")}`;
       }
       if (externalExam && externalExam !== "normal") {
         why += `, external: ${externalExam}`;
