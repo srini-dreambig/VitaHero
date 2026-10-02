@@ -30,6 +30,18 @@ struct ClinicianScreeningView: View {
                     }
                     Spacer()
                     
+                    if !clinicianViewModel.isAbsent {
+                        Button(action: { clinicianViewModel.isAbsent = true }) {
+                            Text("Mark Absent")
+                                .font(AppTheme.Typography.font(for: .captionMedium))
+                                .foregroundColor(AppTheme.Colors.coralRed)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(AppTheme.Colors.coralRed.opacity(0.12))
+                                .cornerRadius(8)
+                        }
+                    }
+                    
                     Button(action: { presentationMode.wrappedValue.dismiss() }) {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 24))
@@ -42,76 +54,116 @@ struct ClinicianScreeningView: View {
                 .shadow(color: Color.black.opacity(0.04), radius: 3, x: 0, y: 2)
             }
             
-            // Specialty Tab Bar Switcher
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: AppTheme.Layout.spacing8) {
-                    ForEach(ClinicianViewModel.SpecialtyTab.allCases) { tab in
-                        Button(action: { clinicianViewModel.selectedSpecialtyTab = tab }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: tab.icon)
-                                Text(tab.rawValue)
+            if !clinicianViewModel.isAbsent {
+                // Specialty Tab Bar Switcher
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: AppTheme.Layout.spacing8) {
+                        ForEach(ClinicianViewModel.SpecialtyTab.allCases) { tab in
+                            Button(action: { clinicianViewModel.selectedSpecialtyTab = tab }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: tab.icon)
+                                    Text(tab.rawValue)
+                                }
+                                .font(AppTheme.Typography.font(for: .captionMedium))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    clinicianViewModel.selectedSpecialtyTab == tab ? AppTheme.Colors.heroBlue : Color.white
+                                )
+                                .foregroundColor(clinicianViewModel.selectedSpecialtyTab == tab ? .white : AppTheme.Colors.textPrimary)
+                                .cornerRadius(16)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16)
+                                        .stroke(AppTheme.Colors.glassBorder, lineWidth: 1)
+                                        .stroke(AppTheme.Colors.glassBorder, lineWidth: 1)
+                                )
                             }
-                            .font(AppTheme.Typography.font(for: .captionMedium))
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(
-                                clinicianViewModel.selectedSpecialtyTab == tab ? AppTheme.Colors.heroBlue : Color.white
-                            )
-                            .foregroundColor(clinicianViewModel.selectedSpecialtyTab == tab ? .white : AppTheme.Colors.textPrimary)
-                            .cornerRadius(16)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .stroke(AppTheme.Colors.glassBorder, lineWidth: 1)
-                            )
                         }
                     }
+                    .padding(.horizontal, AppTheme.Layout.spacing20)
+                    .padding(.vertical, AppTheme.Layout.spacing10)
                 }
-                .padding(.horizontal, AppTheme.Layout.spacing20)
-                .padding(.vertical, AppTheme.Layout.spacing10)
+                .background(AppTheme.Colors.surfaceBackground)
             }
-            .background(AppTheme.Colors.surfaceBackground)
             
             // Specialty Form Body View
             ScrollView {
                 VStack(spacing: AppTheme.Layout.spacing16) {
-                    switch clinicianViewModel.selectedSpecialtyTab {
-                    case .vision:
-                        visionFormContent
-                    case .refraction:
-                        refractionGlassesContent
-                    case .dental:
-                        dentalFormContent
-                    case .ent:
-                        entFormContent
-                    case .dermatology:
-                        dermatologyHbFormContent
-                    case .spineVaccine:
-                        spineVaccineFormContent
-                    case .historyInvest:
-                        historyInvestFormContent
-                    case .summary:
-                        summaryAssessmentContent
-                    }
-                    
-                    // Bottom Navigation / Save Button
-                    PrimaryGradientButton(
-                        title: clinicianViewModel.selectedSpecialtyTab == .summary ? "Submit Screening Record" : "Next Specialty Tab",
-                        iconName: clinicianViewModel.selectedSpecialtyTab == .summary ? "checkmark.circle.fill" : "arrow.right",
-                        isLoading: clinicianViewModel.isSubmittingRecord
-                    ) {
-                        if clinicianViewModel.selectedSpecialtyTab == .summary {
-                            Task {
-                                let success = await clinicianViewModel.submitScreeningRecord()
-                                if success {
-                                    appViewModel.showToast(title: "Record Saved", message: "Screening completed & synced.", style: .success)
-                                    presentationMode.wrappedValue.dismiss()
+                    if clinicianViewModel.isAbsent {
+                        HeroCard {
+                            VStack(alignment: .leading, spacing: AppTheme.Layout.spacing12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "person.crop.circle.badge.xmark")
+                                        .foregroundColor(AppTheme.Colors.coralRed)
+                                        .font(.title3)
+                                    Text("Student Marked Absent")
+                                        .font(AppTheme.Typography.font(for: .cardTitleSmall))
                                 }
+                                Text("\(student.name) is recorded as ABSENT for this camp session. No clinical examination measurements or options need to be selected.")
+                                    .font(AppTheme.Typography.font(for: .bodyMedium))
+                                    .foregroundColor(AppTheme.Colors.textSecondary)
+                                
+                                Button("Mark Present Instead") {
+                                    clinicianViewModel.isAbsent = false
+                                }
+                                .font(AppTheme.Typography.font(for: .captionMedium))
+                                .foregroundColor(AppTheme.Colors.heroBlue)
                             }
-                        } else {
-                            advanceToNextTab()
+                            .padding(.vertical, 4)
                         }
+                        
+                        PrimaryGradientButton(
+                            title: "Confirm Absent & Close",
+                            iconName: "checkmark.circle.fill",
+                            isLoading: clinicianViewModel.isSubmittingRecord
+                        ) {
+                            Task {
+                                _ = await clinicianViewModel.markAttendanceAbsent()
+                                appViewModel.showToast(title: "Marked Absent", message: "\(student.name) marked absent.", style: .info)
+                                presentationMode.wrappedValue.dismiss()
+                            }
+                        }
+                        .padding(.top, AppTheme.Layout.spacing12)
+                    } else {
+                        switch clinicianViewModel.selectedSpecialtyTab {
+                        case .vision:
+                            visionFormContent
+                        case .refraction:
+                            refractionGlassesContent
+                        case .dental:
+                            dentalFormContent
+                        case .ent:
+                            entFormContent
+                        case .dermatology:
+                            dermatologyHbFormContent
+                        case .spineVaccine:
+                            spineVaccineFormContent
+                        case .historyInvest:
+                            historyInvestFormContent
+                        case .summary:
+                            summaryAssessmentContent
+                        }
+                        
+                        // Bottom Navigation / Save Button
+                        PrimaryGradientButton(
+                            title: clinicianViewModel.selectedSpecialtyTab == .summary ? "Submit Screening Record" : "Next Specialty Tab",
+                            iconName: clinicianViewModel.selectedSpecialtyTab == .summary ? "checkmark.circle.fill" : "arrow.right",
+                            isLoading: clinicianViewModel.isSubmittingRecord
+                        ) {
+                            if clinicianViewModel.selectedSpecialtyTab == .summary {
+                                Task {
+                                    let success = await clinicianViewModel.submitScreeningRecord()
+                                    if success {
+                                        appViewModel.showToast(title: "Record Saved", message: "Screening completed & synced.", style: .success)
+                                        presentationMode.wrappedValue.dismiss()
+                                    }
+                                }
+                            } else {
+                                advanceToNextTab()
+                            }
+                        }
+                        .padding(.top, AppTheme.Layout.spacing12)
                     }
-                    .padding(.top, AppTheme.Layout.spacing12)
                 }
                 .padding(.horizontal, AppTheme.Layout.spacing20)
                 .padding(.vertical, AppTheme.Layout.spacing16)

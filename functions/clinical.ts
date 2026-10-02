@@ -476,35 +476,39 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       if (filled !== null && filled > 0) {
         parts.push(`${filled} filled ${filled === 1 ? "tooth" : "teeth"}`);
       }
-      if (gums === "bleeding" || gums === "swollen" || gums === "recession") {
+      const gumsLower = gums.toLowerCase();
+      if (gumsLower.includes("bleeding") || gumsLower.includes("swollen") || gumsLower.includes("recession") || gumsLower.includes("gingivitis")) {
         parts.push(`${gums} gums`);
         if (flag === "GOOD") flag = "WATCH";
       }
-      if (hygiene === "poor") {
+      const hygieneLower = hygiene.toLowerCase();
+      if (hygieneLower.includes("poor")) {
         parts.push("poor oral hygiene");
         if (flag === "GOOD") flag = "WATCH";
-      } else if (hygiene === "fair") {
+      } else if (hygieneLower.includes("fair")) {
         parts.push("fair oral hygiene");
       }
-      if (stainsTartar) {
+      if (stainsTartar || hygieneLower.includes("stain") || hygieneLower.includes("calculus") || hygieneLower.includes("plaque")) {
         parts.push("stains/calculus noted");
         if (flag === "GOOD") flag = "WATCH";
       }
-      if (fluorosis && fluorosis !== "none") {
+      if (fluorosis && fluorosis !== "none" && !fluorosis.toLowerCase().startsWith("none")) {
         parts.push(`dental fluorosis (${fluorosis})`);
-        if ((fluorosis === "moderate" || fluorosis === "severe") && flag !== "ALERT") flag = "ALERT";
+        if ((fluorosis.toLowerCase().includes("moderate") || fluorosis.toLowerCase().includes("severe")) && flag !== "ALERT") flag = "ALERT";
         else if (flag === "GOOD") flag = "WATCH";
       }
-      if (malocclusion && malocclusion !== "normal") {
+      const malocclusionLower = malocclusion.toLowerCase();
+      if (malocclusion && malocclusionLower !== "normal" && !malocclusionLower.startsWith("normal")) {
         parts.push(`malocclusion (${malocclusion})`);
         if (flag === "GOOD") flag = "WATCH";
       }
-      if (sensitivity) parts.push("sensitivity noted");
-      if (trauma) {
+      const dentalSymptoms = String(d.dentalSymptoms || "").toLowerCase();
+      if (sensitivity || dentalSymptoms.includes("sensitivity")) parts.push("sensitivity noted");
+      if (trauma || dentalSymptoms.includes("chipped") || dentalSymptoms.includes("fracture")) {
         parts.push("chipped/fractured tooth");
         flag = "ALERT";
       }
-      if (pain) {
+      if (pain || dentalSymptoms.includes("pain") || dentalSymptoms.includes("toothache")) {
         parts.push("reports tooth pain");
         flag = "ALERT";
       }

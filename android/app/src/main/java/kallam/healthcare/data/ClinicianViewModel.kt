@@ -133,6 +133,9 @@ class ClinicianViewModel(
                     _roster.value = _roster.value.map {
                         if (it.kidId == kidId) it.copy(attendance = value) else it
                     }
+                    if (value == "ABSENT") {
+                        _message.value = ""
+                    }
                 },
                 onFailure = { e -> _message.value = e.message ?: "Could not record attendance" },
             )
@@ -149,6 +152,7 @@ class ClinicianViewModel(
      * somebody else took.
      */
     fun save(campId: String, kidId: String, values: Map<String, Map<String, String>>, note: String) {
+        val currentAttendance = _form.value?.attendance
         val findings = values.mapNotNull { (checkType, fields) ->
             val filled = fields.filterValues { it.isNotBlank() }
             // An unticked checkbox is not a measurement. Without this, opening
@@ -163,6 +167,15 @@ class ClinicianViewModel(
             )
         }
         if (findings.isEmpty()) {
+            if (currentAttendance == "ABSENT") {
+                // When child is absent, no measurements are required.
+                _saved.value = true
+                _message.value = ""
+                _roster.value = _roster.value.map {
+                    if (it.kidId == kidId) it.copy(attendance = "ABSENT", status = "ABSENT") else it
+                }
+                return
+            }
             _message.value = "Record at least one measurement before saving."
             return
         }

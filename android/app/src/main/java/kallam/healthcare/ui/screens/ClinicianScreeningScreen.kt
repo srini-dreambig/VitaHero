@@ -248,9 +248,17 @@ private val NUTRITIONAL_STATUS = listOf(
 
 // Dental Specialist Clinical Options
 private val GUMS_CONDITION = listOf("Healthy", "Gingivitis / Redness", "Bleeding Gums", "Swollen / Abscess", "Gingival Recession")
-private val ORAL_HYGIENE_INDEX = listOf("Good (Clean)", "Fair (Mild Plaque)", "Poor (Heavy Plaque / Calculus)")
+private val ORAL_HYGIENE_INDEX = listOf("Good (Clean)", "Fair (Mild Plaque)", "Poor (Heavy Plaque / Calculus)", "Stains / Calculus Noted")
 private val FLUOROSIS_STAGE = listOf("None", "Mild (White Flecks)", "Moderate (Browning)", "Severe (Pitting)")
-private val OCCLUSION_ALIGNMENT = listOf("Normal Class I", "Class II Overbite", "Class III Underbite", "Crowding", "Crossbite", "Open Bite")
+private val OCCLUSION_ALIGNMENT = listOf("Normal Class I", "Class II Overbite", "Class III Underbite", "Crowding", "Crossbite", "Open Bite", "Spacing")
+private val DENTAL_SYMPTOMS = listOf(
+    "Reports Toothache / Pain",
+    "Hot / Cold Sensitivity",
+    "Chipped / Fractured Tooth",
+    "Food Lodging / Impaction",
+    "Loose / Mobile Tooth",
+    "Stains / Tartar / Calculus Noted"
+)
 private val DENTAL_HABITS = listOf("None", "Thumb Sucking", "Tongue Thrusting", "Mouth Breathing", "Bruxism (Teeth Grinding)")
 private val DENTAL_TREATMENTS = listOf(
     "Prophylactic Cleaning & Scaling",
@@ -298,6 +306,12 @@ private val SPINE_TREATMENTS = listOf(
     "Physical Therapy & Core Exercises",
     "Arch Support / Orthotic Insoles",
     "Pediatric Orthopaedic Referral"
+)
+private val JOINT_SYMPTOMS = listOf(
+    "Joint Pain / Tenderness",
+    "Joint Swelling / Effusion",
+    "Restricted Range of Motion",
+    "Joint Laxity / Hypermobility"
 )
 
 // Immunisation & General Health Clinical Options
@@ -410,104 +424,130 @@ fun ClinicianScreeningScreen(
                 if (message.isNotBlank()) Notice(message, error = true)
             }
 
-            for (check in f.checks) {
-                item(key = check) {
-                    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp)) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text(
-                                check,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            val existing = f.findings.firstOrNull {
-                                it.checkType == check && it.flag != "NOT_MEASURED"
-                            }
-                            if (existing != null) {
-                                val reason =
-                                    if (existing.rationale.isBlank()) ""
-                                    else " — ${existing.rationale}"
-                                Spacer(Modifier.height(4.dp))
+            if (f.attendance == "ABSENT") {
+                item {
+                    Notice(
+                        "${f.child.name} is marked ABSENT for this camp session. No screening examinations or options need to be selected.",
+                        error = false
+                    )
+                }
+                item {
+                    val markPresent: () -> Unit = {
+                        clinician.markAttendance(campId, kidId, "PRESENT")
+                    }
+                    TextButton(onClick = markPresent, modifier = Modifier.padding(horizontal = 12.dp)) {
+                        Text("Mark Present instead")
+                    }
+                }
+                item {
+                    Spacer(Modifier.height(10.dp))
+                    val onConfirmAbsent: () -> Unit = {
+                        clinician.save(campId, kidId, emptyMap(), note = "Student absent")
+                    }
+                    PrimaryGradientButton(
+                        text = "Confirm Absent & Close",
+                        onClick = onConfirmAbsent,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                        enabled = !busy,
+                    )
+                    Spacer(Modifier.height(28.dp))
+                }
+            } else {
+                for (check in f.checks) {
+                    item(key = check) {
+                        HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp)) {
+                            Column(Modifier.padding(16.dp)) {
                                 Text(
-                                    "Recorded: ${flagWord(existing.flag)}$reason",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = flagColour(existing.flag),
+                                    check,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
                                 )
+                                val existing = f.findings.firstOrNull {
+                                    it.checkType == check && it.flag != "NOT_MEASURED"
+                                }
+                                if (existing != null) {
+                                    val reason =
+                                        if (existing.rationale.isBlank()) ""
+                                        else " — ${existing.rationale}"
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Recorded: ${flagWord(existing.flag)}$reason",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = flagColour(existing.flag),
+                                    )
+                                }
+                                Spacer(Modifier.height(10.dp))
+                                CheckFields(check, fields(check))
                             }
-                            Spacer(Modifier.height(10.dp))
-                            CheckFields(check, fields(check))
                         }
                     }
                 }
-            }
 
-            // Universal Pediatric History & Diagnostic Investigations Requisition Card
-            item(key = "history_investigations") {
-                HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp)) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        HeroFormSectionHeader(
-                            "Birth History & Co-morbidities (Images 2 & 5)",
-                            subtitle = "Perinatal history, chronic illness & allergies"
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            ChoiceField("Gestational Status", GESTATIONAL_AGE, fields("Systemic"), "gestationalAge", Modifier.weight(1f))
-                            NumberField("Birth Weight (kg)", fields("Systemic"), "birthWeightKg", Modifier.weight(1f))
+                // Universal Pediatric History & Diagnostic Investigations Requisition Card
+                item(key = "history_investigations") {
+                    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            HeroFormSectionHeader(
+                                "Birth History & Co-morbidities (Images 2 & 5)",
+                                subtitle = "Perinatal history, chronic illness & allergies"
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                ChoiceField("Gestational Status", GESTATIONAL_AGE, fields("Systemic"), "gestationalAge", Modifier.weight(1f))
+                                NumberField("Birth Weight (kg)", fields("Systemic"), "birthWeightKg", Modifier.weight(1f))
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                ChoiceField("Consanguinity", CONSANGUINITY_MARRIAGE, fields("Systemic"), "consanguinity", Modifier.weight(1f))
+                                ChoiceField("Parental Myopia", PARENTAL_MYOPIA, fields("Systemic"), "parentalMyopia", Modifier.weight(1f))
+                            }
+                            ToggleField("Incubation / NICU Stay Required", fields("Systemic"), "incubationStay")
+
+                            Spacer(Modifier.height(4.dp))
+                            HeroFormSectionHeader("Systemic Health Issues & Allergies")
+                            MultiChoiceField(SYSTEMIC_DISEASES, fields("Systemic"), "systemicDiseases", label = "Systemic Diseases (DM, Polio, Paralysis...)")
+                            MultiChoiceField(ALLERGIES_LIST, fields("Systemic"), "drugAllergies", label = "Drug Allergies (Penicillin, Xylocaine, Sulpha...)")
+                            MultiChoiceField(CURRENT_TREATMENTS, fields("Systemic"), "currentTreatments", label = "Current Medications (Insulin, Anticoagulants...)")
+                            ChoiceField("Nutritional Screening", NUTRITIONAL_STATUS, fields("Systemic"), "nutritionalStatus", Modifier.fillMaxWidth())
+
+                            Spacer(Modifier.height(4.dp))
+                            HeroFormSectionHeader(
+                                "Diagnostic Lab Requisition Orders (Image 1)",
+                                subtitle = "Maxivision clinical pathology & imaging tests"
+                            )
+                            MultiChoiceField(GENERAL_INVESTIGATIONS, fields("Investigations"), "generalLabs", label = "Routine Blood & Urine Tests (CBP, RBS, HbA1c...)")
+                            MultiChoiceField(ADDITIONAL_INVESTIGATIONS, fields("Investigations"), "specialistTests", label = "Specialist & Imaging (LFT, Thyroid, Mantoux, MRI...)")
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            ChoiceField("Consanguinity", CONSANGUINITY_MARRIAGE, fields("Systemic"), "consanguinity", Modifier.weight(1f))
-                            ChoiceField("Parental Myopia", PARENTAL_MYOPIA, fields("Systemic"), "parentalMyopia", Modifier.weight(1f))
-                        }
-                        ToggleField("Incubation / NICU Stay Required", fields("Systemic"), "incubationStay")
-
-                        Spacer(Modifier.height(4.dp))
-                        HeroFormSectionHeader("Systemic Health Issues & Allergies")
-                        MultiChoiceField(SYSTEMIC_DISEASES, fields("Systemic"), "systemicDiseases", label = "Systemic Diseases (DM, Polio, Paralysis...)")
-                        MultiChoiceField(ALLERGIES_LIST, fields("Systemic"), "drugAllergies", label = "Drug Allergies (Penicillin, Xylocaine, Sulpha...)")
-                        MultiChoiceField(CURRENT_TREATMENTS, fields("Systemic"), "currentTreatments", label = "Current Medications (Insulin, Anticoagulants...)")
-                        ChoiceField("Nutritional Screening", NUTRITIONAL_STATUS, fields("Systemic"), "nutritionalStatus", Modifier.fillMaxWidth())
-
-                        Spacer(Modifier.height(4.dp))
-                        HeroFormSectionHeader(
-                            "Diagnostic Lab Requisition Orders (Image 1)",
-                            subtitle = "Maxivision clinical pathology & imaging tests"
-                        )
-                        MultiChoiceField(GENERAL_INVESTIGATIONS, fields("Investigations"), "generalLabs", label = "Routine Blood & Urine Tests (CBP, RBS, HbA1c...)")
-                        MultiChoiceField(ADDITIONAL_INVESTIGATIONS, fields("Investigations"), "specialistTests", label = "Specialist & Imaging (LFT, Thyroid, Mantoux, MRI...)")
                     }
                 }
-            }
 
-            item {
-                if (f.attendance != "ABSENT") {
+                item {
                     val markAbsent: () -> Unit = {
                         clinician.markAttendance(campId, kidId, "ABSENT")
                     }
                     TextButton(onClick = markAbsent, modifier = Modifier.padding(horizontal = 12.dp)) {
                         Text("Child is absent today")
                     }
-                } else {
-                    Notice("Marked absent for this camp.", error = false)
                 }
-            }
 
-            item {
-                Spacer(Modifier.height(10.dp))
-                val onSave: () -> Unit = {
-                    clinician.save(campId, kidId, snapshot(values), note = "")
+                item {
+                    Spacer(Modifier.height(10.dp))
+                    val onSave: () -> Unit = {
+                        clinician.save(campId, kidId, snapshot(values), note = "")
+                    }
+                    PrimaryGradientButton(
+                        text = if (busy) "Saving…" else "Save Screening Record",
+                        onClick = onSave,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                        enabled = !busy && f.checks.isNotEmpty(),
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "A supervising physician reviews what you record before the child's parent can see it.",
+                        Modifier.padding(horizontal = 20.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(Modifier.height(28.dp))
                 }
-                PrimaryGradientButton(
-                    text = if (busy) "Saving…" else "Save Screening Record",
-                    onClick = onSave,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    enabled = !busy && f.checks.isNotEmpty(),
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "A supervising physician reviews what you record before the child's parent can see it.",
-                    Modifier.padding(horizontal = 20.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(28.dp))
             }
         }
     }
@@ -674,20 +714,29 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Gums & Periodontium")
-            ChoiceField("Gums Condition", GUMS_CONDITION, fields, "gums", Modifier.fillMaxWidth())
+            MultiChoiceField(GUMS_CONDITION, fields, "gums", label = "Gums Condition (Healthy, Bleeding, Swollen, Recession...)")
             ChoiceField("Oral Hygiene Index", ORAL_HYGIENE_INDEX, fields, "hygiene", Modifier.fillMaxWidth())
-            ToggleField("Stains / Tartar / Calculus Noted", fields, "stainsTartar")
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Enamel, Alignment & Occlusion")
             ChoiceField("Dental Fluorosis", FLUOROSIS_STAGE, fields, "fluorosis", Modifier.fillMaxWidth())
-            ChoiceField("Occlusion & Alignment", OCCLUSION_ALIGNMENT, fields, "malocclusion", Modifier.fillMaxWidth())
+            MultiChoiceField(OCCLUSION_ALIGNMENT, fields, "malocclusion", label = "Occlusion & Alignment (Normal, Crowding, Crossbite...)")
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Symptoms & Dental Trauma")
-            ToggleField("Reports Active Toothache / Pain", fields, "pain")
-            ToggleField("Hot / Cold Thermal Sensitivity", fields, "sensitivity")
-            ToggleField("Chipped / Fractured Tooth", fields, "trauma")
+            HeroFormSectionHeader("Symptoms, Trauma & Habits")
+            MultiChoiceField(
+                options = DENTAL_SYMPTOMS,
+                fields = fields,
+                key = "dentalSymptoms",
+                label = "Symptoms & Dental Trauma (Toothache, Sensitivity, Fractures...)",
+                onCustomSelect = { set ->
+                    fields["dentalSymptoms"] = set.joinToString(",")
+                    fields["pain"] = if (set.any { it.contains("Toothache", ignoreCase = true) }) "true" else "false"
+                    fields["sensitivity"] = if (set.any { it.contains("Sensitivity", ignoreCase = true) }) "true" else "false"
+                    fields["trauma"] = if (set.any { it.contains("Chipped", ignoreCase = true) }) "true" else "false"
+                    fields["stainsTartar"] = if (set.any { it.contains("Stains", ignoreCase = true) }) "true" else "false"
+                }
+            )
             MultiChoiceField(DENTAL_HABITS, fields, "dentalHabits", label = "Oral Habits (Thumb sucking, mouth breathing...)")
 
             Spacer(Modifier.height(2.dp))
@@ -703,9 +752,9 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Clinical ENT Examination")
-            ChoiceField("Ear Canals & Tympanic Membrane", EAR_CANAL_EXAM, fields, "earExam", Modifier.fillMaxWidth())
-            ChoiceField("Nasal Cavity & Septum", NASAL_EXAM, fields, "nasalExam", Modifier.fillMaxWidth())
-            ChoiceField("Throat, Tonsils & Adenoids", THROAT_TONSILS, fields, "throatExam", Modifier.fillMaxWidth())
+            MultiChoiceField(EAR_CANAL_EXAM, fields, "earExam", label = "Ear Canals & Tympanic Membrane Findings")
+            MultiChoiceField(NASAL_EXAM, fields, "nasalExam", label = "Nasal Cavity & Septum Findings")
+            MultiChoiceField(THROAT_TONSILS, fields, "throatExam", label = "Throat, Tonsils & Adenoids Findings")
             ChoiceField("Speech & Voice", SPEECH_VOICE, fields, "speechVoice", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
@@ -714,14 +763,27 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
         }
         "Skin" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Dermatological Examination")
-            ChoiceField("Primary Skin Condition", SKIN_CONDITIONS, fields, "skinCondition", Modifier.fillMaxWidth())
-            ChoiceField("Lesion Distribution / Site", SKIN_LOCATIONS, fields, "skinLocation", Modifier.fillMaxWidth())
+            MultiChoiceField(SKIN_CONDITIONS, fields, "skinCondition", label = "Primary Skin Condition & Findings")
+            MultiChoiceField(SKIN_LOCATIONS, fields, "skinLocation", label = "Lesion Distribution & Body Sites")
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Symptoms & Parasitic Screening")
-            ChoiceField("Pruritus & Parasitic Screening", PRURITUS_PARASITIC, fields, "pruritus", Modifier.fillMaxWidth())
-            ToggleField("Active Pruritus / Itching", fields, "itching")
-            ToggleField("Scalp Pediculosis / Head Lice", fields, "lice")
+            MultiChoiceField(
+                options = listOf(
+                    "Active Pruritus / Itching",
+                    "Nocturnal Itching (Scabies)",
+                    "Scalp Pediculosis / Head Lice",
+                    "Secondary Excoriation / Crusting"
+                ),
+                fields = fields,
+                key = "pruritus",
+                label = "Symptoms & Parasitic Signs (Itching, Lice...)",
+                onCustomSelect = { set ->
+                    fields["pruritus"] = set.joinToString(",")
+                    fields["itching"] = if (set.any { it.contains("Itching", ignoreCase = true) }) "true" else "false"
+                    fields["lice"] = if (set.any { it.contains("Lice", ignoreCase = true) }) "true" else "false"
+                }
+            )
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Recommended Dermatological Care")
@@ -729,13 +791,22 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
         }
         "Spine" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Musculoskeletal & Posture Assessment")
-            ChoiceField("Spinal Posture & Alignment", POSTURE_ALIGN, fields, "posture", Modifier.fillMaxWidth())
-            ChoiceField("Gait & Lower Limb Assessment", GAIT_LIMB, fields, "gaitLimb", Modifier.fillMaxWidth())
+            MultiChoiceField(POSTURE_ALIGN, fields, "posture", label = "Spinal Posture & Alignment (Slouching, Scoliosis...)")
+            MultiChoiceField(GAIT_LIMB, fields, "gaitLimb", label = "Gait & Lower Limb Assessment (Flat Feet, Knock-knees...)")
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Functional Symptoms & Joint Exam")
-            ToggleField("Joint Pain / Tenderness / Swelling", fields, "jointPain")
-            ToggleField("Restricted Range of Motion", fields, "restrictedMotion")
+            MultiChoiceField(
+                options = JOINT_SYMPTOMS,
+                fields = fields,
+                key = "jointSymptoms",
+                label = "Joint Symptoms & ROM (Pain, Swelling, Restricted Motion...)",
+                onCustomSelect = { set ->
+                    fields["jointSymptoms"] = set.joinToString(",")
+                    fields["jointPain"] = if (set.any { it.contains("Pain", ignoreCase = true) }) "true" else "false"
+                    fields["restrictedMotion"] = if (set.any { it.contains("Restricted", ignoreCase = true) }) "true" else "false"
+                }
+            )
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Recommended Musculoskeletal Interventions")
@@ -845,7 +916,8 @@ private fun MultiChoiceField(
     fields: MutableMap<String, String>,
     key: String,
     modifier: Modifier = Modifier,
-    label: String = "Recommended Interventions"
+    label: String = "Recommended Interventions",
+    onCustomSelect: ((Set<String>) -> Unit)? = null
 ) {
     val selectedSet = remember(fields[key]) {
         (fields[key] ?: "").split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
@@ -854,7 +926,13 @@ private fun MultiChoiceField(
         label = label,
         options = options,
         selected = selectedSet,
-        onSelect = { newSet -> fields[key] = newSet.joinToString(",") },
+        onSelect = { newSet ->
+            if (onCustomSelect != null) {
+                onCustomSelect(newSet)
+            } else {
+                fields[key] = newSet.joinToString(",")
+            }
+        },
         modifier = modifier
     )
 }

@@ -4238,6 +4238,7 @@ export const PORTAL_HTML = `<!doctype html>
     var blocked = d.consentStatus !== "GRANTED" && d.consentStatus !== "PAPER";
 
     function mark(v) {
+      set({ error: null });
       if (isOffline()) {
         if (queuePush(S.camp.camp.id, { kidId: ch.kidId, attendance: v }) < 0) {
           // queueSave has already said what is wrong. Do not claim otherwise.
@@ -4259,7 +4260,16 @@ export const PORTAL_HTML = `<!doctype html>
         var any = Object.keys(det).some(function (k) { return det[k] !== "" && det[k] !== null && det[k] !== undefined && det[k] !== false; });
         if (any) findings.push({ checkType: ct, detail: det, note: det.__note || "" });
       });
-      if (findings.length === 0) { set({ error: "Record at least one measurement before saving." }); return; }
+      if (findings.length === 0) {
+        if (d.attendance === "ABSENT") {
+          S.notice = ch.name + " recorded as absent. No measurements required.";
+          S.screenKid = null; S.screenData = null;
+          loadCampTab();
+          return;
+        }
+        set({ error: "Record at least one measurement before saving." });
+        return;
+      }
       if (isOffline()) {
         var n = queuePush(S.camp.camp.id, { kidId: ch.kidId, findings: findings, attendance: d.attendance });
         if (n < 0) {
@@ -4350,12 +4360,20 @@ export const PORTAL_HTML = `<!doctype html>
         el("p", { class: "muted", style: "font-size:12.5px;margin:10px 0 0" },
           "A physician confirms every result before the guardian sees it."))) : null,
 
-      blocked ? null : el("div", null,
-        (d.checks || []).map(function (ct) { return checkBlock(ct, form); }),
-        photoBlock(d, ch),
-        el("div", { class: "row" },
-          el("button", { class: "pri big", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save check-up"),
-          el("button", { onclick: function () { set({ screenKid: null, screenData: null, saved: null }); } }, "Done"))));
+      d.attendance === "ABSENT"
+        ? el("div", { class: "card", style: "border-left: 4px solid var(--accent); margin-bottom: 12px" },
+            el("div", { class: "card-b" },
+              el("h3", { style: "margin-bottom: 6px" }, ch.name + " is marked absent"),
+              el("p", { class: "muted", style: "margin-bottom: 12px" }, "No examination measurements or options need to be selected for absent students."),
+              el("div", { class: "row", style: "gap: 8px" },
+                el("button", { class: "pri", onclick: function () { set({ screenKid: null, screenData: null, saved: null }); loadCampTab(); } }, "Done / Return to Camp"),
+                el("button", { class: "sm", onclick: function () { mark("PRESENT"); } }, "Mark Present instead"))))
+        : (blocked ? null : el("div", null,
+            (d.checks || []).map(function (ct) { return checkBlock(ct, form); }),
+            photoBlock(d, ch),
+            el("div", { class: "row" },
+              el("button", { class: "pri big", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save check-up"),
+              el("button", { onclick: function () { set({ screenKid: null, screenData: null, saved: null }); } }, "Done"))));
   }
 
   /**

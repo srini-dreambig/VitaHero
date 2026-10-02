@@ -13,6 +13,7 @@ final class ClinicianViewModel: ObservableObject {
     @Published var selectedSpecialtyTab: SpecialtyTab = .vision
     @Published var isLoadingRoster: Bool = false
     @Published var isSubmittingRecord: Bool = false
+    @Published var isAbsent: Bool = false
     @Published var submissionSuccessMessage: String? = nil
     @Published var errorMessage: String? = nil
     
@@ -372,10 +373,23 @@ final class ClinicianViewModel: ObservableObject {
         referralSpecialty = .none
         clinicalRecommendations = ""
         submissionSuccessMessage = nil
+        isAbsent = false
+    }
+    
+    func markAttendanceAbsent() async -> Bool {
+        guard let student = selectedStudent else { return false }
+        isSubmittingRecord = true
+        isAbsent = true
+        submissionSuccessMessage = "\(student.name) marked absent for this camp."
+        isSubmittingRecord = false
+        return true
     }
     
     func submitScreeningRecord() async -> Bool {
         guard let student = selectedStudent else { return false }
+        if isAbsent {
+            return await markAttendanceAbsent()
+        }
         isSubmittingRecord = true
         errorMessage = nil
         
