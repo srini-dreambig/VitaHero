@@ -499,6 +499,7 @@ object S {
     const val campResultTitle = "camp_result_title"
     const val resultUnderReview = "result_under_review"
     const val resultUnderReviewSub = "result_under_review_sub"
+    const val resultNotScreened = "result_not_screened"
     const val doctorSays = "doctor_says"
     const val photosTitle = "photos_title"
     const val photosSub = "photos_sub"
@@ -919,6 +920,7 @@ private val en = mapOf(
     S.photoConsentAgree to "Photographs are allowed",
     S.campResultTitle to "Camp result",
     S.resultUnderReview to "A doctor is still checking this",
+    S.resultNotScreened to "No result from this camp",
     S.resultUnderReviewSub to "Nothing is shown until a doctor has read it. It will appear here when they are done.",
     S.doctorSays to "What the doctor advises",
     S.photosTitle to "Photographs",
@@ -1272,6 +1274,7 @@ private val hi = mapOf(
     S.photoConsentAgree to "\u092B\u093C\u094B\u091F\u094B \u0932\u0947\u0928\u0947 \u0915\u0940 \u0905\u0928\u0941\u092E\u0924\u093F \u0939\u0948",
     S.campResultTitle to "\u0915\u0948\u0902\u092A \u0915\u093E \u092A\u0930\u093F\u0923\u093E\u092E",
     S.resultUnderReview to "\u0921\u0949\u0915\u094D\u091F\u0930 \u0905\u092D\u0940 \u0907\u0938\u0947 \u0926\u0947\u0916 \u0930\u0939\u0947 \u0939\u0948\u0902",
+    S.resultNotScreened to "\u0907\u0938 \u0936\u093F\u0935\u093F\u0930 \u0915\u093E \u0915\u094B\u0908 \u092A\u0930\u093F\u0923\u093E\u092E \u0928\u0939\u0940\u0902",
     S.resultUnderReviewSub to "\u091C\u092C \u0924\u0915 \u0921\u0949\u0915\u094D\u091F\u0930 \u0907\u0938\u0947 \u0928\u0939\u0940\u0902 \u0926\u0947\u0916 \u0932\u0947\u0924\u0947, \u0915\u0941\u091B \u0928\u0939\u0940\u0902 \u0926\u093F\u0916\u093E\u092F\u093E \u091C\u093E\u0924\u093E\u0964 \u0909\u0928\u0915\u0947 \u0926\u0947\u0916 \u0932\u0947\u0928\u0947 \u092A\u0930 \u092F\u0939 \u092F\u0939\u093E\u0901 \u0906 \u091C\u093E\u090F\u0917\u093E\u0964",
     S.doctorSays to "\u0921\u0949\u0915\u094D\u091F\u0930 \u0915\u0940 \u0938\u0932\u093E\u0939",
     S.photosTitle to "\u092B\u093C\u094B\u091F\u094B",
@@ -1620,6 +1623,7 @@ private val te = mapOf(
     S.photoConsentAgree to "\u0C2B\u0C4B\u0C1F\u0C4B\u0C32\u0C41 \u0C24\u0C40\u0C2F\u0C21\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C05\u0C28\u0C41\u0C2E\u0C24\u0C3F \u0C09\u0C02\u0C26\u0C3F",
     S.campResultTitle to "\u0C36\u0C3F\u0C2C\u0C3F\u0C30 \u0C2B\u0C32\u0C3F\u0C24\u0C02",
     S.resultUnderReview to "\u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D \u0C07\u0C02\u0C15\u0C3E \u0C26\u0C40\u0C28\u0C4D\u0C28\u0C3F \u0C1A\u0C42\u0C38\u0C4D\u0C24\u0C41\u0C28\u0C4D\u0C28\u0C3E\u0C30\u0C41",
+    S.resultNotScreened to "\u0C08 \u0C36\u0C3F\u0C2C\u0C3F\u0C30\u0C02 \u0C28\u0C41\u0C02\u0C21\u0C3F \u0C2B\u0C32\u0C3F\u0C24\u0C02 \u0C32\u0C47\u0C26\u0C41",
     S.resultUnderReviewSub to "\u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D \u0C1A\u0C42\u0C38\u0C47 \u0C35\u0C30\u0C15\u0C41 \u0C0F\u0C26\u0C40 \u0C1A\u0C42\u0C2A\u0C2C\u0C21\u0C26\u0C41. \u0C35\u0C3E\u0C30\u0C41 \u0C2A\u0C42\u0C30\u0C4D\u0C24\u0C3F \u0C1A\u0C47\u0C38\u0C3F\u0C28 \u0C24\u0C30\u0C4D\u0C35\u0C3E\u0C24 \u0C07\u0C26\u0C3F \u0C07\u0C15\u0C4D\u0C15\u0C21 \u0C15\u0C28\u0C3F\u0C2A\u0C3F\u0C38\u0C4D\u0C24\u0C41\u0C02\u0C26\u0C3F.",
     S.doctorSays to "\u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D \u0C38\u0C32\u0C39\u0C3E",
     S.photosTitle to "\u0C2B\u0C4B\u0C1F\u0C4B\u0C32\u0C41",

@@ -87,7 +87,10 @@ class ClinicianViewModel(
     fun loadCamps() {
         viewModelScope.launch {
             _busy.value = true
-            _camps.value = repo.myCamps()
+            _message.value = ""
+            val camps = repo.myCamps()
+            if (camps == null) _message.value = "Could not load your camps. Check your connection and try again."
+            _camps.value = camps.orEmpty()
             _busy.value = false
         }
     }
@@ -98,9 +101,11 @@ class ClinicianViewModel(
             // Cleared first: a roster left on screen while the next camp loads
             // is one camp's children under another camp's heading.
             _roster.value = emptyList()
+            _message.value = ""
             val answer = repo.roster(campId)
-            _roster.value = answer.participants
-            _can.value = answer.can
+            if (answer == null) _message.value = "Could not load this camp's list. Check your connection and try again."
+            _roster.value = answer?.participants.orEmpty()
+            _can.value = answer?.can ?: CampCanDto()
             _busy.value = false
         }
     }

@@ -101,7 +101,7 @@ fun CampResultScreen(
                         IconBubble(Icons.Outlined.HealthAndSafety, HeroBlue)
                         Spacer(Modifier.height(12.dp))
                         Text(
-                            t(S.resultUnderReview),
+                            t(if (r.status == "NOT_SCREENED") S.resultNotScreened else S.resultUnderReview),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                         )

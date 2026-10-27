@@ -55,6 +55,7 @@ fun ClinicianCampsScreen(
 ) {
     val camps by clinician.camps.collectAsState()
     val busy by clinician.busy.collectAsState()
+    val message by clinician.message.collectAsState()
 
     LaunchedEffect(Unit) { clinician.loadCamps() }
 
@@ -93,11 +94,17 @@ fun ClinicianCampsScreen(
             item {
                 EmptyState(
                     icon = Icons.Outlined.CalendarMonth,
-                    title = if (busy) "Loading your camps…" else "No camps assigned",
-                    subtitle =
-                        if (busy) "One moment."
-                        else "A school administrator puts you on a camp. Once they do, it "
-                            + "appears here with its list of children.",
+                    title = when {
+                        busy -> "Loading your camps…"
+                        message.isNotBlank() -> "Could not load your camps"
+                        else -> "No camps assigned"
+                    },
+                    subtitle = when {
+                        busy -> "One moment."
+                        message.isNotBlank() -> message
+                        else -> "A school administrator puts you on a camp. Once they do, it " +
+                            "appears here with its list of children."
+                    },
                     modifier = Modifier.padding(20.dp),
                 )
             }

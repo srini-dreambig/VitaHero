@@ -430,6 +430,7 @@ export async function getCamp(sql: Sql, actor: Actor, campId: string) {
       schedule: access.canSchedule,
       screen: access.canScreen,
       review: access.canReview,
+      viewClinical: access.canViewClinical,
     },
   };
 }
@@ -1032,8 +1033,26 @@ function evaluateChild(
     gender: String(participant.gender || ""),
   };
 
+  // The app's form has a history and lab card that is not a check of its own:
+  // it describes the child, and goes with whatever was examined. Sent on its
+  // own it used to be refused as an unknown check, which lost the whole save.
+  const context: Record<string, Record<string, unknown>> = {};
+  const checks = incoming.filter((raw) => {
+    const key = CONTEXT_SECTIONS[String(raw.checkType || "")];
+    if (!key) return true;
+    context[key] = (raw.detail as Record<string, unknown>) || {};
+    return false;
+  });
+  if (checks.length === 0 && incoming.length > 0) {
+    throw new ApiError(
+      400,
+      "Record at least one examination with the history and lab orders",
+      "CONTEXT_ONLY"
+    );
+  }
+
   const out: EvaluatedFinding[] = [];
-  for (const raw of incoming) {
+  for (const raw of checks) {
     const checkType = String(raw.checkType || "");
     if (!isCheckType(checkType)) {
       throw new ApiError(400, `Unknown check "${checkType}"`, "BAD_CHECK");
@@ -1058,7 +1077,7 @@ function evaluateChild(
         "CHECK_NOT_MY_SPECIALTY"
       );
     }
-    const detail = (raw.detail as Record<string, unknown>) || {};
+    const detail = { ...((raw.detail as Record<string, unknown>) || {}), ...context };
     const proposal = proposeFlag({ checkType, detail }, ctx);
 
     // C9 — a screener may override the proposal, but must say why.
@@ -1094,6 +1113,12 @@ function evaluateChild(
   }
   return out;
 }
+
+/** The app's form sections that ride along with the checks rather than being one. */
+const CONTEXT_SECTIONS: Record<string, string> = {
+  Systemic: "history",
+  Investigations: "investigations",
+};
 
 /** One child's captures, already judged, waiting to be written. */
 interface PreparedChild {
@@ -1161,7 +1186,7 @@ async function writeScreenings(
   if (screened.length > 0) {
     await sql`
       UPDATE vita_hero.camp_participants
-      SET status = CASE WHEN status IN ('APPROVED','RELEASED') THEN status ELSE 'SCREENED' END,
+      SET status = CASE WHEN status = 'RELEASED' THEN status ELSE 'SCREENED' END,
           attendance = CASE WHEN attendance = 'UNKNOWN' THEN 'PRESENT' ELSE attendance END,
           screened_at = NOW(),
           screened_by = ${actor.profileId}
@@ -1918,8 +1943,11 @@ export async function releaseCamp(
         const ok = await sendSms(
           u.phone as string,
           messageFor(u.name as string, String(u.urgency || "NONE"))
-        ).catch(() => false);
-        return ok ? u : null;
+        ).catch(() => null);
+        // The sender reports a refusal as {ok: false} rather than throwing, and
+        // an object is truthy: testing it whole counted every failed text as
+        // delivered, so the parent was never retried.
+        return ok && ok.ok ? u : null;
       })
     );
     landedAll.push(...(sent.filter(Boolean) as Record<string, unknown>[]));
@@ -2006,7 +2034,7 @@ export async function guardianCampResult(
   kidId: string
 ) {
   const pRows = await sql`
-    SELECT p.*, k.name, sc.title, sc.date, s.name AS school_name
+    SELECT p.*, k.name, sc.title, sc.date, sc.status AS camp_status, s.name AS school_name
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
     JOIN vita_hero.school_camps sc ON sc.id = p.camp_id
@@ -2017,10 +2045,24 @@ export async function guardianCampResult(
   if (pRows.length === 0) throw new ApiError(404, "No result for that child at that camp", "NOT_FOUND");
   const p = pRows[0];
   if ((p.status as string) !== "RELEASED") {
+    // A child who was away, refused, or was never reached will not have a
+    // result, and telling the parent a doctor is reviewing it kept them
+    // waiting for something that was never coming.
+    const attendance = (p.attendance as string) || "UNKNOWN";
+    const neverSeen = (p.status as string) === "NOT_SCREENED" &&
+      (attendance === "ABSENT" || attendance === "REFUSED" || (p.camp_status as string) === "RELEASED");
+    if (neverSeen) {
+      return {
+        status: "NOT_SCREENED",
+        message: attendance === "REFUSED"
+          ? "Your child did not take part in this check-up, so there is no result. Ask the school about the next camp."
+          : "Your child was not checked at this camp, so there is no result. Ask the school about the next camp.",
+      };
+    }
     return { status: "PENDING", message: "Results are being reviewed by a doctor and will appear here soon." };
   }
   const fRows = await sql`
-    SELECT check_type, flag, rationale, value_text FROM vita_hero.camp_findings
+    SELECT check_type, flag, rationale, review_note, value_text FROM vita_hero.camp_findings
     WHERE camp_id = ${campId} AND kid_id = ${kidId} ORDER BY check_type
   `;
   return {
@@ -2035,7 +2077,9 @@ export async function guardianCampResult(
       checkType: f.check_type as string,
       flag: f.flag as string,
       summary: (f.value_text as string) || "",
-      note: (f.rationale as string) || "",
+      // The reviewing doctor's own words win over the rule's, which they read
+      // and may have overruled.
+      note: String(f.review_note || "").trim() || (f.rationale as string) || "",
     })),
   };
 }

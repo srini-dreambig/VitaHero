@@ -40,30 +40,37 @@ class ClinicianRepository {
 
     private val isDemo: Boolean get() = !configured || ApiService.sessionToken?.startsWith("demo_") == true
 
-    /** The camps this clinician has been put on, and nothing else. */
-    suspend fun myCamps(): List<ClinicianCampDto> = io {
+    /**
+     * The camps this clinician has been put on, and nothing else.
+     *
+     * Null means the request did not come back. The sample camp is for the demo
+     * sign-in only: shown after a real failure, it put invented children in
+     * front of a doctor who could not tell them from their own.
+     */
+    suspend fun myCamps(): List<ClinicianCampDto>? = io {
         if (isDemo) return@io mockCamps()
         try {
             val resp = http.get("$base/api/admin/my-camps") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.observed()) resp.body<ClinicianCampsDto>().camps else mockCamps()
+            if (resp.observed()) resp.body<ClinicianCampsDto>().camps else null
         } catch (e: Exception) {
             noteTransportFailure(e)
-            mockCamps()
+            null
         }
     }
 
-    suspend fun roster(campId: String): CampRosterDto = io {
+    /** A camp's children, or null when the request did not come back. */
+    suspend fun roster(campId: String): CampRosterDto? = io {
         if (isDemo) return@io mockRoster()
         try {
             val resp = http.get("$base/api/admin/camps/$campId/participants") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.observed()) resp.body<CampRosterDto>() else mockRoster()
+            if (resp.observed()) resp.body<CampRosterDto>() else null
         } catch (e: Exception) {
             noteTransportFailure(e)
-            mockRoster()
+            null
         }
     }
 
@@ -73,10 +80,10 @@ class ClinicianRepository {
             val resp = http.get("$base/api/admin/camps/$campId/screening/$kidId") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.observed()) resp.body<ScreeningFormDto>() else mockForm(kidId)
+            if (resp.observed()) resp.body<ScreeningFormDto>() else null
         } catch (e: Exception) {
             noteTransportFailure(e)
-            mockForm(kidId)
+            null
         }
     }
 

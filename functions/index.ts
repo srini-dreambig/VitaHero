@@ -3385,7 +3385,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
              auth_provider, session_token)
           VALUES (
             ${session.profileId},
-            ${(body.user_id as string) || session.userId},
+            ${session.userId || session.profileId},
             ${(body.phone as string) || null},
             ${(body.name as string) || session.name},
             ${(body.email as string) || null},
@@ -3402,7 +3402,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${token}
           )
           ON CONFLICT (id) DO UPDATE SET
-            user_id = EXCLUDED.user_id, phone = EXCLUDED.phone,
+            -- Who owns this profile and the number it signs in with are set by
+            -- sign-in and the OTP check, never by the app's settings save. A
+            -- client that could write them could take over another account, or
+            -- claim the children a school enrolled against someone else's phone.
             name = EXCLUDED.name, email = EXCLUDED.email,
             onboarding_complete = EXCLUDED.onboarding_complete,
             is_logged_in = EXCLUDED.is_logged_in,
@@ -4232,7 +4235,6 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         return json({
           valid: true,
           familyOwner: rows[0].name,
-          profileId: rows[0].id,
         });
       }
 

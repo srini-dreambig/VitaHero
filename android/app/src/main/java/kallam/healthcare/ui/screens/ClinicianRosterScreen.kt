@@ -68,6 +68,7 @@ fun ClinicianRosterScreen(
     val roster by clinician.roster.collectAsState()
     val busy by clinician.busy.collectAsState()
     val can by clinician.can.collectAsState()
+    val message by clinician.message.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(campId) { clinician.loadRoster(campId) }
@@ -157,11 +158,13 @@ fun ClinicianRosterScreen(
                     icon = Icons.Outlined.Groups,
                     title = when {
                         busy -> "Loading the list…"
+                        roster.isEmpty() && message.isNotBlank() -> "Could not load the list"
                         roster.isEmpty() -> "No children on this camp yet"
                         else -> "No match"
                     },
                     subtitle = when {
                         busy -> "One moment."
+                        roster.isEmpty() && message.isNotBlank() -> message
                         roster.isEmpty() ->
                             "An administrator builds the camp's list from the school's roster."
                         else -> "Nobody on this camp matches \"$query\"."
