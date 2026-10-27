@@ -214,7 +214,9 @@ data class CoParent(
     val id: String,
     val name: String,
     val relation: String,
-    val joinedDate: String = ""
+    val joinedDate: String = "",
+    /** PENDING until the family's owner approves. Only the owner is sent these. */
+    val status: String = "APPROVED",
 )
 
 data class PersonalizedDietTip(

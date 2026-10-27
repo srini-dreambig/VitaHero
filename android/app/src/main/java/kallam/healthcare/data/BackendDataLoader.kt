@@ -149,7 +149,7 @@ class BackendDataLoader(
             }.toMap()
 
             val coParentsFromBackend = coParentsD.await().map { dto ->
-                CoParent(dto.id, dto.name, dto.relation, dto.joinedDate)
+                CoParent(dto.id, dto.name, dto.relation, dto.joinedDate, dto.status)
             }
 
             val bookingDirectory = bookingD.await()?.let { mapBookingDirectory(it) }

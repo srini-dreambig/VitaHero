@@ -131,6 +131,8 @@ data class CoParentDto(
     val name: String,
     val relation: String,
     @SerialName("joined_date") val joinedDate: String = "",
+    /** PENDING (waiting on the owner), APPROVED or DECLINED. */
+    val status: String = "APPROVED",
 )
 
 @Serializable

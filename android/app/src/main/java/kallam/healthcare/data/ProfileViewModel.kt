@@ -125,7 +125,11 @@ class ProfileViewModel(
                             relation = tr(S.coParentRelation, locale),
                             accessToken = token,
                         ).onSuccess { resp ->
-                            if (resp.success) {
+                            if (resp.success && resp.pending) {
+                                // Joining asks the family's owner; nothing is
+                                // shared until they approve it.
+                                state.syncMessage.value = tr(S.familyRequestSent, locale)
+                            } else if (resp.success) {
                                 container.fetchAndApplyBackendData(viewModelScope)
                                 fetchSharedKids(kidsViewModel)
                             } else {
@@ -139,6 +143,28 @@ class ProfileViewModel(
                         state.syncMessage.value = e.message ?: tr(S.syncFailed, locale)
                     },
                 )
+            } finally {
+                _familyBusy.value = false
+            }
+        }
+    }
+
+    /**
+     * The owner's answer to a request to join their family. The server checks
+     * that the request is to this owner's family; the list is reloaded either
+     * way so the screen shows what the server now holds.
+     */
+    fun answerCoParentRequest(coParentId: String, approve: Boolean) {
+        if (_familyBusy.value) return
+        _familyBusy.value = true
+        viewModelScope.launch {
+            try {
+                val ok = runCatching { container.api.answerCoParentRequest(coParentId, approve) }
+                    .getOrDefault(false)
+                if (!ok) {
+                    state.syncMessage.value = tr(S.syncFailed, state.uiState.value.locale)
+                }
+                container.fetchAndApplyBackendData(viewModelScope)
             } finally {
                 _familyBusy.value = false
             }

@@ -41,6 +41,12 @@ object FamilySharingService {
         val coParentId: String? = null,
         val familyCode: String? = null,
         val error: String? = null,
+        /**
+         * PENDING until the family's owner approves the request, then
+         * APPROVED. A pending request sees none of the family's children.
+         */
+        val status: String? = null,
+        val pending: Boolean = false,
     )
 
     @Serializable

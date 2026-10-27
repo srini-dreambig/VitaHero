@@ -213,11 +213,9 @@ class AppViewModel(
         fetchAndApplyBackendData()
         container.persistNow(
             SyncEntity.PROFILE,
-            SyncEntity.CAMPS,
             SyncEntity.MEALS,
             SyncEntity.STREAKS,
             SyncEntity.APPOINTMENTS,
-            SyncEntity.GROWTH,
         )
         NotificationCoordinator.scheduleAll(getApplication(), state.uiState.value)
     }

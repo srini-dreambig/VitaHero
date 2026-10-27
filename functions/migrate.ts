@@ -28,6 +28,9 @@ import { Sql } from "./common";
  * shape. SCHEMA_DDL_FINGERPRINT below is what actually enforces that, and it
  * is checked in migrate.test.ts.
  */
+// 13 — co_parents.status: joining a family with its code is a request the
+//     owner approves (PENDING, APPROVED, DECLINED). Existing rows default to
+//     APPROVED, so nobody who already shares a family loses it.
 // 12 — appointments_slot_once: one booking per doctor, date and time. Two
 //     parents booking the same slot a moment apart both passed the clash
 //     check. Created only when no slot is already double-booked, so a
@@ -67,7 +70,7 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 12;
+export const SCHEMA_VERSION = 13;
 
 /**
  * A fingerprint of every DDL statement in this worker.
@@ -88,7 +91,7 @@ export const SCHEMA_VERSION = 12;
  * means updating both lines, together, which is the point: the second line is
  * what makes you look at the first.
  */
-export const SCHEMA_DDL_FINGERPRINT = "d5866ba6f618f6a6";
+export const SCHEMA_DDL_FINGERPRINT = "fc22cdd2c73481be";
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

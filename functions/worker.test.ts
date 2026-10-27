@@ -1173,7 +1173,6 @@ describe("a client-supplied id cannot reach another account's row", () => {
   /** Every upsert on the sync surface, with a body the app would really send. */
   const UPSERTS: Array<[string, string, Record<string, unknown>]> = [
     ["an appointment", "/api/appointments", { id: "apt_1", doctor_name: "Dr Rao", specialty: "Dental", kid_name: "Arjun", date: "2026-10-01", time: "10:00" }],
-    ["a camp entry", "/api/camps", { id: "cmp_1", title: "Annual", school: "Silver Oaks", date: "2026-10-01", time: "09:00" }],
     ["a co-parent", "/api/co-parents", { id: "cop_1", name: "Ravi", relation: "Father" }],
   ];
 
@@ -1200,22 +1199,61 @@ describe("a client-supplied id cannot reach another account's row", () => {
     });
   }
 
-  test("a growth point can only land on a child the caller owns", async () => {
+  // Camp results and growth are the clinicians' record. A parent's app reads
+  // them; an unchanged echo of an existing row is answered with it, and a new
+  // or changed one is refused before anything is written.
+  test("a parent cannot write a camp result", async () => {
+    handlers = [...asParent(), { match: /SELECT \* FROM vita_hero\.camps/, rows: [] }];
+    const r = await call("/api/camps", {
+      method: "POST", headers: bearer,
+      body: JSON.stringify({ id: "cmp_1", title: "Annual", school: "Silver Oaks", date: "2026-10-01", time: "09:00", result_summary: "All clear" }),
+    });
+    expect(r.status).toBe(403);
+    expect((await r.json()).code).toBe("CLINICIAN_RECORD");
+    expect(calls.some((c) => /INSERT INTO vita_hero\.camps/.test(c.text))).toBe(false);
+  });
+
+  test("an unchanged camp echoed back by an older app is answered, not written", async () => {
+    const row = { id: "cmp_1", profile_id: "ph_mine", title: "Annual", school: "Silver Oaks",
+      date: "2026-10-01", time: "09:00", status: "UPCOMING", checks: ["Dental"], result_summary: null };
+    handlers = [...asParent(), { match: /SELECT \* FROM vita_hero\.camps/, rows: [row] }];
+    const r = await call("/api/camps", {
+      method: "POST", headers: bearer,
+      body: JSON.stringify({ id: "cmp_1", title: "Annual", school: "Silver Oaks", date: "2026-10-01", time: "09:00", status: "UPCOMING", checks: ["Dental"] }),
+    });
+    expect(r.status).toBe(200);
+    expect(calls.some((c) => /INSERT INTO vita_hero\.camps/.test(c.text))).toBe(false);
+  });
+
+  test("a parent cannot write a growth measurement", async () => {
     handlers = [
       ...asParent(),
       { match: /FROM vita_hero\.kids\s+WHERE id = /, rows: [{ id: "k_mine" }] },
+      { match: /SELECT \* FROM vita_hero\.growth_points/, rows: [] },
     ];
-    await call("/api/growth-points", {
+    const r = await call("/api/growth-points", {
       method: "POST", headers: bearer,
-      body: JSON.stringify({ id: "gp_k_theirs_2026-09-01", kid_id: "k_mine", label: "Camp", height: 130, weight: 28 }),
+      body: JSON.stringify({ id: "gp_k_mine_2026-09-01", kid_id: "k_mine", label: "Camp", height: 130, weight: 28 }),
     });
-    const upsert = calls.find((c) => /INSERT INTO vita_hero\.growth_points/.test(c.text));
-    expect(upsert).toBeDefined();
-    // Tied to the kid that was just ownership-checked, so a point id belonging
-    // to another child updates nothing. The kid_id itself is no longer
-    // rewritable, which is what let a row be moved between children.
-    expect(upsert!.text).toMatch(/DO UPDATE[\s\S]*WHERE[\s\S]*kid_id = /);
-    expect(upsert!.text).not.toContain("kid_id = EXCLUDED.kid_id");
+    expect(r.status).toBe(403);
+    expect((await r.json()).code).toBe("CLINICIAN_RECORD");
+    expect(calls.some((c) => /INSERT INTO vita_hero\.growth_points/.test(c.text))).toBe(false);
+  });
+
+  test("a growth point echoed back unchanged is answered, not written", async () => {
+    handlers = [
+      ...asParent(),
+      { match: /FROM vita_hero\.kids\s+WHERE id = /, rows: [{ id: "k_mine" }] },
+      { match: /SELECT \* FROM vita_hero\.growth_points/, rows: [
+        { id: "gp_1", kid_id: "k_mine", label: "Camp", height: 130, weight: 28 },
+      ] },
+    ];
+    const r = await call("/api/growth-points", {
+      method: "POST", headers: bearer,
+      body: JSON.stringify({ id: "gp_1", kid_id: "k_mine", label: "Camp", height: 130, weight: 28 }),
+    });
+    expect(r.status).toBe(200);
+    expect(calls.some((c) => /INSERT INTO vita_hero\.growth_points/.test(c.text))).toBe(false);
   });
 
   test("meals are refused for a child the caller does not own", async () => {

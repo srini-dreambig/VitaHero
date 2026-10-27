@@ -226,9 +226,9 @@ object BackendSyncEngine {
         if (SyncEntity.PROFILE in entities && batch.profile != null) {
             attempt(SyncEntity.PROFILE, batch.profile.id) { api.upsertProfile(batch.profile) }
         }
-        if (SyncEntity.GROWTH in entities) {
-            for (g in batch.growthPoints) attempt(SyncEntity.GROWTH, g.id) { api.upsertGrowthPoint(g) }
-        }
+        // Growth measurements and camp results are the clinicians' record:
+        // they arrive from the camp, and the server refuses a parent's write
+        // to either. The app reads them and never sends them back.
         if (SyncEntity.APPOINTMENTS in entities) {
             for (a in batch.appointments) attempt(SyncEntity.APPOINTMENTS, a.id) { api.upsertAppointment(a) }
         }
@@ -238,10 +238,6 @@ object BackendSyncEngine {
         if (SyncEntity.STREAKS in entities) {
             for (st in batch.streaks) attempt(SyncEntity.STREAKS, st.kidId) { api.upsertStreak(st) }
         }
-        if (SyncEntity.CAMPS in entities) {
-            for (c in batch.camps) attempt(SyncEntity.CAMPS, c.id) { api.upsertCamp(c) }
-        }
-
         val settled = entities - unfinished
         return when {
             rejections.isNotEmpty() -> PushResult.Rejected(rejections, transient, settled)

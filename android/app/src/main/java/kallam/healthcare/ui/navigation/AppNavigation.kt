@@ -829,10 +829,14 @@ fun AppNavigation(
             val coParents by appViewModel.uiState.selectAsState { it.coParents }
             val familyCode by appViewModel.uiState.selectAsState { it.familyCode }
             val familyBusy by profileViewModel.familyBusy.collectAsState()
+            // A request approved since the last visit shows up here: the
+            // family's children are only fetched once the owner has said yes.
+            LaunchedEffect(familyCode) { profileViewModel.fetchSharedKids(kidsViewModel) }
             FamilySharingScreen(
                 familyCode = familyCode,
                 coParents = coParents,
                 onBack = { navController.popBackStack() },
+                onAnswerRequest = { id, approve -> profileViewModel.answerCoParentRequest(id, approve) },
                 onJoinFamily = { profileViewModel.joinFamily(it, kidsViewModel) },
                 onGenerateCode = { profileViewModel.generateFamilyCode() },
                 onShareCode = {

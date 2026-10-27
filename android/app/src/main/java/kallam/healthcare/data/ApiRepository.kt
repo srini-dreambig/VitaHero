@@ -241,6 +241,19 @@ class ApiRepository {
         }
     }
 
+    /** The family owner approves or declines a request to join. */
+    suspend fun answerCoParentRequest(coParentId: String, approve: Boolean): Boolean = onIo {
+        if (skipNetwork) return@onIo false
+        val id = java.net.URLEncoder.encode(coParentId, "UTF-8")
+        // Two literal paths rather than one templated action, so the route
+        // check in functions/app-routes.test.ts can see both of them.
+        val url = if (approve) "$base/api/co-parents/$id/approve" else "$base/api/co-parents/$id/decline"
+        val resp = http.post(url) {
+            authHeaders().forEach { (k, v) -> header(k, v) }
+        }
+        resp.observed()
+    }
+
     // ─── Family Lookup ─────────────────────────────────────────
 
     suspend fun lookupFamily(code: String): ProfileDto? = onIo {

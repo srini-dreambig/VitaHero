@@ -563,6 +563,10 @@ async function ensureSchema(sql: Sql): Promise<void> {
       joined_date TEXT DEFAULT ''
     )
   `;
+  // A code is something a parent shares, and shared codes travel. Joining
+  // with one used to be enough to see the family's children; it is now a
+  // request the family's owner approves. Rows from before this are approved.
+  await sql`ALTER TABLE vita_hero.co_parents ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'APPROVED'`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS vita_hero.doctors (
@@ -998,21 +1002,58 @@ async function getFamilyOwnerId(
   fallbackProfileId: string
 ): Promise<string> {
   if (!familyCode) return fallbackProfileId;
-  const owners = await sql`
-    SELECT p.id FROM vita_hero.profiles p
+  const owner = await findFamilyOwner(sql, familyCode);
+  return owner?.id || fallbackProfileId;
+}
+
+/**
+ * The profile a family code belongs to.
+ *
+ * An approved co-parent carries the owner's code too, so "the first profile
+ * with this code" could be either of them — and whichever sorted first was
+ * treated as the family, children and all. The owner is the holder of the
+ * code who has not joined anyone else's family; a holder with children is
+ * preferred over one without, then the oldest id, so the answer is stable.
+ */
+export async function findFamilyOwner(
+  sql: Sql,
+  familyCode: string,
+): Promise<{ id: string; userId: string; name: string } | null> {
+  if (!familyCode) return null;
+  const rows = await sql`
+    SELECT p.id, p.user_id, p.name FROM vita_hero.profiles p
     WHERE p.family_code = ${familyCode}
-      AND EXISTS (SELECT 1 FROM vita_hero.kids k WHERE k.profile_id = p.id)
-    ORDER BY p.id
+      AND NOT EXISTS (
+        SELECT 1 FROM vita_hero.co_parents c
+        WHERE c.user_id IN (p.id, p.user_id)
+          AND c.profile_id <> p.id
+          AND COALESCE(c.status, 'APPROVED') = 'APPROVED'
+      )
+    ORDER BY EXISTS (SELECT 1 FROM vita_hero.kids k WHERE k.profile_id = p.id) DESC, p.id
     LIMIT 1
   `;
-  if (owners.length > 0) return owners[0].id as string;
-  const any = await sql`
-    SELECT id FROM vita_hero.profiles
-    WHERE family_code = ${familyCode}
-    ORDER BY id
+  if (rows.length === 0) return null;
+  return {
+    id: rows[0].id as string,
+    userId: (rows[0].user_id as string) || "",
+    name: (rows[0].name as string) || "",
+  };
+}
+
+/** The caller's own request to join this owner's family, if there is one. */
+async function coParentRowFor(
+  sql: Sql,
+  ownerId: string,
+  session: { userId?: string | null; profileId: string },
+): Promise<{ id: string; status: string } | null> {
+  const rows = await sql`
+    SELECT id, COALESCE(status, 'APPROVED') AS status FROM vita_hero.co_parents
+    WHERE profile_id = ${ownerId}
+      AND user_id IN (${session.userId || session.profileId}, ${session.profileId})
+    ORDER BY CASE COALESCE(status, 'APPROVED') WHEN 'APPROVED' THEN 0 WHEN 'PENDING' THEN 1 ELSE 2 END
     LIMIT 1
   `;
-  return (any[0]?.id as string) || fallbackProfileId;
+  return rows.length ? { id: rows[0].id as string, status: rows[0].status as string } : null;
 }
 
 function anonymizeLeaderboardName(name: string, rank: number, isYou: boolean): string {
@@ -3375,6 +3416,26 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path === "/api/profiles" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
+        // The family code rides along with every settings save, and a code
+        // is what gives access to a family. Writing another family's code
+        // onto your own profile made you look like one of them — the join
+        // request without the asking. A code someone else already holds is
+        // kept only by its owner's approved co-parents; anyone else keeps
+        // what they had.
+        let familyCode = ((body.family_code as string) || "").toUpperCase().trim();
+        if (familyCode) {
+          const current = await sql`
+            SELECT family_code FROM vita_hero.profiles WHERE id = ${session.profileId} LIMIT 1
+          `;
+          const stored = (current[0]?.family_code as string) || "";
+          if (familyCode !== stored) {
+            const owner = await findFamilyOwner(sql, familyCode);
+            if (owner && owner.id !== session.profileId) {
+              const cp = await coParentRowFor(sql, owner.id, session);
+              if (cp?.status !== "APPROVED") familyCode = stored;
+            }
+          }
+        }
         const row = await sql`
           INSERT INTO vita_hero.profiles
             (id, user_id, phone, name, email,
@@ -3393,7 +3454,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             ${(body.is_logged_in as boolean) || false},
             ${(body.dark_theme as boolean) || false},
             ${(body.locale_code as string) || "en"},
-            ${(body.family_code as string) || ""},
+            ${familyCode},
             ${(body.notifications_enabled as boolean) ?? true},
             ${(body.camp_reminders_enabled as boolean) ?? true},
             ${(body.consent_accepted as boolean) || false},
@@ -3909,6 +3970,32 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path === "/api/camps" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
+        // Camps and their results are recorded by the clinicians at the camp.
+        // A parent's app reads them; it does not write them. Older builds
+        // still send back what they were given, so an unchanged copy of the
+        // parent's own row is answered with that row, and anything else is
+        // refused.
+        if (!isOpsRole(session.role)) {
+          const existing = await sql`
+            SELECT * FROM vita_hero.camps
+            WHERE id = ${String(body.id || "")} AND profile_id = ${session.profileId}
+            LIMIT 1
+          `;
+          const e = existing[0];
+          const same = e
+            && (e.title ?? "") === (body.title ?? "")
+            && (e.school ?? "") === (body.school ?? "")
+            && (e.date ?? "") === (body.date ?? "")
+            && (e.time ?? "") === (body.time ?? "")
+            && (e.status ?? "") === ((body.status as string) || "UPCOMING")
+            && (e.result_summary ?? null) === ((body.result_summary as string) || null)
+            && JSON.stringify(e.checks ?? []) === JSON.stringify(body.checks ?? []);
+          if (same) return json(e, 200);
+          return json(
+            { error: "Camp results are recorded by the camp's clinicians.", code: "CLINICIAN_RECORD" },
+            403,
+          );
+        }
         const row = await sql`
           INSERT INTO vita_hero.camps
             (id, profile_id, user_id, title, school, date, time, status, checks, result_summary)
@@ -4072,6 +4159,27 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
           return json({ error: "Kid not found" }, 404);
         }
+        // Height and weight come from the camp, measured by a clinician. Same
+        // rule as camps: an unchanged echo of an existing point is answered
+        // with it, so older builds sync cleanly, and a new or changed
+        // measurement from a parent is refused.
+        if (!isOpsRole(session.role)) {
+          const existing = await sql`
+            SELECT * FROM vita_hero.growth_points
+            WHERE id = ${String(body.id || "")} AND kid_id = ${kidId}
+            LIMIT 1
+          `;
+          const e = existing[0];
+          const same = e
+            && (e.label ?? "") === ((body.label as string) ?? "")
+            && Number(e.height) === (Number(body.height) || 0)
+            && Number(e.weight) === (Number(body.weight) || 0);
+          if (same) return json(e, 200);
+          return json(
+            { error: "Growth is measured by the clinicians at a camp.", code: "CLINICIAN_RECORD" },
+            403,
+          );
+        }
         const row = await sql`
           INSERT INTO vita_hero.growth_points
             (id, kid_id, user_id, label, height, weight, recorded_at)
@@ -4103,9 +4211,14 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         `;
         const familyCode = (profileRows[0]?.family_code as string) || "";
         const ownerId = await getFamilyOwnerId(sql, familyCode, session.profileId);
+        // Requests waiting on the owner are the owner's business: they see
+        // them to approve or decline, and everyone else sees the family.
+        const isFamilyOwner = ownerId === session.profileId;
         const rows = await sql`
-          SELECT * FROM vita_hero.co_parents
+          SELECT *, COALESCE(status, 'APPROVED') AS status FROM vita_hero.co_parents
           WHERE profile_id = ${ownerId}
+            AND (${isFamilyOwner}::boolean OR COALESCE(status, 'APPROVED') = 'APPROVED')
+            AND COALESCE(status, 'APPROVED') <> 'DECLINED'
           ORDER BY joined_date, name
         `;
         const ownerProfile = await sql`
@@ -4124,6 +4237,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             name: ownerName,
             relation: "Primary parent",
             joined_date: "",
+            status: "APPROVED",
           });
         }
         result.push(...(rows as Record<string, unknown>[]));
@@ -4190,16 +4304,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (code.length < 4) {
           return json({ valid: false, error: "Code too short" }, 400);
         }
-        const rows = await sql`
-          SELECT id, name, family_code FROM vita_hero.profiles
-          WHERE family_code = ${code} LIMIT 1
-        `;
-        if (rows.length === 0) {
+        const owner = await findFamilyOwner(sql, code);
+        if (!owner) {
           return json({ valid: false, error: "Family not found. Check the code and try again." });
         }
         return json({
           valid: true,
-          familyOwner: rows[0].name,
+          familyOwner: owner.name,
         });
       }
 
@@ -4213,34 +4324,80 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!code || !coParentName) {
           return json({ error: "Code and name required" }, 400);
         }
-        const familyRows = await sql`
-          SELECT id, user_id, family_code FROM vita_hero.profiles
-          WHERE family_code = ${code} LIMIT 1
-        `;
-        if (familyRows.length === 0) {
+        const owner = await findFamilyOwner(sql, code);
+        if (!owner) {
           return json({ error: "Family not found" }, 404);
         }
-        const familyProfile = familyRows[0];
-        if (familyProfile.id === session.profileId) {
+        if (owner.id === session.profileId) {
           return json({ error: "You cannot join your own family" }, 400);
+        }
+        // A code alone used to be enough to see a family's children, and a
+        // code is exactly what gets forwarded, screenshotted and guessed. So
+        // joining asks; the owner approves from their own Family screen, and
+        // until then this person sees nothing and their profile is unchanged.
+        const existing = await coParentRowFor(sql, owner.id, session);
+        if (existing?.status === "DECLINED") {
+          return json(
+            { success: false, status: "DECLINED", error: "This family declined the request.", code: "DECLINED" },
+            403,
+          );
+        }
+        if (existing) {
+          return json({
+            success: true,
+            status: existing.status,
+            pending: existing.status === "PENDING",
+            coParentId: existing.id,
+            familyCode: code,
+          });
         }
         const coParentId = `cp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
         await sql`
           INSERT INTO vita_hero.co_parents
-            (id, profile_id, user_id, name, relation, joined_date)
+            (id, profile_id, user_id, name, relation, joined_date, status)
           VALUES (
-            ${coParentId}, ${familyProfile.id}, ${session.userId || session.profileId},
-            ${coParentName}, ${relation}, ${new Date().toISOString().split("T")[0]}
+            ${coParentId}, ${owner.id}, ${session.userId || session.profileId},
+            ${coParentName}, ${relation}, ${new Date().toISOString().split("T")[0]},
+            'PENDING'
           )
-          ON CONFLICT (id) DO UPDATE SET
-            name = EXCLUDED.name, relation = EXCLUDED.relation
         `;
+        return json({ success: true, status: "PENDING", pending: true, coParentId, familyCode: code });
+      }
+
+      // ── Family Sharing: the owner answers a request ───
+      const coParentDecision = path.match(/^\/api\/co-parents\/([^/]+)\/(approve|decline)$/);
+      if (coParentDecision && request.method === "POST") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        const coId = decodeURIComponent(coParentDecision[1]);
+        const approve = coParentDecision[2] === "approve";
+        // Only the family's owner decides, and only about their own family:
+        // the row's profile_id is the owner, so a match on it is the check.
+        const rows = await sql`
+          SELECT id, user_id, COALESCE(status, 'APPROVED') AS status FROM vita_hero.co_parents
+          WHERE id = ${coId} AND profile_id = ${session.profileId}
+          LIMIT 1
+        `;
+        if (rows.length === 0) return json({ error: "No such request in your family", code: "NOT_FOUND" }, 404);
+        const next = approve ? "APPROVED" : "DECLINED";
         await sql`
-          UPDATE vita_hero.profiles
-          SET family_code = ${code}
-          WHERE id = ${session.profileId}
+          UPDATE vita_hero.co_parents SET status = ${next}
+          WHERE id = ${coId} AND profile_id = ${session.profileId}
         `;
-        return json({ success: true, coParentId, familyCode: code });
+        if (approve) {
+          // The co-parent's app reads the family from its own profile, so the
+          // code moves to them now — and only now.
+          const ownerCode = await sql`
+            SELECT family_code FROM vita_hero.profiles WHERE id = ${session.profileId} LIMIT 1
+          `;
+          const code = (ownerCode[0]?.family_code as string) || "";
+          if (code) {
+            await sql`
+              UPDATE vita_hero.profiles SET family_code = ${code}
+              WHERE id = ${rows[0].user_id as string} OR user_id = ${rows[0].user_id as string}
+            `;
+          }
+        }
+        return json({ id: coId, status: next });
       }
 
       // ── Family Sharing: Shared Kids ───────────────────
@@ -4248,25 +4405,17 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!session) return json({ error: "Authentication required" }, 401);
         const familyCode = url.searchParams.get("familyCode")?.toUpperCase().trim();
         if (!familyCode) return json({ error: "familyCode query parameter required" }, 400);
-        const familyRows = await sql`
-          SELECT id, user_id FROM vita_hero.profiles
-          WHERE family_code = ${familyCode} LIMIT 1
-        `;
-        if (familyRows.length === 0) {
+        const owner = await findFamilyOwner(sql, familyCode);
+        if (!owner) {
           return json({ error: "Family not found" }, 404);
         }
-        const familyProfile = familyRows[0];
-        const isOwner = familyProfile.id === session.profileId ||
-          familyProfile.user_id === session.userId;
+        const familyProfile = { id: owner.id };
+        const isOwner = owner.id === session.profileId;
         let isCoParent = false;
         if (!isOwner) {
-          const cpRows = await sql`
-            SELECT id FROM vita_hero.co_parents
-            WHERE profile_id = ${familyProfile.id}
-              AND user_id = ${session.userId || session.profileId}
-            LIMIT 1
-          `;
-          isCoParent = cpRows.length > 0;
+          // Approved only: a request the owner has not answered sees nothing.
+          const cp = await coParentRowFor(sql, owner.id, session);
+          isCoParent = cp?.status === "APPROVED";
         }
         if (!isOwner && !isCoParent) {
           return json({ error: "Not authorized to view this family" }, 403);

@@ -35,6 +35,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -74,7 +75,12 @@ fun FamilySharingScreen(
     /** True while a family-sharing write is with the server. */
     busy: Boolean = false,
     onGenerateCode: () -> Unit,
-    onShareCode: () -> Unit
+    onShareCode: () -> Unit,
+    /**
+     * The owner's answer to a request to join (true approves). Pending rows
+     * reach only the family's owner, and the server checks it again.
+     */
+    onAnswerRequest: (coParentId: String, approve: Boolean) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     var joinCode by rememberSaveable { mutableStateOf("") }
@@ -208,7 +214,7 @@ fun FamilySharingScreen(
                 }
                 coParents.forEach { co ->
                     item {
-                        HeroCard(Modifier.fillMaxWidth()) {
+                        HeroCard(Modifier.fillMaxWidth()) { Column {
                             Row(
                                 Modifier.padding(16.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -221,13 +227,28 @@ fun FamilySharingScreen(
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     Text(
-                                        "${co.relation}${if (co.joinedDate.isNotEmpty()) " · Joined ${co.joinedDate}" else ""}",
+                                        if (co.status == "PENDING") t(S.coParentPending)
+                                        else "${co.relation}${if (co.joinedDate.isNotEmpty()) " · Joined ${co.joinedDate}" else ""}",
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
-                        }
+                            if (co.status == "PENDING") {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+                                ) {
+                                    TextButton(enabled = !busy, onClick = { onAnswerRequest(co.id, false) }) {
+                                        Text(t(S.coParentDecline))
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    TextButton(enabled = !busy, onClick = { onAnswerRequest(co.id, true) }) {
+                                        Text(t(S.coParentApprove), fontWeight = FontWeight.SemiBold)
+                                    }
+                                }
+                            }
+                        } }
                         Spacer(Modifier.height(10.dp))
                     }
                 }
