@@ -68,10 +68,12 @@ describe("the app can show what a camp screens for", () => {
   });
 
   test("every designed check reaches a parent as something, not just text", () => {
-    // The real assertion. A check a camp can capture must move a value the app
-    // renders as a health area — otherwise it is recorded, released, and shown
-    // to the family as a bare line in the camp result with no flag and no
-    // trend, which is not a result, it is a receipt.
+    // The real assertion. A check a camp can capture must move something the
+    // app shows as a judgement — a health tab, or the overall score — and keep
+    // its own flag in the camp result. Otherwise it is recorded, released and
+    // shown to the family as a bare line, which is not a result, it is a
+    // receipt.
+    const none = summariseForApp([]);
     for (const check of DESIGNED_CHECKS) {
       const s = flag(check, SAMPLE[check] || {});
       const surfaced =
@@ -79,8 +81,19 @@ describe("the app can show what a camp screens for", () => {
         s.eyesight !== "NOT_MEASURED" ||
         s.nutrition !== "NOT_MEASURED" ||
         s.heightCm !== null ||
-        s.weightKg !== null;
-      expect(surfaced, `${check} reaches no health tab in the app`).toBe(true);
+        s.weightKg !== null ||
+        s.overallScore !== none.overallScore;
+      expect(surfaced, `${check} reaches nothing a parent sees`).toBe(true);
+    }
+    const screen = read("ui/screens/CampResultScreen.kt");
+    expect(screen, "the camp result no longer shows each finding's flag").toMatch(/FlagChip\(flagOf\(f\.flag\)\)/);
+  });
+
+  test("a finding outside diet and growth does not move the nutrition flag", () => {
+    // An ear, a rash, a curved back or a missed vaccine is not a diet problem,
+    // and the app has one Nutrition flag that a parent reads as exactly that.
+    for (const check of ["ENT", "Skin", "Spine", "Immunisation review"]) {
+      expect(flag(check, {}).nutrition, check).toBe("NOT_MEASURED");
     }
   });
 
@@ -113,12 +126,14 @@ describe("the app can show what a camp screens for", () => {
   test("no specialty is offered as screening one that the app cannot show", () => {
     // The list the doctor dropdown is built from, checked against the app
     // rather than against the server that produced it.
+    const none = summariseForApp([]);
     for (const sp of specialtyOptions().filter((x) => x.canScreen)) {
       for (const check of sp.checks) {
         const s = flag(check, SAMPLE[check] || {});
         const surfaced =
           s.dental !== "NOT_MEASURED" || s.eyesight !== "NOT_MEASURED" ||
-          s.nutrition !== "NOT_MEASURED" || s.heightCm !== null;
+          s.nutrition !== "NOT_MEASURED" || s.heightCm !== null ||
+          s.overallScore !== none.overallScore;
         expect(surfaced, `${sp.name} screens ${check}, which the app cannot display`).toBe(true);
       }
     }

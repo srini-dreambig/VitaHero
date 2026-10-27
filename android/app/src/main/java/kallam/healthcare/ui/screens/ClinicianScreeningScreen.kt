@@ -427,6 +427,44 @@ fun ClinicianScreeningScreen(
                 if (message.isNotBlank()) Notice(message, error = true)
             }
 
+            // The parent's illness log. History to weigh, not a finding.
+            val history = f.illnessHistory
+            if (history != null && history.events.isNotEmpty()) {
+                item(key = "illness_history") {
+                    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp)) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "Illness logged by the family",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            if (history.caution.isNotBlank()) {
+                                Text(history.caution, style = MaterialTheme.typography.bodySmall)
+                            }
+                            for (e in history.events.take(10)) {
+                                val dates = if (e.endedOn.isBlank()) e.startedOn else "${e.startedOn} to ${e.endedOn}"
+                                val extras = listOfNotNull(
+                                    e.severity.lowercase(),
+                                    if (e.sawDoctor) "saw a doctor" else null,
+                                    if (e.missedSchool) "missed school" else null,
+                                ).joinToString(", ")
+                                val note = if (e.note.isBlank()) "" else " — ${e.note}"
+                                Text(
+                                    "$dates: ${e.symptom} ($extras)$note",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                            if (history.events.size > 10) {
+                                Text(
+                                    "and ${history.events.size - 10} earlier",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if (f.attendance == "ABSENT") {
                 item {
                     Notice(

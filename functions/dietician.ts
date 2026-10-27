@@ -26,7 +26,7 @@
 // Every read of a child's record goes through logRecordAccess, the same as the
 // clinical side, so "who looked at my child's record" has one answer.
 
-import { Sql, isOpsRole, normalizeMobile, normalizePhone, profileIdForPhone } from "./common";
+import { Sql, isOpsRole, normalizeMobile, normalizePhone, profileIdForPhone, programmeToday } from "./common";
 import { Actor, ApiError } from "./schools";
 import { logRecordAccess } from "./oversight";
 
@@ -588,6 +588,18 @@ export async function saveDietPlan(
     }).filter((t) => t.label !== "")
     : [];
 
+  // The dates decide when a parent stops seeing the plan, so they have to be
+  // dates. Anything else used to be stored as typed and compared as text.
+  const startsOn = String(body.startsOn || "").trim();
+  const endsOn = String(body.endsOn || "").trim();
+  const isDate = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d) && !Number.isNaN(Date.parse(d));
+  if ((startsOn && !isDate(startsOn)) || (endsOn && !isDate(endsOn))) {
+    throw new ApiError(400, "Dates are written as YYYY-MM-DD", "BAD_DATE");
+  }
+  if (startsOn && endsOn && endsOn < startsOn) {
+    throw new ApiError(400, "The plan ends before it starts", "BAD_DATE_RANGE");
+  }
+
   const id = `dp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
   await sql`
     UPDATE vita_hero.diet_plans SET status = 'ENDED', updated_at = NOW()
@@ -600,7 +612,7 @@ export async function saveDietPlan(
     VALUES
       (${id}, ${kidId}, ${(kid.school_id as string) || ""}, ${me.id}, ${actor.profileId},
        ${me.name}, ${String(body.title || "").slice(0, 120)}, ${focus},
-       ${String(body.startsOn || "")}, ${String(body.endsOn || "")},
+       ${startsOn}, ${endsOn},
        ${guidance}, ${JSON.stringify(targets)}::jsonb, 'ACTIVE')
   `;
   const rows = await sql`SELECT * FROM vita_hero.diet_plans WHERE id = ${id} LIMIT 1`;
@@ -619,9 +631,13 @@ export async function guardianDietPlan(sql: Sql, profileId: string, kidId: strin
   const owned = await sql`
     SELECT id FROM vita_hero.kids WHERE id = ${kidId} AND profile_id = ${profileId} LIMIT 1`;
   if (owned.length === 0) throw new ApiError(404, "No such child", "NOT_FOUND");
+  // A plan past its end date is over, even if nobody has written the next
+  // one: a family should not keep following last term's advice.
+  const today = programmeToday();
   const rows = await sql`
     SELECT * FROM vita_hero.diet_plans
     WHERE kid_id = ${kidId} AND status = 'ACTIVE'
+      AND (COALESCE(ends_on, '') = '' OR ends_on >= ${today})
     ORDER BY created_at DESC LIMIT 1
   `;
   return { plan: rows.length ? mapPlan(rows[0]) : null };

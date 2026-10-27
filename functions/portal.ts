@@ -4655,7 +4655,12 @@ export const PORTAL_HTML = `<!doctype html>
         // refuses it from here whoever is signed in. A button that always
         // answers 403 is worse than no button.
         el("span", { class: "muted", style: "font-size:12px" },
-          "Approving and releasing happen in the VitaHero app.")),
+          "Approving and releasing happen in the VitaHero app."),
+        // The report a family takes home: one page per child a doctor has
+        // signed off, from the same findings the app shows.
+        el("button", { class: "sm", style: "margin-left:10px", disabled: !((c.approved || 0) + (c.released || 0)),
+          onclick: function () { printPage("/api/admin/camps/" + c.id + "/report"); } },
+          icon("download", 13), " Print health reports")),
       c.released ? el("div", { class: "msg ok" }, c.released + " results are already with guardians.") : null,
       S.queue.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },

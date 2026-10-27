@@ -11,6 +11,7 @@
 // that can be run.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import { generateDoctorSlots, SLOT_TIMES } from "./booking";
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 const SLOT_DATE = /^\d{2} [A-Z][a-z]{2} \d{4}$/;
@@ -31,18 +32,14 @@ describe("what the app is asked to parse", () => {
   });
 
   test("a booking slot's date and time are the ones the directory generates", () => {
-    const index = readFileSync(new URL("./index.ts", import.meta.url), "utf8");
-    const times = index.match(/const times = \[([^\]]*)\]/);
-    expect(times).not.toBeNull();
-    for (const t of (times as RegExpMatchArray)[1].split(",")) {
-      const value = t.trim().replace(/^"|"$/g, "");
-      if (value) expect(SLOT_TIME.test(value)).toBe(true);
+    for (const t of SLOT_TIMES) expect(SLOT_TIME.test(t)).toBe(true);
+    // What the directory actually hands out, not what its source looks like.
+    const slots = generateDoctorSlots("d1", new Set(), new Date("2026-10-27T05:00:00Z"));
+    expect(slots.length).toBeGreaterThan(0);
+    for (const s of slots) {
+      expect(SLOT_DATE.test(s.date)).toBe(true);
+      expect(SLOT_TIME.test(s.time)).toBe(true);
     }
-    // `${dd} ${Mon} ${yyyy}` — the shape generateDoctorSlots builds by hand.
-    expect(index.includes(
-      "const dateStr = `${String(day.getDate()).padStart(2, \"0\")} ${monthNames[day.getMonth()]} ${day.getFullYear()}`"
-    )).toBe(true);
-    expect(SLOT_DATE.test("01 Nov 2026")).toBe(true);
   });
 
   test("the app accepts both, and says so in one place", () => {

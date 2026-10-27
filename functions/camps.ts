@@ -24,6 +24,9 @@ import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { openReferralsForCamp } from "./referrals";
 import { logRecordAccess } from "./oversight";
+// symptoms.ts imports this file too. Safe: each only calls the other's
+// functions at request time, never while the modules are loading.
+import { symptomHistoryForClinician } from "./symptoms";
 import {
   CHECK_TYPES,
   Flag,
@@ -955,7 +958,25 @@ export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, k
       rationale: (f.rationale as string) || "",
       note: (f.screener_note as string) || "",
     })),
+    // The illnesses the family logged in the app. A parent's only way to tell
+    // the doctor anything, and it reached nobody until now.
+    illnessHistory: await illnessHistoryOrNull(sql, actor, campId, kidId),
   };
+}
+
+/**
+ * The guardian's illness log for a clinician, or null for anybody else.
+ *
+ * The office can open the screening form; it is not told about the loose
+ * motions in March, and is not refused the whole form because of them.
+ */
+async function illnessHistoryOrNull(sql: Sql, actor: Actor, campId: string, kidId: string) {
+  try {
+    return await symptomHistoryForClinician(sql, actor, campId, kidId);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 403) return null;
+    throw e;
+  }
 }
 
 /**
@@ -1566,8 +1587,11 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
       timesBefore: ((f as Record<string, unknown>).previous as unknown[]).length,
     })),
     suggestedUrgency: summary.urgency,
-    recommendation: existing || draftRecommendation(String(p.name), summary),
+    recommendation: existing || draftRecommendation(String(p.name), summary, findings),
     recommendationIsDraft: !existing,
+    // What the family has logged since the last camp, for the doctor
+    // signing off. Null when this reader is not one of the clinical team.
+    illnessHistory: await illnessHistoryOrNull(sql, actor, campId, kidId),
   };
 }
 

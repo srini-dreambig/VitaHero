@@ -313,7 +313,9 @@ describe("the schema version cannot drift from the schema", () => {
     const found: string[] = [];
     for (const f of readdirSync(".").sort()) {
       if (!f.endsWith(".ts") || f.endsWith(".test.ts")) continue;
-      const src = readFileSync(f, "utf8");
+      // Hashed as git stores it: a Windows checkout's CRLF would otherwise
+      // move the hash without anybody touching the schema.
+      const src = readFileSync(f, "utf8").replace(/\r/g, "");
       const re = /(CREATE TABLE IF NOT EXISTS|ALTER TABLE|CREATE (?:UNIQUE )?INDEX IF NOT EXISTS|CREATE SCHEMA IF NOT EXISTS)[\s\S]{0,400}?(?=`)/g;
       for (const m of src.matchAll(re)) found.push(m[0].replace(/\s+/g, " ").trim());
     }

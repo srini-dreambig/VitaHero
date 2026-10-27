@@ -203,3 +203,59 @@ export async function kidBadges(
     })),
   };
 }
+
+/**
+ * A child's meal streak, worked out from the meals actually ticked.
+ *
+ * The app used to send its own numbers and the server stored them. Those
+ * numbers rose on every tap, an untick included, so ticking a meal and
+ * unticking it again kept a streak going on a day nothing was eaten; and they
+ * feed the leaderboard and the "three days running" message, which made them
+ * the only score in the programme a parent could simply type in. A day counts
+ * when at least one of that day's meals is ticked eaten.
+ *
+ * The best streak never goes down: it is a record, and the one stored before
+ * this existed is kept as it was.
+ */
+export async function recomputeStreak(
+  sql: Sql,
+  kidId: string,
+  userId: string,
+  now = new Date(),
+): Promise<Record<string, unknown>> {
+  const day = today(now);
+  const rows = await sql`
+    SELECT DISTINCT day FROM vita_hero.meal_items
+    WHERE kid_id = ${kidId} AND eaten = true AND COALESCE(day, '') <> '' AND day <= ${day}
+    ORDER BY day DESC
+    LIMIT 400
+  `;
+  const days = rows.map((r) => String(r.day));
+  const ms = (d: string) => Date.parse(d + "T00:00:00Z");
+  const ONE_DAY = 86_400_000;
+
+  // Longest run of consecutive days, and the run ending today or yesterday.
+  let best = 0;
+  let run = 0;
+  for (let i = 0; i < days.length; i++) {
+    run = i > 0 && ms(days[i - 1]) - ms(days[i]) === ONE_DAY ? run + 1 : 1;
+    best = Math.max(best, run);
+  }
+  let current = 0;
+  if (days.length > 0 && ms(day) - ms(days[0]) <= ONE_DAY) {
+    current = 1;
+    while (current < days.length && ms(days[current - 1]) - ms(days[current]) === ONE_DAY) current++;
+  }
+
+  const saved = await sql`
+    INSERT INTO vita_hero.streaks (kid_id, user_id, current_streak, best_streak, last_log_date)
+    VALUES (${kidId}, ${userId}, ${current}, ${best}, ${days[0] || ""})
+    ON CONFLICT (kid_id) DO UPDATE SET
+      user_id = EXCLUDED.user_id,
+      current_streak = EXCLUDED.current_streak,
+      best_streak = GREATEST(COALESCE(vita_hero.streaks.best_streak, 0), EXCLUDED.best_streak),
+      last_log_date = EXCLUDED.last_log_date
+    RETURNING *
+  `;
+  return saved[0];
+}

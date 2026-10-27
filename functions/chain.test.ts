@@ -44,6 +44,7 @@ import {
 import { adminAnalytics } from "./analytics";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import { ensureMediaSchema } from "./media";
+import { ensureSymptomSchema } from "./symptoms";
 import { markReferralBooked } from "./referrals";
 import { listDoctors, upsertDoctor } from "./directory";
 import { addStudent } from "./roster";
@@ -188,6 +189,8 @@ beforeAll(async () => {
   await ensureLifecycleSchema(sql);
   await ensureOversightSchema(sql);
   await ensureMediaSchema(sql);
+  // The screening form carries the illness history the family logged.
+  await ensureSymptomSchema(sql);
   // Hospitals and doctors are seeded by the worker's own schema step; the
   // partner report joins against them.
   await sql`CREATE TABLE IF NOT EXISTS vita_hero.hospitals (

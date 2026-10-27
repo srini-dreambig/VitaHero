@@ -19,6 +19,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import kallam.healthcare.BuildConfig
 import kallam.healthcare.data.BookingViewModel
 import kallam.healthcare.data.LocalAppLocale
 import kallam.healthcare.data.PdfReportGenerator
@@ -317,11 +318,13 @@ fun AppNavigation(
                 onContinueWithPhone = { p ->
                     phone = p
                     pendingName = "Parent"
-                    if (p == "9999999999") {
+                    // Sample accounts with made-up data, for debug builds
+                    // only: in a release these numbers sign in like any other.
+                    if (BuildConfig.DEBUG && p == "9999999999") {
                         appViewModel.demoSignIn("PARENT")
-                    } else if (p == "8888888888") {
+                    } else if (BuildConfig.DEBUG && p == "8888888888") {
                         appViewModel.demoSignIn("PHYSICIAN")
-                    } else if (p == "7777777777") {
+                    } else if (BuildConfig.DEBUG && p == "7777777777") {
                         appViewModel.demoSignIn("DIETICIAN")
                     } else {
                         activity?.let { appViewModel.requestPhoneOtp(it, p) }
@@ -356,7 +359,7 @@ fun AppNavigation(
                     navController.popBackStack()
                 },
                 onVerified = { code ->
-                    if (code == "123456" || code == "000000") {
+                    if (BuildConfig.DEBUG && (code == "123456" || code == "000000")) {
                         appViewModel.demoSignIn("PARENT")
                     } else {
                         appViewModel.verifyPhoneOtp(p, code)
@@ -598,6 +601,8 @@ fun AppNavigation(
             val meals by kidsViewModel.meals.collectAsState()
             val aiContent by kidsViewModel.aiContent.collectAsState()
             LaunchedEffect(kidId) { guardianViewModel.loadDietPlan(kidId) }
+            val plan = dietPlans[kidId]
+            LaunchedEffect(kidId, plan?.id) { plan?.let { kidsViewModel.addPlanTargets(kidId, it) } }
             if (kid != null) {
                 DietScreen(
                     kidName = kid.name,
@@ -753,11 +758,13 @@ fun AppNavigation(
             arguments = listOf(navArgument("kidId") { type = NavType.StringType })
         ) { backStack ->
             val id = backStack.arguments?.getString("kidId").orEmpty()
+            val name = kidsViewModel.kidById(id)?.name.orEmpty()
             SymptomScreen(
                 kidId = id,
-                kidName = kidsViewModel.kidById(id)?.name.orEmpty(),
+                kidName = name,
                 guardianViewModel = guardianViewModel,
                 onBack = { navController.popBackStack() },
+                onBookDoctor = { navController.navigate(bookingRoute(kidName = name)) },
             )
         }
 

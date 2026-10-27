@@ -916,20 +916,16 @@ export function summariseForApp(
 
   const growth = by("Height & weight");
   const hb = by("Haemoglobin");
-  const ent = by("ENT");
-  const skin = by("Skin");
-  const spine = by("Spine");
-  const imm = by("Immunisation review");
   const dental = by("Dental");
   const vision = by("Vision");
 
+  // Ears, skin, spine and vaccinations are not nutrition. Folding them in told
+  // a parent their child's diet needed watching when the doctor had found wax
+  // in an ear. They reach the family as their own flagged lines in the camp
+  // result and the printed report, and through the overall score below.
   const nutrition = worstFlag([
     growth ? growth.flag : "NOT_MEASURED",
     hb ? hb.flag : "NOT_MEASURED",
-    ent ? ent.flag : "NOT_MEASURED",
-    skin ? skin.flag : "NOT_MEASURED",
-    spine ? spine.flag : "NOT_MEASURED",
-    imm ? imm.flag : "NOT_MEASURED",
   ]);
 
   const heightCm = growth ? num(growth.detail.heightCm) : null;
@@ -950,15 +946,32 @@ export function summariseForApp(
   };
 }
 
+const OTHER_AREAS: Record<string, string> = {
+  ENT: "ears, nose and throat",
+  Skin: "skin",
+  Spine: "posture and spine",
+  "Immunisation review": "vaccinations",
+};
+
 /**
  * The default plain-language line a physician sees pre-filled before they edit
  * it. Deliberately cautious, and never a diagnosis.
  */
-export function draftRecommendation(name: string, summary: KidSummary): string {
+export function draftRecommendation(
+  name: string,
+  summary: KidSummary,
+  findings: Array<{ checkType: string; flag: Flag }> = [],
+): string {
   const concerns: string[] = [];
   if (summary.eyesight === "ALERT" || summary.eyesight === "WATCH") concerns.push("vision");
   if (summary.dental === "ALERT" || summary.dental === "WATCH") concerns.push("dental health");
   if (summary.nutrition === "ALERT" || summary.nutrition === "WATCH") concerns.push("growth and nutrition");
+  // The checks with no flag of their own in the summary still have to be
+  // named, or a flagged ear drafts as "the check-up was normal".
+  for (const f of findings) {
+    const area = OTHER_AREAS[f.checkType];
+    if (area && (f.flag === "ALERT" || f.flag === "WATCH")) concerns.push(area);
+  }
 
   if (concerns.length === 0) {
     return `${name}'s check-up was normal. Nothing needs follow-up right now — keep up the usual routine of balanced meals, outdoor play and brushing twice a day.`;

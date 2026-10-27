@@ -84,7 +84,8 @@ import {
   setCampStaffActive,
 } from "./camps";
 import { campConsentForm } from "./consent-form";
-import { ensureBadgeSchema, kidBadges } from "./badges";
+import { campHealthReport } from "./health-report";
+import { ensureBadgeSchema, kidBadges, recomputeStreak } from "./badges";
 import {
   ensureHeroSchema,
   heroForSchool,
@@ -108,6 +109,7 @@ import {
 } from "./dietician";
 import { adminAnalytics } from "./analytics";
 import { makeSender, sendToMany, smsProvider, textbeeDevice } from "./messaging";
+import { bookAppointment, generateDoctorSlots } from "./booking";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import {
   ensureReferralSchema,
@@ -726,6 +728,21 @@ async function ensureHotPathIndexes(sql: Sql): Promise<void> {
   // Booking: the clash check that runs before every appointment is written.
   await sql`CREATE INDEX IF NOT EXISTS appointments_slot
             ON vita_hero.appointments(doctor_id, date, time)`;
+  // ...and the guarantee behind it. The check alone let two parents booking a
+  // moment apart both find the slot free. A database that already holds a
+  // double booking is left without the index rather than failing the whole
+  // migration over it; the check still runs there, and the pair is for a
+  // person to sort out, not a migration to delete.
+  await sql`
+    DO $$ BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM vita_hero.appointments WHERE doctor_id IS NOT NULL
+        GROUP BY doctor_id, date, time HAVING COUNT(*) > 1
+      ) THEN
+        CREATE UNIQUE INDEX IF NOT EXISTS appointments_slot_once
+          ON vita_hero.appointments(doctor_id, date, time) WHERE doctor_id IS NOT NULL;
+      END IF;
+    END $$`;
 
   // kids_school_grade is created in ensureStageASchema instead, beside the
   // ALTER that adds kids.school_id. It lived here, one step earlier in
@@ -736,37 +753,6 @@ async function ensureHotPathIndexes(sql: Sql): Promise<void> {
   await sql`CREATE INDEX IF NOT EXISTS school_enrollments_school ON vita_hero.school_enrollments(school_id)`;
 }
 
-
-
-function generateDoctorSlots(
-  doctorId: string,
-  bookedKeys: Set<string>,
-): Array<{ date: string; time: string; label: string }> {
-  const slots: Array<{ date: string; time: string; label: string }> = [];
-  const now = new Date();
-  const times = ["10:00 AM", "11:00 AM", "04:30 PM", "05:15 PM"];
-  const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-  for (let offset = 1; offset <= 21 && slots.length < 12; offset++) {
-    const day = new Date(now);
-    day.setDate(day.getDate() + offset);
-    if (day.getDay() === 0) continue;
-    const dateStr = `${String(day.getDate()).padStart(2, "0")} ${monthNames[day.getMonth()]} ${day.getFullYear()}`;
-    const dayLabel = dayNames[day.getDay()];
-    for (const time of times) {
-      const key = `${doctorId}|${dateStr}|${time}`;
-      if (bookedKeys.has(key)) continue;
-      slots.push({
-        date: dateStr,
-        time,
-        label: `${dayLabel}, ${time}`,
-      });
-      if (slots.length >= 12) break;
-    }
-  }
-  return slots;
-}
 
 
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -2131,6 +2117,20 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             return json(await campReconciliation(sql, actor, campId));
           }
 
+          // The printed health reports. HTML, fetched with the console's own
+          // token and opened to print, like the consent slips.
+          if (section === "report" && method === "GET") {
+            const html = await campHealthReport(sql, actor, campId, {
+              kidId: url.searchParams.get("kid") || "",
+            });
+            return cors(new Response(html, {
+              headers: {
+                "Content-Type": "text/html; charset=utf-8",
+                "Cache-Control": "no-store",
+              },
+            }));
+          }
+
           if (section === "consent") {
             if (third === "request" && method === "POST") {
               const b = await readBody().catch(() => ({}) as Record<string, unknown>);
@@ -3486,38 +3486,10 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path === "/api/appointments" && request.method === "POST") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const body: Record<string, unknown> = await request.json();
-        const doctorId = (body.doctor_id as string) || "";
-        const date = body.date as string;
-        const time = body.time as string;
-        if (doctorId) {
-          const clash = await sql`
-            SELECT id FROM vita_hero.appointments
-            WHERE doctor_id = ${doctorId} AND date = ${date} AND time = ${time}
-            LIMIT 1
-          `;
-          if (clash.length > 0) {
-            return json({ error: "This slot is no longer available" }, 409);
-          }
-        }
-        const row = await sql`
-          INSERT INTO vita_hero.appointments
-            (id, profile_id, user_id, doctor_id, doctor_name, specialty, kid_name, date, time)
-          VALUES (
-            ${body.id as string}, ${session.profileId},
-            ${session.userId || null}, ${doctorId || null}, ${body.doctor_name as string},
-            ${body.specialty as string}, ${body.kid_name as string},
-            ${date}, ${time}
-          )
-          ON CONFLICT (id) DO UPDATE SET
-            user_id = EXCLUDED.user_id,
-            doctor_id = EXCLUDED.doctor_id,
-            doctor_name = EXCLUDED.doctor_name, specialty = EXCLUDED.specialty,
-            kid_name = EXCLUDED.kid_name, date = EXCLUDED.date, time = EXCLUDED.time
-          WHERE vita_hero.appointments.profile_id = ${session.profileId}
-          RETURNING *
-        `;
-        if (row.length === 0) return json(NOT_YOURS, 409);
-        return json(row[0], 201);
+        const r = await bookAppointment(
+          sql, { profileId: session.profileId, userId: session.userId || null }, body, makeSender(env));
+        if (r.status === 409) return json({ error: r.error, code: r.code }, 409);
+        return json({ ...r.row, notified: r.notified }, 201);
       }
 
       if (path.startsWith("/api/appointments/") && request.method === "DELETE") {
@@ -4043,6 +4015,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
            RETURNING *`,
           [...params, session.profileId]
         );
+        // A tick or an untick moves the streak, whichever of the two the
+        // app happens to sync first.
+        for (const kidId of kidIds) {
+          await recomputeStreak(sql, kidId, session.userId || session.profileId);
+        }
         return json(rows, 201);
       }
 
@@ -4068,21 +4045,9 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (!kidId || !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
           return json({ error: "Kid not found" }, 404);
         }
-        const row = await sql`
-          INSERT INTO vita_hero.streaks
-            (kid_id, user_id, current_streak, best_streak, last_log_date)
-          VALUES (
-            ${kidId}, ${session.userId || session.profileId},
-            ${(body.current_streak as number) || 0},
-            ${(body.best_streak as number) || 0},
-            ${(body.last_log_date as string) || ""}
-          )
-          ON CONFLICT (kid_id) DO UPDATE SET
-            user_id = EXCLUDED.user_id, current_streak = EXCLUDED.current_streak,
-            best_streak = EXCLUDED.best_streak, last_log_date = EXCLUDED.last_log_date
-          RETURNING *
-        `;
-        return json(row[0], 201);
+        // The app's numbers are not stored: the streak is what the ticked
+        // meals say it is. See recomputeStreak.
+        return json(await recomputeStreak(sql, kidId, session.userId || session.profileId), 201);
       }
 
       // ═══════════════════════════════════════════════════
@@ -4712,8 +4677,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         const specialty = (url.searchParams.get("specialty") || "").trim();
         const latParam = url.searchParams.get("lat");
         const lngParam = url.searchParams.get("lng");
-        const userLat = latParam ? parseFloat(latParam) : null;
-        const userLng = lngParam ? parseFloat(lngParam) : null;
+        const latN = latParam ? parseFloat(latParam) : NaN;
+        const lngN = lngParam ? parseFloat(lngParam) : NaN;
+        const userLat = Number.isFinite(latN) ? latN : null;
+        const userLng = Number.isFinite(lngN) ? lngN : null;
+        // With the parent's location, a partner hospital just over the city
+        // line is as good as one inside it. Without it, the city is all there
+        // is to go on.
+        const hasGeo = userLat != null && userLng != null;
+        const NEARBY_KM = 50;
 
         const enrolledSchools = await sql`
           SELECT school_id FROM vita_hero.school_enrollments
@@ -4731,9 +4703,20 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           FROM vita_hero.hospitals h
           LEFT JOIN vita_hero.school_camps sc
             ON sc.hospital_id = h.id AND sc.active = true
-          WHERE h.active = true AND h.city ILIKE ${city}
+          WHERE h.active = true AND (h.city ILIKE ${city} OR (${hasGeo} AND h.lat IS NOT NULL))
           GROUP BY h.id
         `;
+        const distanceTo = (h: Record<string, unknown>): number | null =>
+          hasGeo && h.lat != null && h.lng != null
+            ? Math.round(haversineKm(userLat!, userLng!, h.lat as number, h.lng as number) * 10) / 10
+            : null;
+        const inCity = (h: Record<string, unknown>) =>
+          String(h.city || "").trim().toLowerCase() === city.toLowerCase();
+        const nearbyHospitals = hospitalRows.filter((h) => {
+          const d = distanceTo(h);
+          return inCity(h) || (d != null && d <= NEARBY_KM);
+        });
+        const nearbyIds = nearbyHospitals.map((h) => h.id as string);
 
         const doctorRows = await sql`
           SELECT d.id, d.name, d.specialty, d.hospital, d.city, d.rating, d.hospital_id,
@@ -4743,7 +4726,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           LEFT JOIN vita_hero.hospitals h ON h.id = d.hospital_id
           LEFT JOIN vita_hero.school_camps sc
             ON sc.hospital_id = d.hospital_id AND sc.active = true
-          WHERE d.active = true AND (d.city ILIKE ${city} OR h.city ILIKE ${city})
+          WHERE d.active = true AND (d.city ILIKE ${city} OR h.city ILIKE ${city}
+                 OR d.hospital_id = ANY(${nearbyIds.length ? nearbyIds : ["__none__"]}::text[]))
           GROUP BY d.id, h.name, h.is_camp_partner
         `;
 
@@ -4774,17 +4758,14 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         type HospitalOut = Record<string, unknown>;
         const hospitals: HospitalOut[] = [];
 
-        for (const h of hospitalRows) {
+        for (const h of nearbyHospitals) {
           const hid = h.id as string;
           const docs = doctorsByHospital.get(hid) || [];
           if (docs.length === 0 && specialty) continue;
 
           const lat = h.lat as number | null;
           const lng = h.lng as number | null;
-          const distanceKm =
-            userLat != null && userLng != null && lat != null && lng != null
-              ? Math.round(haversineKm(userLat, userLng, lat, lng) * 10) / 10
-              : null;
+          const distanceKm = distanceTo(h);
 
           const conductedCamps = (h.conducted_camps as number) || 0;
           const userLinkedCamps = (h.user_linked_camps as number) || 0;
@@ -4833,9 +4814,17 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           });
         }
 
-        hospitals.sort(
-          (a, b) => (b.priority_score as number) - (a.priority_score as number)
-        );
+        // The hospitals that ran a camp at this family's school first, then
+        // our other camp partners, then the rest; nearest first within each.
+        // Distance used to be a tie-breaker worth less than one star of
+        // rating, so a partner across the city came before one round the
+        // corner.
+        const tier = (h: HospitalOut) => (h.user_camp_linked ? 0 : h.is_camp_partner ? 1 : 2);
+        const km = (h: HospitalOut) => (h.distance_km as number | null) ?? Number.POSITIVE_INFINITY;
+        hospitals.sort((a, b) =>
+          tier(a) - tier(b) ||
+          km(a) - km(b) ||
+          (b.priority_score as number) - (a.priority_score as number));
 
         return json({
           city,

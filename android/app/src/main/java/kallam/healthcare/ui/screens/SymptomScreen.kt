@@ -72,6 +72,7 @@ fun SymptomScreen(
     kidName: String,
     guardianViewModel: GuardianViewModel,
     onBack: () -> Unit,
+    onBookDoctor: () -> Unit = {},
 ) {
     val log by guardianViewModel.symptomLog.collectAsState()
     val advice by guardianViewModel.symptomAdvice.collectAsState()
@@ -125,6 +126,10 @@ fun SymptomScreen(
                     )
                 }
             }
+            Spacer(Modifier.height(10.dp))
+            // A child who is unwell can be booked in from here, straight to
+            // the hospitals we work with, without hunting for the screen.
+            PrimaryGradientButton(text = t(S.bookAppt), onClick = onBookDoctor)
             Spacer(Modifier.height(14.dp))
         }
 
@@ -167,6 +172,8 @@ fun SymptomScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
+                        Spacer(Modifier.height(10.dp))
+                        PrimaryGradientButton(text = t(S.bookAppt), onClick = onBookDoctor)
                     }
                 }
                 Spacer(Modifier.height(14.dp))

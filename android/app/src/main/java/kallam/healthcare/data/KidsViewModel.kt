@@ -62,11 +62,21 @@ class KidsViewModel(
 
     fun toggleMeal(kidId: String, mealId: String) {
         val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        var ticked = false
         state.meals.update { current ->
             val list = current[kidId].orEmpty().map { meal ->
-                if (meal.id == mealId) meal.copy(eaten = !meal.eaten) else meal
+                if (meal.id == mealId) meal.copy(eaten = !meal.eaten).also { ticked = it.eaten } else meal
             }
             current + (kidId to list)
+        }
+        // Only eating moves the streak. An untick used to count as a day
+        // logged, so tick-and-untick kept a streak alive on a day nothing was
+        // eaten. The server works the real number out from the ticked meals
+        // and this is replaced by it on the next load.
+        if (!ticked) {
+            container.persist(SyncEntity.MEALS, SyncEntity.STREAKS)
+            invalidateBadges(kidId)
+            return
         }
         state.streaks.update { s ->
             val prev = s[kidId] ?: StreakInfo()
@@ -84,6 +94,50 @@ class KidsViewModel(
         }
         container.persist(SyncEntity.MEALS, SyncEntity.STREAKS)
         invalidateBadges(kidId)
+    }
+
+    /**
+     * The dietician's targets, as items on today's checklist.
+     *
+     * The plan used to be a card to read and nothing more: the checklist a
+     * parent ticks, and the badges that come from it, were a generated menu
+     * that knew nothing of what the dietician asked for. Each target is now
+     * something to tick today, so following the plan is what earns the
+     * badges. The id carries the date, because a meal row belongs to the day
+     * it was first sent.
+     */
+    fun addPlanTargets(kidId: String, plan: DietPlanDto) {
+        val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
+        val wanted = plan.targets.mapIndexed { i, target ->
+            MealItem(
+                id = "plan_${plan.id}_${i}_$today",
+                time = PLAN_SLOT,
+                name = target.label,
+                detail = target.value,
+                kcal = 0,
+                eaten = false,
+            )
+        }
+        val wantedIds = wanted.map { it.id }.toSet()
+        var changed = false
+        state.meals.update { current ->
+            val list = current[kidId].orEmpty()
+            // An earlier plan's targets go, unless they were already ticked:
+            // that is a record of what the child ate.
+            val kept = list.filter { it.time != PLAN_SLOT || it.id in wantedIds || it.eaten }
+            val have = kept.map { it.id }.toSet()
+            val missing = wanted.filter { it.id !in have }
+            if (missing.isEmpty() && kept.size == list.size) {
+                current
+            } else {
+                changed = true
+                current + (kidId to kept + missing)
+            }
+        }
+        if (changed) {
+            container.persist(SyncEntity.MEALS)
+            invalidateBadges(kidId)
+        }
     }
 
     fun addMealItem(kidId: String, name: String, detail: String, kcal: Int, timeSlot: String = "Snack") {
@@ -284,3 +338,6 @@ class KidsViewModel(
         }
     }
 }
+
+/** The checklist slot a dietician's targets sit in. */
+private const val PLAN_SLOT = "Plan"

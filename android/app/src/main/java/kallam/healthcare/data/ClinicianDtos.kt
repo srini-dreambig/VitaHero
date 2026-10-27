@@ -117,6 +117,18 @@ data class ScreeningFormDto(
     /** The specialty this scoping came from, for saying whose round it is. */
     val specialty: String = "",
     val findings: List<ExistingFindingDto> = emptyList(),
+    /**
+     * What the family logged in the app since the last camp. Null when the
+     * server does not show it to this reader.
+     */
+    val illnessHistory: IllnessHistoryDto? = null,
+)
+
+/** The guardian's own account, labelled as such by the server. */
+@Serializable
+data class IllnessHistoryDto(
+    val caution: String = "",
+    val events: List<SymptomEventDto> = emptyList(),
 )
 
 @Serializable

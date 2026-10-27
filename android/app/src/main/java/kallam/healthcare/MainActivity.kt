@@ -68,7 +68,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         runCatching { NotificationScheduler.createChannels(this) }
         handleInviteDeepLink(intent)
-        overrideRouteState.value = intent?.getStringExtra("route")
+        overrideRouteState.value = debugRoute(intent)
 
         setContent {
             val app = runCatching { application as VitaHeroApplication }.getOrNull()
@@ -126,11 +126,19 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * The "route" extra signs straight in as a sample family or doctor, for
+     * screenshots and testing. Any app on the phone can send that extra, so a
+     * release build ignores it.
+     */
+    private fun debugRoute(intent: Intent?): String? =
+        if (BuildConfig.DEBUG) intent?.getStringExtra("route") else null
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
         handleInviteDeepLink(intent)
-        overrideRouteState.value = intent?.getStringExtra("route")
+        overrideRouteState.value = debugRoute(intent)
     }
 
     /**

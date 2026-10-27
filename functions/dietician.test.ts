@@ -320,6 +320,26 @@ suite("what a dietician can reach", () => {
     expect(r.plans.length).toBe(2);
   });
 
+  test("a plan's dates have to be dates", async () => {
+    const guidance = "Keep the iron going and add a fruit at breakfast.";
+    await expect(saveDietPlan(sql, DIET, { kidId: "k_mine", guidance, endsOn: "next month" }))
+      .rejects.toThrow(/YYYY-MM-DD/);
+    await expect(saveDietPlan(sql, DIET, {
+      kidId: "k_mine", guidance, startsOn: "2027-03-01", endsOn: "2027-02-01",
+    })).rejects.toThrow(/ends before it starts/);
+  });
+
+  test("a plan past its end date is not shown to the family", async () => {
+    await saveDietPlan(sql, DIET, {
+      kidId: "k_mine2", title: "Last term", startsOn: "2020-01-01", endsOn: "2020-03-31",
+      guidance: "Last term's advice, which has run its course.",
+    });
+    const seen = await guardianDietPlan(sql, "ph_par", "k_mine2");
+    expect(seen.plan).toBeNull();
+    // The dietician still has it on file.
+    await sql`UPDATE vita_hero.diet_plans SET status = 'SUPERSEDED' WHERE kid_id = 'k_mine2'`;
+  });
+
   test("a parent cannot read a plan for somebody else's child", async () => {
     await expect(guardianDietPlan(sql, "ph_par", "k_far")).rejects.toThrow(/No such child/);
   });
