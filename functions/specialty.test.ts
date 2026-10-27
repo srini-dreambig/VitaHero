@@ -163,7 +163,8 @@ suite("a doctor's round at a camp", () => {
     expect(f.specialty).toBe("Ophthalmology");
     // Named, not hidden: the camp did not forget the dental check, it is
     // somebody else's to do.
-    expect(f.otherSpecialties.sort()).toEqual(["Dental", "Haemoglobin", "Height & weight"]);
+    expect(f.otherSpecialties.sort())
+      .toEqual(DESIGNED_CHECKS.filter((c) => c !== "Vision").sort());
   });
 
   test("and the dentist, standing at the next table, sees the dental form only", async () => {
@@ -225,7 +226,7 @@ suite("a doctor's round at a camp", () => {
     expect(pack.camp.specialty).toBe("Ophthalmology");
     expect(pack.participants[0].checks).toEqual(["Vision"]);
     expect(pack.camp.otherSpecialties.sort())
-      .toEqual(["Dental", "Haemoglobin", "Height & weight"]);
+      .toEqual(DESIGNED_CHECKS.filter((c) => c !== "Vision").sort());
 
     const generalist = await campPack(sql, SCREENER, CAMP);
     expect(generalist.participants[0].checks.sort()).toEqual([...DESIGNED_CHECKS].sort());
@@ -240,13 +241,17 @@ suite("a doctor's round at a camp", () => {
       .rejects.toThrow(/not assigned to this camp/i);
   });
 
-  test("a doctor whose specialty has no screen cannot be put on a camp at all", async () => {
+  test("a dermatologist, whose skin form now exists, is put on a camp and handed it", async () => {
+    // Every specialty in the directory has a screen now, so the refusal for one
+    // without a form has no real specialty left to fire on. What is left to
+    // prove is the other side of it: the specialty that used to be refused is
+    // taken, and given its own form only.
     const derm = await upsertDoctor(sql, OPS, {
       name: "Dr Skin", specialty: "Dermatology", phone: "9000000004" });
-    // Discovered here, in front of whoever is staffing the camp — not by the
-    // doctor, in a school hall, holding an empty form.
-    await expect(assignDoctorToCamp(sql, OPS, CAMP, derm.id))
-      .rejects.toThrow(/no screening form for that yet/i);
+    await assignDoctorToCamp(sql, OPS, CAMP, derm.id);
+    const DERM: Actor = { profileId: "ph_9000000004", name: "Dr Skin", role: "PHYSICIAN", schoolId: "sch_s" };
+    const f = await getScreeningForm(sql, DERM, CAMP, KID);
+    expect(f.checks).toEqual(["Skin"]);
   });
 
   test("an invented specialty never gets into the directory in the first place", async () => {
