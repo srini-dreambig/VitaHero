@@ -886,7 +886,7 @@ export const PORTAL_HTML = `<!doctype html>
   // agrees to a spine examination and nobody ever performs one. Mirrors
   // DESIGNED_CHECKS in clinical.ts; the rest stay recognised for historical
   // camps but are not offered anywhere.
-  var CHECKS = ["Height & weight","Vision","Dental","Haemoglobin"];
+  var CHECKS = ["Height & weight","Vision","Dental","Haemoglobin","ENT","Skin","Spine","Immunisation review"];
   var ACUITY = ["6/6","6/9","6/12","6/18","6/24","6/36","6/60","<6/60"];
   var CADENCE = [["ANNUAL","Once a year"],["BIANNUAL","Twice a year"],["QUARTERLY","Every quarter"],["ADHOC","As arranged"]];
   /** How often camps run at this school, in the words the form used to set it. */
@@ -4373,7 +4373,7 @@ export const PORTAL_HTML = `<!doctype html>
             photoBlock(d, ch),
             el("div", { class: "row" },
               el("button", { class: "pri big", disabled: S.busy, onclick: save }, S.busy ? "Saving\\u2026" : "Save check-up"),
-              el("button", { onclick: function () { set({ screenKid: null, screenData: null, saved: null }); } }, "Done"))));
+              el("button", { onclick: function () { set({ screenKid: null, screenData: null, saved: null }); } }, "Done")))));
   }
 
   /**

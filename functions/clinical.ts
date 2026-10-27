@@ -680,7 +680,7 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
         return notMeasured("Spine check not recorded");
       }
 
-      let flag: Flag = "GOOD";
+      let flag = "GOOD" as Flag;
       const parts: string[] = [];
 
       if (posture && posture !== "normal") {

@@ -91,14 +91,17 @@ describe("what a specialty screens for", () => {
       .toEqual([...DESIGNED_CHECKS].sort());
   });
 
-  test("a specialty whose screen does not exist yet screens nothing", () => {
-    // Dermatology maps to the Skin check, which is planned and not designed.
-    // Nothing to record, rather than a Normal/Abnormal dropdown with a
-    // clinical-sounding label.
-    expect(screeningChecksFor("Dermatology")).toEqual([]);
-    const derm = specialtyOptions().find((s) => s.name === "Dermatology")!;
-    expect(derm.canScreen).toBe(false);
-    expect(derm.planned).toContain("Skin");
+  test("the specialty checks that gained a screen are offered to their clinician", () => {
+    // ENT, Skin and Spine were planned once; each now has a capture form, so
+    // the specialist is handed it rather than nothing.
+    expect(screeningChecksFor("ENT")).toEqual(["ENT"]);
+    expect(screeningChecksFor("Dermatology")).toEqual(["Skin"]);
+    expect(screeningChecksFor("Orthopaedics")).toEqual(["Spine"]);
+    for (const name of ["ENT", "Dermatology", "Orthopaedics"]) {
+      const s = specialtyOptions().find((o) => o.name === name)!;
+      expect(s.canScreen).toBe(true);
+      expect(s.planned).toEqual([]);
+    }
   });
 
   test("the spellings people actually type are understood", () => {
