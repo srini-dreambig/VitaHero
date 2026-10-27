@@ -244,7 +244,14 @@ describe("the app's clinician form writes what the clinical rules read", () => {
    */
   function appKeys(checkType: string): string[] {
     const keys = new Set<string>();
-    for (const m of armOf(checkType).matchAll(/\bfields,\s*"(\w+)"/g)) keys.add(m[1]);
+    const arm = armOf(checkType);
+    for (const m of arm.matchAll(/\bfields,\s*"(\w+)"/g)) keys.add(m[1]);
+    // A multi-select called with named arguments, and the flags its
+    // onCustomSelect sets from the choice (pain, itching, lice...): both are
+    // keys the app sends, and missing them reported fields as absent that
+    // the doctor's phone does record.
+    for (const m of arm.matchAll(/\bkey\s*=\s*"(\w+)"/g)) keys.add(m[1]);
+    for (const m of arm.matchAll(/\bfields\["(\w+)"\]\s*=/g)) keys.add(m[1]);
     return [...keys];
   }
 

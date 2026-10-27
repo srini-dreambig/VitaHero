@@ -87,6 +87,9 @@ private val VISION_TEST_CONDITION = listOf(
     "Unaided", "Aided (With Present Glasses)", "Pinhole (PH)"
 )
 
+// The console's external eye exam, one finding; the rule reads it as externalExam.
+private val EXTERNAL_EXAM = listOf("Normal", "Conjunctivitis", "Discharge", "Ptosis")
+
 // External Anterior Symptoms / Signs (Image 3)
 private val EXTERNAL_SIGNS = listOf(
     "Ptosis (Lid Droop)",
@@ -578,6 +581,7 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("External Anterior Symptoms / Signs (Image 3)")
             MultiChoiceField(EXTERNAL_SIGNS, fields, "externalSigns", label = "Select External Signs (Ptosis, Swelling, Watering...)")
+            ChoiceField("External Eye Exam", EXTERNAL_EXAM, fields, "externalExam", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Present Glasses Prescription (Image 5)")

@@ -423,18 +423,97 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       if (ocularInv.length > 0) {
         why += `, ordered: ${ocularInv.join(", ")}`;
       }
-      if (externalExam && externalExam !== "normal") {
-        why += `, external: ${externalExam}`;
+      if (externalExam && externalExam.toLowerCase() !== "normal") {
+        why += `, external: ${externalExam.toLowerCase()}`;
         if (flag === "GOOD") flag = "WATCH";
       }
+
+      // Near vision: N6 is a child reading normal print.
+      const nearR = String(d.rightNearVision || "").trim();
+      const nearL = String(d.leftNearVision || "").trim();
+      if ([nearR, nearL].some((n) => n && !/^N6\b/i.test(n))) {
+        why += `, near vision R ${nearR || "—"} / L ${nearL || "—"}`;
+        if (flag === "GOOD") flag = "WATCH";
+      }
+
+      // The doctor's eye examination, structure by structure. Each field's
+      // options start with its normal finding; anything else is noted, and
+      // the ones that cost sight if they wait raise an alert on their own.
+      const eyeExam: Array<[string, unknown]> = [
+        ["lashes OD", d.rightLashes], ["lashes OS", d.leftLashes],
+        ["lid OD", d.rightLid], ["lid OS", d.leftLid],
+        ["conjunctiva OD", d.rightConjunctiva], ["conjunctiva OS", d.leftConjunctiva],
+        ["sclera OD", d.rightSclera], ["sclera OS", d.leftSclera],
+        ["cornea OD", d.rightCornea], ["cornea OS", d.leftCornea],
+        ["anterior chamber OD", d.rightAc], ["anterior chamber OS", d.leftAc],
+        ["iris OD", d.rightIris], ["iris OS", d.leftIris],
+        ["pupil size", d.pupilSize], ["pupil reaction", d.pupilReaction],
+        ["lens OD", d.rightLens], ["lens OS", d.leftLens],
+        ["optic disc OD", d.rightOpticDisc], ["optic disc OS", d.leftOpticDisc],
+        ["macula OD", d.rightMacula], ["macula OS", d.leftMacula],
+        ["retina OD", d.rightRetina], ["retina OS", d.leftRetina],
+        ["vessels OD", d.rightVessels], ["vessels OS", d.leftVessels],
+        ["motility", d.ocularMotility], ["alignment", d.squintAlignment],
+        ["gonioscopy", d.gonioscopy],
+      ];
+      const sightThreatening = [
+        "ulcer", "foreign body", "hyphema", "hypopyon", "cataract", "subluxation",
+        "papilledema", "atrophy", "cupping", "edema", "cherry-red", "hemorrhage",
+        "retinopathy", "detachment", "neovascular", "non-reactive", "rapd",
+        "closed angle", "purulent", "bitot",
+      ];
+      const eyeFindings: string[] = [];
+      for (const [where, raw] of eyeExam) {
+        const v = String(raw || "").trim();
+        const lower = v.toLowerCase();
+        if (!v || /^(normal|full in all|grade [34])/.test(lower)) continue;
+        eyeFindings.push(`${where}: ${v}`);
+        if (sightThreatening.some((t) => lower.includes(t))) flag = "ALERT";
+        else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (eyeFindings.length > 0) why += `, ${eyeFindings.join("; ")}`;
+
+      // Refraction, as the doctor wrote it.
+      const rx = (sph: unknown, cyl: unknown, axi: unknown, cva: unknown) => {
+        const s = [sph, cyl].map((x) => String(x || "").trim()).filter(Boolean);
+        const a = String(axi || "").trim();
+        const c = String(cva || "").trim();
+        return [s.join(" "), a && `× ${a}`, c && `(${c})`].filter(Boolean).join(" ");
+      };
+      const presentOd = rx(d.presentOdSph, d.presentOdCyl, d.presentOdAxi, d.presentOdCva);
+      const presentOs = rx(d.presentOsSph, d.presentOsCyl, d.presentOsAxi, d.presentOsCva);
+      if (presentOd || presentOs) why += `, present glasses OD ${presentOd || "—"} / OS ${presentOs || "—"}`;
+      const newOd = rx(d.newOdSph, d.newOdCyl, d.newOdAxi, d.newOdCva);
+      const newOs = rx(d.newOsSph, d.newOsCyl, d.newOsAxi, d.newOsCva);
+      const uvaOd = String(d.newOdUva || "").trim();
+      const uvaOs = String(d.newOsUva || "").trim();
+      if (newOd || newOs) {
+        why += `, new glasses OD ${newOd || "—"} / OS ${newOs || "—"}`;
+        if (uvaOd || uvaOs) why += ` (unaided OD ${uvaOd || "—"} / OS ${uvaOs || "—"})`;
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      const dilatation = String(d.dilatation || "").trim();
+      if (dilatation.toLowerCase().startsWith("yes")) {
+        const at = String(d.dilatationTime || "").trim();
+        why += `, dilated: ${dilatation.replace(/^yes\s*-\s*/i, "")}${at ? ` at ${at}` : ""}`;
+      }
+      const dominant = String(d.dominantEye || "").trim();
+      if (dominant) why += `, dominant eye ${dominant}`;
+
+      const diagnosis = String(d.finalDiagnosis || d.provisionalDiagnosis || "").trim();
+      if (diagnosis) why += `, diagnosis: ${diagnosis}`;
+      const plan = String(d.planOfCare || "").trim();
+      if (plan) why += `, plan: ${plan}`;
+
       if (treatmentsRecommended.length > 0) {
         why += `, rec: ${treatmentsRecommended.join(", ")}`;
       }
+      const condition = String(d.testingCondition || "").trim();
       return {
         flag,
         rationale: why,
         valueNum: worst,
-        valueText: `L ${left || "—"} / R ${right || "—"}`,
+        valueText: `L ${left || "—"} / R ${right || "—"}${condition ? ` (${condition.toLowerCase()})` : ""}`,
         urgency: flag === "ALERT" ? "SOON" : flag === "WATCH" ? "ROUTINE" : "NONE",
       };
     }
@@ -512,6 +591,13 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
         parts.push("reports tooth pain");
         flag = "ALERT";
       }
+      // Thumb sucking, tongue thrusting and mouth breathing shape the bite.
+      const habits = String(d.dentalHabits || "").split(",").map((s) => s.trim())
+        .filter((s) => s && s.toLowerCase() !== "none");
+      if (habits.length > 0) {
+        parts.push(`habits: ${habits.join(", ").toLowerCase()}`);
+        if (flag === "GOOD") flag = "WATCH";
+      }
       if (treatment.length > 0) {
         parts.push(`rec: ${treatment.join(", ")}`);
       }
@@ -578,10 +664,11 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       const treatment = Array.isArray(d.entTreatment)
         ? (d.entTreatment as unknown[]).map(String).filter(Boolean)
         : String(d.entTreatment || "").split(",").map((s) => s.trim()).filter(Boolean);
+      const speech = String(d.speechVoice || "").trim();
       const outcome = String(d.outcome || "").toLowerCase();
       const note = String(d.note || "").trim();
 
-      if (!leftH && !rightH && !ear && !nasal && !throat && !outcome && !note) {
+      if (!leftH && !rightH && !ear && !nasal && !throat && !speech && !outcome && !note) {
         return notMeasured("ENT check not recorded");
       }
 
@@ -606,6 +693,10 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
         parts.push(`Throat: ${throat}`);
         if (throat.includes("adenoid") || throat.includes("obstruction")) flag = "ALERT";
         else if (flag === "GOOD") flag = "WATCH";
+      }
+      if (speech && !speech.toLowerCase().startsWith("normal")) {
+        parts.push(`Speech: ${speech.toLowerCase()}`);
+        if (flag === "GOOD") flag = "WATCH";
       }
       if (outcome === "referral" && flag !== "ALERT") flag = "ALERT";
       else if (outcome === "abnormal" && flag === "GOOD") flag = "WATCH";
@@ -633,7 +724,7 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       const outcome = String(d.outcome || "").toLowerCase();
       const note = String(d.note || "").trim();
 
-      if (!condition && !itching && !lice && !outcome && !note) {
+      if (!condition && !itching && !lice && !d.pruritus && !outcome && !note) {
         return notMeasured("Skin check not recorded");
       }
 
@@ -648,6 +739,16 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       if (itching) parts.push("pruritus/itching");
       if (lice) {
         parts.push("scalp pediculosis/lice");
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      // The app's symptom list, which says more than the two flags it sets.
+      const pruritus = String(d.pruritus || "").toLowerCase();
+      if (pruritus.includes("scabies")) {
+        parts.push("night-time itching (possible scabies)");
+        flag = "ALERT";
+      }
+      if (pruritus.includes("excoriation")) {
+        parts.push("excoriation/crusting");
         if (flag === "GOOD") flag = "WATCH";
       }
       if (outcome === "referral" && flag !== "ALERT") flag = "ALERT";
@@ -676,7 +777,8 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       const outcome = String(d.outcome || "").toLowerCase();
       const note = String(d.note || "").trim();
 
-      if (!posture && !gait && !jointPain && !restricted && !outcome && !note) {
+      const joints = String(d.jointSymptoms || "").toLowerCase();
+      if (!posture && !gait && !jointPain && !restricted && !joints && !outcome && !note) {
         return notMeasured("Spine check not recorded");
       }
 
@@ -694,7 +796,15 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
         else if (flag === "GOOD") flag = "WATCH";
       }
       if (jointPain) {
-        parts.push("joint pain/swelling");
+        parts.push("joint pain");
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (joints.includes("swelling")) {
+        parts.push("joint swelling");
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      if (joints.includes("laxity")) {
+        parts.push("joint laxity/hypermobility");
         if (flag === "GOOD") flag = "WATCH";
       }
       if (restricted) {
