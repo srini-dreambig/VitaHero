@@ -767,6 +767,13 @@ KOTLIN_BUILTINS = {
     "BuildConfig",
 }
 
+# Composables that are members of another composable's scope, so they are
+# called with no import of their own: `ExposedDropdownMenu` exists only inside
+# `ExposedDropdownMenuBox { }`. Each is visible wherever its scope is imported.
+SCOPE_MEMBERS = {
+    "ExposedDropdownMenu": "ExposedDropdownMenuBox",
+}
+
 DECL_RE = re.compile(
     # Leading whitespace matters: `const val SPLASH` lives indented inside
     # `object Routes`, and anchoring at column zero silently misses every
@@ -925,6 +932,7 @@ for f in FILES:
     visible |= set(DECL_RE.findall(body))
     visible |= enum_entries(body)
     visible |= type_parameters(body)
+    visible |= {name for name, scope in SCOPE_MEMBERS.items() if scope in visible}
     # Only type-shaped names. A bare SCREAMING_SNAKE name is nearly always a
     # constant inherited from a platform superclass — getSystemService(
     # ALARM_SERVICE) inside an Activity — and resolving those means resolving
