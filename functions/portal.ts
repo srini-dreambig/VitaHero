@@ -4775,7 +4775,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.reviewKid) return reviewPanel();
     if (!S.queue) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var c = S.camp.camp;
-    var pending = S.queue.filter(function (q) { return q.status === "SCREENED"; });
+    var pending = S.queue.filter(function (q) { return q.status === "SCREENED" && !(q.waitingFor || []).length; });
     return el("div", null,
       el("div", { class: "row", style: "margin-bottom:14px" },
         el("div", { style: "flex:1" },
@@ -4807,7 +4807,11 @@ export const PORTAL_HTML = `<!doctype html>
                 el("td", { class: "num" }, q.alerts ? el("span", { class: "pill err" }, q.alerts) : el("span", { class: "muted" }, "0")),
                 el("td", { class: "num" }, q.watches ? el("span", { class: "pill warn" }, q.watches) : el("span", { class: "muted" }, "0")),
                 el("td", null, urgencyPill(q.urgency) || el("span", { class: "muted" }, "\\u2014")),
-                el("td", null, statusPill(q.status)),
+                el("td", null, statusPill(q.status),
+                  // Saved by one specialist, still due another: sign-off waits.
+                  (q.waitingFor || []).length
+                    ? el("div", { class: "muted", style: "font-size:11.5px;margin-top:3px" }, "Waiting for " + q.waitingFor.join(", "))
+                    : null),
                 el("td", null, el("button", { class: "sm" }, q.status === "APPROVED" ? "View" : "Review")));
             })))));
   }

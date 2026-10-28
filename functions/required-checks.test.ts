@@ -13,7 +13,7 @@ import type { Actor } from "./schools";
 import { SCHEMA_STEPS } from "./index";
 import { migrate } from "./migrate";
 import { missingRequired } from "./clinical";
-import { listParticipants, releaseCamp, reviewParticipant, saveScreening, setAttendance } from "./camps";
+import { listParticipants, releaseCamp, reviewParticipant, reviewQueue, saveScreening, setAttendance } from "./camps";
 
 describe("the fields each check needs", () => {
   test("height without weight is not a height and weight check", () => {
@@ -245,6 +245,9 @@ suite("a camp's checks are recorded in full", () => {
     expect((await row(EYE)).myChecks).toEqual(["Vision"]);
 
     await saveScreening(sql, DENT, camp, kid, { findings: [dental] });
+    // In the queue, but named as waiting for the eye doctor.
+    const q = (await reviewQueue(sql, DENT, camp)).queue.find((x) => x.kidId === kid)!;
+    expect(q.waitingFor).toEqual(["Vision"]);
     const afterDent = await row(DENT);
     const forEye = await row(EYE);
     expect(afterDent.screeningState).toBe("DONE");
@@ -257,5 +260,14 @@ suite("a camp's checks are recorded in full", () => {
     await saveScreening(sql, EYE, camp, kid, { findings: [vision] });
     expect((await row(EYE)).screeningState).toBe("DONE");
     expect((await row(EYE)).checksDone).toBe(2);
+    expect((await reviewQueue(sql, DENT, camp)).queue.find((x) => x.kidId === kid)!.waitingFor).toEqual([]);
+
+    // The dentist may sign off, but not overrule the eye doctor's finding.
+    await expect(reviewParticipant(sql, DENT, camp, kid, {
+      approve: true, recommendation: "All well.", findings: [{ checkType: "Vision", flag: "GOOD" }],
+    })).rejects.toThrow(/recorded by another specialty/);
+    await reviewParticipant(sql, DENT, camp, kid, {
+      approve: true, recommendation: "All well.", findings: [{ checkType: "Dental", flag: "GOOD" }],
+    });
   });
 });

@@ -233,6 +233,8 @@ data class ReviewQueueItemDto(
     val urgency: String = "NONE",
     val recommendation: String = "",
     val reviewed: Boolean = false,
+    /** Consented checks nobody has recorded yet; sign-off is refused until empty. */
+    val waitingFor: List<String> = emptyList(),
 )
 
 @Serializable

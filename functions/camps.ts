@@ -1619,8 +1619,11 @@ export async function reviewQueue(sql: Sql, actor: Actor, campId: string) {
   assertCan(access.canViewClinical, "see this camp's records");
 
   const rows = await sql`
-    SELECT p.kid_id, p.status, p.urgency, p.recommendation, p.reviewed_at,
+    SELECT p.kid_id, p.status, p.urgency, p.recommendation, p.reviewed_at, p.consent_checks,
            k.name, k.grade, k.section, k.age, k.gender,
+           (SELECT COALESCE(json_agg(DISTINCT f.check_type), '[]'::json) FROM vita_hero.camp_findings f
+             WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id
+               AND (f.flag <> 'NOT_MEASURED' OR COALESCE(f.screener_note, '') <> '')) AS recorded_checks,
            (SELECT COUNT(*) FILTER (WHERE f.flag = 'ALERT')::int FROM vita_hero.camp_findings f
              WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id) AS alerts,
            (SELECT COUNT(*) FILTER (WHERE f.flag = 'WATCH')::int FROM vita_hero.camp_findings f
@@ -1630,6 +1633,7 @@ export async function reviewQueue(sql: Sql, actor: Actor, campId: string) {
     WHERE p.camp_id = ${campId} AND p.status IN ('SCREENED','APPROVED')
     ORDER BY alerts DESC, watches DESC, k.name
   `;
+  const campChecks = campCheckList(access.camp);
   return {
     queue: rows.map((r) => ({
       kidId: r.kid_id as string,
@@ -1642,6 +1646,10 @@ export async function reviewQueue(sql: Sql, actor: Actor, campId: string) {
       urgency: (r.urgency as string) || "NONE",
       recommendation: (r.recommendation as string) || "",
       reviewed: !!r.reviewed_at,
+      // A child is SCREENED after the first specialist saves. Until every
+      // consented check is in, sign-off is refused, so say who is still due.
+      waitingFor: consentedChecks(r, campChecks)
+        .filter((c) => !((r.recorded_checks as string[]) || []).includes(c)),
     })),
   };
 }
@@ -1788,6 +1796,15 @@ export async function reviewParticipant(
     const flag = String(a.flag || "").toUpperCase();
     if (!["GOOD", "WATCH", "ALERT", "NOT_MEASURED"].includes(flag)) {
       throw new ApiError(400, "Unknown flag value", "BAD_FLAG");
+    }
+    // A specialist signs off the child, but another specialty's finding is
+    // not theirs to overrule: a dentist must not turn a vision ALERT to GOOD.
+    if (access.checkScope && !access.checkScope.includes(checkType)) {
+      throw new ApiError(
+        403,
+        `${checkType} was recorded by another specialty. Only that clinician, or a general physician, can change its flag.`,
+        "NOT_YOUR_CHECK"
+      );
     }
     await sql`
       UPDATE vita_hero.camp_findings

@@ -72,7 +72,10 @@ fun ClinicianReviewScreen(
 
     LaunchedEffect(campId) { clinician.loadQueue(campId) }
 
-    val waiting = queue.filter { it.status == "SCREENED" }
+    // A child is SCREENED once the first specialist saves, so split those whose
+    // checks are all in from those still due another specialist.
+    val waiting = queue.filter { it.status == "SCREENED" && it.waitingFor.isEmpty() }
+    val incomplete = queue.filter { it.status == "SCREENED" && it.waitingFor.isNotEmpty() }
     val approved = queue.filter { it.status == "APPROVED" }
 
     val done = released
@@ -177,6 +180,13 @@ fun ClinicianReviewScreen(
             }
         }
 
+        if (incomplete.isNotEmpty()) {
+            item { SectionLabel("${incomplete.size} still being screened") }
+            items(incomplete, key = { it.kidId }) { child ->
+                ReviewRow(child) { onOpenChild(child.kidId) }
+            }
+        }
+
         if (approved.isNotEmpty()) {
             item { SectionLabel("${approved.size} approved, not yet sent") }
             items(approved, key = { it.kidId }) { child ->
@@ -196,11 +206,11 @@ fun ClinicianReviewScreen(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    if (waiting.isEmpty())
+                    if (waiting.isEmpty() && incomplete.isEmpty())
                         "Everyone on this camp has been reviewed."
                     else
-                        "${waiting.size} " +
-                            (if (waiting.size == 1) "child is" else "children are") +
+                        "${waiting.size + incomplete.size} " +
+                            (if (waiting.size + incomplete.size == 1) "child is" else "children are") +
                             " still waiting. You can send the rest now and the others later.",
                     Modifier.padding(horizontal = 20.dp),
                     style = MaterialTheme.typography.bodySmall,
@@ -252,6 +262,14 @@ private fun ReviewRow(child: ReviewQueueItemDto, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (child.waitingFor.isNotEmpty()) {
+                    Text(
+                        "Waiting for: " + child.waitingFor.joinToString(", "),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = HeroOrange,
+                    )
+                }
             }
             // Counts, not a single worst-flag: "2 alerts" and "1 alert" are
             // different amounts of work, and the queue is sorted by them.
