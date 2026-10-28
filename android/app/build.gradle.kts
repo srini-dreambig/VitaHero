@@ -36,13 +36,13 @@ android {
         minSdk = 26
         targetSdk = 36
         // versionCode is what Play orders releases by and can never repeat or
-        // go backwards; versionName is what a person reads. 3 was the last
-        // number a build was ever made under, and no build under it was ever
-        // uploaded — this is the first upload, and everything since then is
-        // in it: one sign-in door, the clinician's review and release, the
-        // dietician, server-side badges, the printable consent slip.
-        versionCode = 1789668240
-        versionName = "1.1.6"
+        // go backwards; versionName is what a person reads. 1789668240 (1.1.6)
+        // was built on 22 Oct 2026, the day Play last took an update, so this
+        // release goes one above it: per-specialist sign-off, where each
+        // specialist signs only their own checks and the guardian reads them
+        // together.
+        versionCode = 1789668241
+        versionName = "1.1.7"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //
