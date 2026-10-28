@@ -110,6 +110,7 @@
 "clin_no_match_sub" = "इस कैंप में कोई \"%@\" से मेल नहीं खाता।";
 "clin_not_done" = "नहीं हो सका";
 "clin_not_done_hint" = "जैसे बच्चा अस्वस्थ, उपकरण उपलब्ध नहीं";
+"clin_not_done_seen" = "जो भी देखा, वह दर्ज करें";
 "clin_not_done_why" = "क्यों नहीं हो सका *";
 "clin_nothing_here" = "यहाँ दर्ज करने को कुछ नहीं";
 "clin_nothing_review" = "समीक्षा के लिए कुछ नहीं";

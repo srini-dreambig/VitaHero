@@ -800,7 +800,8 @@ struct CampChild: Decodable, Identifiable {
     let studentRef: String
     let consentStatus: String
     var attendance: String
-    /// NOT_SCREENED, SCREENED, REVIEWED or RELEASED.
+    /// NOT_SCREENED, SCREENED, APPROVED or RELEASED; ABSENT after a local
+    /// absent-only save.
     var status: String
 
     init(from decoder: Decoder) throws {
@@ -879,6 +880,9 @@ struct ExistingFinding: Decodable {
     let flag: String
     let rationale: String
     let note: String
+    /// The saved readings as the form holds them. Nested values have no field
+    /// on the form and are left out.
+    let detail: [String: String]
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -886,6 +890,16 @@ struct ExistingFinding: Decodable {
         flag = c.str("flag", "NOT_MEASURED")
         rationale = c.str("rationale")
         note = c.str("note")
+        var fields: [String: String] = [:]
+        if let nested = try? c.nestedContainer(keyedBy: AnyKey.self, forKey: AnyKey("detail")) {
+            for key in nested.allKeys {
+                guard let value = try? nested.decode(JSONValue.self, forKey: key) else { continue }
+                if case .other = value { continue }
+                if case .null = value { continue }
+                fields[key.stringValue] = value.text
+            }
+        }
+        detail = fields
     }
 }
 

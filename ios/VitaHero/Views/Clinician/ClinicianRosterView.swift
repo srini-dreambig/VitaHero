@@ -14,7 +14,13 @@ struct ClinicianRosterView: View {
 
     private var children: [CampChild] { roster?.participants ?? [] }
 
-    private var screenedCount: Int { children.filter { $0.status != "NOT_SCREENED" }.count }
+    /// Screened means findings were taken. An absent child has none, so it
+    /// stays in To do and is not counted or sent for review.
+    private static func screened(_ child: CampChild) -> Bool {
+        child.status != "NOT_SCREENED" && child.status != "ABSENT" && child.attendance != "ABSENT"
+    }
+
+    private var screenedCount: Int { children.filter(Self.screened).count }
 
     private var filtered: [CampChild] {
         let q = query.trimmingCharacters(in: .whitespaces).lowercased()
@@ -22,8 +28,8 @@ struct ClinicianRosterView: View {
         return children.filter { $0.name.lowercased().contains(q) || $0.studentRef.lowercased().contains(q) }
     }
 
-    private var toDo: [CampChild] { filtered.filter { $0.status == "NOT_SCREENED" } }
-    private var done: [CampChild] { filtered.filter { $0.status != "NOT_SCREENED" } }
+    private var toDo: [CampChild] { filtered.filter { !Self.screened($0) } }
+    private var done: [CampChild] { filtered.filter(Self.screened) }
 
     var body: some View {
         List {
@@ -120,7 +126,7 @@ struct ClinicianRosterView: View {
             switch child.consentStatus {
             case "DECLINED": Pill(text: L("clin_declined"), color: Brand.red)
             case "GRANTED", "PAPER":
-                if child.status == "NOT_SCREENED" {
+                if !Self.screened(child) {
                     Pill(text: L("clin_to_do"), color: Brand.orange)
                 } else {
                     Pill(text: L("clin_done"), color: Brand.blue)

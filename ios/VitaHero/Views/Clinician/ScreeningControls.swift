@@ -57,7 +57,8 @@ struct TextFieldRow: View {
     }
 }
 
-/// A reading. Only digits and one decimal point get in, as on Android.
+/// A reading. Only ASCII digits and one decimal point get in, as on Android:
+/// the server reads the number, and other scripts' digits or "1.2.3" are not one.
 struct NumberField: View {
     let label: String
     @Binding var value: String
@@ -69,11 +70,23 @@ struct NumberField: View {
                 TextField("", text: $value)
                     .keyboardType(.decimalPad)
                     .onChange(of: value) { typed in
-                        let kept = typed.filter { $0.isNumber || $0 == "." }
+                        let kept = Self.reading(typed)
                         if kept != typed { value = kept }
                     }
             }
         }
+    }
+
+    /// The typed text cut to 0-9 and the first ".".
+    static func reading(_ typed: String) -> String {
+        var seenPoint = false
+        return String(typed.filter { ch in
+            if ch == "." {
+                defer { seenPoint = true }
+                return !seenPoint
+            }
+            return ("0"..."9").contains(ch)
+        })
     }
 }
 

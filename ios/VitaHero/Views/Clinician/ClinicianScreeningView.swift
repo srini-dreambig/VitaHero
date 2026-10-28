@@ -148,12 +148,14 @@ struct ClinicianScreeningView: View {
                     .font(.footnote).foregroundColor(flagColor(existing.flag))
             }
             ToggleRow(label: L("clin_not_done"), value: field(check, RequiredChecks.notDone))
-            if values[check]?[RequiredChecks.notDone] == "true" {
+            if isNotDone(check) {
                 TextFieldRow(label: L("clin_not_done_why"), value: field(check, RequiredChecks.notDoneReason),
                              placeholder: L("clin_not_done_hint"))
-            } else {
-                checkFields(check)
+                // What was seen still counts: the server keeps a WATCH or
+                // ALERT it raises, so the fields stay, none of them required.
+                Text(L("clin_not_done_seen")).font(.footnote).foregroundColor(.secondary)
             }
+            checkFields(check)
         }
     }
 
@@ -428,8 +430,8 @@ struct ClinicianScreeningView: View {
             gapMessage = "Not saved. " + ranges.joined(separator: "; ") + "."
             return
         }
-        let findings = RequiredChecks.findings(order: form.checks + ["Systemic", "Investigations"],
-                                               values: values, note: "")
+        let findings = ScreeningRecord.findings(order: form.checks + ["Systemic", "Investigations"],
+                                                values: values, note: "")
         guard !findings.isEmpty else {
             message = L("clin_record_one")
             return
@@ -452,7 +454,16 @@ struct ClinicianScreeningView: View {
         loading = true
         defer { loading = false }
         do {
-            form = try await APIClient.shared.screeningForm(campId: campId, kidId: kidId)
+            let fetched = try await APIClient.shared.screeningForm(campId: campId, kidId: kidId)
+            // What was saved before comes back into the form, as the console
+            // reopens it, so a second save does not drop it.
+            var seeded: [String: [String: String]] = [:]
+            for finding in fetched.findings {
+                let fields = ScreeningRecord.restore(flag: finding.flag, note: finding.note, detail: finding.detail)
+                if !fields.isEmpty { seeded[finding.checkType] = fields }
+            }
+            values = seeded
+            form = fetched
             loadError = nil
         } catch is CancellationError {
         } catch {
@@ -480,20 +491,30 @@ struct ClinicianScreeningView: View {
         )
     }
 
+    private func isNotDone(_ check: String) -> Bool {
+        values[check]?[RequiredChecks.notDone] == "true"
+    }
+
+    /// A check that could not be done requires only its reason, so its
+    /// labels lose the asterisk.
+    private func shown(_ label: String, _ check: String) -> String {
+        isNotDone(check) && label.hasSuffix(" *") ? String(label.dropLast(2)) : label
+    }
+
     private func pair<A: View, B: View>(_ a: A, _ b: B) -> some View {
         HStack(alignment: .top, spacing: 10) { a; b }
     }
 
     private func number(_ label: String, _ check: String, _ key: String) -> some View {
-        NumberField(label: label, value: field(check, key))
+        NumberField(label: shown(label, check), value: field(check, key))
     }
 
     private func text(_ label: String, _ check: String, _ key: String, _ placeholder: String = "") -> some View {
-        TextFieldRow(label: label, value: field(check, key), placeholder: placeholder)
+        TextFieldRow(label: shown(label, check), value: field(check, key), placeholder: placeholder)
     }
 
     private func choice(_ label: String, _ options: [String], _ check: String, _ key: String) -> some View {
-        ChoiceField(label: label, options: options, value: field(check, key))
+        ChoiceField(label: shown(label, check), options: options, value: field(check, key))
     }
 
     private func toggle(_ label: String, _ check: String, _ key: String) -> some View {
@@ -516,7 +537,7 @@ struct ClinicianScreeningView: View {
                 values[check] = fields
             }
         }
-        return MultiChoiceField(label: label, options: options, value: field(check, key), onSelect: onSelect)
+        return MultiChoiceField(label: shown(label, check), options: options, value: field(check, key), onSelect: onSelect)
     }
 
     private func flagWord(_ flag: String) -> String {

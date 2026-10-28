@@ -59,6 +59,7 @@ targets:
     sources:
       - path: VitaHeroTests
       - path: VitaHero/Clinician/RequiredChecks.swift
+      - path: VitaHero/Clinician/ScreeningRecord.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vitahero.health.tests

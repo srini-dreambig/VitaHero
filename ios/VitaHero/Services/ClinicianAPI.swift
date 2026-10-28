@@ -48,7 +48,7 @@ extension APIClient {
     /// reach the screen as written.
     func approve(campId: String, kidId: String, flags: [String: String], urgency: String, recommendation: String) async throws {
         let findings: [[String: Any]] = flags.keys.sorted().map {
-            ["checkType": $0, "flag": flags[$0] ?? "", "reviewNote": ""]
+            ["checkType": $0, "flag": flags[$0] ?? "", "note": ""]
         }
         try await post("/api/admin/camps/\(campId)/review/\(kidId)", json: [
             "findings": findings,

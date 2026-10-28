@@ -89,10 +89,12 @@ struct ClinicianReviewChildView: View {
         let chosen = moved[finding.checkType] ?? finding.flag
         return Card {
             Text(finding.checkType).font(.headline)
-            let measured = finding.detail
-                .filter { $0.key != "__note" }
+            let measured = Self.shownDetail(finding.detail)
                 .map { "\(Self.detailLabel($0.key)): \(Self.detailValue($0))" }
                 .joined(separator: " · ")
+            if finding.detail.contains(where: { $0.key == "notDone" && $0.value == .bool(true) }) {
+                Text(L("clin_not_done")).font(.footnote.weight(.semibold)).foregroundColor(Brand.orange)
+            }
             if !measured.isEmpty {
                 Text(measured).font(.footnote).foregroundColor(.secondary)
             }
@@ -124,6 +126,16 @@ struct ClinicianReviewChildView: View {
 
     private func flagName(_ flag: String) -> String {
         Self.flags.first { $0.value == flag }.map { L($0.key) } ?? flag
+    }
+
+    /// The entries worth a line: no form keys, no notDone mark (shown on its
+    /// own), and nothing nested or empty, which would read as a bare label.
+    static func shownDetail(_ detail: [DetailEntry]) -> [DetailEntry] {
+        detail.filter { entry in
+            if entry.key.hasPrefix("__") || entry.key == "notDone" { return false }
+            if case .other = entry.value { return false }
+            return !entry.value.text.isEmpty
+        }
     }
 
     /// The Android labels for detail keys, so both apps read the same.
@@ -211,7 +223,10 @@ struct ClinicianReviewChildView: View {
         do {
             let fetched = try await APIClient.shared.reviewDetail(campId: campId, kidId: kidId)
             detail = fetched
-            urgency = fetched.suggestedUrgency
+            // An approved child reopens on the urgency that was approved.
+            let approved = clinician.queue.first { $0.kidId == kidId && $0.status == "APPROVED" }
+            urgency = fetched.status == "APPROVED" ? (approved?.urgency ?? fetched.suggestedUrgency)
+                : fetched.suggestedUrgency
             recommendation = fetched.recommendation
             moved = [:]
             loadError = nil

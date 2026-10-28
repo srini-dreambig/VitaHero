@@ -143,6 +143,7 @@
 "clin_no_match_sub" = "Nobody on this camp matches \"%@\".";
 "clin_not_done" = "Could not be done";
 "clin_not_done_hint" = "e.g. child unwell, equipment not available";
+"clin_not_done_seen" = "Record anything you did see";
 "clin_not_done_why" = "Why it could not be done *";
 "clin_nothing_here" = "nothing to record here";
 "clin_nothing_review" = "Nothing to review";
