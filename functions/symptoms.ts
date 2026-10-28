@@ -239,6 +239,12 @@ export async function symptomHistoryForClinician(
     if (!access.canScreen && !access.canReview) {
       throw new ApiError(403, "You cannot read this child's history", "FORBIDDEN");
     }
+    // The camp is the reason to see it, so only for a child on that camp:
+    // without this, any screener could read any child's log by its id.
+    const [onCamp] = await sql`
+      SELECT 1 FROM vita_hero.camp_participants WHERE camp_id = ${campId} AND kid_id = ${kidId}
+    `;
+    if (!onCamp) throw new ApiError(404, "That child is not on this camp's list", "NOT_ON_CAMP");
   }
   const rows = await sql`
     SELECT * FROM vita_hero.symptom_events

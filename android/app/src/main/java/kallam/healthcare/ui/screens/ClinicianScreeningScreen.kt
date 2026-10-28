@@ -584,9 +584,16 @@ fun ClinicianScreeningScreen(
                                         Modifier.fillMaxWidth(),
                                         placeholder = "e.g. child unwell, equipment not available",
                                     )
-                                } else {
-                                    CheckFields(check, fields(check))
+                                    Spacer(Modifier.height(6.dp))
+                                    // Still open: pallor seen without an Hb
+                                    // meter is still a finding, and it is kept.
+                                    Text(
+                                        "Record anything you did see",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
                                 }
+                                CheckFields(check, fields(check))
                             }
                         }
                     }

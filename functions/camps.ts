@@ -1129,6 +1129,13 @@ function evaluateChild(
       }
       flag = override as Flag;
     }
+    // Not done is about the instrument, not the child. Severe pallor seen at a
+    // camp with no Hb meter is still an ALERT: released as "not measured" it
+    // opened no referral and the parent saw nothing flagged.
+    if (override === "NOT_MEASURED") {
+      detail.notDone = true;
+      if (proposal.flag === "WATCH" || proposal.flag === "ALERT") flag = proposal.flag;
+    }
 
     out.push({
       // Whole ids, not prefixes: children added from admission numbers share
@@ -1952,8 +1959,9 @@ export async function releaseCamp(
       .filter((p) => p.summary.heightCm !== null || p.summary.weightKg !== null)
       .map((p) => [
         // Whole kid id: this row is keyed on id, so a cut one let a classmate's
-        // release overwrite this child's height and weight.
-        `gp_${slugify(p.kidId)}_${slugify(campDate || campId)}`,
+        // release overwrite this child's height and weight. Not slugified
+        // either: that cuts at 40 characters, and imported ids run to 47.
+        `gp_${p.kidId}_${slugify(campDate || campId)}`,
         p.kidId, p.profileId, campDate || "Camp",
         p.summary.heightCm ?? 0, p.summary.weightKg ?? 0,
       ]),

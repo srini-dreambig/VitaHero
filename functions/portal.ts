@@ -4170,6 +4170,30 @@ export const PORTAL_HTML = `<!doctype html>
           : null));
   }
 
+  /** A check's readings without the form's own __ fields, as the server takes them. */
+  function cleanDetail(det) {
+    var clean = {};
+    Object.keys(det || {}).forEach(function (k) { if (k.indexOf("__") !== 0 && k !== "notDone") clean[k] = det[k]; });
+    return clean;
+  }
+
+  /**
+   * A saved finding back into the form. A check marked not done keeps its
+   * reason and whatever was seen with it; the server may have kept that as a
+   * WATCH or ALERT, so the flag alone does not say it was not done.
+   */
+  function formFromFinding(prev) {
+    if (!prev) return {};
+    var form = JSON.parse(JSON.stringify(prev.detail || {}));
+    if ((form.notDone || prev.flag === "NOT_MEASURED") && prev.note) {
+      form = cleanDetail(form);
+      form.__notDone = true;
+      form.__reason = prev.note;
+    }
+    delete form.notDone;
+    return form;
+  }
+
   function openScreening(kidId) {
     S.screenKid = kidId; S.screenForm = null; S.error = ""; S.saved = null;
     S.photos = null; S.photosKid = null; S.photoOpen = null;
@@ -4193,13 +4217,13 @@ export const PORTAL_HTML = `<!doctype html>
         specialty: pack.camp.specialty || "",
         otherSpecialties: pack.camp.otherSpecialties || [],
         findings: (queuedEntry && queuedEntry.findings)
-          ? queuedEntry.findings.map(function (f) { return { checkType: f.checkType, detail: f.detail, flag: "", note: f.note || "" }; })
+          ? queuedEntry.findings.map(function (f) { return { checkType: f.checkType, detail: f.detail, flag: f.flag || "", note: f.note || "" }; })
           : person.findings,
       };
       var f0 = {};
       (person.checks || []).forEach(function (ct) {
         var prev = (S.screenData.findings || []).filter(function (x) { return x.checkType === ct; })[0];
-        f0[ct] = prev ? JSON.parse(JSON.stringify(prev.detail || {})) : {};
+        f0[ct] = formFromFinding(prev);
       });
       S.screenForm = f0;
       render();
@@ -4213,10 +4237,7 @@ export const PORTAL_HTML = `<!doctype html>
       var form = {};
       (d.checks || []).forEach(function (ct) {
         var prev = (d.findings || []).filter(function (f) { return f.checkType === ct; })[0];
-        form[ct] = prev ? JSON.parse(JSON.stringify(prev.detail || {})) : {};
-        if (prev && prev.flag === "NOT_MEASURED" && prev.note) {
-          form[ct] = { __notDone: true, __reason: prev.note };
-        }
+        form[ct] = formFromFinding(prev);
       });
       S.screenForm = form;
     });
@@ -4299,14 +4320,12 @@ export const PORTAL_HTML = `<!doctype html>
         var det = form[ct] || {};
         if (det.__notDone) {
           if (blankVal(det.__reason)) gaps.push(ct + ": say why it could not be done");
-          else findings.push({ checkType: ct, detail: {}, flag: "NOT_MEASURED", note: String(det.__reason).trim() });
+          else findings.push({ checkType: ct, detail: cleanDetail(det), flag: "NOT_MEASURED", note: String(det.__reason).trim() });
           return;
         }
         var miss = missingFields(ct, det);
         if (miss.length) { gaps.push(ct + ": " + miss.join(", ")); return; }
-        var clean = {};
-        Object.keys(det).forEach(function (k) { if (k.indexOf("__") !== 0) clean[k] = det[k]; });
-        findings.push({ checkType: ct, detail: clean, note: det.__note || "" });
+        findings.push({ checkType: ct, detail: cleanDetail(det), note: det.__note || "" });
       });
       if (gaps.length) {
         S.screenTried = ch.kidId;
@@ -4512,7 +4531,8 @@ export const PORTAL_HTML = `<!doctype html>
     function bind(k, cast) {
       return function (e) { d[k] = cast ? cast(e.target.value) : e.target.value; };
     }
-    var reqKeys = (REQUIRED[ct] || []).map(function (r) { return r[0]; });
+    // A check marked not done has nothing required: what is filled in is kept.
+    var reqKeys = d.__notDone ? [] : (REQUIRED[ct] || []).map(function (r) { return r[0]; });
     var tried = S.screenTried && S.screenData && S.screenTried === S.screenData.child.kidId;
     /** A field label, with the asterisk when the check cannot be saved without it. */
     function rl(k, text) {
@@ -4700,7 +4720,11 @@ export const PORTAL_HTML = `<!doctype html>
             el("label", { class: tried && blankVal(d.__reason) ? "miss" : "" },
               "Why it could not be done", el("span", { class: "req", title: "Required" }, " *")),
             el("input", { type: "text", value: d.__reason || "", oninput: bind("__reason"),
-              placeholder: "e.g. child unwell, equipment not available, refused this check" }))));
+              placeholder: "e.g. child unwell, equipment not available, refused this check" })),
+          // Still open: pallor seen without an Hb meter is a finding, and the
+          // server keeps its WATCH or ALERT.
+          el("div", { class: "muted", style: "font-size:11.5px;margin:10px 0 4px" }, "Record anything you did see"),
+          body()));
     }
     return el("div", { class: "chk" },
       el("div", { class: "chk-h" }, el("b", null, ct),

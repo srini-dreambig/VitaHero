@@ -137,6 +137,21 @@ suite("a camp's checks are recorded in full", () => {
     expect(r.saved.map((s: { checkType: string }) => s.checkType)).toEqual(["Height & weight"]);
   });
 
+  test("a check not done keeps what was seen: decay found is still an ALERT", async () => {
+    // The child would not sit for gums and hygiene, but four decayed teeth
+    // were counted. "Not measured" would release that as nothing flagged.
+    const r = await saveScreening(sql, DOC, CAMP, ASHA, {
+      findings: [{ checkType: "Dental", detail: { cariesCount: 4 }, flag: "NOT_MEASURED", note: "Child refused the rest" }],
+    });
+    expect(r.saved[0].flag).toBe("ALERT");
+    const [row] = await sql`SELECT flag, detail, screener_note FROM vita_hero.camp_findings
+                            WHERE camp_id = ${CAMP} AND kid_id = ${ASHA} AND check_type = 'Dental'`;
+    expect(row.flag).toBe("ALERT");
+    expect(row.detail.notDone).toBe(true);
+    expect(row.screener_note).toBe("Child refused the rest");
+    await saveScreening(sql, DOC, CAMP, ASHA, { findings: [dental] });
+  });
+
   test("a physician cannot sign off a child with a check never recorded", async () => {
     // How the old data looks: consent covered one check when the save went in,
     // or a client of the time dropped the rest. Either way a gap reaches review.

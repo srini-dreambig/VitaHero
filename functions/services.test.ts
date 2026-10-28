@@ -775,6 +775,11 @@ suite("photographs, questions, library and billing", () => {
       .rejects.toThrow(/clinical team and the child's guardian only/i);
   });
 
+  test("the camp's team cannot read the history of a child not on the camp", async () => {
+    await expect(symptomHistoryForClinician(sql, physician, campId, "k_not_on_this_camp"))
+      .rejects.toThrow(/not on this camp's list/i);
+  });
+
   test("a parent can delete what they wrote, and only what they wrote", async () => {
     const list = await kidSymptoms(sql, guardianIds[1], kidIds[1]);
     const id = list.events[0].id;
