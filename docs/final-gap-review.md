@@ -32,10 +32,10 @@ G1, G2 and G4 were fixed afterwards on the same branch (see *Fixed* below).
 
 Tests: `gaps.test.ts` (cancellation, reschedule, plan-only streak) and `diet-plan-feed.test.ts` (plan-slot guard, notification).
 
-### Your decisions
-4. G3 — console bookings view for hospitals, or SMS-only.
-5. G5 — report language.
-6. G6 — Android-only launch, or iOS rebuild.
+### Decisions (owner, 2026-10-28)
+4. G3 — **SMS only.** Hospitals hear about bookings and cancellations by text; no console bookings view. This makes the SMS secret (item 8) a launch blocker.
+5. G5 — **English only** for the printed report.
+6. G6 — **Both Android and iOS.** The iOS app has to be rebuilt against the live API before it can ship; the current `ios/` code is mock data only (it calls no endpoint), so deploying the server cannot break it, but it is not releasable as it stands.
 
 ### Your actions before release
 7. Run the duplicate-booking check (in `docs/product-decisions.md`) against production.

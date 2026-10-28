@@ -43,6 +43,19 @@ HAVING count(*) > 1;
 
 No rows: safe. Any rows: decide with the hospital which booking stands before deploying.
 
+If the deploy goes out with duplicates still there, it does not fail: schema v13
+is applied, but the one-booking-per-slot index is skipped and is not retried on
+a later start. After resolving the duplicates, create it once by hand:
+
+```sql
+CREATE UNIQUE INDEX IF NOT EXISTS appointments_slot_once
+  ON vita_hero.appointments (doctor_id, date, time) WHERE doctor_id IS NOT NULL;
+```
+
+Upgrade from the current production schema (v11) to v13 was tested against a
+real Postgres with existing families, a co-parent, bookings and meals: existing
+co-parents stay approved, and the parent endpoints answer as before.
+
 Older app builds keep working: a join from an old build creates a pending request
 (the old app then shows no shared children until approval), and an old build's
 camp/growth echo is answered without being written.
