@@ -55,7 +55,7 @@ function queueOf(n: number) {
     findings: i % 25 === 0 ? [] : [
       { checkType: "Height & weight", detail: { heightCm: 120 + (i % 12), weightKg: 23 + (i % 6) } },
       { checkType: "Vision", detail: { leftAcuity: "6/6", rightAcuity: i % 11 === 0 ? "6/18" : "6/6" } },
-      { checkType: "Dental", detail: { caries: i % 9 === 0, gums: "NORMAL" } },
+      { checkType: "Dental", detail: { cariesCount: i % 9 === 0 ? 2 : 0, gums: "NORMAL", hygiene: "Good" } },
     ],
   }));
 }

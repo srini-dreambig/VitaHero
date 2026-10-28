@@ -224,12 +224,15 @@ fun CampDetailScreen(
 
         // After a school camp, each child's own result is a separate screen —
         // the flags on the Kids tab are the summary, this is what the doctor
-        // actually wrote.
-        if (!upcoming && camp.isPartnerCamp && kids.isNotEmpty()) {
+        // actually wrote. Only the children who were on this camp's list: a
+        // brother at another school was told "a doctor is still checking this"
+        // for a camp he never attended. An older server sends no list, so all.
+        val resultKids = if (registered.isEmpty()) kids else kids.filter { it.id in registered }
+        if (!upcoming && camp.isPartnerCamp && resultKids.isNotEmpty()) {
             item {
                 Text(t(S.campResultTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(10.dp))
-                kids.forEach { kid ->
+                resultKids.forEach { kid ->
                     HeroCard(
                         Modifier
                             .fillMaxWidth()

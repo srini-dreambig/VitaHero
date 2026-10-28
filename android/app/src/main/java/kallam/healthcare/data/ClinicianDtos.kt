@@ -156,8 +156,10 @@ data class ScreeningSavedDto(
  * stored, released, and shown to the parent as NOT MEASURED, with no error
  * anywhere. app-surface.test.ts holds those names to the rules.
  *
- * No flag is sent. The server decides what a measurement means, so a device
- * and the record cannot disagree about a child's result.
+ * No flag is sent for a measurement. The server decides what a reading
+ * means, so a device and the record cannot disagree about a child's result.
+ * The one flag a device sends is NOT_MEASURED, for a check the clinician
+ * could not do, and the server refuses it without the reason in [note].
  */
 @Serializable
 data class ScreeningSubmissionDto(
@@ -165,6 +167,7 @@ data class ScreeningSubmissionDto(
     val detail: kotlinx.serialization.json.JsonObject =
         kotlinx.serialization.json.JsonObject(emptyMap()),
     val note: String = "",
+    val flag: String = "",
 )
 
 @Serializable

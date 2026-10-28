@@ -920,7 +920,7 @@ describe("the app and the server agree about camps", () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync("index.ts", "utf8");
     const at = src.indexOf('path === "/api/camps"');
-    expect(src.slice(at, at + 3000)).toContain("venue: sc.venue");
+    expect(src.slice(at, at + 4000)).toContain("venue: sc.venue");
     const dto = await kotlin("data/Dtos.kt");
     const camp = dto.slice(dto.indexOf("data class CampDto"));
     expect(camp.slice(0, camp.indexOf("\n)"))).toContain("val venue");
@@ -1691,7 +1691,7 @@ describe("a clinician working from the app", () => {
     const res = await call("/api/admin/camps/camp1/screening/kid1", {
       method: "POST",
       headers: { ...asDoctor, "Content-Type": "application/json" },
-      body: JSON.stringify({ findings: [{ checkType: "Dental", detail: { cariesCount: 2 } }] }),
+      body: JSON.stringify({ findings: [{ checkType: "Dental", detail: { cariesCount: 2, gums: "Healthy", hygiene: "Good" } }] }),
     });
     expect(res.status).toBe(403);
     expect(((await res.json()) as { code?: string }).code).toBe("APP_ONLY");
@@ -1708,7 +1708,7 @@ describe("a clinician working from the app", () => {
     const res = await call("/api/admin/camps/camp1/screening/kid1", {
       method: "POST",
       headers: { ...asDoctor, "Content-Type": "application/json" },
-      body: JSON.stringify({ findings: [{ checkType: "Dental", detail: { cariesCount: 2 } }] }),
+      body: JSON.stringify({ findings: [{ checkType: "Dental", detail: { cariesCount: 2, gums: "Healthy", hygiene: "Good" } }] }),
     });
     expect(res.status).not.toBe(403);
   });

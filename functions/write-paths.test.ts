@@ -248,6 +248,10 @@ suite("every write reaches its own SQL, and none of it answers 500", () => {
       body: () => ({ findings: [
         { checkType: "Height & weight", detail: { heightCm: 118, weightKg: 19 } },
         { checkType: "Vision", detail: { leftAcuity: "6/36", rightAcuity: "6/24" } },
+        // Every other check the parent agreed to is declared, not skipped:
+        // a save that leaves one out is refused.
+        ...["Dental", "Haemoglobin", "ENT", "Skin", "Spine", "Immunisation review"].map(
+          (checkType) => ({ checkType, flag: "NOT_MEASURED", note: "Lab kit arrives tomorrow" })),
       ] }) },
     // Before the review and the release, which is the order a camp runs in:
     // a handset that has been offline all morning syncs what it recorded, and

@@ -29,7 +29,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -333,6 +335,54 @@ private val HB_TREATMENTS = listOf(
 )
 
 /**
+ * The fields each check cannot be saved without, by the keys clinical.ts
+ * reads. Mirrors REQUIRED_FIELDS on the server, which refuses the same gaps;
+ * checking here first means the clinician hears it before the request, by name.
+ */
+private val REQUIRED_FIELDS: Map<String, List<Pair<String, String>>> = mapOf(
+    "Height & weight" to listOf("heightCm" to "Height", "weightKg" to "Weight"),
+    "Vision" to listOf("rightAcuity" to "Right eye", "leftAcuity" to "Left eye"),
+    "Dental" to listOf("cariesCount" to "Carious count", "gums" to "Gums", "hygiene" to "Oral hygiene"),
+    "Haemoglobin" to listOf("hb" to "Haemoglobin"),
+    "ENT" to listOf("rightHearing" to "Right ear", "leftHearing" to "Left ear"),
+    "Skin" to listOf("skinCondition" to "Primary skin finding"),
+    "Spine" to listOf("posture" to "Posture", "gaitLimb" to "Gait & lower limb"),
+    "Immunisation review" to listOf("vaccineStatus" to "Vaccine status"),
+)
+
+/** Set on a check the clinician could not do; its reason travels as the note. */
+private const val NOT_DONE = "__notDone"
+private const val NOT_DONE_REASON = "__reason"
+
+/**
+ * What still stops this form being saved, one line per check, or empty.
+ *
+ * A check is done in full, or marked could not be done with a reason. One
+ * left untouched only passes when it was already recorded earlier.
+ */
+private fun screeningGaps(
+    checks: List<String>,
+    values: Map<String, Map<String, String>>,
+    alreadyRecorded: Set<String>,
+): List<String> = checks.mapNotNull { check ->
+    val fields = values[check].orEmpty()
+    if (fields[NOT_DONE] == "true") {
+        return@mapNotNull if (fields[NOT_DONE_REASON].isNullOrBlank())
+            "$check: say why it could not be done" else null
+    }
+    val touched = fields.any { (k, v) -> !k.startsWith("__") && v.isNotBlank() && v != "false" }
+    if (!touched && check in alreadyRecorded) return@mapNotNull null
+    val missing = REQUIRED_FIELDS[check].orEmpty()
+        .filter { (k, _) -> fields[k].isNullOrBlank() }
+        .map { it.second }
+    when {
+        missing.isNotEmpty() -> "$check: ${missing.joinToString(", ")}"
+        !touched -> "$check: nothing recorded"
+        else -> null
+    }
+}
+
+/**
  * One child's screening, scoped to the clinician's own specialty.
  */
 @Composable
@@ -348,6 +398,7 @@ fun ClinicianScreeningScreen(
     val saved by clinician.saved.collectAsState()
 
     val values = remember(kidId) { mutableStateMapOf<String, MutableMap<String, String>>() }
+    var gapMessage by remember(kidId) { mutableStateOf("") }
     fun fields(check: String): MutableMap<String, String> =
         values.getOrPut(check) { mutableStateMapOf() }
 
@@ -425,6 +476,13 @@ fun ClinicianScreeningScreen(
                     )
                 }
                 if (message.isNotBlank()) Notice(message, error = true)
+                if (gapMessage.isNotBlank()) Notice(gapMessage, error = true)
+                Text(
+                    "Fields marked * are required. A check that cannot be done is marked as such, with the reason.",
+                    Modifier.padding(horizontal = 20.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             // The parent's illness log. History to weigh, not a finding.
@@ -517,8 +575,18 @@ fun ClinicianScreeningScreen(
                                         color = flagColour(existing.flag),
                                     )
                                 }
-                                Spacer(Modifier.height(10.dp))
-                                CheckFields(check, fields(check))
+                                Spacer(Modifier.height(6.dp))
+                                ToggleField("Could not be done", fields(check), NOT_DONE)
+                                Spacer(Modifier.height(6.dp))
+                                if (fields(check)[NOT_DONE] == "true") {
+                                    SimpleTextField(
+                                        "Why it could not be done *", fields(check), NOT_DONE_REASON,
+                                        Modifier.fillMaxWidth(),
+                                        placeholder = "e.g. child unwell, equipment not available",
+                                    )
+                                } else {
+                                    CheckFields(check, fields(check))
+                                }
                             }
                         }
                     }
@@ -572,8 +640,19 @@ fun ClinicianScreeningScreen(
                 item {
                     Spacer(Modifier.height(10.dp))
                     val onSave: () -> Unit = {
-                        clinician.save(campId, kidId, snapshot(values), note = "")
+                        val recorded = f.findings
+                            .filter { it.flag != "NOT_MEASURED" || it.note.isNotBlank() }
+                            .map { it.checkType }.toSet()
+                        val gaps = screeningGaps(f.checks, snapshot(values), recorded)
+                        gapMessage = if (gaps.isEmpty()) "" else
+                            "Not saved. Still required — " + gaps.joinToString("; ") +
+                                ". Fill these in, or tick Could not be done and give the reason."
+                        if (gaps.isEmpty()) clinician.save(campId, kidId, snapshot(values), note = "")
                     }
+                    // Said again here: Save sits at the foot of a long form, and
+                    // the notice at the top is out of sight when it is tapped.
+                    if (gapMessage.isNotBlank()) Notice(gapMessage, error = true)
+                    else if (message.isNotBlank()) Notice(message, error = true)
                     PrimaryGradientButton(
                         text = if (busy) "Saving…" else "Save Screening Record",
                         onClick = onSave,
@@ -601,14 +680,14 @@ fun ClinicianScreeningScreen(
 private fun CheckFields(check: String, fields: MutableMap<String, String>) {
     when (check) {
         "Height & weight" -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            NumberField("Height (cm)", fields, "heightCm", Modifier.weight(1f))
-            NumberField("Weight (kg)", fields, "weightKg", Modifier.weight(1f))
+            NumberField("Height (cm) *", fields, "heightCm", Modifier.weight(1f))
+            NumberField("Weight (kg) *", fields, "weightKg", Modifier.weight(1f))
         }
         "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Visual Acuity (Distant & Near) - Image 3", subtitle = "Snellen distance & near reading metrics per eye")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Distance OD (Right)", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
-                ChoiceField("Distance OS (Left)", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
+                ChoiceField("Distance OD (Right) *", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
+                ChoiceField("Distance OS (Left) *", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 ChoiceField("Near OD (Right)", NEAR_VISION, fields, "rightNearVision", Modifier.weight(1f))
@@ -749,15 +828,15 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
         "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Tooth Index (dmft / DMFT)")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NumberField("Carious (Decayed)", fields, "cariesCount", Modifier.weight(1f))
+                NumberField("Carious (Decayed) *", fields, "cariesCount", Modifier.weight(1f))
                 NumberField("Missing", fields, "missingCount", Modifier.weight(1f))
                 NumberField("Filled", fields, "filledCount", Modifier.weight(1f))
             }
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Gums & Periodontium")
-            MultiChoiceField(GUMS_CONDITION, fields, "gums", label = "Gums Condition (Healthy, Bleeding, Swollen, Recession...)")
-            ChoiceField("Oral Hygiene Index", ORAL_HYGIENE_INDEX, fields, "hygiene", Modifier.fillMaxWidth())
+            MultiChoiceField(GUMS_CONDITION, fields, "gums", label = "* Gums Condition (Healthy, Bleeding, Swollen, Recession...)")
+            ChoiceField("Oral Hygiene Index *", ORAL_HYGIENE_INDEX, fields, "hygiene", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Enamel, Alignment & Occlusion")
@@ -788,8 +867,8 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
         "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Hearing Acuity Screening")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Left Ear Acuity", HEARING_ACUITY, fields, "leftHearing", Modifier.weight(1f))
-                ChoiceField("Right Ear Acuity", HEARING_ACUITY, fields, "rightHearing", Modifier.weight(1f))
+                ChoiceField("Left Ear Acuity *", HEARING_ACUITY, fields, "leftHearing", Modifier.weight(1f))
+                ChoiceField("Right Ear Acuity *", HEARING_ACUITY, fields, "rightHearing", Modifier.weight(1f))
             }
 
             Spacer(Modifier.height(2.dp))
@@ -805,7 +884,7 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
         }
         "Skin" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Dermatological Examination")
-            MultiChoiceField(SKIN_CONDITIONS, fields, "skinCondition", label = "Primary Skin Condition & Findings")
+            MultiChoiceField(SKIN_CONDITIONS, fields, "skinCondition", label = "Primary Skin Condition & Findings *")
             MultiChoiceField(SKIN_LOCATIONS, fields, "skinLocation", label = "Lesion Distribution & Body Sites")
 
             Spacer(Modifier.height(2.dp))
@@ -833,8 +912,8 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
         }
         "Spine" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Musculoskeletal & Posture Assessment")
-            MultiChoiceField(POSTURE_ALIGN, fields, "posture", label = "Spinal Posture & Alignment (Slouching, Scoliosis...)")
-            MultiChoiceField(GAIT_LIMB, fields, "gaitLimb", label = "Gait & Lower Limb Assessment (Flat Feet, Knock-knees...)")
+            MultiChoiceField(POSTURE_ALIGN, fields, "posture", label = "* Spinal Posture & Alignment (Slouching, Scoliosis...)")
+            MultiChoiceField(GAIT_LIMB, fields, "gaitLimb", label = "* Gait & Lower Limb Assessment (Flat Feet, Knock-knees...)")
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Functional Symptoms & Joint Exam")
@@ -856,7 +935,7 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
         }
         "Immunisation review" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Immunization Status Review")
-            ChoiceField("Overall Vaccine Status for Age", VACCINE_STATUS, fields, "vaccineStatus", Modifier.fillMaxWidth())
+            ChoiceField("Overall Vaccine Status for Age *", VACCINE_STATUS, fields, "vaccineStatus", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Missed Routine Immunizations")
@@ -868,7 +947,7 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
         }
         "Haemoglobin" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Anaemia & Haemoglobin Screening")
-            NumberField("Haemoglobin Level (g/dL)", fields, "hb", Modifier.fillMaxWidth())
+            NumberField("Haemoglobin Level (g/dL) *", fields, "hb", Modifier.fillMaxWidth())
             ChoiceField("Clinical Pallor Sign", PALLOR_SIGNS, fields, "pallor", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))

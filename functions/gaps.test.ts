@@ -267,9 +267,11 @@ suite("the gaps, against a real database", () => {
 
   test("the printed report holds signed-off children only, with the doctor's words", async () => {
     await saveScreening(sql, DOC, CAMP, SIGNED, {
-      findings: [vision, { checkType: "ENT", detail: { leftHearing: "Reduced", earExam: "Wax" } }],
+      findings: [vision, { checkType: "ENT", detail: { leftHearing: "Reduced", rightHearing: "Normal", earExam: "Wax" } }],
     });
-    await saveScreening(sql, DOC, CAMP, WAITING, { findings: [vision] });
+    await saveScreening(sql, DOC, CAMP, WAITING, {
+      findings: [vision, { checkType: "ENT", flag: "NOT_MEASURED", note: "Upset; ears not examined" }],
+    });
 
     const detail: any = await reviewDetail(sql, DOC, CAMP, SIGNED);
     expect(detail.illnessHistory.events.length).toBe(1);

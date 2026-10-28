@@ -215,11 +215,11 @@ suite("what the admin side releases is what the app can read", () => {
       findings: [
         { checkType: "Height & weight", detail: { heightCm: 132, weightKg: 28 } },
         { checkType: "Vision", detail: { leftAcuity: "6/18", rightAcuity: "6/6" } },
-        { checkType: "Dental", detail: { cariesCount: 2 } },
+        { checkType: "Dental", detail: { cariesCount: 2, gums: "Healthy", hygiene: "Good" } },
         { checkType: "Haemoglobin", detail: { hb: 10.2 } },
         { checkType: "ENT", detail: { leftHearing: "normal", rightHearing: "normal" } },
-        { checkType: "Skin", detail: { itching: "true", lice: "false" } },
-        { checkType: "Spine", detail: { posture: "Normal", jointPain: "false", restrictedMotion: "false" } },
+        { checkType: "Skin", detail: { skinCondition: "Normal", itching: "true", lice: "false" } },
+        { checkType: "Spine", detail: { posture: "Normal", gaitLimb: "Normal", jointPain: "false", restrictedMotion: "false" } },
         { checkType: "Immunisation review", detail: { vaccineStatus: "Up to date" } },
       ],
     });

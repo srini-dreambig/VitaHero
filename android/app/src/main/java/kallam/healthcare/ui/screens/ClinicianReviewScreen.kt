@@ -160,8 +160,10 @@ fun ClinicianReviewScreen(
                     title = if (busy) "Loading…" else "Nothing to review",
                     subtitle =
                         if (busy) "One moment."
-                        else "Children appear here once they have been screened. Nobody on "
-                            + "this camp has been measured yet.",
+                        // An empty queue means either nobody is screened yet or every
+                        // result has already been sent; the server drops RELEASED rows.
+                        else "Children appear here once they have been screened, and leave "
+                            + "once their results are sent to guardians.",
                     modifier = Modifier.padding(20.dp),
                 )
             }

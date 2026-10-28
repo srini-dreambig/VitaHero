@@ -133,7 +133,9 @@ export async function openReferralsForCamp(
   for (const c of children) {
     for (const f of c.findings) {
       if (f.flag !== "WATCH" && f.flag !== "ALERT") continue;
-      const id = `ref_${campId.slice(-8)}_${slugify(c.kidId).slice(0, 16)}_${slugify(f.checkType)}`;
+      // Whole ids: roster children share long id prefixes, and a cut id made
+      // two children's referrals collide and the whole release fail.
+      const id = `ref_${campId}_${c.kidId}_${slugify(f.checkType)}`;
       // A WATCH is routine unless the physician marked the whole child urgent.
       const urgency = f.flag === "ALERT" ? (c.urgency === "NONE" ? "SOON" : c.urgency) : "ROUTINE";
       rows.push([

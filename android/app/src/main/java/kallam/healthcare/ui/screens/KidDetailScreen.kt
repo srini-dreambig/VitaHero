@@ -370,10 +370,9 @@ private fun GrowthTab(kid: Kid, assessment: GrowthAssessment?, onOpenClinicalCha
         }
         HeroCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(18.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(t(S.heightTrend), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    FlagChip(HealthFlag.GOOD)
-                }
+                // No chip here: nothing computes a growth flag, and a constant
+                // "On track" told parents so even before anything was measured.
+                Text(t(S.heightTrend), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(16.dp))
                 GrowthChart(kid.growth, HeroOrange)
                 Spacer(Modifier.height(8.dp))

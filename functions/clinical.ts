@@ -877,6 +877,71 @@ function notMeasured(why: string): Proposal {
   return { flag: "NOT_MEASURED", rationale: why, valueNum: null, valueText: "", urgency: "NONE" };
 }
 
+// ─── Required fields ────────────────────────────────────────
+
+/**
+ * What a check cannot be saved without.
+ *
+ * proposeFlag reads a half-filled check as "not measured" and carries on, which
+ * is how a camp came to record dental and eyesight for every child and height
+ * and weight for none: nothing said those boxes mattered. These are the fields
+ * a check means nothing without. Everything else on the form stays optional.
+ *
+ * The console builds its asterisks from this map, and ClinicianScreeningScreen.kt
+ * keeps a copy for the app. Change one, change the other.
+ */
+export const REQUIRED_FIELDS: Record<CheckType, ReadonlyArray<readonly [string, string]>> = {
+  "Height & weight": [["heightCm", "Height (cm)"], ["weightKg", "Weight (kg)"]],
+  Vision: [["rightAcuity", "Right eye acuity"], ["leftAcuity", "Left eye acuity"]],
+  Dental: [["cariesCount", "Carious (decayed) teeth"], ["gums", "Gums condition"], ["hygiene", "Oral hygiene"]],
+  Haemoglobin: [["hb", "Haemoglobin (g/dL)"]],
+  ENT: [["rightHearing", "Right ear hearing"], ["leftHearing", "Left ear hearing"]],
+  Skin: [["skinCondition", "Skin condition"]],
+  Spine: [["posture", "Posture"], ["gaitLimb", "Gait & lower limbs"]],
+  "Immunisation review": [["vaccineStatus", "Vaccination status"]],
+};
+
+/**
+ * Plausible ranges for the numbers a typo turns into a referral. A 1.32 cm
+ * child or a 320 kg one is a slipped decimal, not a finding, and should be
+ * caught while the child is still standing at the scale.
+ */
+const RANGES: Record<string, readonly [number, number]> = {
+  heightCm: [40, 200],
+  weightKg: [5, 150],
+  hb: [3, 20],
+  cariesCount: [0, 32],
+};
+
+/**
+ * Why this check cannot be saved as it stands, or "" if it can.
+ *
+ * A check the screener could not do (child refused, no audiometer) is still
+ * recorded: they mark it NOT_MEASURED and say why, and evaluateChild skips this
+ * for it. What it may not be is quietly left half empty.
+ */
+export function missingRequired(checkType: string, detail: Record<string, unknown>): string {
+  const fields = REQUIRED_FIELDS[checkType as CheckType] || [];
+  const blank = fields
+    .filter(([key]) => {
+      const v = detail[key];
+      return v === null || v === undefined || String(v).trim() === "";
+    })
+    .map(([, label]) => label);
+  if (blank.length > 0) {
+    return `${checkType}: ${blank.join(", ")} ${blank.length === 1 ? "is" : "are"} required`;
+  }
+  for (const [key, label] of fields) {
+    const range = RANGES[key];
+    if (!range) continue;
+    const n = num(detail[key]);
+    if (n === null || n < range[0] || n > range[1]) {
+      return `${checkType}: ${label} must be a number from ${range[0]} to ${range[1]}`;
+    }
+  }
+  return "";
+}
+
 // ─── Rolling findings up to the parent-facing summary ───────
 
 const SEVERITY: Record<Flag, number> = { NOT_MEASURED: -1, GOOD: 0, WATCH: 1, ALERT: 2 };

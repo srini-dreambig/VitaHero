@@ -3928,8 +3928,15 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             partner.push(...(partnerRows as Record<string, unknown>[]));
           }
           partner.sort((a, b) => String(a.date).localeCompare(String(b.date)));
+          // The camp's own list counts too: a child is on a school camp
+          // because the school put them there, and registrations are only
+          // written at release. Without it a parent was offered a "camp
+          // result" for every child they have, screened or not.
           const regs = await sql`
             SELECT school_camp_id, kid_id FROM vita_hero.camp_registrations
+            WHERE profile_id = ${session.profileId}
+            UNION
+            SELECT camp_id AS school_camp_id, kid_id FROM vita_hero.camp_participants
             WHERE profile_id = ${session.profileId}
           `;
           const regMap = new Map<string, string[]>();

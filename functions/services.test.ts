@@ -399,10 +399,12 @@ suite("photographs, questions, library and billing", () => {
     expect(before.photos.length).toBe(0);
 
     await saveScreening(sql, screener, campId, kidIds[1], {
-      measurements: { heightCm: 132, weightKg: 28 },
       findings: [
-        { checkType: "Vision", flag: "WATCH", note: "Squints at the far chart" },
-        { checkType: "Skin", flag: "WATCH", note: "Dry patch, left forearm" },
+        { checkType: "Height & weight", flag: "NOT_MEASURED", note: "Scale not calibrated today" },
+        { checkType: "Vision", detail: { leftAcuity: "6/6", rightAcuity: "6/6" },
+          flag: "WATCH", note: "Squints at the far chart" },
+        { checkType: "Dental", detail: { cariesCount: 0, gums: "Healthy", hygiene: "Good" } },
+        { checkType: "Skin", detail: { skinCondition: "Dry patch" }, note: "Dry patch, left forearm" },
       ],
     });
     await reviewParticipant(sql, physician, campId, kidIds[1], {
@@ -745,6 +747,10 @@ suite("photographs, questions, library and billing", () => {
   });
 
   test("recording an illness does not touch a single clinical flag", async () => {
+    const dentalRows = async () => (await client.query(
+      "SELECT COUNT(*)::int AS n FROM vita_hero.camp_findings WHERE kid_id=$1 AND check_type='Dental'",
+      [kidIds[1]])).rows[0].n;
+    const dentalBefore = await dentalRows();
     const before = await client.query(
       "SELECT dental, eyesight, nutrition, overall_score FROM vita_hero.kids WHERE id=$1", [kidIds[1]]);
     await recordSymptom(sql, guardianIds[1], kidIds[1], {
@@ -753,11 +759,8 @@ suite("photographs, questions, library and billing", () => {
     const after = await client.query(
       "SELECT dental, eyesight, nutrition, overall_score FROM vita_hero.kids WHERE id=$1", [kidIds[1]]);
     expect(after.rows[0]).toEqual(before.rows[0]);
-    const findings = await client.query(
-      "SELECT COUNT(*)::int AS n FROM vita_hero.camp_findings WHERE kid_id=$1 AND check_type='Dental'",
-      [kidIds[1]]);
     // A toothache reported by a parent must not appear as a dental finding.
-    expect(findings.rows[0].n).toBe(0);
+    expect(await dentalRows()).toBe(dentalBefore);
   });
 
   test("the clinical team sees it as the family's account, clearly labelled", async () => {

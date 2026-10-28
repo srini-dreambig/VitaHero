@@ -13,6 +13,8 @@
 // The portal JS below avoids template literals so this file can hold it in one
 // without escaping every backtick.
 
+import { REQUIRED_FIELDS } from "./clinical";
+
 export const PORTAL_HTML = `<!doctype html>
 <html lang="en">
 <head>
@@ -418,6 +420,8 @@ export const PORTAL_HTML = `<!doctype html>
   .chk{border:1px solid var(--line);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
   .chk-h{background:var(--sunk);padding:9px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line-2)}
   .chk-h b{flex:1;font-size:12.5px}
+  .req{color:var(--err);font-weight:700}
+  label.miss{color:var(--err)}
   .chk-b{padding:14px}
   .flagline{font-size:12.5px;padding:8px 14px;border-top:1px solid var(--line-2);background:var(--card)}
 
@@ -682,6 +686,10 @@ export const PORTAL_HTML = `<!doctype html>
     }));
   }
 
+  /** A form label marked with the red asterisk: the record cannot be saved without this field. */
+  function reqLabel(text) {
+    return el("label", null, text, el("span", { class: "req", title: "Required" }, " *"));
+  }
   function el(tag, props) {
     var n = document.createElement(tag), p = props || {}, k, v;
     for (k in p) {
@@ -720,7 +728,7 @@ export const PORTAL_HTML = `<!doctype html>
       overview: null, schools: [], school: null, schoolTab: "roster",
       classes: null, admins: null, staff: null, roster: null, batches: null,
       camps: null, camp: null, campTab: "setup", participants: null, queue: null,
-      screenKid: null, screenForm: null, reviewKid: null, reviewData: null,
+      screenKid: null, screenForm: null, screenTried: null, reviewKid: null, reviewData: null,
       myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
       referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
       programme: null, rollover: null, refForm: null, refFilter: "",
@@ -887,6 +895,15 @@ export const PORTAL_HTML = `<!doctype html>
   // DESIGNED_CHECKS in clinical.ts; the rest stay recognised for historical
   // camps but are not offered anywhere.
   var CHECKS = ["Height & weight","Vision","Dental","Haemoglobin","ENT","Skin","Spine","Immunisation review"];
+  // The fields each check cannot be saved without. Written in from the
+  // server's own list, so the asterisks here and the refusal there agree.
+  var REQUIRED = ${JSON.stringify(REQUIRED_FIELDS)};
+  function blankVal(v) { return v === null || v === undefined || String(v).trim() === ""; }
+  /** The labels of a check's required fields still empty, or [] when it is complete. */
+  function missingFields(ct, det) {
+    return (REQUIRED[ct] || []).filter(function (r) { return blankVal(det[r[0]]); })
+      .map(function (r) { return r[1]; });
+  }
   var ACUITY = ["6/6","6/9","6/12","6/18","6/24","6/36","6/60","<6/60"];
   var CADENCE = [["ANNUAL","Once a year"],["BIANNUAL","Twice a year"],["QUARTERLY","Every quarter"],["ADHOC","As arranged"]];
   /** How often camps run at this school, in the words the form used to set it. */
@@ -2163,7 +2180,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" },
         el("div", { class: "card-h" }, el("h2", null, "School")),
         el("div", { class: "card-b" },
-          el("div", { class: "fld" }, el("label", null, "School name"),
+          el("div", { class: "fld" }, reqLabel("School name"),
             el("input", { type: "text", value: f.name, oninput: b("name"), placeholder: "Oakridge International School" })),
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "City"), el("input", { type: "text", value: f.city, oninput: b("city") })),
@@ -2239,7 +2256,7 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "School details"),
           !isOps() ? el("span", { class: "pill mute" }, "Some fields are ops-only") : null),
         el("div", { class: "card-b" },
-          el("div", { class: "fld" }, el("label", null, "School name"),
+          el("div", { class: "fld" }, reqLabel("School name"),
             el("input", { type: "text", value: f.name, oninput: b("name"), disabled: !isOps() })),
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "City"), el("input", { type: "text", value: f.city, oninput: b("city") })),
@@ -2507,11 +2524,11 @@ export const PORTAL_HTML = `<!doctype html>
           el("p", { class: "muted", style: "font-size:12.5px" },
             "They sign in here with this mobile number and a one-time code. Use a number not already registered as a parent."),
           el("div", { class: "g3" },
-            el("div", { class: "fld" }, el("label", null, "Name"),
+            el("div", { class: "fld" }, reqLabel("Name"),
               el("input", { type: "text", value: f.name, oninput: function (e) { f.name = e.target.value; } })),
-            el("div", { class: "fld" }, el("label", null, "Mobile number"),
+            el("div", { class: "fld" }, reqLabel("Mobile number"),
               el("input", { type: "tel", value: f.phone, oninput: function (e) { f.phone = e.target.value; } })),
-            el("div", { class: "fld" }, el("label", null, "Role"),
+            el("div", { class: "fld" }, reqLabel("Role"),
               el("select", { id: "staff-kind", onchange: function (e) { f.kind = e.target.value; render(); } },
                 el("option", { value: "SCHOOL_ADMIN", selected: f.kind === "SCHOOL_ADMIN" }, "Administrator"),
                 el("option", { value: "SCREENER", selected: f.kind === "SCREENER" }, "Screening team"),
@@ -2574,20 +2591,31 @@ export const PORTAL_HTML = `<!doctype html>
   function addChildForm(r) {
     var f = S.addChild;
     var b = function (k) { return function (e) { f[k] = e.target.value; }; };
-    var classes = (S.classes || []).map(function (c) {
-      return c.grade + (c.section ? " \u00b7 " + c.section : "");
-    });
+    // S.classes is the classes endpoint's reply, { academicYear, classes: [...] },
+    // not the list itself. Opened straight from the roster it is not loaded yet.
+    if (!S.classes) {
+      api("/api/admin/schools/" + S.school.id + "/classes").then(function (d) { S.classes = d; render(); }).catch(function () {});
+    }
+    var list = (S.classes && S.classes.classes) || [];
     // Distinct grades, and the sections that exist inside the chosen one —
     // offering B for a class that only has A and C is how a child ends up in
     // a section the school does not have.
     var grades = [], seen = {};
-    (S.classes || []).forEach(function (c) {
+    list.forEach(function (c) {
       if (c.grade && !seen[c.grade]) { seen[c.grade] = true; grades.push(c.grade); }
     });
-    var sections = (S.classes || [])
+    var sections = list
       .filter(function (c) { return c.grade === f.grade && c.section; })
       .map(function (c) { return c.section; });
     function save() {
+      var gaps = [["name", "Full name"], ["dob", "Date of birth"], ["grade", "Class"],
+        ["gender", "Sex"], ["guardianPhone", "Guardian mobile"]]
+        .filter(function (r) { return !String(f[r[0]] || "").trim(); })
+        .map(function (r) { return r[1]; });
+      if (gaps.length) {
+        set({ error: "Not added. Still required \\u2014 " + gaps.join(", ") + "." });
+        return;
+      }
       run(api("/api/admin/schools/" + S.school.id + "/roster/student", { method: "POST",
         body: {
           name: f.name, studentRef: f.studentRef, dob: f.dob, gender: f.gender,
@@ -2615,11 +2643,11 @@ export const PORTAL_HTML = `<!doctype html>
       el("div", { class: "card-h" }, el("h2", null, "Add one child")),
       el("div", { class: "card-b" },
         el("div", { class: "g3" },
-          el("div", { class: "fld" }, el("label", null, "Full name"),
+          el("div", { class: "fld" }, reqLabel("Full name"),
             el("input", { value: f.name, oninput: b("name"), placeholder: "Rahul Sharma" })),
           el("div", { class: "fld" }, el("label", null, "Admission number"),
             el("input", { value: f.studentRef, oninput: b("studentRef"), placeholder: "2026/0412" })),
-          el("div", { class: "fld" }, el("label", null, "Date of birth"),
+          el("div", { class: "fld" }, reqLabel("Date of birth"),
             el("input", { value: f.dob, oninput: b("dob"), placeholder: "14/03/2016" }))),
         el("div", { class: "g3" },
           // The school's own classes, chosen rather than typed.
@@ -2630,7 +2658,7 @@ export const PORTAL_HTML = `<!doctype html>
           // a closed set the school itself defined under Classes, so they are a
           // dropdown. A school that has not set its classes up yet falls back
           // to typing, because it still has to be able to add a child.
-          el("div", { class: "fld" }, el("label", null, "Class"),
+          el("div", { class: "fld" }, reqLabel("Class"),
             grades.length
               ? el("select", { onchange: function (e) {
                   f.grade = e.target.value; f.section = ""; render(); } },
@@ -2648,7 +2676,7 @@ export const PORTAL_HTML = `<!doctype html>
                     })))
               : el("input", { value: f.section, oninput: b("section"), placeholder: "B",
                   disabled: grades.length > 0 && !f.grade })),
-          el("div", { class: "fld" }, el("label", null, "Sex"),
+          el("div", { class: "fld" }, reqLabel("Sex"),
             el("select", { onchange: b("gender") },
               el("option", { value: "" }, "\u2014"),
               ["Male", "Female"].map(function (g) {
@@ -2656,7 +2684,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "g2" },
           el("div", { class: "fld" }, el("label", null, "Guardian name"),
             el("input", { value: f.guardianName, oninput: b("guardianName") })),
-          el("div", { class: "fld" }, el("label", null, "Guardian mobile"),
+          el("div", { class: "fld" }, reqLabel("Guardian mobile"),
             el("input", { value: f.guardianPhone, oninput: b("guardianPhone"), placeholder: "9876543210" }))),
         el("div", { class: "hint" },
           "The admission number is what matches this child on the next roster upload, "
@@ -3516,19 +3544,19 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "card-b" },
           el("div", { class: "g2" },
             el("div", { class: "fld" }, el("label", null, "Camp name"), el("input", { type: "text", value: f.title, oninput: b("title") })),
-            el("div", { class: "fld" }, el("label", null, "Date"), el("input", { type: "date", value: f.date, oninput: b("date") }))),
+            el("div", { class: "fld" }, reqLabel("Date"), el("input", { type: "date", value: f.date, oninput: b("date") }))),
           el("div", { class: "g3" },
             el("div", { class: "fld" }, el("label", null, "Start time"), el("input", { type: "time", value: f.time, oninput: b("time") })),
             el("div", { class: "fld" }, el("label", null, "Venue"), el("input", { type: "text", value: f.venue, oninput: b("venue"), placeholder: "School hall" })),
             el("div", { class: "fld" }, el("label", null, "Consent deadline"),
               el("input", { type: "date", value: f.consentDeadline, oninput: b("consentDeadline") }))),
-          el("div", { class: "fld" }, el("label", null, "Checks at this camp"),
+          el("div", { class: "fld" }, reqLabel("Checks at this camp"),
             el("div", { class: "chips" }, offered.map(function (c) {
               var on = f.checks.indexOf(c) >= 0;
               return el("label", { class: "chip" + (on ? " on" : "") },
                 el("input", { type: "checkbox", checked: on, onchange: function () { togList(f.checks, c); } }), c); })),
             el("div", { class: "hint" }, "Only what the school has agreed to appears here.")),
-          el("div", { class: "fld" }, el("label", null, "Classes covered"),
+          el("div", { class: "fld" }, reqLabel("Classes covered"),
             grades.length
               ? el("div", null,
                   el("div", { class: "row", style: "margin-bottom:8px" },
@@ -3737,11 +3765,11 @@ export const PORTAL_HTML = `<!doctype html>
       var b = function (k) { return function (e) { f[k] = e.target.value; }; };
       return el("div", null,
         el("div", { class: "g3" },
-          el("div", { class: "fld" }, el("label", null, "Name"),
+          el("div", { class: "fld" }, reqLabel("Name"),
             el("input", { value: f.name, oninput: b("name"), placeholder: "Nurse Devi" })),
-          el("div", { class: "fld" }, el("label", null, "Mobile number"),
+          el("div", { class: "fld" }, reqLabel("Mobile number"),
             el("input", { value: f.phone, oninput: b("phone"), placeholder: "9876543210" })),
-          el("div", { class: "fld" }, el("label", null, "Role"),
+          el("div", { class: "fld" }, reqLabel("Role"),
             el("select", { onchange: b("role") },
               el("option", { value: "SCREENER", selected: f.role === "SCREENER" }, "Screener"),
               el("option", { value: "PHYSICIAN", selected: f.role === "PHYSICIAN" }, "Physician")))),
@@ -4186,6 +4214,9 @@ export const PORTAL_HTML = `<!doctype html>
       (d.checks || []).forEach(function (ct) {
         var prev = (d.findings || []).filter(function (f) { return f.checkType === ct; })[0];
         form[ct] = prev ? JSON.parse(JSON.stringify(prev.detail || {})) : {};
+        if (prev && prev.flag === "NOT_MEASURED" && prev.note) {
+          form[ct] = { __notDone: true, __reason: prev.note };
+        }
       });
       S.screenForm = form;
     });
@@ -4254,20 +4285,37 @@ export const PORTAL_HTML = `<!doctype html>
         function () { d.attendance = v; S.participants = null; S.notice = ch.name + " marked " + v.toLowerCase() + "."; loadCampTab(); });
     }
     function save() {
-      var findings = [];
+      if (d.attendance === "ABSENT") {
+        S.notice = ch.name + " recorded as absent. No measurements required.";
+        S.screenKid = null; S.screenData = null;
+        loadCampTab();
+        return;
+      }
+      // Every check on this form is recorded in full, or marked could not be
+      // done with a reason. Nothing is left out quietly: a check skipped here
+      // used to vanish, and nobody noticed the camp had no heights.
+      var findings = [], gaps = [];
       (d.checks || []).forEach(function (ct) {
         var det = form[ct] || {};
-        var any = Object.keys(det).some(function (k) { return det[k] !== "" && det[k] !== null && det[k] !== undefined && det[k] !== false; });
-        if (any) findings.push({ checkType: ct, detail: det, note: det.__note || "" });
-      });
-      if (findings.length === 0) {
-        if (d.attendance === "ABSENT") {
-          S.notice = ch.name + " recorded as absent. No measurements required.";
-          S.screenKid = null; S.screenData = null;
-          loadCampTab();
+        if (det.__notDone) {
+          if (blankVal(det.__reason)) gaps.push(ct + ": say why it could not be done");
+          else findings.push({ checkType: ct, detail: {}, flag: "NOT_MEASURED", note: String(det.__reason).trim() });
           return;
         }
-        set({ error: "Record at least one measurement before saving." });
+        var miss = missingFields(ct, det);
+        if (miss.length) { gaps.push(ct + ": " + miss.join(", ")); return; }
+        var clean = {};
+        Object.keys(det).forEach(function (k) { if (k.indexOf("__") !== 0) clean[k] = det[k]; });
+        findings.push({ checkType: ct, detail: clean, note: det.__note || "" });
+      });
+      if (gaps.length) {
+        S.screenTried = ch.kidId;
+        set({ error: "Not saved. Still required \\u2014 " + gaps.join("; ")
+          + ". Fill these in, or tick Could not be done on the check and give the reason." });
+        return;
+      }
+      if (findings.length === 0) {
+        set({ error: "There are no checks on this form to record." });
         return;
       }
       if (isOffline()) {
@@ -4464,22 +4512,30 @@ export const PORTAL_HTML = `<!doctype html>
     function bind(k, cast) {
       return function (e) { d[k] = cast ? cast(e.target.value) : e.target.value; };
     }
+    var reqKeys = (REQUIRED[ct] || []).map(function (r) { return r[0]; });
+    var tried = S.screenTried && S.screenData && S.screenTried === S.screenData.child.kidId;
+    /** A field label, with the asterisk when the check cannot be saved without it. */
+    function rl(k, text) {
+      if (reqKeys.indexOf(k) < 0) return el("label", null, text);
+      return el("label", { class: tried && blankVal(d[k]) ? "miss" : "" },
+        text, el("span", { class: "req", title: "Required" }, " *"));
+    }
     function body() {
       if (ct === "Height & weight") {
         return el("div", { class: "g2" },
-          el("div", { class: "fld" }, el("label", null, "Height (cm)"),
+          el("div", { class: "fld" }, rl("heightCm", "Height (cm)"),
             el("input", { type: "number", step: "0.1", value: d.heightCm || "", oninput: bind("heightCm") })),
-          el("div", { class: "fld" }, el("label", null, "Weight (kg)"),
+          el("div", { class: "fld" }, rl("weightKg", "Weight (kg)"),
             el("input", { type: "number", step: "0.1", value: d.weightKg || "", oninput: bind("weightKg") })));
       }
       if (ct === "Vision") {
         return el("div", null,
           el("h4", { style: "margin-bottom:6px" }, "Visual Acuity (Snellen)"),
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Left eye"),
+            el("div", { class: "fld" }, rl("leftAcuity", "Left eye"),
               el("select", { onchange: bind("leftAcuity") }, el("option", { value: "" }, "\u2014"),
                 ACUITY.map(function (a) { return el("option", { value: a, selected: d.leftAcuity === a }, a); }))),
-            el("div", { class: "fld" }, el("label", null, "Right eye"),
+            el("div", { class: "fld" }, rl("rightAcuity", "Right eye"),
               el("select", { onchange: bind("rightAcuity") }, el("option", { value: "" }, "\u2014"),
                 ACUITY.map(function (a) { return el("option", { value: a, selected: d.rightAcuity === a }, a); })))),
           el("h4", { style: "margin:10px 0 6px" }, "Eye Health & Alignment"),
@@ -4503,7 +4559,7 @@ export const PORTAL_HTML = `<!doctype html>
         return el("div", null,
           el("h4", { style: "margin-bottom:6px" }, "Tooth Index (dmft/DMFT)"),
           el("div", { class: "g3" },
-            el("div", { class: "fld" }, el("label", null, "Carious (Decayed)"),
+            el("div", { class: "fld" }, rl("cariesCount", "Carious (Decayed)"),
               el("input", { type: "number", min: "0", value: d.cariesCount === undefined ? "" : d.cariesCount, oninput: bind("cariesCount") })),
             el("div", { class: "fld" }, el("label", null, "Missing"),
               el("input", { type: "number", min: "0", value: d.missingCount === undefined ? "" : d.missingCount, oninput: bind("missingCount") })),
@@ -4511,11 +4567,11 @@ export const PORTAL_HTML = `<!doctype html>
               el("input", { type: "number", min: "0", value: d.filledCount === undefined ? "" : d.filledCount, oninput: bind("filledCount") }))),
           el("h4", { style: "margin:10px 0 6px" }, "Gums & Oral Hygiene"),
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Gums Condition"),
+            el("div", { class: "fld" }, rl("gums", "Gums Condition"),
               el("select", { onchange: bind("gums") }, el("option", { value: "" }, "\u2014"),
                 ["healthy","bleeding","swollen","recession"].map(function (g) {
                   return el("option", { value: g, selected: d.gums === g }, g.charAt(0).toUpperCase() + g.slice(1)); }))),
-            el("div", { class: "fld" }, el("label", null, "Oral Hygiene Index"),
+            el("div", { class: "fld" }, rl("hygiene", "Oral Hygiene Index"),
               el("select", { onchange: bind("hygiene") }, el("option", { value: "" }, "\u2014"),
                 ["good","fair","poor"].map(function (h) {
                   return el("option", { value: h, selected: d.hygiene === h }, h.charAt(0).toUpperCase() + h.slice(1)); })))),
@@ -4544,11 +4600,11 @@ export const PORTAL_HTML = `<!doctype html>
         return el("div", null,
           el("h4", { style: "margin-bottom:6px" }, "Hearing Screening"),
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Left Ear"),
+            el("div", { class: "fld" }, rl("leftHearing", "Left Ear"),
               el("select", { onchange: bind("leftHearing") }, el("option", { value: "" }, "\u2014"),
                 ["normal","mild loss","moderate/severe"].map(function (h) {
                   return el("option", { value: h, selected: d.leftHearing === h }, h.charAt(0).toUpperCase() + h.slice(1)); }))),
-            el("div", { class: "fld" }, el("label", null, "Right Ear"),
+            el("div", { class: "fld" }, rl("rightHearing", "Right Ear"),
               el("select", { onchange: bind("rightHearing") }, el("option", { value: "" }, "\u2014"),
                 ["normal","mild loss","moderate/severe"].map(function (h) {
                   return el("option", { value: h, selected: d.rightHearing === h }, h.charAt(0).toUpperCase() + h.slice(1)); })))),
@@ -4571,7 +4627,7 @@ export const PORTAL_HTML = `<!doctype html>
         return el("div", null,
           el("h4", { style: "margin-bottom:6px" }, "Dermatological Exam"),
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Primary Finding"),
+            el("div", { class: "fld" }, rl("skinCondition", "Primary Finding"),
               el("select", { onchange: bind("skinCondition") }, el("option", { value: "" }, "\u2014"),
                 ["normal","eczema","fungal / tinea","scabies","impetigo"].map(function (s) {
                   return el("option", { value: s, selected: d.skinCondition === s }, s.charAt(0).toUpperCase() + s.slice(1)); }))),
@@ -4590,11 +4646,11 @@ export const PORTAL_HTML = `<!doctype html>
         return el("div", null,
           el("h4", { style: "margin-bottom:6px" }, "Musculoskeletal Assessment"),
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Posture & Alignment"),
+            el("div", { class: "fld" }, rl("posture", "Posture & Alignment"),
               el("select", { onchange: bind("posture") }, el("option", { value: "" }, "\u2014"),
                 ["normal","slouching","scoliosis suspected","kyphosis"].map(function (p) {
                   return el("option", { value: p, selected: d.posture === p }, p.charAt(0).toUpperCase() + p.slice(1)); }))),
-            el("div", { class: "fld" }, el("label", null, "Gait & Lower Limb"),
+            el("div", { class: "fld" }, rl("gaitLimb", "Gait & Lower Limb"),
               el("select", { onchange: bind("gaitLimb") }, el("option", { value: "" }, "\u2014"),
                 ["normal","limp","flat feet","knock-knees"].map(function (g) {
                   return el("option", { value: g, selected: d.gaitLimb === g }, g.charAt(0).toUpperCase() + g.slice(1)); })))),
@@ -4609,7 +4665,7 @@ export const PORTAL_HTML = `<!doctype html>
         return el("div", null,
           el("h4", { style: "margin-bottom:6px" }, "Immunization Status"),
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Vaccine Status"),
+            el("div", { class: "fld" }, rl("vaccineStatus", "Vaccine Status"),
               el("select", { onchange: bind("vaccineStatus") }, el("option", { value: "" }, "\u2014"),
                 ["up to date","partially completed","significantly delayed"].map(function (v) {
                   return el("option", { value: v, selected: d.vaccineStatus === v }, v.charAt(0).toUpperCase() + v.slice(1)); }))),
@@ -4620,7 +4676,7 @@ export const PORTAL_HTML = `<!doctype html>
         return el("div", null,
           el("h4", { style: "margin-bottom:6px" }, "Anaemia Screening"),
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Haemoglobin (g/dL)"),
+            el("div", { class: "fld" }, rl("hb", "Haemoglobin (g/dL)"),
               el("input", { type: "number", step: "0.1", value: d.hb || "", oninput: bind("hb") })),
             el("div", { class: "fld" }, el("label", null, "Pallor Sign"),
               el("select", { onchange: bind("pallor") }, el("option", { value: "" }, "\u2014"),
@@ -4632,8 +4688,24 @@ export const PORTAL_HTML = `<!doctype html>
           [["normal","Normal"],["abnormal","Abnormal, monitor"],["referral","Needs referral"]].map(function (o) {
             return el("option", { value: o[0], selected: d.outcome === o[0] }, o[1]); })));
     }
+    var notDone = el("label", { class: "chip" + (d.__notDone ? " on" : ""), style: "margin:0" },
+      el("input", { type: "checkbox", checked: !!d.__notDone,
+        onchange: function (e) { d.__notDone = e.target.checked; render(); } }),
+      "Could not be done");
+    if (d.__notDone) {
+      return el("div", { class: "chk" },
+        el("div", { class: "chk-h" }, el("b", null, ct), notDone),
+        el("div", { class: "chk-b" },
+          el("div", { class: "fld", style: "margin:0" },
+            el("label", { class: tried && blankVal(d.__reason) ? "miss" : "" },
+              "Why it could not be done", el("span", { class: "req", title: "Required" }, " *")),
+            el("input", { type: "text", value: d.__reason || "", oninput: bind("__reason"),
+              placeholder: "e.g. child unwell, equipment not available, refused this check" }))));
+    }
     return el("div", { class: "chk" },
-      el("div", { class: "chk-h" }, el("b", null, ct)),
+      el("div", { class: "chk-h" }, el("b", null, ct),
+        reqKeys.length ? el("span", { class: "muted", style: "font-size:11.5px" }, "* required") : null,
+        notDone),
       el("div", { class: "chk-b" }, body(),
         el("div", { class: "fld", style: "margin:10px 0 0" }, el("label", null, "Note (required to override the suggested result)"),
           el("input", { type: "text", value: d.__note || "", oninput: bind("__note"), placeholder: "Optional" }))));
@@ -5393,9 +5465,9 @@ export const PORTAL_HTML = `<!doctype html>
       f ? el("div", { class: "card", style: "margin-bottom:12px" }, el("div", { class: "card-b" },
         el("h3", null, f.id ? "Edit dietician" : "Add a dietician"),
         el("div", { class: "g2" },
-          el("div", { class: "fld" }, el("label", null, "Name"),
+          el("div", { class: "fld" }, reqLabel("Name"),
             el("input", { value: f.name, onchange: bindDie("name") })),
-          el("div", { class: "fld" }, el("label", null, "Mobile number"),
+          el("div", { class: "fld" }, reqLabel("Mobile number"),
             el("input", { value: f.phone, onchange: bindDie("phone"),
               placeholder: "10-digit mobile" })),
           el("div", { class: "fld" }, el("label", null, "Qualification"),
@@ -5545,12 +5617,12 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "card-h" }, el("h2", null, f.id ? "Edit hospital" : "Add a hospital")),
         el("div", { class: "card-b" },
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Name"),
+            el("div", { class: "fld" }, reqLabel("Name"),
               el("input", { value: f.name, oninput: hb("name") })),
             el("div", { class: "fld" }, el("label", null, "Phone"),
               el("input", { value: f.phone, oninput: hb("phone") }))),
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "City"),
+            el("div", { class: "fld" }, reqLabel("City"),
               el("input", { value: f.city, oninput: hb("city") })),
             el("div", { class: "fld" }, el("label", null, "District"),
               el("input", { value: f.district, oninput: hb("district") }))),
@@ -5579,14 +5651,14 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "card-h" }, el("h2", null, g.id ? "Edit doctor" : "Add a doctor")),
         el("div", { class: "card-b" },
           el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Name"),
+            el("div", { class: "fld" }, reqLabel("Name"),
               el("input", { value: g.name, oninput: db("name") })),
             // A dropdown, not a text box. This value decides which screening
             // form the doctor is handed at a camp, so "Eye specialist" and
             // "Ophthalmology" cannot be two different specialties — and the
             // list comes from the server, which is the same list the screening
             // forms are built from.
-            el("div", { class: "fld" }, el("label", null, "Specialty"),
+            el("div", { class: "fld" }, reqLabel("Specialty"),
               // Re-rendered on change, because the hint below is the point:
               // choosing a specialty has to say what it means before the
               // doctor is saved, not after they turn up at a camp.
@@ -5606,7 +5678,7 @@ export const PORTAL_HTML = `<!doctype html>
                   (S.hospitals.hospitals || []).map(function (h) {
                     return el("option", { value: h.id, selected: g.hospitalId === h.id }, h.name + " \u00b7 " + h.city);
                   })))),
-            el("div", { class: "fld" }, el("label", null, "Mobile number"),
+            el("div", { class: "fld" }, reqLabel("Mobile number"),
               el("input", { value: g.phone || "", oninput: db("phone"), placeholder: "98765 43210" }))),
           el("div", { class: "hint" },
             "The mobile is required, and it has to be a mobile: it is how this doctor receives "

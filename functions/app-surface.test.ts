@@ -48,7 +48,7 @@ const flag = (checkType: string, detail: Record<string, unknown>) =>
 const SAMPLE: Record<string, Record<string, unknown>> = {
   "Height & weight": { heightCm: 120, weightKg: 22 },
   Vision: { leftAcuity: "6/18", rightAcuity: "6/6" },
-  Dental: { cariesCount: 2 },
+  Dental: { cariesCount: 2, gums: "Healthy", hygiene: "Good" },
   Haemoglobin: { hb: 9.5 },
 };
 

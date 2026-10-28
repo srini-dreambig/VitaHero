@@ -70,7 +70,7 @@ suite("a camp's results, from the doctor's form to the parent", () => {
               VALUES ('sch_r', 'Rose Valley', 'Hyderabad', 'RV-R')`;
     await sql`INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, checks)
               VALUES (${CAMP}, 'sch_r', 'Annual camp', '2026-08-01', 'SCHEDULED',
-                      ${JSON.stringify(["Vision", "Dental"])}::jsonb)`;
+                      ${JSON.stringify(["Vision"])}::jsonb)`;
     await sql`INSERT INTO vita_hero.profiles (id, phone, name, role, provisioned, school_id)
               VALUES (${PARENT}, '+919100000009', 'Parent', 'PARENT', true, 'sch_r'),
                      (${DOC.profileId}, '+919100000001', 'Dr Rao', 'PHYSICIAN', true, 'sch_r')`;

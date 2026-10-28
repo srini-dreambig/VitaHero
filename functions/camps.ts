@@ -29,6 +29,7 @@ import { logRecordAccess } from "./oversight";
 import { symptomHistoryForClinician } from "./symptoms";
 import {
   CHECK_TYPES,
+  missingRequired,
   Flag,
   Urgency,
   draftRecommendation,
@@ -608,7 +609,7 @@ export async function buildCampRoster(sql: Sql, actor: Actor, campId: string) {
       const b = i * 4;
       values.push(`($${b + 1}, $${b + 2}, $${b + 3}, $${b + 4})`);
       params.push(
-        `cp_${campId.slice(-12)}_${slugify(String(r.id)).slice(0, 20)}`,
+        `cp_${campId}_${String(r.id)}`,
         campId,
         schoolId,
         r.id
@@ -1042,12 +1043,7 @@ function evaluateChild(
     throw new ApiError(409, "This child's results have already been released", "RELEASED");
   }
 
-  const consentChecks: string[] = Array.isArray(participant.consent_checks)
-    ? (participant.consent_checks as string[])
-    : JSON.parse(String(participant.consent_checks || "[]"));
-  const allowed = consentChecks.length > 0
-    ? campChecks.filter((c) => consentChecks.includes(c))
-    : campChecks;
+  const allowed = consentedChecks(participant, campChecks);
 
   const ctx = {
     ageYears: Number(participant.age) || 0,
@@ -1104,6 +1100,21 @@ function evaluateChild(
     // C9 — a screener may override the proposal, but must say why.
     const override = raw.flag ? String(raw.flag).toUpperCase() : "";
     const note = String(raw.note || "").trim();
+
+    // A check is either done properly or declared not done, with a reason.
+    // Never half done: that is how a camp's heights went missing unnoticed.
+    if (override === "NOT_MEASURED") {
+      if (!note) {
+        throw new ApiError(
+          400,
+          `Say why "${checkType}" could not be done`,
+          "NOT_DONE_NEEDS_REASON"
+        );
+      }
+    } else {
+      const incomplete = missingRequired(checkType, detail);
+      if (incomplete) throw new ApiError(400, incomplete, "INCOMPLETE_CHECK");
+    }
     let flag: Flag = proposal.flag;
     if (override && override !== proposal.flag) {
       if (!["GOOD", "WATCH", "ALERT", "NOT_MEASURED"].includes(override)) {
@@ -1120,7 +1131,9 @@ function evaluateChild(
     }
 
     out.push({
-      id: `cf_${campId.slice(-10)}_${slugify(kidId).slice(0, 16)}_${slugify(checkType)}`,
+      // Whole ids, not prefixes: children added from admission numbers share
+      // their first characters, and a cut id made the second child's save collide.
+      id: `cf_${campId}_${kidId}_${slugify(checkType)}`,
       checkType,
       detail,
       valueNum: proposal.valueNum,
@@ -1133,6 +1146,71 @@ function evaluateChild(
     });
   }
   return out;
+}
+
+/** The camp's checks this child's guardian agreed to. No list on the consent means all of them. */
+function consentedChecks(participant: Record<string, unknown>, campChecks: string[]): string[] {
+  const consentChecks: string[] = Array.isArray(participant.consent_checks)
+    ? (participant.consent_checks as string[])
+    : JSON.parse(String(participant.consent_checks || "[]"));
+  return consentChecks.length > 0
+    ? campChecks.filter((c) => consentChecks.includes(c))
+    : campChecks;
+}
+
+/**
+ * Checks already on record for each child: measured, or declared not done
+ * with a reason. A bare NOT_MEASURED row is the old half-empty save and does
+ * not count as done.
+ */
+async function recordedChecks(sql: Sql, campId: string, kidIds: string[]) {
+  const rows = kidIds.length === 0 ? [] : await sql`
+    SELECT kid_id, check_type FROM vita_hero.camp_findings
+    WHERE camp_id = ${campId} AND kid_id = ANY(${kidIds})
+      AND (flag <> 'NOT_MEASURED' OR COALESCE(screener_note, '') <> '')
+  `;
+  const byKid = new Map<string, Set<string>>();
+  for (const r of rows) {
+    const k = r.kid_id as string;
+    if (!byKid.has(k)) byKid.set(k, new Set());
+    byKid.get(k)!.add(r.check_type as string);
+  }
+  return byKid;
+}
+
+/**
+ * Refuse a save that leaves one of this clinician's checks unrecorded.
+ *
+ * The app sends only the checks somebody touched, so per-field rules alone
+ * could not notice a whole check skipped. What counts as done includes what
+ * was saved earlier, so a doctor correcting one check is not made to retype
+ * the rest.
+ */
+function assertChecksComplete(
+  needed: string[],
+  findings: EvaluatedFinding[],
+  alreadyDone: Set<string> | undefined
+) {
+  const sent = new Set(findings.map((f) => f.checkType));
+  const missing = needed.filter((c) => !sent.has(c) && !alreadyDone?.has(c));
+  if (missing.length > 0) {
+    throw new ApiError(
+      400,
+      `Still to record: ${missing.join(", ")}. Fill ${missing.length === 1 ? "it" : "them"} in, ` +
+        `or mark ${missing.length === 1 ? "it" : "each"} "could not be done" with a reason.`,
+      "MISSING_CHECKS"
+    );
+  }
+}
+
+/** This clinician's share of a child's checks: what consent allows, cut to their specialty. */
+function myChecks(
+  participant: Record<string, unknown>,
+  campChecks: string[],
+  scope: { checks: string[] | null }
+): string[] {
+  const allowed = consentedChecks(participant, campChecks);
+  return scope.checks ? allowed.filter((c) => scope.checks!.includes(c)) : allowed;
 }
 
 /** The app's form sections that ride along with the checks rather than being one. */
@@ -1257,8 +1335,11 @@ export async function saveScreening(
   const p = byKid.get(kidId);
   if (!p) throw new ApiError(404, "That child is not on this camp's list", "NOT_ON_CAMP");
 
-  const findings = evaluateChild(campId, kidId, p, campCheckList(access.camp), incoming,
+  const campChecks = campCheckList(access.camp);
+  const findings = evaluateChild(campId, kidId, p, campChecks, incoming,
     actor.profileId, { checks: access.checkScope, specialty: access.specialty });
+  const done = await recordedChecks(sql, campId, [kidId]);
+  assertChecksComplete(myChecks(p, campChecks, { checks: access.checkScope }), findings, done.get(kidId));
   await writeScreenings(sql, actor, campId, [{ kidId, findings, attendance: "" }]);
 
   return {
@@ -1399,6 +1480,7 @@ export async function saveScreeningBulk(
   const wanted = entries.map((e) => String(e.kidId || "")).filter(Boolean);
   const byKid = await participantsFor(sql, campId, wanted);
   const campChecks = campCheckList(access.camp);
+  const done = await recordedChecks(sql, campId, wanted);
 
   for (const entry of entries) {
     const kidId = String(entry.kidId || "");
@@ -1420,6 +1502,10 @@ export async function saveScreeningBulk(
         ? evaluateChild(campId, kidId, p, campChecks, incoming, actor.profileId,
             { checks: access.checkScope, specialty: access.specialty })
         : [];
+      // Attendance alone (absent, refused) records no checks and needs none.
+      if (findings.length > 0) {
+        assertChecksComplete(myChecks(p, campChecks, { checks: access.checkScope }), findings, done.get(kidId));
+      }
 
       // An entry that says nothing is not a capture. It used to be dropped
       // here without being applied or rejected — and the console keeps only
@@ -1608,7 +1694,7 @@ export async function reviewParticipant(
   assertCan(access.canReview, "review results for this camp");
 
   const pRows = await sql`
-    SELECT status, urgency FROM vita_hero.camp_participants
+    SELECT status, urgency, consent_checks FROM vita_hero.camp_participants
     WHERE camp_id = ${campId} AND kid_id = ${kidId} LIMIT 1
   `;
   if (pRows.length === 0) throw new ApiError(404, "That child is not on this camp's list", "NOT_ON_CAMP");
@@ -1617,6 +1703,21 @@ export async function reviewParticipant(
   }
   if ((pRows[0].status as string) === "NOT_SCREENED") {
     throw new ApiError(409, "This child has not been screened yet", "NOT_SCREENED");
+  }
+
+  // Every check the guardian agreed to, whoever's specialty it is, before a
+  // physician signs. A camp with no paediatrician on the day would otherwise
+  // approve children whose heights nobody took.
+  const done = (await recordedChecks(sql, campId, [kidId])).get(kidId);
+  const outstanding = consentedChecks(pRows[0], campCheckList(access.camp))
+    .filter((c) => !done?.has(c));
+  if (outstanding.length > 0) {
+    throw new ApiError(
+      409,
+      `Not yet recorded for this child: ${outstanding.join(", ")}. ` +
+        "The clinician who does that check must record it, or mark it could not be done with a reason, before you approve.",
+      "CHECKS_OUTSTANDING"
+    );
   }
 
   // Apply per-finding adjustments.
@@ -1812,7 +1913,7 @@ export async function releaseCamp(
   // The parent app's camp result row.
   await writeBatched(
     plan.map((p) => [
-      `ckr_${campId.slice(-10)}_${slugify(p.kidId).slice(0, 20)}`,
+      `ckr_${campId}_${p.kidId}`,
       p.profileId, campId, p.kidId,
       p.summary.dental, p.summary.eyesight, p.summary.nutrition,
       p.summary.heightCm, p.summary.weightKg,
@@ -1850,7 +1951,9 @@ export async function releaseCamp(
     plan
       .filter((p) => p.summary.heightCm !== null || p.summary.weightKg !== null)
       .map((p) => [
-        `gp_${slugify(p.kidId).slice(0, 20)}_${slugify(campDate || campId)}`,
+        // Whole kid id: this row is keyed on id, so a cut one let a classmate's
+        // release overwrite this child's height and weight.
+        `gp_${slugify(p.kidId)}_${slugify(campDate || campId)}`,
         p.kidId, p.profileId, campDate || "Camp",
         p.summary.heightCm ?? 0, p.summary.weightKg ?? 0,
       ]),
@@ -1865,7 +1968,7 @@ export async function releaseCamp(
   // Registration rows, so the app's existing camp screens line up.
   await writeBatched(
     plan.map((p) => [
-      `reg_${slugify(p.kidId).slice(0, 20)}_${campId.slice(-8)}`, p.profileId, campId, p.kidId,
+      `reg_${p.kidId}_${campId}`, p.profileId, campId, p.kidId,
     ]),
     (values) => `
       INSERT INTO vita_hero.camp_registrations (id, profile_id, school_camp_id, kid_id)
@@ -1882,7 +1985,7 @@ export async function releaseCamp(
     const key = `${p.profileId}|${schoolId}`;
     if (!enrolments.has(key)) {
       enrolments.set(key, [
-        `enr_${slugify(p.profileId).slice(0, 20)}_${slugify(schoolId).slice(0, 16)}`,
+        `enr_${p.profileId}_${schoolId}`,
         p.profileId, schoolId, p.kidId, "ACTIVE",
       ]);
     }
@@ -2304,7 +2407,7 @@ export async function assignCampStaff(
 
   await sql`
     INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role)
-    VALUES (${"cst_" + campId.slice(-10) + "_" + slugify(profileId).slice(0, 16)}, ${campId}, ${profileId}, ${role})
+    VALUES (${"cst_" + campId + "_" + profileId}, ${campId}, ${profileId}, ${role})
     ON CONFLICT (camp_id, profile_id) DO UPDATE SET staff_role = EXCLUDED.staff_role
   `;
   return { assigned: { profileId, name: rows[0].name as string, role } };
@@ -2422,7 +2525,7 @@ export async function assignDoctorToCamp(
 
   await sql`
     INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role, doctor_id, active)
-    VALUES (${"cst_" + campId.slice(-10) + "_" + slugify(profileId).slice(0, 16)},
+    VALUES (${"cst_" + campId + "_" + profileId},
             ${campId}, ${profileId}, 'PHYSICIAN', ${doctorId}, true)
     ON CONFLICT (camp_id, profile_id) DO UPDATE SET
       staff_role = 'PHYSICIAN', doctor_id = ${doctorId},

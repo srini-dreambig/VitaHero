@@ -193,7 +193,7 @@ suite("a doctor's round at a camp", () => {
     // was never a control: a stale pack on somebody's tablet carries the whole
     // camp's checks.
     await expect(saveScreening(sql, EYE, CAMP, KID, {
-      findings: [{ checkType: "Dental", detail: { cariesCount: 2 } }],
+      findings: [{ checkType: "Dental", detail: { cariesCount: 2, gums: "Healthy", hygiene: "Good" } }],
     })).rejects.toThrow(/not part of Ophthalmology/i);
   });
 

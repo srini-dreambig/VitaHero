@@ -380,7 +380,7 @@ suite("end to end", () => {
       findings: [
         { checkType: "Height & weight", detail: { heightCm: 137, weightKg: 32 } },
         { checkType: "Vision", detail: { leftAcuity: "6/6", rightAcuity: "6/6" } },
-        { checkType: "Dental", detail: { cariesCount: 0, gums: "healthy" } },
+        { checkType: "Dental", detail: { cariesCount: 0, gums: "healthy", hygiene: "Good" } },
       ],
     });
     expect(ok.saved.find((s) => s.checkType === "Vision")!.flag).toBe("GOOD");
@@ -391,7 +391,7 @@ suite("end to end", () => {
       findings: [
         { checkType: "Height & weight", detail: { heightCm: 118, weightKg: 19 } },
         { checkType: "Vision", detail: { leftAcuity: "6/36", rightAcuity: "6/24" } },
-        { checkType: "Dental", detail: { cariesCount: 4, gums: "bleeding", pain: true } },
+        { checkType: "Dental", detail: { cariesCount: 4, gums: "bleeding", hygiene: "Good", pain: true } },
       ],
     });
     expect(bad.saved.find((s) => s.checkType === "Vision")!.flag).toBe("ALERT");
@@ -403,7 +403,7 @@ suite("end to end", () => {
         findings: [
           { checkType: "Height & weight", detail: { heightCm: 136, weightKg: 31 } },
           { checkType: "Vision", detail: { leftAcuity: "6/6", rightAcuity: "6/6" } },
-          { checkType: "Dental", detail: { cariesCount: 0, gums: "healthy" } },
+          { checkType: "Dental", detail: { cariesCount: 0, gums: "healthy", hygiene: "Good" } },
         ],
       });
     }

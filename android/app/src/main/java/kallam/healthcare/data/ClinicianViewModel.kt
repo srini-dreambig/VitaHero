@@ -158,7 +158,16 @@ class ClinicianViewModel(
      */
     fun save(campId: String, kidId: String, values: Map<String, Map<String, String>>, note: String) {
         val currentAttendance = _form.value?.attendance
-        val findings = values.mapNotNull { (checkType, fields) ->
+        val findings = values.mapNotNull { (checkType, raw) ->
+            // Marked could not be done: no readings, the reason is the record.
+            if (raw["__notDone"] == "true") {
+                return@mapNotNull ScreeningSubmissionDto(
+                    checkType = checkType,
+                    flag = "NOT_MEASURED",
+                    note = raw["__reason"].orEmpty().trim(),
+                )
+            }
+            val fields = raw.filterKeys { !it.startsWith("__") }
             val filled = fields.filterValues { it.isNotBlank() }
             // An unticked checkbox is not a measurement. Without this, opening
             // a vision form and saving without touching it would send
