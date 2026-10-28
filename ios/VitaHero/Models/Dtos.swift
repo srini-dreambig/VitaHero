@@ -708,3 +708,390 @@ struct SharedKids: Decodable {
 struct Ignored: Decodable {
     init(from decoder: Decoder) throws {}
 }
+
+// MARK: - Clinician
+//
+// What a screener or physician sees at a camp. The server already decides all
+// of it: my-camps returns only assigned camps, and the screening form narrows
+// its `checks` to the guardian's consent and the clinician's specialty. These
+// types are the shape those answers have, so the app asks rather than reasons.
+
+/// A JSON value of any shape, for a finding's `detail`, whose keys vary by check.
+enum JSONValue: Decodable, Equatable {
+    case string(String)
+    case number(Double)
+    case bool(Bool)
+    case null
+    case other
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if c.decodeNil() { self = .null }
+        else if let b = try? c.decode(Bool.self) { self = .bool(b) }
+        else if let d = try? c.decode(Double.self) { self = .number(d) }
+        else if let s = try? c.decode(String.self) { self = .string(s) }
+        else { self = .other }
+    }
+
+    /// The value as the form would have typed it: whole numbers without ".0".
+    var text: String {
+        switch self {
+        case .string(let s): return s
+        case .number(let d):
+            return d == d.rounded() && abs(d) < 1e15 ? String(Int(d)) : String(d)
+        case .bool(let b): return b ? "true" : "false"
+        case .null, .other: return ""
+        }
+    }
+
+    var number: Double? {
+        switch self {
+        case .number(let d): return d
+        case .string(let s): return Double(s.trimmingCharacters(in: .whitespaces))
+        default: return nil
+        }
+    }
+}
+
+struct ClinicianCamp: Decodable, Identifiable, Hashable {
+    let id: String
+    let title: String
+    let schoolName: String
+    let date: String
+    let staffRole: String
+    let participants: Int
+    let screened: Int
+    /// Children screened and waiting on a physician. The server sends this as
+    /// `approved`, but for a clinician's camps it counts status SCREENED.
+    let awaitingReview: Int
+    let status: String
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        id = c.str("id")
+        title = c.str("title")
+        schoolName = c.str("schoolName")
+        date = c.str("date")
+        staffRole = c.str("staffRole")
+        participants = c.int("participants")
+        screened = c.int("screened")
+        awaitingReview = c.int("approved")
+        status = c.str("status")
+    }
+}
+
+struct ClinicianCamps: Decodable {
+    let camps: [ClinicianCamp]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        camps = c.list("camps")
+    }
+}
+
+struct CampChild: Decodable, Identifiable {
+    var id: String { kidId }
+    let kidId: String
+    let name: String
+    let grade: String
+    let section: String
+    let gender: String
+    let age: Int?
+    let studentRef: String
+    let consentStatus: String
+    var attendance: String
+    /// NOT_SCREENED, SCREENED, REVIEWED or RELEASED.
+    var status: String
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        kidId = c.str("kidId")
+        name = c.str("name")
+        grade = c.str("grade")
+        section = c.str("section")
+        gender = c.str("gender")
+        age = c.num("age").map { Int($0.rounded()) }
+        studentRef = c.str("studentRef")
+        consentStatus = c.str("consentStatus", "PENDING")
+        attendance = c.str("attendance", "UNKNOWN")
+        status = c.str("status", "NOT_SCREENED")
+    }
+}
+
+/// What this person may do on this camp, as the server states it.
+struct CampCan: Decodable {
+    let schedule: Bool
+    let screen: Bool
+    let review: Bool
+
+    init(schedule: Bool = false, screen: Bool = false, review: Bool = false) {
+        self.schedule = schedule
+        self.screen = screen
+        self.review = review
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        schedule = c.bool("schedule")
+        screen = c.bool("screen")
+        review = c.bool("review")
+    }
+}
+
+struct CampRoster: Decodable {
+    var participants: [CampChild]
+    let can: CampCan
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        participants = c.list("participants")
+        can = c.obj("can") ?? CampCan()
+    }
+}
+
+struct ScreeningChild: Decodable {
+    let kidId: String
+    let name: String
+    let grade: String
+    let section: String
+    let gender: String
+    let age: Int?
+    let studentRef: String
+    let previousHeightCm: Double?
+    let previousWeightKg: Double?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        kidId = c.str("kidId")
+        name = c.str("name")
+        grade = c.str("grade")
+        section = c.str("section")
+        gender = c.str("gender")
+        age = c.num("age").map { Int($0.rounded()) }
+        studentRef = c.str("studentRef")
+        previousHeightCm = c.num("previousHeightCm")
+        previousWeightKg = c.num("previousWeightKg")
+    }
+}
+
+struct ExistingFinding: Decodable {
+    let checkType: String
+    let flag: String
+    let rationale: String
+    let note: String
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        checkType = c.str("checkType")
+        flag = c.str("flag", "NOT_MEASURED")
+        rationale = c.str("rationale")
+        note = c.str("note")
+    }
+}
+
+/// The guardian's own account of illness since the last camp.
+struct IllnessHistory: Decodable {
+    let caution: String
+    let events: [SymptomEvent]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        caution = c.str("caution")
+        events = c.list("events")
+    }
+}
+
+struct ScreeningForm: Decodable {
+    let child: ScreeningChild?
+    let consentStatus: String
+    var attendance: String
+    let status: String
+    /// The checks this clinician may record for this child, already narrowed
+    /// by consent and specialty. The form renders these and nothing else.
+    let checks: [String]
+    /// Checks the guardian declined, named so their absence is explained.
+    let excludedByConsent: [String]
+    /// Checks on this camp that belong to another clinician's round.
+    let otherSpecialties: [String]
+    let specialty: String
+    let findings: [ExistingFinding]
+    let illnessHistory: IllnessHistory?
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        child = c.obj("child")
+        consentStatus = c.str("consentStatus", "PENDING")
+        attendance = c.str("attendance", "UNKNOWN")
+        status = c.str("status", "NOT_SCREENED")
+        checks = c.strs("checks")
+        excludedByConsent = c.strs("excludedByConsent")
+        otherSpecialties = c.strs("otherSpecialties")
+        specialty = c.str("specialty")
+        findings = c.list("findings")
+        illnessHistory = c.obj("illnessHistory")
+    }
+}
+
+struct ReviewQueueItem: Decodable, Identifiable {
+    var id: String { kidId }
+    let kidId: String
+    let name: String
+    let grade: String
+    let age: Int?
+    let alerts: Int
+    let watches: Int
+    /// SCREENED (waiting on this physician) or APPROVED (awaiting release).
+    var status: String
+    var urgency: String
+    let recommendation: String
+    var reviewed: Bool
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        kidId = c.str("kidId")
+        name = c.str("name")
+        grade = c.str("grade")
+        age = c.num("age").map { Int($0.rounded()) }
+        alerts = c.int("alerts")
+        watches = c.int("watches")
+        status = c.str("status", "SCREENED")
+        urgency = c.str("urgency", "NONE")
+        recommendation = c.str("recommendation")
+        reviewed = c.bool("reviewed")
+    }
+}
+
+struct ReviewQueue: Decodable {
+    let queue: [ReviewQueueItem]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        queue = c.list("queue")
+    }
+}
+
+struct ReviewChild: Decodable {
+    let kidId: String
+    let name: String
+    let grade: String
+    let age: Int?
+    let gender: String
+    let guardianName: String
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        kidId = c.str("kidId")
+        name = c.str("name")
+        grade = c.str("grade")
+        age = c.num("age").map { Int($0.rounded()) }
+        gender = c.str("gender")
+        guardianName = c.str("guardianName")
+    }
+}
+
+/// One earlier camp where the same check was flagged.
+struct PriorFinding: Decodable {
+    let flag: String
+    let date: String
+    let title: String
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        flag = c.str("flag")
+        date = c.str("date")
+        title = c.str("title")
+    }
+}
+
+/// One measured key of a finding's detail.
+struct DetailEntry: Equatable {
+    let key: String
+    let value: JSONValue
+}
+
+struct ReviewFinding: Decodable, Identifiable {
+    var id: String { checkType }
+    let checkType: String
+    /// What was measured. Keys vary by check; sorted for a stable display.
+    let detail: [DetailEntry]
+    let flag: String
+    /// What the rules said before anyone overrode it.
+    let autoFlag: String
+    let rationale: String
+    let urgency: String
+    let screenerNote: String
+    let reviewNote: String
+    let overridden: Bool
+    let previous: [PriorFinding]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        checkType = c.str("checkType")
+        if let nested = try? c.nestedContainer(keyedBy: AnyKey.self, forKey: AnyKey("detail")) {
+            detail = nested.allKeys
+                .compactMap { key in
+                    (try? nested.decode(JSONValue.self, forKey: key)).map { DetailEntry(key: key.stringValue, value: $0) }
+                }
+                .sorted { $0.key < $1.key }
+        } else {
+            detail = []
+        }
+        flag = c.str("flag", "NOT_MEASURED")
+        autoFlag = c.str("autoFlag", "NOT_MEASURED")
+        rationale = c.str("rationale")
+        urgency = c.str("urgency", "NONE")
+        screenerNote = c.str("screenerNote")
+        reviewNote = c.str("reviewNote")
+        overridden = c.bool("overridden")
+        previous = c.list("previous")
+    }
+}
+
+struct Recurring: Decodable {
+    let checkType: String
+    let timesBefore: Int
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        checkType = c.str("checkType")
+        timesBefore = c.int("timesBefore")
+    }
+}
+
+struct ReviewDetail: Decodable {
+    let child: ReviewChild?
+    let status: String
+    let findings: [ReviewFinding]
+    /// Checks flagged at an earlier camp too; the server raises urgency for these.
+    let recurring: [Recurring]
+    /// NONE, ROUTINE, SOON or URGENT, worked out from the findings.
+    let suggestedUrgency: String
+    /// What the guardian will read. Drafted by the server when nobody has
+    /// written one yet; `recommendationIsDraft` says which.
+    let recommendation: String
+    let recommendationIsDraft: Bool
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        child = c.obj("child")
+        status = c.str("status", "SCREENED")
+        findings = c.list("findings")
+        recurring = c.list("recurring")
+        suggestedUrgency = c.str("suggestedUrgency", "NONE")
+        recommendation = c.str("recommendation")
+        recommendationIsDraft = c.bool("recommendationIsDraft")
+    }
+}
+
+struct ReleaseResult: Decodable {
+    let released: Int
+    let referralsOpened: Int
+    let urgentNotified: Int
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        released = c.int("released")
+        referralsOpened = c.int("referralsOpened")
+        urgentNotified = c.int("urgentNotified")
+    }
+}

@@ -5,6 +5,14 @@ struct RootView: View {
     @EnvironmentObject private var auth: AuthManager
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var l10n: L10n
+    @StateObject private var clinician = ClinicianStore()
+
+    /// Screeners and physicians work camps, not a family's records. The role
+    /// is the server's; the screens they open ask it again for every action.
+    private var isClinician: Bool {
+        let role = auth.profile?.role.uppercased() ?? ""
+        return role == "PHYSICIAN" || role == "SCREENER"
+    }
 
     var body: some View {
         Group {
@@ -14,7 +22,11 @@ struct RootView: View {
             case .signedOut:
                 if l10n.hasChosen { SignInView() } else { LanguagePickerView(firstRun: true) }
             case .signedIn:
-                MainTabView()
+                if isClinician {
+                    ClinicianHomeView().environmentObject(clinician)
+                } else {
+                    MainTabView()
+                }
             }
         }
         .task { if auth.phase == .restoring { await auth.restore() } }
@@ -23,10 +35,11 @@ struct RootView: View {
             case .signedIn:
                 Task {
                     await syncLanguage()
-                    await store.loadAll(profile: auth.profile)
+                    if !isClinician { await store.loadAll(profile: auth.profile) }
                 }
             case .signedOut:
                 store.reset()
+                clinician.reset()
             case .restoring:
                 break
             }

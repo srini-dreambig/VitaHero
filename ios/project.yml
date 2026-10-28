@@ -45,3 +45,22 @@ targets:
         GENERATE_INFOPLIST_FILE: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_STYLE: Automatic
+    scheme:
+      testTargets:
+        - VitaHeroTests
+
+  # The clinician form's required-field rules, held to the server's tests.
+  # RequiredChecks.swift is Foundation only and is compiled in directly, so
+  # the tests need no app host, no Firebase and no signing.
+  VitaHeroTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: VitaHeroTests
+      - path: VitaHero/Clinician/RequiredChecks.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.vitahero.health.tests
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
