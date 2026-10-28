@@ -62,7 +62,7 @@ export function servePrivacyPage(): Response {
     "Privacy Policy",
     `
     <h1>Privacy Policy</h1>
-    <p class="updated">Last updated: August 30, 2026</p>
+    <p class="updated">Last updated: October 29, 2026</p>
 
     <p>VitaHero is a parent-facing app that keeps a record of a child's growth
     and school health check-ups. This policy explains what personal data the
@@ -97,6 +97,13 @@ export function servePrivacyPage(): Response {
       calories <em>on your device only</em>, to show them on your child's
       activity card. This data is never uploaded, shared or transmitted off the
       device, and the app works fully without this permission.</li>
+      <li><strong>Approximate location (optional):</strong> only when you
+      search for a hospital or doctor to book, and only if you allow it, the
+      app sends your phone's approximate location with that search so we can
+      list partner hospitals near you and how far away they are. It is used
+      for that one search and is not saved to your account or our database
+      (it may appear briefly in our service's request logs). Without it, you
+      can still search by city.</li>
     </ul>
 
     <h2>3. What we do <em>not</em> do</h2>
@@ -105,7 +112,8 @@ export function servePrivacyPage(): Response {
       <li>We do not provide medical diagnosis, treatment or telehealth
       services. Content in the app is a record and general guidance (such as
       "see a doctor today"), not medical advice.</li>
-      <li>We do not track your location.</li>
+      <li>We do not track your location in the background or keep a history
+      of where you have been.</li>
     </ul>
 
     <h2>4. Who can see a child's record</h2>
