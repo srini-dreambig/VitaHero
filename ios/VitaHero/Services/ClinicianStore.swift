@@ -64,7 +64,16 @@ final class ClinicianStore: ObservableObject {
     func markAttendance(campId: String, kidId: String, attendance: String) async -> String? {
         do {
             try await api.setAttendance(campId: campId, kidId: kidId, attendance: attendance)
-            updateChild(kidId) { $0.attendance = attendance }
+            updateChild(kidId) { child in
+                child.attendance = attendance
+                // Absent takes a child off this doctor's To do; back present
+                // puts them on it again. Done stays done.
+                if child.state == "TODO" && (attendance == "ABSENT" || attendance == "REFUSED") {
+                    child.screeningState = "ABSENT"
+                } else if child.state == "ABSENT" && attendance == "PRESENT" {
+                    child.screeningState = "TODO"
+                }
+            }
             return nil
         } catch {
             return L("clin_err_attendance")
@@ -77,8 +86,13 @@ final class ClinicianStore: ObservableObject {
             if absentOnly {
                 child.attendance = "ABSENT"
                 child.status = "ABSENT"
+                if child.state == "TODO" { child.screeningState = "ABSENT" }
             } else {
+                // The server refuses a save that leaves any of this doctor's
+                // checks out, so one that went through finished their part.
                 child.status = "SCREENED"
+                child.screeningState = "DONE"
+                child.myOutstanding = []
             }
         }
     }

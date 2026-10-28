@@ -801,8 +801,34 @@ struct CampChild: Decodable, Identifiable {
     let consentStatus: String
     var attendance: String
     /// NOT_SCREENED, SCREENED, APPROVED or RELEASED; ABSENT after a local
-    /// absent-only save.
+    /// absent-only save. It turns SCREENED once any doctor saves, so the
+    /// roster's To do and Done read `state` instead.
     var status: String
+    /// TODO, DONE, ABSENT, NOT_MINE or NO_CONSENT for the signed-in
+    /// clinician, from their own checks only. Blank from an older server.
+    var screeningState: String
+    /// This clinician's checks for the child (consent and specialty).
+    let myChecks: [String]
+    /// The part of myChecks not yet recorded.
+    var myOutstanding: [String]
+    /// Over every consented check, whoever records it.
+    let checksDone: Int
+    let checksTotal: Int
+
+    /// Where this child stands for this clinician. Without the server's
+    /// state it falls back as Android does.
+    var state: String {
+        if !screeningState.trimmingCharacters(in: .whitespaces).isEmpty { return screeningState }
+        if consentStatus != "GRANTED" && consentStatus != "PAPER" { return "NO_CONSENT" }
+        if status != "NOT_SCREENED" && status != "ABSENT" { return "DONE" }
+        if attendance == "ABSENT" { return "ABSENT" }
+        return "TODO"
+    }
+
+    /// Grade and section as one class name, "5 B".
+    var className: String {
+        [grade, section].filter { !$0.isEmpty }.joined(separator: " ")
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -816,6 +842,11 @@ struct CampChild: Decodable, Identifiable {
         consentStatus = c.str("consentStatus", "PENDING")
         attendance = c.str("attendance", "UNKNOWN")
         status = c.str("status", "NOT_SCREENED")
+        screeningState = c.str("screeningState")
+        myChecks = c.strs("myChecks")
+        myOutstanding = c.strs("myOutstanding")
+        checksDone = c.int("checksDone")
+        checksTotal = c.int("checksTotal")
     }
 }
 

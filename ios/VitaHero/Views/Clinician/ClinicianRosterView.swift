@@ -1,35 +1,60 @@
 import SwiftUI
 
-/// One camp's children, split into who is left to screen and who is done.
+/// One camp's children as this clinician sees them: To do and Done count
+/// only their own checks, so another doctor's save does not tick a child off.
 struct ClinicianRosterView: View {
     let camp: ClinicianCamp
 
     @EnvironmentObject private var clinician: ClinicianStore
     @State private var query = ""
+    @State private var stateFilter = ""
+    @State private var classFilter = ""
     @State private var attendanceError: String?
+
+    private static let states: [(value: String, key: String)] = [
+        ("", "clin_filter_all"), ("TODO", "clin_to_do"), ("DONE", "clin_done"),
+        ("ABSENT", "clin_absent"), ("NO_CONSENT", "clin_no_consent"),
+    ]
 
     private var roster: CampRoster? {
         clinician.rosterCampId == camp.id ? clinician.roster : nil
     }
 
-    private var children: [CampChild] { roster?.participants ?? [] }
+    /// Every child on the camp, for the physician's review count.
+    private var everyone: [CampChild] { roster?.participants ?? [] }
 
-    /// Screened means findings were taken. An absent child has none, so it
-    /// stays in To do and is not counted or sent for review.
-    private static func screened(_ child: CampChild) -> Bool {
-        child.status != "NOT_SCREENED" && child.status != "ABSENT" && child.attendance != "ABSENT"
+    /// The children with a check of this clinician's on them.
+    private var children: [CampChild] { everyone.filter { $0.state != "NOT_MINE" } }
+
+    private var doneCount: Int { children.filter { $0.state == "DONE" }.count }
+
+    /// The review counts children anyone has screened. An absent child has
+    /// no findings, so it is not sent for review.
+    private var screenedCount: Int {
+        everyone.filter { $0.status != "NOT_SCREENED" && $0.status != "ABSENT" }.count
     }
 
-    private var screenedCount: Int { children.filter(Self.screened).count }
+    private var classes: [String] {
+        var seen: [String] = []
+        for name in children.map(\.className) where !name.isEmpty && !seen.contains(name) { seen.append(name) }
+        return seen.sorted { $0.localizedStandardCompare($1) == .orderedAscending }
+    }
+
+    /// Search and class, before the status filter, so each status shows its count.
+    private var searched: [CampChild] {
+        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
+        return children.filter { child in
+            (classFilter.isEmpty || child.className == classFilter)
+                && (q.isEmpty || child.name.lowercased().contains(q) || child.studentRef.lowercased().contains(q))
+        }
+    }
 
     private var filtered: [CampChild] {
-        let q = query.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !q.isEmpty else { return children }
-        return children.filter { $0.name.lowercased().contains(q) || $0.studentRef.lowercased().contains(q) }
+        stateFilter.isEmpty ? searched : searched.filter { $0.state == stateFilter }
     }
 
-    private var toDo: [CampChild] { filtered.filter { !Self.screened($0) } }
-    private var done: [CampChild] { filtered.filter(Self.screened) }
+    private var toDo: [CampChild] { filtered.filter { $0.state != "DONE" } }
+    private var done: [CampChild] { filtered.filter { $0.state == "DONE" } }
 
     var body: some View {
         List {
@@ -37,9 +62,10 @@ struct ClinicianRosterView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text([camp.schoolName, camp.date].filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.subheadline).foregroundColor(.secondary)
-                    Text(L("clin_x_of_y_screened", String(screenedCount), String(children.count)))
+                    Text(L("clin_x_of_y_done_by_you", String(doneCount), String(children.count)))
                         .font(.headline)
                 }
+                if !children.isEmpty { filters }
                 if let error = clinician.rosterError, roster != nil {
                     Banner(text: error, color: Brand.red)
                 }
@@ -68,10 +94,13 @@ struct ClinicianRosterView: View {
                 }
                 .listRowBackground(Color.clear)
             } else if children.isEmpty {
-                EmptyState(icon: "person.3", title: L("clin_no_children"), subtitle: L("clin_no_children_sub"))
+                EmptyState(icon: "person.3", title: L("clin_no_children"),
+                           subtitle: everyone.isEmpty ? L("clin_no_children_sub") : L("clin_none_mine"))
                     .listRowBackground(Color.clear)
             } else if filtered.isEmpty {
-                EmptyState(icon: "magnifyingglass", title: L("clin_no_match"), subtitle: L("clin_no_match_sub", query))
+                let q = query.trimmingCharacters(in: .whitespaces)
+                EmptyState(icon: "magnifyingglass", title: L("clin_no_match"),
+                           subtitle: q.isEmpty ? L("clin_no_match_filters") : L("clin_no_match_sub", q))
                     .listRowBackground(Color.clear)
             } else {
                 if !toDo.isEmpty {
@@ -94,18 +123,72 @@ struct ClinicianRosterView: View {
         .task { await clinician.loadRoster(camp.id) }
     }
 
+    // MARK: Filters
+
+    /// Status with counts, then class when there is more than one. Both
+    /// combine with the search.
+    private var filters: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Self.states, id: \.value) { option in
+                        let count = option.value.isEmpty ? searched.count
+                            : searched.filter { $0.state == option.value }.count
+                        chip(L(option.key) + " \(count)", selected: stateFilter == option.value) {
+                            stateFilter = option.value
+                        }
+                    }
+                }
+            }
+            if classes.count > 1 {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        chip(L("clin_all_classes"), selected: classFilter.isEmpty) { classFilter = "" }
+                        ForEach(classes, id: \.self) { name in
+                            chip(L("clin_class", name), selected: classFilter == name) { classFilter = name }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func chip(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.footnote.weight(.medium))
+                .foregroundColor(selected ? .white : .primary)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 32)
+                .background(Capsule().fill(selected ? Brand.orange : Color(.tertiarySystemGroupedBackground)))
+        }
+        .buttonStyle(.borderless)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    // MARK: Rows
+
     @ViewBuilder
     private func row(_ child: CampChild) -> some View {
         let canScreen = roster?.can.screen ?? false
         let content = HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(child.name).font(.body.weight(.semibold))
-                let sub = [[child.grade, child.section].filter { !$0.isEmpty }.joined(separator: " "), child.studentRef]
+                let sub = [child.className, child.studentRef]
                     .filter { !$0.isEmpty }.joined(separator: " · ")
                 if !sub.isEmpty { Text(sub).font(.caption).foregroundColor(.secondary) }
             }
             Spacer()
-            statusPills(child)
+            VStack(alignment: .trailing, spacing: 3) {
+                statusPills(child)
+                // With more than one check, say which are still to record.
+                if child.myChecks.count > 1, child.state != "DONE", !child.myOutstanding.isEmpty {
+                    Text(child.myOutstanding.joined(separator: ", "))
+                        .font(.caption2).foregroundColor(.secondary)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
         }
         .padding(.vertical, 2)
 
@@ -123,15 +206,16 @@ struct ClinicianRosterView: View {
             if child.attendance == "ABSENT" {
                 Pill(text: L("clin_absent"), color: .secondary)
             }
-            switch child.consentStatus {
-            case "DECLINED": Pill(text: L("clin_declined"), color: Brand.red)
-            case "GRANTED", "PAPER":
-                if !Self.screened(child) {
-                    Pill(text: L("clin_to_do"), color: Brand.orange)
+            if child.state == "NO_CONSENT" {
+                if child.consentStatus == "DECLINED" {
+                    Pill(text: L("clin_declined"), color: Brand.red)
                 } else {
-                    Pill(text: L("clin_done"), color: Brand.blue)
+                    Pill(text: L("clin_no_consent"), color: Brand.red)
                 }
-            default: Pill(text: L("clin_no_consent"), color: Brand.red)
+            } else if child.state == "DONE" {
+                Pill(text: L("clin_done"), color: Brand.blue)
+            } else {
+                Pill(text: L("clin_to_do"), color: Brand.orange)
             }
         }
     }

@@ -124,7 +124,13 @@
     "clin_approving": "Approving…",
     "clin_approve_footer": "Approving does not send anything yet. Results reach guardians when the whole camp is released.",
     "clin_err_approve": "Could not approve",
-    "clin_not_done_seen": "Record anything you did see"
+    "clin_not_done_seen": "Record anything you did see",
+    "clin_x_of_y_done_by_you": "%1$@ of %2$@ done by you",
+    "clin_filter_all": "All",
+    "clin_all_classes": "All classes",
+    "clin_class": "Class %@",
+    "clin_no_match_filters": "Nobody here matches these filters.",
+    "clin_none_mine": "None of the children here have a check of yours."
   },
   "hi": {
     "all_specialties": "सभी विशेषज्ञता",
@@ -251,7 +257,13 @@
     "clin_approving": "मंज़ूर किया जा रहा है…",
     "clin_approve_footer": "मंज़ूरी से अभी कुछ नहीं भेजा जाता। पूरे कैंप के परिणाम भेजे जाने पर ही अभिभावकों तक पहुँचते हैं।",
     "clin_err_approve": "मंज़ूर नहीं किया जा सका",
-    "clin_not_done_seen": "जो भी देखा, वह दर्ज करें"
+    "clin_not_done_seen": "जो भी देखा, वह दर्ज करें",
+    "clin_x_of_y_done_by_you": "%2$@ में से %1$@ आपने पूरे किए",
+    "clin_filter_all": "सभी",
+    "clin_all_classes": "सभी कक्षाएँ",
+    "clin_class": "कक्षा %@",
+    "clin_no_match_filters": "इन फ़िल्टरों से कोई मेल नहीं खाता।",
+    "clin_none_mine": "यहाँ किसी बच्चे की आपकी कोई जाँच नहीं है।"
   },
   "te": {
     "all_specialties": "అన్ని ప్రత్యేకతలు",
@@ -378,6 +390,12 @@
     "clin_approving": "ఆమోదిస్తోంది…",
     "clin_approve_footer": "ఆమోదిస్తే ఇప్పుడే ఏదీ పంపబడదు. మొత్తం క్యాంపు విడుదలైనప్పుడే ఫలితాలు సంరక్షకులకు చేరతాయి.",
     "clin_err_approve": "ఆమోదించలేకపోయాం",
-    "clin_not_done_seen": "మీరు చూసినది ఏదైనా నమోదు చేయండి"
+    "clin_not_done_seen": "మీరు చూసినది ఏదైనా నమోదు చేయండి",
+    "clin_x_of_y_done_by_you": "%2$@ లో %1$@ మీరు పూర్తి చేశారు",
+    "clin_filter_all": "అన్నీ",
+    "clin_all_classes": "అన్ని తరగతులు",
+    "clin_class": "తరగతి %@",
+    "clin_no_match_filters": "ఈ ఫిల్టర్లకు ఎవరూ సరిపోలేదు.",
+    "clin_none_mine": "ఇక్కడ ఏ పిల్లలకూ మీ పరీక్ష లేదు."
   }
 }

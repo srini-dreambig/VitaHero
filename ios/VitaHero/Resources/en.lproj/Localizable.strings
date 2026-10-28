@@ -90,6 +90,7 @@
 "clear_label" = "Clear";
 "clin_absent" = "Absent";
 "clin_absent_notice" = "%@ is marked ABSENT for this camp session. No screening examinations or options need to be selected.";
+"clin_all_classes" = "All classes";
 "clin_all_reviewed" = "Everyone on this camp has been reviewed.";
 "clin_already_approved" = "Already approved. Changing anything here replaces what was recorded, up until the camp is released.";
 "clin_and_earlier" = "and %@ earlier";
@@ -100,6 +101,7 @@
 "clin_camps_failed" = "Could not load your camps";
 "clin_child_absent" = "Child is absent today";
 "clin_choose" = "Choose";
+"clin_class" = "Class %@";
 "clin_clear_choice" = "Clear";
 "clin_confirm_absent" = "Confirm Absent & Close";
 "clin_consent_declined" = "This guardian declined consent for this camp. Nothing can be recorded.";
@@ -117,6 +119,7 @@
 "clin_err_release" = "Could not release";
 "clin_err_roster" = "Could not load the list. Check your connection.";
 "clin_err_save" = "Could not save";
+"clin_filter_all" = "All";
 "clin_flag_alert" = "Needs attention";
 "clin_flag_good" = "Normal";
 "clin_flag_watch" = "Needs watching";
@@ -140,7 +143,9 @@
 "clin_no_consent" = "No consent";
 "clin_no_form" = "This check has no form in the app yet. Record it in the console.";
 "clin_no_match" = "No match";
+"clin_no_match_filters" = "Nobody here matches these filters.";
 "clin_no_match_sub" = "Nobody on this camp matches \"%@\".";
+"clin_none_mine" = "None of the children here have a check of yours.";
 "clin_not_done" = "Could not be done";
 "clin_not_done_hint" = "e.g. child unwell, equipment not available";
 "clin_not_done_seen" = "Record anything you did see";
@@ -193,6 +198,7 @@
 "clin_urgent_texted" = "%@ urgent guardians texted.";
 "clin_waiting_on_you" = "%@ waiting on you";
 "clin_write_first" = "Write what the guardian should do before approving.";
+"clin_x_of_y_done_by_you" = "%1$@ of %2$@ done by you";
 "clin_x_of_y_screened" = "%1$@ of %2$@ screened";
 "clin_years" = "%@ years";
 "clinical_growth_charts" = "Clinical growth charts";
