@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// A physician signs off one child: confirm or move each flag, set how soon
-/// the guardian should act, and write what they will read. Approving sends
-/// nothing; the camp's release does.
+/// A physician signs off their checks on one child: confirm or move each
+/// flag, set how soon the guardian should act, and write their part of what
+/// the guardian reads. A specialist sees only their own checks; the child is
+/// approved once every check is signed. Approving sends nothing; the camp's
+/// release does, except that an urgent sign-off texts the guardian at once.
 struct ClinicianReviewChildView: View {
     let campId: String
     let kidId: String
@@ -60,6 +62,8 @@ struct ClinicianReviewChildView: View {
         }
         if detail.status == "APPROVED" {
             Banner(text: L("clin_already_approved"), color: Brand.blue)
+        } else if !detail.mySignedAt.isEmpty {
+            Banner(text: signedNotice(detail), color: Brand.blue)
         }
         if !detail.recurring.isEmpty {
             Banner(text: recurringNotice(detail.recurring), color: Brand.orange)
@@ -67,15 +71,34 @@ struct ClinicianReviewChildView: View {
         if !message.isEmpty { Banner(text: message, color: Brand.red) }
 
         ForEach(detail.findings) { finding in findingCard(finding) }
+        if !detail.otherChecks.isEmpty { otherChecksCard(detail.otherChecks) }
 
         urgencyCard
         messageCard(detail)
 
-        PrimaryButton(title: busy ? L("clin_approving") : L("clin_approve"), busy: busy,
+        PrimaryButton(title: signTitle(detail), busy: busy,
                       enabled: !busy && !RequiredChecks.isBlank(recommendation)) {
             Task { await approve() }
         }
-        Text(L("clin_approve_footer")).font(.footnote).foregroundColor(.secondary)
+        Text((detail.otherChecks.isEmpty ? "" : L("clin_sign_footer_each") + " ") + L("clin_approve_footer"))
+            .font(.footnote).foregroundColor(.secondary)
+    }
+
+    /// "Approve" for a physician who signs every check; a specialist signs
+    /// off theirs by name.
+    private func signTitle(_ detail: ReviewDetail) -> String {
+        if busy { return L("clin_approving") }
+        if detail.otherChecks.isEmpty { return L("clin_approve") }
+        return L("clin_sign_off", detail.myChecks.joined(separator: ", "))
+    }
+
+    private func signedNotice(_ detail: ReviewDetail) -> String {
+        var parts = [L("clin_signed_off", detail.myChecks.joined(separator: ", "))]
+        if !detail.waitingFor.isEmpty {
+            parts.append(L("clin_signed_waiting", detail.waitingFor.joined(separator: ", ")))
+        }
+        parts.append(L("clin_sign_again"))
+        return parts.joined(separator: " ")
     }
 
     private func recurringNotice(_ recurring: [Recurring]) -> String {
@@ -181,6 +204,28 @@ struct ClinicianReviewChildView: View {
         return entry.value.text
     }
 
+    // MARK: Other specialists
+
+    /// The other checks by name and where they stand. Their results are not
+    /// this physician's to see.
+    private func otherChecksCard(_ checks: [OtherCheck]) -> some View {
+        Card {
+            Text(L("clin_other_specialists")).font(.headline)
+            ForEach(checks) { check in
+                HStack(alignment: .firstTextBaseline) {
+                    Text(check.checkType).font(.subheadline)
+                    Spacer(minLength: 8)
+                    Text(check.signedBy.isEmpty
+                         ? (check.recorded ? L("clin_recorded_not_signed") : L("clin_not_recorded_yet"))
+                         : L("clin_signed_by", check.signedBy))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(check.signedBy.isEmpty ? Brand.orange : Brand.blue)
+                        .multilineTextAlignment(.trailing)
+                }
+            }
+        }
+    }
+
     // MARK: Urgency and message
 
     private var urgencyCard: some View {
@@ -198,7 +243,7 @@ struct ClinicianReviewChildView: View {
 
     private func messageCard(_ detail: ReviewDetail) -> some View {
         Card {
-            Text(L("clin_guardian_reads")).font(.headline)
+            Text(detail.otherChecks.isEmpty ? L("clin_guardian_reads") : L("clin_your_part")).font(.headline)
             if detail.recommendationIsDraft {
                 Text(L("clin_draft_note")).font(.footnote).foregroundColor(.secondary)
             }
@@ -245,10 +290,10 @@ struct ClinicianReviewChildView: View {
         busy = true
         defer { busy = false }
         do {
-            try await APIClient.shared.approve(campId: campId, kidId: kidId, flags: moved,
-                                               urgency: urgency, recommendation: text)
+            let result = try await APIClient.shared.approve(campId: campId, kidId: kidId, flags: moved,
+                                                            urgency: urgency, recommendation: text)
             message = ""
-            clinician.noteApproved(kidId: kidId, urgency: urgency)
+            clinician.noteSigned(result, kidId: kidId)
             dismiss()
         } catch {
             message = clinicianMessage(error, fallback: L("clin_err_approve"))

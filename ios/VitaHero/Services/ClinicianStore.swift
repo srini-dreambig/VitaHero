@@ -118,11 +118,19 @@ final class ClinicianStore: ObservableObject {
         }
     }
 
-    func noteApproved(kidId: String, urgency: String) {
+    /// What a sign-off did to the queue row. The child is approved only once
+    /// every specialist has signed; until then it waits as signed by you.
+    func noteSigned(_ result: SignOffResult, kidId: String) {
         guard let index = queue.firstIndex(where: { $0.kidId == kidId }) else { return }
-        queue[index].status = "APPROVED"
+        let approved = result.status == "APPROVED"
+        queue[index].reviewState = approved ? "APPROVED" : "SIGNED"
+        if approved { queue[index].status = "APPROVED" }
         queue[index].reviewed = true
-        queue[index].urgency = urgency
+        queue[index].urgency = result.urgency
+        queue[index].waitingFor = result.waitingFor
+        for check in result.signedChecks where !queue[index].signedChecks.contains(check) {
+            queue[index].signedChecks.append(check)
+        }
     }
 
     /// Release the camp. The result, or the server's refusal as written.

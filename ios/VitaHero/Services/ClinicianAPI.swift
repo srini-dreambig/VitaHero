@@ -43,14 +43,18 @@ extension APIClient {
         try await get("/api/admin/camps/\(campId)/review/\(kidId)")
     }
 
-    /// Approve one child. The server refuses without a recommendation, for a
-    /// child never screened, and for one already released; those refusals
-    /// reach the screen as written.
-    func approve(campId: String, kidId: String, flags: [String: String], urgency: String, recommendation: String) async throws {
+    /// Sign off this physician's checks on one child. `flags` holds only the
+    /// flags they moved: a specialist touching another specialty's check is
+    /// refused (NOT_YOUR_CHECK). The server also refuses without a
+    /// recommendation, for one of their checks not yet recorded
+    /// (CHECKS_OUTSTANDING), for a child not theirs (NOT_YOUR_CHILD) and for
+    /// one already released; those refusals reach the screen as written.
+    func approve(campId: String, kidId: String, flags: [String: String], urgency: String,
+                 recommendation: String) async throws -> SignOffResult {
         let findings: [[String: Any]] = flags.keys.sorted().map {
             ["checkType": $0, "flag": flags[$0] ?? "", "note": ""]
         }
-        try await post("/api/admin/camps/\(campId)/review/\(kidId)", json: [
+        return try await post("/api/admin/camps/\(campId)/review/\(kidId)", json: [
             "findings": findings,
             "urgency": urgency,
             "recommendation": recommendation,

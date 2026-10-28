@@ -13,18 +13,32 @@ struct ClinicianReviewView: View {
     @State private var releaseError: String?
     @State private var released: ReleaseResult?
 
-    /// Everyone not yet approved, ready or not; the footer counts them all.
-    private var waiting: [ReviewQueueItem] { clinician.queue.filter { $0.status != "APPROVED" } }
-    /// Every check recorded, so this physician can sign off.
-    private var ready: [ReviewQueueItem] { waiting.filter { $0.waitingFor.isEmpty } }
-    /// Another doctor still has a check to record.
-    private var screening: [ReviewQueueItem] { waiting.filter { !$0.waitingFor.isEmpty } }
-    private var approved: [ReviewQueueItem] { clinician.queue.filter { $0.status == "APPROVED" } }
+    /// Everyone not yet approved, whatever is holding them; the footer counts them all.
+    private var waiting: [ReviewQueueItem] { clinician.queue.filter { $0.state != "APPROVED" } }
+    /// My checks are recorded and mine to sign.
+    private var ready: [ReviewQueueItem] { clinician.queue.filter { $0.state == "TO_SIGN" } }
+    /// One of my checks is not recorded yet.
+    private var screening: [ReviewQueueItem] { clinician.queue.filter { $0.state == "NOT_READY" } }
+    /// I signed; another specialist has not.
+    private var signed: [ReviewQueueItem] { clinician.queue.filter { $0.state == "SIGNED" } }
+    private var approved: [ReviewQueueItem] { clinician.queue.filter { $0.state == "APPROVED" } }
+
+    /// Checks no physician on this camp can sign. Those children would wait
+    /// for ever, so it is said once, for whoever can fix the staffing.
+    private var unsignable: [String] {
+        var seen: [String] = []
+        for check in clinician.queue.flatMap(\.noSigner) where !seen.contains(check) { seen.append(check) }
+        return seen
+    }
 
     var body: some View {
         List {
             if let error = releaseError ?? clinician.queueError {
                 Banner(text: error, color: Brand.red).listRowBackground(Color.clear)
+            }
+            if !unsignable.isEmpty {
+                Banner(text: L("clin_no_signer", unsignable.joined(separator: ", ")), color: Brand.red)
+                    .listRowBackground(Color.clear)
             }
             if clinician.queue.isEmpty {
                 Group {
@@ -44,6 +58,11 @@ struct ClinicianReviewView: View {
                 if !screening.isEmpty {
                     Section(L("clin_still_screening", String(screening.count))) {
                         ForEach(screening) { row($0) }
+                    }
+                }
+                if !signed.isEmpty {
+                    Section(L("clin_signed_by_you", String(signed.count))) {
+                        ForEach(signed) { row($0) }
                     }
                 }
                 if !approved.isEmpty {
@@ -94,7 +113,7 @@ struct ClinicianReviewView: View {
                     let sub = [item.grade, item.age.map { L("clin_years", String($0)) } ?? ""]
                         .filter { !$0.isEmpty }.joined(separator: " · ")
                     if !sub.isEmpty { Text(sub).font(.caption).foregroundColor(.secondary) }
-                    if !item.waitingFor.isEmpty, item.status != "APPROVED" {
+                    if !item.waitingFor.isEmpty, item.state != "APPROVED" {
                         Text(L("clin_waiting_for", item.waitingFor.joined(separator: ", ")))
                             .font(.caption).foregroundColor(Brand.orange)
                     }
@@ -102,7 +121,7 @@ struct ClinicianReviewView: View {
                 Spacer()
                 if item.alerts > 0 { Pill(text: L("clin_n_alert", String(item.alerts)), color: Brand.red) }
                 if item.watches > 0 { Pill(text: L("clin_n_watch", String(item.watches)), color: Brand.orange) }
-                if item.status == "APPROVED" {
+                if item.state == "APPROVED" {
                     Image(systemName: "checkmark.circle.fill").foregroundColor(Brand.green)
                 }
             }

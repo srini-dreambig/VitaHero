@@ -983,16 +983,31 @@ struct ReviewQueueItem: Decodable, Identifiable {
     let name: String
     let grade: String
     let age: Int?
+    /// Flags on this physician's own checks only.
     let alerts: Int
     let watches: Int
-    /// SCREENED (waiting on this physician) or APPROVED (awaiting release).
+    /// SCREENED or APPROVED (every consented check signed, awaiting release).
     var status: String
     var urgency: String
     let recommendation: String
     var reviewed: Bool
-    /// Consented checks nobody has recorded yet. The server refuses sign-off
-    /// (CHECKS_OUTSTANDING) until this is empty.
-    let waitingFor: [String]
+    /// TO_SIGN, NOT_READY (one of my checks is not recorded), SIGNED (mine
+    /// signed, others not) or APPROVED. Blank from an older server.
+    var reviewState: String
+    /// The checks this physician signs; every check for a general physician.
+    let myChecks: [String]
+    let checks: [String]
+    var signedChecks: [String]
+    /// The other specialties that have not signed yet.
+    var waitingFor: [String]
+    /// Checks no physician on the camp can sign.
+    let noSigner: [String]
+
+    /// Where this child stands for this physician.
+    var state: String {
+        if !reviewState.trimmingCharacters(in: .whitespaces).isEmpty { return reviewState }
+        return status == "APPROVED" ? "APPROVED" : "TO_SIGN"
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -1006,7 +1021,12 @@ struct ReviewQueueItem: Decodable, Identifiable {
         urgency = c.str("urgency", "NONE")
         recommendation = c.str("recommendation")
         reviewed = c.bool("reviewed")
+        reviewState = c.str("reviewState")
+        myChecks = c.strs("myChecks")
+        checks = c.strs("checks")
+        signedChecks = c.strs("signedChecks")
         waitingFor = c.strs("waitingFor")
+        noSigner = c.strs("noSigner")
     }
 }
 
@@ -1072,6 +1092,8 @@ struct ReviewFinding: Decodable, Identifiable {
     let reviewNote: String
     let overridden: Bool
     let previous: [PriorFinding]
+    /// Who signed this check off; blank until someone has.
+    let signedBy: String
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -1093,6 +1115,23 @@ struct ReviewFinding: Decodable, Identifiable {
         reviewNote = c.str("reviewNote")
         overridden = c.bool("overridden")
         previous = c.list("previous")
+        signedBy = c.str("signedBy")
+    }
+}
+
+/// Another specialty's check on the same child: its name and where it
+/// stands, never its results.
+struct OtherCheck: Decodable, Identifiable {
+    var id: String { checkType }
+    let checkType: String
+    let recorded: Bool
+    let signedBy: String
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        checkType = c.str("checkType")
+        recorded = c.bool("recorded")
+        signedBy = c.str("signedBy")
     }
 }
 
@@ -1115,10 +1154,18 @@ struct ReviewDetail: Decodable {
     let recurring: [Recurring]
     /// NONE, ROUTINE, SOON or URGENT, worked out from the findings.
     let suggestedUrgency: String
-    /// What the guardian will read. Drafted by the server when nobody has
-    /// written one yet; `recommendationIsDraft` says which.
+    /// This physician's part of what the guardian will read. Drafted by the
+    /// server when they have not written one yet; `recommendationIsDraft`
+    /// says which. The server joins each signer's part in check order.
     let recommendation: String
     let recommendationIsDraft: Bool
+    /// The checks this physician signs; `findings` holds only these.
+    let myChecks: [String]
+    /// When this physician signed; blank if they have not.
+    let mySignedAt: String
+    let otherChecks: [OtherCheck]
+    /// The other specialties that have not signed yet.
+    let waitingFor: [String]
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -1129,6 +1176,32 @@ struct ReviewDetail: Decodable {
         suggestedUrgency = c.str("suggestedUrgency", "NONE")
         recommendation = c.str("recommendation")
         recommendationIsDraft = c.bool("recommendationIsDraft")
+        myChecks = c.strs("myChecks")
+        mySignedAt = c.str("mySignedAt")
+        otherChecks = c.list("otherChecks")
+        waitingFor = c.strs("waitingFor")
+    }
+}
+
+/// What one sign-off did. `status` is APPROVED once every consented check
+/// is signed, otherwise the child's status as it was.
+struct SignOffResult: Decodable {
+    let kidId: String
+    let status: String
+    /// The child's overall urgency.
+    let urgency: String
+    let escalated: Bool
+    let signedChecks: [String]
+    let waitingFor: [String]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        kidId = c.str("kidId")
+        status = c.str("status", "SCREENED")
+        urgency = c.str("urgency", "NONE")
+        escalated = c.bool("escalated")
+        signedChecks = c.strs("signedChecks")
+        waitingFor = c.strs("waitingFor")
     }
 }
 
