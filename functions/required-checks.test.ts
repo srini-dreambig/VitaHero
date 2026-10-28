@@ -13,7 +13,7 @@ import type { Actor } from "./schools";
 import { SCHEMA_STEPS } from "./index";
 import { migrate } from "./migrate";
 import { missingRequired } from "./clinical";
-import { releaseCamp, reviewParticipant, saveScreening, setAttendance } from "./camps";
+import { listParticipants, releaseCamp, reviewParticipant, saveScreening, setAttendance } from "./camps";
 
 describe("the fields each check needs", () => {
   test("height without weight is not a height and weight check", () => {
@@ -209,5 +209,53 @@ suite("a camp's checks are recorded in full", () => {
     const growth = await sql`SELECT kid_id, height FROM vita_hero.growth_points
                              WHERE kid_id LIKE 'k_sid-gv-%' ORDER BY kid_id`;
     expect(growth.map((g) => g.kid_id)).toEqual(twins);
+  });
+
+  test("the dentist saving does not mark the child done for the eye doctor", async () => {
+    // Each specialist screens the same child for their own check. The child's
+    // status flips to SCREENED on the first save; the second doctor's list
+    // used to read that and show Done before they had seen the child.
+    const camp = "sc_spec";
+    const kid = "k_meera";
+    const DENT: Actor = { profileId: "ph_dent", name: "Dr Dent", role: "PHYSICIAN", schoolId: "sch_q" };
+    const EYE: Actor = { profileId: "ph_eye", name: "Dr Eye", role: "PHYSICIAN", schoolId: "sch_q" };
+    await sql`INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, checks)
+              VALUES (${camp}, 'sch_q', 'Specialist camp', '2026-08-02', 'SCHEDULED',
+                      ${JSON.stringify(["Vision", "Dental"])}::jsonb)`;
+    await sql`INSERT INTO vita_hero.profiles (id, phone, name, role, provisioned, school_id)
+              VALUES ('ph_dent', '+919100000021', 'Dr Dent', 'PHYSICIAN', true, 'sch_q'),
+                     ('ph_eye', '+919100000022', 'Dr Eye', 'PHYSICIAN', true, 'sch_q')`;
+    await sql`INSERT INTO vita_hero.doctors (id, name, specialty)
+              VALUES ('doc_dent', 'Dr Dent', 'Dentistry'), ('doc_eye', 'Dr Eye', 'Ophthalmology')`;
+    await sql`INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role, active, doctor_id)
+              VALUES ('cst_dent', ${camp}, 'ph_dent', 'PHYSICIAN', true, 'doc_dent'),
+                     ('cst_eye', ${camp}, 'ph_eye', 'PHYSICIAN', true, 'doc_eye')`;
+    await sql`INSERT INTO vita_hero.kids (id, profile_id, name, school_id, grade, section, age, gender)
+              VALUES (${kid}, ${PARENT}, 'Meera', 'sch_q', '3', 'B', 8, 'F')`;
+    await sql`INSERT INTO vita_hero.camp_participants
+                (id, camp_id, school_id, kid_id, profile_id, consent_status, consent_checks,
+                 attendance, status)
+              VALUES ('cp_meera', ${camp}, 'sch_q', ${kid}, ${PARENT}, 'GRANTED', '[]'::jsonb,
+                      'PRESENT', 'NOT_SCREENED')`;
+
+    const row = async (who: Actor) =>
+      (await listParticipants(sql, who, camp, {})).participants.find((p) => p.kidId === kid)!;
+    expect((await row(DENT)).screeningState).toBe("TODO");
+    expect((await row(DENT)).myChecks).toEqual(["Dental"]);
+    expect((await row(EYE)).myChecks).toEqual(["Vision"]);
+
+    await saveScreening(sql, DENT, camp, kid, { findings: [dental] });
+    const afterDent = await row(DENT);
+    const forEye = await row(EYE);
+    expect(afterDent.screeningState).toBe("DONE");
+    expect(forEye.status).toBe("SCREENED");
+    expect(forEye.screeningState).toBe("TODO");
+    expect(forEye.myOutstanding).toEqual(["Vision"]);
+    expect(forEye.checksDone).toBe(1);
+    expect(forEye.checksTotal).toBe(2);
+
+    await saveScreening(sql, EYE, camp, kid, { findings: [vision] });
+    expect((await row(EYE)).screeningState).toBe("DONE");
+    expect((await row(EYE)).checksDone).toBe(2);
   });
 });

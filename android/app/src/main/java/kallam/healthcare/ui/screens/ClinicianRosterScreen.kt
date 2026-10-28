@@ -1,7 +1,10 @@
 package kallam.healthcare.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -33,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -54,7 +59,11 @@ import kallam.healthcare.ui.theme.HeroOrange
  * holding the phone needs to find them among four hundred without scrolling.
  *
  * The status on each row is the point of the screen — it is how a clinician
- * knows who is still to be seen.
+ * knows who is still to be seen. It is this clinician's own: once the dentist
+ * has been, the child is still To do for the eye doctor.
+ *
+ * Filtered by class and by status, because a doctor works a camp one class at
+ * a time and wants the list to shrink as they go.
  */
 @Composable
 fun ClinicianRosterScreen(
@@ -70,14 +79,24 @@ fun ClinicianRosterScreen(
     val can by clinician.can.collectAsState()
     val message by clinician.message.collectAsState()
     var query by rememberSaveable { mutableStateOf("") }
+    var classFilter by rememberSaveable { mutableStateOf("") }
+    var stateFilter by rememberSaveable { mutableStateOf("") }
 
     LaunchedEffect(campId) { clinician.loadRoster(campId) }
 
     val q = query.trim().lowercase()
-    val shown = if (q.isEmpty()) roster else roster.filter {
-        it.name.lowercase().contains(q) || it.studentRef.lowercase().contains(q)
+    // Children with none of this clinician's checks are not theirs to see.
+    val mine = roster.filter { it.state != "NOT_MINE" }
+    val classes = mine.map { it.classLabel }.filter { it.isNotBlank() }.distinct()
+    val shown = mine.filter {
+        (q.isEmpty() || it.name.lowercase().contains(q) || it.studentRef.lowercase().contains(q)) &&
+            (classFilter.isEmpty() || it.classLabel == classFilter) &&
+            (stateFilter.isEmpty() || it.state == stateFilter)
     }
-    val screened = roster.count { it.status != "NOT_SCREENED" }
+    val doneByMe = mine.count { it.state == "DONE" }
+    // Anybody's save puts a child in the physician's queue, so the review card
+    // still counts on the child's own status.
+    val screened = roster.count { it.status != "NOT_SCREENED" && it.status != "ABSENT" }
 
     LazyColumn(Modifier.fillMaxSize()) {
         item {
@@ -98,7 +117,7 @@ fun ClinicianRosterScreen(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        "$screened of ${roster.size} screened",
+                        "$doneByMe of ${mine.size} done by you",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -115,6 +134,36 @@ fun ClinicianRosterScreen(
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
             )
+            Spacer(Modifier.height(10.dp))
+            val states = listOf(
+                "" to "All", "TODO" to "To do", "DONE" to "Done",
+                "ABSENT" to "Absent", "NO_CONSENT" to "No consent",
+            )
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(states, key = { "s" + it.first }) { (value, label) ->
+                    val count = if (value.isEmpty()) mine.size else mine.count { it.state == value }
+                    FilterPill("$label $count", stateFilter == value) { stateFilter = value }
+                }
+            }
+            if (classes.size > 1) {
+                Spacer(Modifier.height(8.dp))
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item(key = "c-all") {
+                        FilterPill("All classes", classFilter.isEmpty()) { classFilter = "" }
+                    }
+                    items(classes, key = { "c$it" }) { c ->
+                        FilterPill("Class $c", classFilter == c) {
+                            classFilter = if (classFilter == c) "" else c
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
             // Only a physician sees this, and only once there is something to
             // sign off. The server decides both: `can.review` comes back with
@@ -160,6 +209,7 @@ fun ClinicianRosterScreen(
                         busy -> "Loading the list…"
                         roster.isEmpty() && message.isNotBlank() -> "Could not load the list"
                         roster.isEmpty() -> "No children on this camp yet"
+                        mine.isEmpty() -> "None of your checks on this camp"
                         else -> "No match"
                     },
                     subtitle = when {
@@ -167,7 +217,10 @@ fun ClinicianRosterScreen(
                         roster.isEmpty() && message.isNotBlank() -> message
                         roster.isEmpty() ->
                             "An administrator builds the camp's list from the school's roster."
-                        else -> "Nobody on this camp matches \"$query\"."
+                        mine.isEmpty() ->
+                            "No child here is consented for the checks your specialty records."
+                        q.isNotEmpty() -> "Nobody on this camp matches \"$query\"."
+                        else -> "Nobody matches these filters."
                     },
                     modifier = Modifier.padding(20.dp),
                 )
@@ -229,12 +282,24 @@ private fun ChildRow(child: CampChildDto, onClick: () -> Unit) {
                         color = MaterialTheme.colorScheme.error,
                     )
                 } else {
+                    val done = child.state == "DONE"
                     Text(
-                        if (child.status == "NOT_SCREENED") "To do" else "Done",
+                        if (done) "Done" else "To do",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = if (child.status == "NOT_SCREENED") HeroOrange else HeroBlue,
+                        color = if (done) HeroBlue else HeroOrange,
                     )
+                    // What is left of this clinician's own share, when they
+                    // have more than one check to do.
+                    if (!done && child.myOutstanding.isNotEmpty() && child.myChecks.size > 1) {
+                        Text(
+                            child.myOutstanding.joinToString(", "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
                 if (child.attendance == "ABSENT") {
                     Text(
@@ -245,5 +310,23 @@ private fun ChildRow(child: CampChildDto, onClick: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun FilterPill(label: String, active: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (active) HeroOrange.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp)
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (active) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
+        )
     }
 }

@@ -675,7 +675,12 @@ export async function listParticipants(
            pr.is_logged_in AS guardian_using_app, pr.id AS guardian_profile_id,
            (SELECT COUNT(*)::int FROM vita_hero.camp_findings f
              WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id
-               AND f.flag <> 'NOT_MEASURED') AS findings_count
+               AND f.flag <> 'NOT_MEASURED') AS findings_count,
+           -- The same rule as recordedChecks, in this statement: the roster
+           -- is the console's busiest read and gets no second round trip.
+           (SELECT COALESCE(json_agg(DISTINCT f.check_type), '[]'::json) FROM vita_hero.camp_findings f
+             WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id
+               AND (f.flag <> 'NOT_MEASURED' OR COALESCE(f.screener_note, '') <> '')) AS recorded_checks
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
     LEFT JOIN vita_hero.profiles pr ON pr.id = p.profile_id
@@ -687,6 +692,11 @@ export async function listParticipants(
            OR LOWER(COALESCE(k.student_ref,'')) LIKE ${"%" + search + "%"})
     ORDER BY k.grade, k.section, k.name
   `;
+  // Done is per clinician, not per child. Once the dentist saves, the child's
+  // own status reads SCREENED, but the eye doctor has not seen them yet: their
+  // list must still say To do. So each row carries the caller's share of the
+  // checks and what of it is still outstanding.
+  const campChecks = campCheckList(access.camp);
   return {
     can: {
       schedule: access.canSchedule,
@@ -720,7 +730,41 @@ export async function listParticipants(
       urgency: (r.urgency as string) || "NONE",
       recommendation: (r.recommendation as string) || "",
       findingsCount: (r.findings_count as number) || 0,
+      ...screeningProgress(r, campChecks, access.checkScope, new Set((r.recorded_checks as string[]) || [])),
     })),
+  };
+}
+
+/**
+ * Where a child stands for the clinician asking.
+ *
+ * TODO and DONE are about this clinician's checks only. NOT_MINE is a child
+ * with none of their checks consented; ABSENT and NO_CONSENT are children they
+ * cannot screen today. A released child is DONE: the record is locked.
+ */
+function screeningProgress(
+  r: Record<string, unknown>,
+  campChecks: string[],
+  scope: string[] | null,
+  done: Set<string> | undefined
+) {
+  const consented = consentedChecks(r, campChecks);
+  const mine = myChecks(r, campChecks, { checks: scope });
+  const outstanding = mine.filter((c) => !done?.has(c));
+  const consent = (r.consent_status as string) || "PENDING";
+  const attendance = (r.attendance as string) || "UNKNOWN";
+  let state: string;
+  if (consent !== "GRANTED" && consent !== "PAPER") state = "NO_CONSENT";
+  else if (mine.length === 0) state = "NOT_MINE";
+  else if (outstanding.length === 0 || r.status === "RELEASED") state = "DONE";
+  else if (attendance === "ABSENT" || attendance === "REFUSED") state = "ABSENT";
+  else state = "TODO";
+  return {
+    myChecks: mine,
+    myOutstanding: outstanding,
+    checksTotal: consented.length,
+    checksDone: consented.filter((c) => done?.has(c)).length,
+    screeningState: state,
   };
 }
 
@@ -1400,6 +1444,14 @@ export async function campPack(sql: Sql, actor: Actor, campId: string) {
     });
     byKid.set(k, list);
   }
+  // The same rule as recordedChecks, from rows already in hand.
+  const recorded = new Map<string, Set<string>>();
+  for (const f of findings) {
+    if (f.flag === "NOT_MEASURED" && !String(f.screener_note || "")) continue;
+    const k = f.kid_id as string;
+    if (!recorded.has(k)) recorded.set(k, new Set());
+    recorded.get(k)!.add(f.check_type as string);
+  }
 
   const campChecks: string[] = Array.isArray(camp.checks)
     ? (camp.checks as string[])
@@ -1450,6 +1502,7 @@ export async function campPack(sql: Sql, actor: Actor, campId: string) {
           : campChecks
         ).filter((c) => !access.checkScope || access.checkScope.includes(c)),
         findings: byKid.get(p.kid_id as string) || [],
+        ...screeningProgress(p, campChecks, access.checkScope, recorded.get(p.kid_id as string)),
       };
     }),
   };

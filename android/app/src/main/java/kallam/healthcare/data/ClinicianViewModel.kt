@@ -136,7 +136,17 @@ class ClinicianViewModel(
                 onSuccess = {
                     _form.value = _form.value?.copy(attendance = value)
                     _roster.value = _roster.value.map {
-                        if (it.kidId == kidId) it.copy(attendance = value) else it
+                        if (it.kidId != kidId) it
+                        else it.copy(
+                            attendance = value,
+                            // Same rule as the server: absence matters only
+                            // while this clinician still has something to do.
+                            screeningState = when {
+                                it.screeningState == "TODO" && (value == "ABSENT" || value == "REFUSED") -> "ABSENT"
+                                it.screeningState == "ABSENT" && value == "PRESENT" -> "TODO"
+                                else -> it.screeningState
+                            },
+                        )
                     }
                     if (value == "ABSENT") {
                         _message.value = ""
@@ -188,7 +198,9 @@ class ClinicianViewModel(
                 _saved.value = true
                 _message.value = ""
                 _roster.value = _roster.value.map {
-                    if (it.kidId == kidId) it.copy(attendance = "ABSENT", status = "ABSENT") else it
+                    if (it.kidId == kidId) {
+                        it.copy(attendance = "ABSENT", status = "ABSENT", screeningState = "ABSENT")
+                    } else it
                 }
                 return
             }
@@ -203,8 +215,14 @@ class ClinicianViewModel(
                     _message.value = ""
                     // The roster's status pill is why a clinician knows who is
                     // still to be seen, so it cannot wait for a manual refresh.
+                    // The server refuses a save that leaves any of this
+                    // clinician's checks out, so a save that went through means
+                    // their part is done — and only theirs: the next specialist
+                    // still sees To do, from their own copy of the list.
                     _roster.value = _roster.value.map {
-                        if (it.kidId == kidId) it.copy(status = "SCREENED") else it
+                        if (it.kidId == kidId) {
+                            it.copy(status = "SCREENED", screeningState = "DONE", myOutstanding = emptyList())
+                        } else it
                     }
                 },
                 onFailure = { e -> _message.value = e.message ?: "Could not save" },

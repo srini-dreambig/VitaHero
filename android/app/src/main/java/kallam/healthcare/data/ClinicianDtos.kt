@@ -54,7 +54,34 @@ data class CampChildDto(
     val attendance: String = "UNKNOWN",
     /** NOT_SCREENED, SCREENED, REVIEWED or RELEASED. */
     val status: String = "NOT_SCREENED",
-)
+    /**
+     * Where this child stands for the person signed in: TODO, DONE, ABSENT,
+     * NOT_MINE or NO_CONSENT. [status] flips to SCREENED on anybody's save, so
+     * the eye doctor would see Done once the dentist had been. Blank from a
+     * server older than this field; [state] falls back to [status] then.
+     */
+    val screeningState: String = "",
+    /** The checks that are this clinician's to record for this child. */
+    val myChecks: List<String> = emptyList(),
+    /** Of [myChecks], the ones not yet on record. */
+    val myOutstanding: List<String> = emptyList(),
+    val checksDone: Int = 0,
+    val checksTotal: Int = 0,
+) {
+    val state: String
+        get() = screeningState.ifBlank {
+            when {
+                consentStatus != "GRANTED" && consentStatus != "PAPER" -> "NO_CONSENT"
+                status != "NOT_SCREENED" && status != "ABSENT" -> "DONE"
+                attendance == "ABSENT" -> "ABSENT"
+                else -> "TODO"
+            }
+        }
+
+    /** "5 B", the class a teacher would say. */
+    val classLabel: String
+        get() = listOf(grade, section).filter { it.isNotBlank() }.joinToString(" ")
+}
 
 /**
  * What this person may do on this camp, decided by the server.

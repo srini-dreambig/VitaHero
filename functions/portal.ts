@@ -773,7 +773,7 @@ export const PORTAL_HTML = `<!doctype html>
       // EVERYTHING, should mean it unless you say otherwise.
       resetDirectory: true, resetLibrary: true,
       childQuery: "", screenData: null, reviewEdit: null, symptoms: null,
-      smsStatus: null, saved: null, search: "", showAll: false, dragOver: false,
+      smsStatus: null, saved: null, search: "", dayClass: "", dayState: "", showAll: false, dragOver: false,
       // How the schools list is being looked at. Filtering and sorting happen
       // here rather than on the server: the list is one row per school, which
       // is tens of rows, and a round trip to re-sort tens of rows is a round
@@ -4090,9 +4090,27 @@ export const PORTAL_HTML = `<!doctype html>
     var q = (S.search || "").toLowerCase();
     var queuedIds = {};
     queued.forEach(function (e) { queuedIds[e.kidId] = true; });
-    var list = source.filter(function (p) {
-      return !q || p.name.toLowerCase().indexOf(q) >= 0 || (p.studentRef || "").toLowerCase().indexOf(q) >= 0;
+    // Done is this clinician's own: the child's status reads SCREENED once any
+    // specialist has saved, but the eye doctor has still to see them.
+    function dayState(p) {
+      if (p.screeningState) return p.screeningState;
+      if (p.consentStatus !== "GRANTED" && p.consentStatus !== "PAPER") return "NO_CONSENT";
+      if (p.status !== "NOT_SCREENED") return "DONE";
+      return p.attendance === "ABSENT" || p.attendance === "REFUSED" ? "ABSENT" : "TODO";
+    }
+    function classOf(p) { return (p.grade || "") + (p.section ? " " + p.section : ""); }
+    var mine = source.filter(function (p) { return dayState(p) !== "NOT_MINE"; });
+    var classes = [];
+    mine.forEach(function (p) { var c = classOf(p); if (c && classes.indexOf(c) < 0) classes.push(c); });
+    // A class picked on another camp would hide everyone here.
+    if (S.dayClass && classes.indexOf(S.dayClass) < 0) S.dayClass = "";
+    var list = mine.filter(function (p) {
+      return (!q || p.name.toLowerCase().indexOf(q) >= 0 || (p.studentRef || "").toLowerCase().indexOf(q) >= 0) &&
+        (!S.dayClass || classOf(p) === S.dayClass) &&
+        (!S.dayState || dayState(p) === S.dayState);
     });
+    var stateLabels = [["", "All"], ["TODO", "To do"], ["DONE", "Done"], ["ABSENT", "Absent"], ["NO_CONSENT", "No consent"]];
+    var dayPills = { TODO: ["warn", "To do"], DONE: ["ok", "Done"], ABSENT: ["mute", "Absent"] };
     var selected = S.screenKid;
     return el("div", null,
       campDayBar(pack, queued, offline),
@@ -4117,16 +4135,33 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", null,
           el("input", { type: "text", placeholder: "Search name or roll number", value: S.search || "",
             oninput: function (e) { S.search = e.target.value; render(); }, style: "margin-bottom:10px" }),
+          el("div", { style: "display:flex;gap:8px;margin-bottom:10px" },
+            el("select", { style: "flex:1", onchange: function (e) { S.dayState = e.target.value; render(); } },
+              stateLabels.map(function (o) {
+                var n = o[0] ? mine.filter(function (p) { return dayState(p) === o[0]; }).length : mine.length;
+                return el("option", { value: o[0], selected: (S.dayState || "") === o[0] }, o[1] + " (" + n + ")");
+              })),
+            classes.length > 1
+              ? el("select", { style: "flex:1", onchange: function (e) { S.dayClass = e.target.value; render(); } },
+                  [el("option", { value: "" }, "All classes")].concat(classes.map(function (c) {
+                    return el("option", { value: c, selected: S.dayClass === c }, "Class " + c);
+                  })))
+              : null),
           el("div", { class: "plist" }, list.length === 0
             ? el("div", { class: "empty", style: "padding:24px 14px" },
-                source.length ? "No match." : el("span", null, "No children on this camp yet. An administrator needs to build the list under Setup."))
+                !source.length ? el("span", null, "No children on this camp yet. An administrator needs to build the list under Setup.")
+                  : !mine.length ? "No child here is consented for the checks your specialty records."
+                  : "No match.")
             : list.map(function (p) {
                 return el("button", { class: "pitem" + (selected === p.kidId ? " on" : ""),
                   onclick: function () { openScreening(p.kidId); } },
                   el("b", null, p.name),
                   el("div", { class: "sub" },
                     el("span", null, (p.grade || "") + (p.section ? " " + p.section : "")),
-                    statusPill(p.consentStatus === "PENDING" || p.consentStatus === "DECLINED" ? p.consentStatus : p.status),
+                    p.consentStatus === "PENDING" || p.consentStatus === "DECLINED"
+                      ? statusPill(p.consentStatus)
+                      : el("span", { class: "pill " + (dayPills[dayState(p)] || ["mute"])[0] },
+                          (dayPills[dayState(p)] || [, "—"])[1]),
                     queuedIds[p.kidId] ? el("span", { class: "pill info" }, "Queued") : null,
                     p.attendance === "ABSENT" ? el("span", { class: "pill mute" }, "Absent") : null));
               }))),
