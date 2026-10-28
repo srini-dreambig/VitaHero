@@ -10,6 +10,8 @@
 //     first five and a half hours of every Indian day it was the wrong day.
 //   * Nobody at the hospital heard about a booking. The only reminder was an
 //     alarm on the parent's own phone.
+//   * Nobody heard about a cancellation either, so the hospital kept the
+//     slot and waited for a child who was never coming.
 
 import { Sql, normalizeMobile } from "./common";
 import type { SmsSender } from "./messaging";
@@ -88,7 +90,7 @@ export async function bookAppointment(
   const time = body.time as string;
 
   const before = await sql`
-    SELECT doctor_id, date, time FROM vita_hero.appointments WHERE id = ${id}
+    SELECT doctor_id, date, time, kid_name, profile_id FROM vita_hero.appointments WHERE id = ${id}
   `;
   if (doctorId) {
     const clash = await sql`
@@ -129,19 +131,46 @@ export async function bookAppointment(
 
   const prev = before[0];
   const isNew = !prev || prev.doctor_id !== (doctorId || null) || prev.date !== date || prev.time !== time;
-  const notified = doctorId && isNew ? await announce(sql, who.profileId, row[0], sendSms) : 0;
+  // A reschedule frees the old slot: tell whoever was expecting the child.
+  if (prev && prev.doctor_id && isNew && prev.profile_id === who.profileId) {
+    await announce(sql, who.profileId, prev, sendSms, "cancelled");
+  }
+  const notified = doctorId && isNew ? await announce(sql, who.profileId, row[0], sendSms, "new") : 0;
   return { status: 201, row: row[0], notified };
 }
 
 /**
- * Text the doctor and the hospital desk. A failed text never undoes the
- * booking; the count says how many actually went.
+ * Remove a parent's appointment and tell the doctor and hospital, the same
+ * numbers that were told about the booking. Another family's id deletes
+ * nothing and texts nobody.
+ */
+export async function cancelAppointment(
+  sql: Sql,
+  profileId: string,
+  apptId: string,
+  sendSms: SmsSender,
+): Promise<{ deleted: boolean; notified: number }> {
+  const rows = await sql`
+    DELETE FROM vita_hero.appointments
+    WHERE id = ${apptId} AND profile_id = ${profileId}
+    RETURNING *
+  `;
+  const appt = rows[0];
+  if (!appt) return { deleted: false, notified: 0 };
+  const notified = appt.doctor_id ? await announce(sql, profileId, appt, sendSms, "cancelled") : 0;
+  return { deleted: true, notified };
+}
+
+/**
+ * Text the doctor and the hospital desk about a booking or a cancellation.
+ * A failed text never undoes either; the count says how many actually went.
  */
 async function announce(
   sql: Sql,
   profileId: string,
   appt: Record<string, unknown>,
   sendSms: SmsSender,
+  kind: "new" | "cancelled",
 ): Promise<number> {
   const rows = await sql`
     SELECT d.name AS doctor_name, d.phone AS doctor_phone,
@@ -156,9 +185,11 @@ async function announce(
   if (!r) return 0;
   const parent = [r.parent_name, r.parent_phone].filter(Boolean).join(", ") || "a VitaHero parent";
   const child = (appt.kid_name as string) || "a child";
-  const body =
-    `VitaHero: new appointment for ${child} with ${r.doctor_name} on ${appt.date} at ${appt.time}. ` +
-    `Booked by ${parent}.`;
+  const body = kind === "new"
+    ? `VitaHero: new appointment for ${child} with ${r.doctor_name} on ${appt.date} at ${appt.time}. ` +
+      `Booked by ${parent}.`
+    : `VitaHero: CANCELLED - appointment for ${child} with ${r.doctor_name} on ${appt.date} at ${appt.time}. ` +
+      `The slot is free. Cancelled by ${parent}.`;
 
   // A desk landline cannot read a text, so only mobiles are tried; and the
   // same number listed for both is texted once.

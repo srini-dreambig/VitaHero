@@ -84,10 +84,17 @@ fun DietScreen(
     onConnectWearable: () -> Unit = {},
     plan: DietPlanDto? = null,
 ) {
-    val eatenCount = meals.count { it.eaten }
-    val totalKcal = meals.filter { it.eaten }.sumOf { it.kcal }
-    val targetKcal = meals.sumOf { it.kcal }
-    val progress = if (meals.isEmpty()) 0f else eatenCount.toFloat() / meals.size
+    // With a dietician's plan, the day is the plan's targets. The generated
+    // menu is hidden, and photographed snacks stay visible as a log but do
+    // not count, because the server counts only plan items toward streaks and
+    // badges on a plan day. Without a plan, everything counts as before.
+    val hasPlan = plan?.targets?.isNotEmpty() == true
+    val shown = if (hasPlan) meals.filter { it.time == "Plan" || (it.time == "Snack" && it.eaten) } else meals
+    val counted = if (hasPlan) shown.filter { it.time == "Plan" } else shown
+    val eatenCount = counted.count { it.eaten }
+    val totalKcal = shown.filter { it.eaten }.sumOf { it.kcal }
+    val targetKcal = shown.sumOf { it.kcal }
+    val progress = if (counted.isEmpty()) 0f else eatenCount.toFloat() / counted.size
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -117,7 +124,7 @@ fun DietScreen(
                 HeroCard(Modifier.fillMaxWidth(), background = MaterialTheme.colorScheme.surface) {
                     Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                         ProgressRing(progress = progress, size = 72.dp, color = HeroOrange) {
-                            Text("$eatenCount/${meals.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("$eatenCount/${counted.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.width(18.dp))
                         Column {
@@ -195,7 +202,7 @@ fun DietScreen(
                 Spacer(Modifier.height(12.dp))
             }
 
-            items(meals, key = { it.id }) { meal ->
+            items(shown, key = { it.id }) { meal ->
                 MealCard(meal) { onToggleMeal(meal.id) }
                 Spacer(Modifier.height(10.dp))
             }

@@ -85,7 +85,7 @@ import {
 } from "./camps";
 import { campConsentForm } from "./consent-form";
 import { campHealthReport } from "./health-report";
-import { ensureBadgeSchema, kidBadges, recomputeStreak } from "./badges";
+import { ensureBadgeSchema, isPlanItem, kidBadges, PLAN_SLOT, recomputeStreak } from "./badges";
 import {
   ensureHeroSchema,
   heroForSchool,
@@ -109,7 +109,7 @@ import {
 } from "./dietician";
 import { adminAnalytics } from "./analytics";
 import { makeSender, sendToMany, smsProvider, textbeeDevice } from "./messaging";
-import { bookAppointment, generateDoctorSlots } from "./booking";
+import { bookAppointment, cancelAppointment, generateDoctorSlots } from "./booking";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import {
   ensureReferralSchema,
@@ -3556,8 +3556,8 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
       if (path.startsWith("/api/appointments/") && request.method === "DELETE") {
         if (!session) return json({ error: "Unauthorized" }, 401);
         const apptId = path.split("/")[3];
-        await sql`DELETE FROM vita_hero.appointments WHERE id = ${apptId} AND profile_id = ${session.profileId}`;
-        return json({ deleted: true });
+        const r = await cancelAppointment(sql, session.profileId, apptId, makeSender(env));
+        return json({ deleted: true, notified: r.notified });
       }
 
       // ═══════════════════════════════════════════════════
@@ -4060,6 +4060,34 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             WHERE id = ANY(${kidIds}) AND profile_id = ${session.profileId}
           `;
           if (mine.length !== kidIds.length) return json({ error: "Kid not found" }, 404);
+        }
+
+        // Only a dietician's own targets go in the plan slot, because that
+        // slot is what earns badges on a day a plan covers. Anything else sent
+        // under it is kept, as an ordinary item that counts for nothing.
+        const planIds = [...new Set(meals
+          .filter((m) => String(m.time_slot || "") === PLAN_SLOT)
+          .map((m) => /^plan_(.+)_\d+_\d{4}-\d{2}-\d{2}$/.exec(String(m.id || ""))?.[1] || "")
+          .filter(Boolean))];
+        const plans = new Map<string, { kidId: string; labels: string[] }>();
+        if (planIds.length > 0) {
+          const rows = await sql`
+            SELECT id, kid_id, targets FROM vita_hero.diet_plans WHERE id = ANY(${planIds})
+          `;
+          for (const r of rows) {
+            const targets = (Array.isArray(r.targets) ? r.targets : JSON.parse(String(r.targets || "[]"))) as
+              Array<{ label?: string }>;
+            plans.set(r.id as string, {
+              kidId: r.kid_id as string,
+              labels: targets.map((t) => String(t?.label || "")),
+            });
+          }
+        }
+        for (const m of meals) {
+          if (String(m.time_slot || "") === PLAN_SLOT &&
+            !isPlanItem({ id: String(m.id || ""), kidId: String(m.kid_id || ""), name: String(m.name || "") }, plans)) {
+            m.time_slot = "";
+          }
         }
 
         // One statement for the whole plan. The app sends a bootstrap plan of
@@ -5147,6 +5175,35 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             body: `${c.title} at ${c.school || "school"} on ${c.date}`,
             time: c.date as string,
             type: "CAMP",
+            unread: !readIds.has(id),
+          });
+        }
+
+        // A dietician's plan, new or changed. Writing a plan ends the old one
+        // and starts a new row, so a change has a new id and shows as unread
+        // again; the older plan's existence is what makes it "updated".
+        const plans = await sql`
+          SELECT dp.id, k.name AS kid_name, COALESCE(dp.author_name, '') AS author_name,
+                 dp.title, TO_CHAR(dp.created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') AS written_on,
+                 EXISTS (SELECT 1 FROM vita_hero.diet_plans old
+                         WHERE old.kid_id = dp.kid_id AND old.id <> dp.id
+                           AND old.created_at < dp.created_at) AS replaces
+          FROM vita_hero.diet_plans dp
+          JOIN vita_hero.kids k ON k.id = dp.kid_id
+          WHERE k.profile_id = ${session.profileId} AND dp.status = 'ACTIVE'
+          ORDER BY dp.created_at DESC LIMIT 5
+        `;
+        for (const dp of plans) {
+          const id = `plan_${dp.id}`;
+          const by = (dp.author_name as string) || "The dietician";
+          items.push({
+            id,
+            title: dp.replaces ? "Diet plan updated" : "New diet plan",
+            body: `${by} ${dp.replaces ? "changed" : "wrote"} ${dp.kid_name}'s diet plan`
+              + (dp.title ? ` (${dp.title})` : "") + ". Today's targets are in the meal checklist.",
+            time: (dp.written_on as string) || "",
+            // DIET is a type every shipped app build already draws, with a meal icon.
+            type: "DIET",
             unread: !readIds.has(id),
           });
         }

@@ -13,7 +13,7 @@ import { serialQuery } from "./pgserial";
 import type { Actor } from "./schools";
 import { SCHEMA_STEPS } from "./index";
 import { migrate } from "./migrate";
-import { bookAppointment, generateDoctorSlots } from "./booking";
+import { bookAppointment, cancelAppointment, generateDoctorSlots } from "./booking";
 import { recomputeStreak } from "./badges";
 import { campHealthReport } from "./health-report";
 import { getScreeningForm, reviewDetail, reviewParticipant, saveScreening } from "./camps";
@@ -178,6 +178,37 @@ suite("the gaps, against a real database", () => {
       .rejects.toThrow();
   });
 
+  test("another family cannot cancel a booking, and nobody is texted", async () => {
+    texts.length = 0;
+    const r = await cancelAppointment(sql, OTHER_PARENT, "ap_1", fakeSms);
+    expect(r).toEqual({ deleted: false, notified: 0 });
+    expect(texts.length).toBe(0);
+  });
+
+  test("cancelling texts the doctor and the hospital, and frees the slot", async () => {
+    texts.length = 0;
+    const r = await cancelAppointment(sql, PARENT, "ap_1", fakeSms);
+    expect(r).toEqual({ deleted: true, notified: 2 });
+    expect(texts.map((t) => t.to).sort()).toEqual(["+919100000123", "+919100000124"]);
+    expect(texts[0].body).toContain("CANCELLED");
+    expect(texts[0].body).toContain("02 Nov 2026");
+    const again = await bookAppointment(sql, { profileId: OTHER_PARENT, userId: null }, { id: "ap_2", ...slot }, fakeSms);
+    expect(again.status).toBe(201);
+  });
+
+  test("moving a booking to another slot tells them the old one is free", async () => {
+    await bookAppointment(sql, { profileId: PARENT, userId: null },
+      { id: "ap_5", ...slot, time: "11:00 AM" }, fakeSms);
+    texts.length = 0;
+    const r = await bookAppointment(sql, { profileId: PARENT, userId: null },
+      { id: "ap_5", ...slot, time: "04:30 PM" }, fakeSms);
+    expect(r.status).toBe(201);
+    const cancelled = texts.filter((t) => t.body.includes("CANCELLED"));
+    expect(cancelled.length).toBe(2);
+    expect(cancelled[0].body).toContain("11:00 AM");
+    expect(texts.filter((t) => t.body.includes("new appointment")).length).toBe(2);
+  });
+
   // ── streaks ──
 
   test("a streak counts consecutive days, and an untick takes the day back", async () => {
@@ -194,6 +225,28 @@ suite("the gaps, against a real database", () => {
     s = await recomputeStreak(sql, SIGNED, PARENT, now);
     expect(s.current_streak).toBe(1);
     expect(s.best_streak).toBe(3);
+  });
+
+  test("on a day the dietician's plan covers, only the plan's items count", async () => {
+    const now = new Date("2026-10-27T06:00:00Z");
+    await sql`INSERT INTO vita_hero.diet_plans (id, kid_id, targets, status, created_at, updated_at)
+              VALUES ('dp_w', ${WAITING}, ${JSON.stringify([{ label: "Milk", value: "1 glass" }])}::jsonb,
+                      'ACTIVE', '2026-10-20T00:00:00Z', '2026-10-20T00:00:00Z')`;
+    // Before the plan: the generated menu still counts.
+    await sql`INSERT INTO vita_hero.meal_items (id, profile_id, kid_id, time_slot, name, eaten, day)
+              VALUES ('mw_19', ${PARENT}, ${WAITING}, 'Breakfast', 'Idli', true, '2026-10-19')`;
+    // Under the plan: a ticked generated meal does not.
+    await sql`INSERT INTO vita_hero.meal_items (id, profile_id, kid_id, time_slot, name, eaten, day)
+              VALUES ('mw_26', ${PARENT}, ${WAITING}, 'Breakfast', 'Idli', true, '2026-10-26')`;
+    let s = await recomputeStreak(sql, WAITING, PARENT, now);
+    expect(s.current_streak).toBe(0);
+    expect(s.best_streak).toBe(1);
+
+    // The plan's own target does.
+    await sql`INSERT INTO vita_hero.meal_items (id, profile_id, kid_id, time_slot, name, eaten, day)
+              VALUES ('plan_dp_w_0_2026-10-27', ${PARENT}, ${WAITING}, 'Plan', 'Milk', true, '2026-10-27')`;
+    s = await recomputeStreak(sql, WAITING, PARENT, now);
+    expect(s.current_streak).toBe(1);
   });
 
   // ── what the doctor at the camp sees ──

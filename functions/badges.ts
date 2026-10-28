@@ -26,7 +26,29 @@
 
 import { Sql } from "./common";
 
-export type BadgeId = "b1" | "b2" | "b3" | "b4" | "b5" | "b6";
+/**
+ * The checklist slot the app gives a dietician's targets (KidsViewModel's
+ * PLAN_SLOT). Items in it are what counts on a day a plan covers; the
+ * /api/meals route keeps a parent from filing their own items under it.
+ */
+export const PLAN_SLOT = "Plan";
+
+/**
+ * Whether a meal sent under PLAN_SLOT really is one of this child's plan
+ * targets: an id of the form plan_<planId>_<index>_<YYYY-MM-DD>, naming a plan
+ * written for this child, whose target at that index has this label.
+ */
+export function isPlanItem(
+  meal: { id: string; kidId: string; name: string },
+  plans: Map<string, { kidId: string; labels: string[] }>,
+): boolean {
+  const m = /^plan_(.+)_(\d+)_(\d{4}-\d{2}-\d{2})$/.exec(meal.id);
+  if (!m) return false;
+  const plan = plans.get(m[1]);
+  return !!plan && plan.kidId === meal.kidId && plan.labels[Number(m[2])] === meal.name;
+}
+
+export type BadgeId ="b1" | "b2" | "b3" | "b4" | "b5" | "b6";
 
 /** What a badge needs to know, gathered once. */
 export interface BadgeFacts {
@@ -130,14 +152,28 @@ function today(now: Date): string {
  * `meal_items` is the log — a photographed meal lands here as an eaten row —
  * and it is filtered to today, because "ate every meal" is a question about a
  * day and the table holds every day.
+ *
+ * On a day a dietician's plan covers, only the plan's own items count. The
+ * checklist used to mix the plan with a generated menu and anything the
+ * parent added, and ticking any of them earned the badge — so a child could
+ * be rewarded for following a plan nobody wrote. See PLAN_SLOT.
  */
 export async function badgeFacts(sql: Sql, kidId: string, now = new Date()): Promise<BadgeFacts> {
   const day = today(now);
   const meals = await sql`
     SELECT COUNT(*)::int AS total,
-           COUNT(*) FILTER (WHERE eaten)::int AS eaten
-    FROM vita_hero.meal_items
-    WHERE kid_id = ${kidId} AND COALESCE(day, '') = ${day}
+           COUNT(*) FILTER (WHERE m.eaten)::int AS eaten
+    FROM vita_hero.meal_items m
+    WHERE m.kid_id = ${kidId} AND COALESCE(m.day, '') = ${day}
+      AND (m.time_slot = ${PLAN_SLOT} OR NOT EXISTS (
+        SELECT 1 FROM vita_hero.diet_plans dp
+        WHERE dp.kid_id = m.kid_id
+          AND jsonb_array_length(COALESCE(dp.targets, '[]'::jsonb)) > 0
+          AND to_char(dp.created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') <= m.day
+          AND (dp.status = 'ACTIVE'
+               OR to_char(dp.updated_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') > m.day)
+          AND (COALESCE(dp.starts_on, '') = '' OR dp.starts_on <= m.day)
+          AND (COALESCE(dp.ends_on, '') = '' OR dp.ends_on >= m.day)))
   `;
   const streak = await sql`
     SELECT COALESCE(current_streak, 0)::int AS current_streak,
@@ -224,10 +260,21 @@ export async function recomputeStreak(
   now = new Date(),
 ): Promise<Record<string, unknown>> {
   const day = today(now);
+  // The same rule as badgeFacts: on a day a plan covered, only a ticked plan
+  // item keeps the streak going.
   const rows = await sql`
-    SELECT DISTINCT day FROM vita_hero.meal_items
-    WHERE kid_id = ${kidId} AND eaten = true AND COALESCE(day, '') <> '' AND day <= ${day}
-    ORDER BY day DESC
+    SELECT DISTINCT m.day FROM vita_hero.meal_items m
+    WHERE m.kid_id = ${kidId} AND m.eaten = true AND COALESCE(m.day, '') <> '' AND m.day <= ${day}
+      AND (m.time_slot = ${PLAN_SLOT} OR NOT EXISTS (
+        SELECT 1 FROM vita_hero.diet_plans dp
+        WHERE dp.kid_id = m.kid_id
+          AND jsonb_array_length(COALESCE(dp.targets, '[]'::jsonb)) > 0
+          AND to_char(dp.created_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') <= m.day
+          AND (dp.status = 'ACTIVE'
+               OR to_char(dp.updated_at AT TIME ZONE 'Asia/Kolkata', 'YYYY-MM-DD') > m.day)
+          AND (COALESCE(dp.starts_on, '') = '' OR dp.starts_on <= m.day)
+          AND (COALESCE(dp.ends_on, '') = '' OR dp.ends_on >= m.day)))
+    ORDER BY m.day DESC
     LIMIT 400
   `;
   const days = rows.map((r) => String(r.day));
