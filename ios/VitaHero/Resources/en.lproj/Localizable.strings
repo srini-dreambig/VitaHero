@@ -187,6 +187,7 @@
 "clin_search" = "Search name or roll number";
 "clin_send_results" = "Send results to guardians";
 "clin_sending" = "Sending…";
+"clin_still_screening" = "%@ still being screened";
 "clin_still_waiting_many" = "%@ children are still waiting. You can send the rest now and the others later.";
 "clin_still_waiting_one" = "1 child is still waiting. You can send the rest now and the others later.";
 "clin_to_do" = "To do";
@@ -196,6 +197,7 @@
 "clin_urgency_urgent" = "Urgent";
 "clin_urgent_note" = "Marking this urgent texts the guardian as soon as the camp is released, not when you press approve.";
 "clin_urgent_texted" = "%@ urgent guardians texted.";
+"clin_waiting_for" = "Waiting for: %@";
 "clin_waiting_on_you" = "%@ waiting on you";
 "clin_write_first" = "Write what the guardian should do before approving.";
 "clin_x_of_y_done_by_you" = "%1$@ of %2$@ done by you";

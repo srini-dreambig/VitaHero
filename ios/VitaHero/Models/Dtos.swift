@@ -990,6 +990,9 @@ struct ReviewQueueItem: Decodable, Identifiable {
     var urgency: String
     let recommendation: String
     var reviewed: Bool
+    /// Consented checks nobody has recorded yet. The server refuses sign-off
+    /// (CHECKS_OUTSTANDING) until this is empty.
+    let waitingFor: [String]
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -1003,6 +1006,7 @@ struct ReviewQueueItem: Decodable, Identifiable {
         urgency = c.str("urgency", "NONE")
         recommendation = c.str("recommendation")
         reviewed = c.bool("reviewed")
+        waitingFor = c.strs("waitingFor")
     }
 }
 

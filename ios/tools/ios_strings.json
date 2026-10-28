@@ -130,7 +130,9 @@
     "clin_all_classes": "All classes",
     "clin_class": "Class %@",
     "clin_no_match_filters": "Nobody here matches these filters.",
-    "clin_none_mine": "None of the children here have a check of yours."
+    "clin_none_mine": "None of the children here have a check of yours.",
+    "clin_still_screening": "%@ still being screened",
+    "clin_waiting_for": "Waiting for: %@"
   },
   "hi": {
     "all_specialties": "सभी विशेषज्ञता",
@@ -263,7 +265,9 @@
     "clin_all_classes": "सभी कक्षाएँ",
     "clin_class": "कक्षा %@",
     "clin_no_match_filters": "इन फ़िल्टरों से कोई मेल नहीं खाता।",
-    "clin_none_mine": "यहाँ किसी बच्चे की आपकी कोई जाँच नहीं है।"
+    "clin_none_mine": "यहाँ किसी बच्चे की आपकी कोई जाँच नहीं है।",
+    "clin_still_screening": "%@ की जाँच अभी चल रही है",
+    "clin_waiting_for": "इंतज़ार: %@"
   },
   "te": {
     "all_specialties": "అన్ని ప్రత్యేకతలు",
@@ -396,6 +400,8 @@
     "clin_all_classes": "అన్ని తరగతులు",
     "clin_class": "తరగతి %@",
     "clin_no_match_filters": "ఈ ఫిల్టర్లకు ఎవరూ సరిపోలేదు.",
-    "clin_none_mine": "ఇక్కడ ఏ పిల్లలకూ మీ పరీక్ష లేదు."
+    "clin_none_mine": "ఇక్కడ ఏ పిల్లలకూ మీ పరీక్ష లేదు.",
+    "clin_still_screening": "%@ మందికి పరీక్ష ఇంకా జరుగుతోంది",
+    "clin_waiting_for": "వేచి ఉంది: %@"
   }
 }

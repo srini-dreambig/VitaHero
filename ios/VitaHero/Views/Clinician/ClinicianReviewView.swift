@@ -13,7 +13,12 @@ struct ClinicianReviewView: View {
     @State private var releaseError: String?
     @State private var released: ReleaseResult?
 
+    /// Everyone not yet approved, ready or not; the footer counts them all.
     private var waiting: [ReviewQueueItem] { clinician.queue.filter { $0.status != "APPROVED" } }
+    /// Every check recorded, so this physician can sign off.
+    private var ready: [ReviewQueueItem] { waiting.filter { $0.waitingFor.isEmpty } }
+    /// Another doctor still has a check to record.
+    private var screening: [ReviewQueueItem] { waiting.filter { !$0.waitingFor.isEmpty } }
     private var approved: [ReviewQueueItem] { clinician.queue.filter { $0.status == "APPROVED" } }
 
     var body: some View {
@@ -31,9 +36,14 @@ struct ClinicianReviewView: View {
                 }
                 .listRowBackground(Color.clear)
             } else {
-                if !waiting.isEmpty {
-                    Section(L("clin_waiting_on_you", String(waiting.count))) {
-                        ForEach(waiting) { row($0) }
+                if !ready.isEmpty {
+                    Section(L("clin_waiting_on_you", String(ready.count))) {
+                        ForEach(ready) { row($0) }
+                    }
+                }
+                if !screening.isEmpty {
+                    Section(L("clin_still_screening", String(screening.count))) {
+                        ForEach(screening) { row($0) }
                     }
                 }
                 if !approved.isEmpty {
@@ -84,6 +94,10 @@ struct ClinicianReviewView: View {
                     let sub = [item.grade, item.age.map { L("clin_years", String($0)) } ?? ""]
                         .filter { !$0.isEmpty }.joined(separator: " · ")
                     if !sub.isEmpty { Text(sub).font(.caption).foregroundColor(.secondary) }
+                    if !item.waitingFor.isEmpty, item.status != "APPROVED" {
+                        Text(L("clin_waiting_for", item.waitingFor.joined(separator: ", ")))
+                            .font(.caption).foregroundColor(Brand.orange)
+                    }
                 }
                 Spacer()
                 if item.alerts > 0 { Pill(text: L("clin_n_alert", String(item.alerts)), color: Brand.red) }
