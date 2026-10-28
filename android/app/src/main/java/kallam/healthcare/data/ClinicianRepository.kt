@@ -178,17 +178,21 @@ class ClinicianRepository {
 
     // ─── Review and release ─────────────────────────────────
 
-    /** The children this physician still has to sign off, worst first. */
-    suspend fun reviewQueue(campId: String): List<ReviewQueueItemDto> = io {
-        if (!configured) return@io emptyList()
+    /**
+     * The children this physician still has to sign off, worst first. Null
+     * when it could not be read: a failed load used to come back as an empty
+     * queue, which tells a physician there is nothing left to review.
+     */
+    suspend fun reviewQueue(campId: String): List<ReviewQueueItemDto>? = io {
+        if (!configured) return@io null
         try {
             val resp = http.get("$base/api/admin/camps/$campId/review") {
                 headers().forEach { (k, v) -> header(k, v) }
             }
-            if (resp.observed()) resp.body<ReviewQueueDto>().queue else emptyList()
+            if (resp.observed()) resp.body<ReviewQueueDto>().queue else null
         } catch (e: Exception) {
             noteTransportFailure(e)
-            emptyList()
+            null
         }
     }
 

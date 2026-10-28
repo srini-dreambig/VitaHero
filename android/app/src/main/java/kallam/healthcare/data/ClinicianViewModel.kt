@@ -215,7 +215,9 @@ class ClinicianViewModel(
         viewModelScope.launch {
             _busy.value = true
             _message.value = ""
-            _queue.value = repo.reviewQueue(campId)
+            val q = repo.reviewQueue(campId)
+            _queue.value = q.orEmpty()
+            if (q == null) _message.value = "Could not load the review list. Check your connection and try again."
             _busy.value = false
         }
     }
@@ -292,7 +294,7 @@ class ClinicianViewModel(
                 onSuccess = { r ->
                     _released.value = r
                     _message.value = ""
-                    _queue.value = repo.reviewQueue(campId)
+                    repo.reviewQueue(campId)?.let { _queue.value = it }
                 },
                 onFailure = { e -> _message.value = e.message ?: "Could not release" },
             )

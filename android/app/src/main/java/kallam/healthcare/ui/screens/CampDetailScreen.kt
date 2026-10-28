@@ -226,8 +226,10 @@ fun CampDetailScreen(
         // the flags on the Kids tab are the summary, this is what the doctor
         // actually wrote. Only the children who were on this camp's list: a
         // brother at another school was told "a doctor is still checking this"
-        // for a camp he never attended. An older server sends no list, so all.
-        val resultKids = if (registered.isEmpty()) kids else kids.filter { it.id in registered }
+        // for a camp he never attended. Every server sends this list for a
+        // partner camp, so an empty one means none of this family's children
+        // took part — not "show them all".
+        val resultKids = kids.filter { it.id in registered }
         if (!upcoming && camp.isPartnerCamp && resultKids.isNotEmpty()) {
             item {
                 Text(t(S.campResultTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

@@ -153,7 +153,8 @@ fun ClinicianReviewScreen(
             if (message.isNotBlank()) Notice(message, error = true)
         }
 
-        if (queue.isEmpty()) {
+        // Under a load failure, "Nothing to review" would be a false all-clear.
+        if (queue.isEmpty() && message.isBlank()) {
             item {
                 EmptyState(
                     icon = Icons.Outlined.TaskAlt,
