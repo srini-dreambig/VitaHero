@@ -1021,11 +1021,14 @@ private fun ChoiceField(
 
 @Composable
 private fun ToggleField(label: String, fields: MutableMap<String, String>, key: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(
-            checked = fields[key] == "true",
-            onCheckedChange = { fields[key] = if (it) "true" else "false" },
-        )
+    // The whole row toggles: a screener taps the words, and only the small
+    // box used to answer.
+    val checked = fields[key] == "true"
+    Row(
+        Modifier.clickable { fields[key] = if (checked) "false" else "true" },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }

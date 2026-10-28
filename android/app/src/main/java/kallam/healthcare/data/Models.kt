@@ -260,4 +260,10 @@ enum class NotificationType { CAMP, CHECKUP, DIET, REWARD, CONSENT, RESULT, REFE
  */
 fun Kid.heightText(): String = if (heightCm > 0f) "${heightCm.toInt()} cm" else "\u2014"
 
-fun Kid.weightText(): String = if (weightKg > 0f) "${weightKg.toInt()} kg" else "\u2014"
+// To the tenth: a child weighed at 28.5 kg was shown as 28, and half a
+// kilo is a real change at that size.
+fun Kid.weightText(): String {
+    if (weightKg <= 0f) return "\u2014"
+    val tenths = kotlin.math.round(weightKg * 10f).toInt()
+    return if (tenths % 10 == 0) "${tenths / 10} kg" else "${tenths / 10}.${tenths % 10} kg"
+}
