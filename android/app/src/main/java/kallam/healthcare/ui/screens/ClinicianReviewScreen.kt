@@ -45,6 +45,11 @@ import kallam.healthcare.ui.theme.HeroOrange
 /**
  * The physician's queue: who is screened and waiting on a signature.
  *
+ * Each specialist signs off only their own checks; a child is approved once
+ * every check the guardian agreed to has been signed by somebody. So the
+ * dentist's list holds only children with a dental check, and a child they
+ * have signed waits under "signed by you" until the eye doctor signs too.
+ *
  * A camp does not end when the last child is measured. Every finding sits at
  * SCREENED until a physician approves it, and no guardian sees anything until
  * the camp is released. Both steps lived only in the web console, so the
@@ -72,11 +77,13 @@ fun ClinicianReviewScreen(
 
     LaunchedEffect(campId) { clinician.loadQueue(campId) }
 
-    // A child is SCREENED once the first specialist saves, so split those whose
-    // checks are all in from those still due another specialist.
-    val waiting = queue.filter { it.status == "SCREENED" && it.waitingFor.isEmpty() }
-    val incomplete = queue.filter { it.status == "SCREENED" && it.waitingFor.isNotEmpty() }
-    val approved = queue.filter { it.status == "APPROVED" }
+    val waiting = queue.filter { it.state == "TO_SIGN" }
+    val incomplete = queue.filter { it.state == "NOT_READY" }
+    val signed = queue.filter { it.state == "SIGNED" }
+    val approved = queue.filter { it.state == "APPROVED" }
+    // Checks no physician on this camp can sign: those children would wait for
+    // ever, so it is said once, at the top, for whoever can fix the staffing.
+    val unsignable = queue.flatMap { it.noSigner }.distinct()
 
     val done = released
     if (done != null) {
@@ -116,8 +123,9 @@ fun ClinicianReviewScreen(
                         (if (approved.size == 1) "child" else "children") +
                         " will be released. Guardians can read the findings immediately, and " +
                         "anyone marked urgent is texted straight away. This cannot be undone." +
-                        if (waiting.isNotEmpty())
-                            " ${waiting.size} still waiting on you will not be sent." else ""
+                        if (waiting.size + incomplete.size + signed.size > 0)
+                            " ${waiting.size + incomplete.size + signed.size} not yet approved " +
+                                "will not be sent." else ""
                 )
             },
             confirmButton = { TextButton(onClick = onConfirm) { Text("Send") } },
@@ -154,6 +162,14 @@ fun ClinicianReviewScreen(
             }
             Spacer(Modifier.height(8.dp))
             if (message.isNotBlank()) Notice(message, error = true)
+            if (unsignable.isNotEmpty()) {
+                Notice(
+                    "No physician on this camp can sign off " + unsignable.joinToString(", ") +
+                        ". Children with those checks cannot be approved until the school " +
+                        "adds a doctor who can, or a general physician.",
+                    error = true,
+                )
+            }
         }
 
         // Under a load failure, "Nothing to review" would be a false all-clear.
@@ -187,6 +203,13 @@ fun ClinicianReviewScreen(
             }
         }
 
+        if (signed.isNotEmpty()) {
+            item { SectionLabel("${signed.size} signed by you, waiting for others") }
+            items(signed, key = { it.kidId }) { child ->
+                ReviewRow(child) { onOpenChild(child.kidId) }
+            }
+        }
+
         if (approved.isNotEmpty()) {
             item { SectionLabel("${approved.size} approved, not yet sent") }
             items(approved, key = { it.kidId }) { child ->
@@ -205,12 +228,13 @@ fun ClinicianReviewScreen(
                     enabled = !busy,
                 )
                 Spacer(Modifier.height(8.dp))
+                val left = waiting.size + incomplete.size + signed.size
                 Text(
-                    if (waiting.isEmpty() && incomplete.isEmpty())
+                    if (left == 0)
                         "Everyone on this camp has been reviewed."
                     else
-                        "${waiting.size + incomplete.size} " +
-                            (if (waiting.size + incomplete.size == 1) "child is" else "children are") +
+                        "$left " +
+                            (if (left == 1) "child is" else "children are") +
                             " still waiting. You can send the rest now and the others later.",
                     Modifier.padding(horizontal = 20.dp),
                     style = MaterialTheme.typography.bodySmall,
@@ -262,7 +286,7 @@ private fun ReviewRow(child: ReviewQueueItemDto, onClick: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                if (child.waitingFor.isNotEmpty()) {
+                if (child.state != "APPROVED" && child.waitingFor.isNotEmpty()) {
                     Text(
                         "Waiting for: " + child.waitingFor.joinToString(", "),
                         style = MaterialTheme.typography.labelSmall,

@@ -4775,12 +4775,16 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.reviewKid) return reviewPanel();
     if (!S.queue) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\\u2026"));
     var c = S.camp.camp;
-    var pending = S.queue.filter(function (q) { return q.status === "SCREENED" && !(q.waitingFor || []).length; });
+    // Each specialist signs only their own checks; a child is approved once
+    // every check is signed. The console reads, it does not sign.
+    var pending = S.queue.filter(function (q) { return q.status === "SCREENED"; });
+    var unsignable = [];
+    S.queue.forEach(function (q) { (q.noSigner || []).forEach(function (n) { if (unsignable.indexOf(n) < 0) unsignable.push(n); }); });
     return el("div", null,
       el("div", { class: "row", style: "margin-bottom:14px" },
         el("div", { style: "flex:1" },
           el("span", { class: "muted", style: "font-size:12.5px" },
-            pending.length + " awaiting review \\u00b7 " + (c.approved || 0) + " approved \\u00b7 " + (c.released || 0) + " released")),
+            pending.length + " awaiting sign-off \\u00b7 " + (c.approved || 0) + " approved \\u00b7 " + (c.released || 0) + " released")),
         // No release button. Sending a camp to its guardians happens in the
         // app, on the phone the clinician screened with, and the server
         // refuses it from here whoever is signed in. A button that always
@@ -4793,6 +4797,10 @@ export const PORTAL_HTML = `<!doctype html>
           onclick: function () { printPage("/api/admin/camps/" + c.id + "/report"); } },
           icon("download", 13), " Print health reports")),
       c.released ? el("div", { class: "msg ok" }, c.released + " results are already with guardians.") : null,
+      unsignable.length ? el("div", { class: "msg err" },
+        "No physician on this camp can sign off " + unsignable.join(", ")
+        + ". Children with those checks cannot be approved until a doctor of that specialty, "
+        + "or a general physician, is added to the camp.") : null,
       S.queue.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
             el("h3", null, "Nothing to review"), el("p", { style: "font-size:12.5px" }, "Results appear here once the screening team records them.")))
@@ -4808,8 +4816,11 @@ export const PORTAL_HTML = `<!doctype html>
                 el("td", { class: "num" }, q.watches ? el("span", { class: "pill warn" }, q.watches) : el("span", { class: "muted" }, "0")),
                 el("td", null, urgencyPill(q.urgency) || el("span", { class: "muted" }, "\\u2014")),
                 el("td", null, statusPill(q.status),
-                  // Saved by one specialist, still due another: sign-off waits.
-                  (q.waitingFor || []).length
+                  // Signed by some specialists, still due the others.
+                  q.status !== "APPROVED" && (q.signedChecks || []).length
+                    ? el("div", { class: "muted", style: "font-size:11.5px;margin-top:3px" }, "Signed: " + q.signedChecks.join(", "))
+                    : null,
+                  q.status !== "APPROVED" && (q.waitingFor || []).length
                     ? el("div", { class: "muted", style: "font-size:11.5px;margin-top:3px" }, "Waiting for " + q.waitingFor.join(", "))
                     : null),
                 el("td", null, el("button", { class: "sm" }, q.status === "APPROVED" ? "View" : "Review")));
@@ -4845,6 +4856,7 @@ export const PORTAL_HTML = `<!doctype html>
             return el("div", { class: "chk" },
               el("div", { class: "chk-h" }, el("b", null, f.checkType),
                 f.overridden ? el("span", { class: "pill warn" }, "Screener overrode") : null,
+                f.signedBy ? el("span", { class: "pill ok" }, "Signed by " + f.signedBy) : null,
                 el("span", { class: "muted", style: "font-size:12px" }, f.screenerName || "")),
               el("div", { class: "chk-b" },
                 el("div", { class: "row", style: "margin-bottom:8px" },
@@ -4875,8 +4887,9 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "row" },
             el("button", { onclick: function () { set({ reviewKid: null, reviewData: null }); } }, "Close")),
           el("div", { class: "hint", style: "margin-top:8px" },
-            "This record is read-only here. The physician who screened this child "
-            + "approves it in the VitaHero app, and the camp is released from there too."))));
+            "This record is read-only here. Each specialist signs off their own checks in the "
+            + "VitaHero app; the child is approved once all of them have, and the guardian reads "
+            + "their notes together. The camp is released from the app too."))));
   }
 
   // ══════════════════════════════════════ my camps (screener / physician)

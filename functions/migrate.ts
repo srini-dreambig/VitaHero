@@ -28,6 +28,9 @@ import { Sql } from "./common";
  * shape. SCHEMA_DDL_FINGERPRINT below is what actually enforces that, and it
  * is checked in migrate.test.ts.
  */
+// 14 — adds vita_hero.camp_signoffs. Each specialist signs off their own
+//     checks; a child is approved once every consented check is signed, and
+//     the guardian reads the specialists' notes put together.
 // 13 — co_parents.status: joining a family with its code is a request the
 //     owner approves (PENDING, APPROVED, DECLINED). Existing rows default to
 //     APPROVED, so nobody who already shares a family loses it.
@@ -70,7 +73,7 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 13;
+export const SCHEMA_VERSION = 14;
 
 /**
  * A fingerprint of every DDL statement in this worker.
@@ -91,7 +94,7 @@ export const SCHEMA_VERSION = 13;
  * means updating both lines, together, which is the point: the second line is
  * what makes you look at the first.
  */
-export const SCHEMA_DDL_FINGERPRINT = "fc22cdd2c73481be";
+export const SCHEMA_DDL_FINGERPRINT = "71762bd27b19478a";
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

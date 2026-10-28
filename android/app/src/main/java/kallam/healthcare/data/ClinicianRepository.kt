@@ -227,7 +227,7 @@ class ClinicianRepository {
         campId: String,
         kidId: String,
         body: ReviewSubmissionBody,
-    ): Result<Unit> = io {
+    ): Result<ReviewResultDto> = io {
         if (!configured) return@io Result.failure(Exception("Backend not configured"))
         try {
             val resp = http.post("$base/api/admin/camps/$campId/review/$kidId") {
@@ -235,8 +235,10 @@ class ClinicianRepository {
                 headers().forEach { (k, v) -> header(k, v) }
                 setBody(body)
             }
-            if (resp.observed()) Result.success(Unit)
-            else {
+            if (resp.observed()) {
+                val result = try { resp.body<ReviewResultDto>() } catch (_: Exception) { null }
+                Result.success(result ?: ReviewResultDto(kidId = kidId, status = "APPROVED"))
+            } else {
                 val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
                 Result.failure(Exception(err?.error ?: "Could not approve"))
             }

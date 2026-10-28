@@ -1026,6 +1026,9 @@ export function draftRecommendation(
   name: string,
   summary: KidSummary,
   findings: Array<{ checkType: string; flag: Flag }> = [],
+  // Set for a specialist's share ("Dental"), so their part of the message
+  // does not call the whole check-up normal.
+  area = "",
 ): string {
   const concerns: string[] = [];
   if (summary.eyesight === "ALERT" || summary.eyesight === "WATCH") concerns.push("vision");
@@ -1039,6 +1042,7 @@ export function draftRecommendation(
   }
 
   if (concerns.length === 0) {
+    if (area) return `${name}'s ${area} check was normal. Nothing needs follow-up right now.`;
     return `${name}'s check-up was normal. Nothing needs follow-up right now — keep up the usual routine of balanced meals, outdoor play and brushing twice a day.`;
   }
   const list =
@@ -1051,5 +1055,5 @@ export function draftRecommendation(
       : summary.urgency === "SOON"
         ? "Please book an appointment in the next two weeks."
         : "Please mention this at your next routine visit.";
-  return `${name}'s check-up found something worth following up on ${list}. ${when} This screening is for information only and is not a diagnosis.`;
+  return `${name}'s ${area ? area + " check" : "check-up"} found something worth following up on ${list}. ${when} This screening is for information only and is not a diagnosis.`;
 }

@@ -150,6 +150,24 @@ export async function ensureCampSchema(sql: Sql): Promise<void> {
   `;
   await sql`CREATE INDEX IF NOT EXISTS camp_findings_camp_kid ON vita_hero.camp_findings(camp_id, kid_id)`;
 
+  // One row per clinician who signed off part of a child: the checks they
+  // answer for and what they tell the family about them. A child is approved
+  // once every consented check sits in some row, and the guardian reads the
+  // rows put together. A check re-recorded after the row was signed drops out
+  // of it (see validSignoffs) and has to be signed again.
+  await sql`
+    CREATE TABLE IF NOT EXISTS vita_hero.camp_signoffs (
+      camp_id TEXT NOT NULL,
+      kid_id TEXT NOT NULL,
+      signed_by TEXT NOT NULL,
+      checks JSONB NOT NULL DEFAULT '[]'::jsonb,
+      urgency TEXT DEFAULT 'NONE',
+      recommendation TEXT DEFAULT '',
+      signed_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (camp_id, kid_id, signed_by)
+    )
+  `;
+
   await sql`
     CREATE TABLE IF NOT EXISTS vita_hero.consent_log (
       id TEXT PRIMARY KEY,
@@ -1624,34 +1642,117 @@ export async function reviewQueue(sql: Sql, actor: Actor, campId: string) {
            (SELECT COALESCE(json_agg(DISTINCT f.check_type), '[]'::json) FROM vita_hero.camp_findings f
              WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id
                AND (f.flag <> 'NOT_MEASURED' OR COALESCE(f.screener_note, '') <> '')) AS recorded_checks,
-           (SELECT COUNT(*) FILTER (WHERE f.flag = 'ALERT')::int FROM vita_hero.camp_findings f
-             WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id) AS alerts,
-           (SELECT COUNT(*) FILTER (WHERE f.flag = 'WATCH')::int FROM vita_hero.camp_findings f
-             WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id) AS watches
+           (SELECT COALESCE(json_object_agg(f.check_type, f.flag), '{}'::json) FROM vita_hero.camp_findings f
+             WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id) AS flags,
+           (SELECT COALESCE(json_agg((
+               SELECT COALESCE(json_agg(c.v), '[]'::json) FROM jsonb_array_elements_text(s.checks) AS c(v)
+               WHERE EXISTS (SELECT 1 FROM vita_hero.camp_findings f
+                 WHERE f.camp_id = s.camp_id AND f.kid_id = s.kid_id AND f.check_type = c.v
+                   AND f.recorded_at <= s.signed_at))), '[]'::json)
+             FROM vita_hero.camp_signoffs s
+             WHERE s.camp_id = p.camp_id AND s.kid_id = p.kid_id) AS signoffs,
+           (SELECT COALESCE(json_agg(COALESCE(cs.doctor_id, '')), '[]'::json) FROM vita_hero.camp_staff cs
+             WHERE cs.camp_id = ${campId} AND cs.staff_role = 'PHYSICIAN' AND cs.active IS NOT FALSE) AS signer_doctors
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
     WHERE p.camp_id = ${campId} AND p.status IN ('SCREENED','APPROVED')
-    ORDER BY alerts DESC, watches DESC, k.name
   `;
   const campChecks = campCheckList(access.camp);
-  return {
-    queue: rows.map((r) => ({
+
+  // Who on this camp can sign what. A check no assigned physician covers
+  // would wait for ever, so the queue names it rather than leave it waiting.
+  const signerDoctors = (rows[0]?.signer_doctors as string[]) || [];
+  const doctorIds = signerDoctors.filter(Boolean);
+  const specialties = doctorIds.length === 0 ? [] : await sql`
+    SELECT specialty FROM vita_hero.doctors WHERE id = ANY(${doctorIds})
+  `;
+  const scopes: Array<string[] | null> = [
+    ...signerDoctors.filter((d) => !d).map(() => null),
+    ...specialties.map((d) => {
+      const name = normaliseSpecialty(String(d.specialty || ""));
+      return name ? screeningChecksFor(name) : null;
+    }),
+  ];
+  const coverable = (c: string) => scopes.some((sc) => sc === null || sc.includes(c));
+
+  const queue = [];
+  for (const r of rows) {
+    const consented = consentedChecks(r, campChecks);
+    const mine = access.checkScope ? consented.filter((c) => access.checkScope!.includes(c)) : consented;
+    // A child with none of this specialist's checks is not theirs to review.
+    if (access.checkScope && mine.length === 0) continue;
+    const recorded = new Set((r.recorded_checks as string[]) || []);
+    const signed = new Set(((r.signoffs as Array<string[] | null>) || []).flatMap((x) => x || []));
+    // Only this clinician's own flags: the dentist is not shown the eye result.
+    const flags = (r.flags as Record<string, string>) || {};
+    const shown = Object.entries(flags).filter(([c]) => !access.checkScope || access.checkScope.includes(c));
+    const state =
+      r.status === "APPROVED" ? "APPROVED"
+        : mine.every((c) => signed.has(c)) ? "SIGNED"
+          : mine.some((c) => !recorded.has(c)) ? "NOT_READY"
+            : "TO_SIGN";
+    queue.push({
       kidId: r.kid_id as string,
       name: r.name as string,
       grade: `${(r.grade as string) || ""} ${(r.section as string) || ""}`.trim(),
       age: (r.age as number) ?? null,
-      alerts: (r.alerts as number) || 0,
-      watches: (r.watches as number) || 0,
+      alerts: shown.filter(([, f]) => f === "ALERT").length,
+      watches: shown.filter(([, f]) => f === "WATCH").length,
       status: r.status as string,
       urgency: (r.urgency as string) || "NONE",
-      recommendation: (r.recommendation as string) || "",
+      recommendation: access.checkScope ? "" : (r.recommendation as string) || "",
       reviewed: !!r.reviewed_at,
-      // A child is SCREENED after the first specialist saves. Until every
-      // consented check is in, sign-off is refused, so say who is still due.
-      waitingFor: consentedChecks(r, campChecks)
-        .filter((c) => !((r.recorded_checks as string[]) || []).includes(c)),
-    })),
-  };
+      // TO_SIGN: yours, ready. NOT_READY: one of your checks is not recorded.
+      // SIGNED: you have signed, others have not. APPROVED: everyone has.
+      reviewState: state,
+      myChecks: mine,
+      checks: consented,
+      signedChecks: consented.filter((c) => signed.has(c)),
+      // The other specialties this child still needs a sign-off from.
+      waitingFor: consented.filter((c) => !signed.has(c) && !mine.includes(c)),
+      // Checks nobody assigned to this camp can sign off.
+      noSigner: consented.filter((c) => !signed.has(c) && !coverable(c)),
+    });
+  }
+  queue.sort((a, b) => b.alerts - a.alerts || b.watches - a.watches || a.name.localeCompare(b.name));
+  return { queue };
+}
+
+/** Sign-offs for one child, keeping only the checks not re-recorded since. */
+async function validSignoffs(sql: Sql, campId: string, kidId: string) {
+  const rows = await sql`
+    SELECT s.signed_by, s.urgency, s.recommendation, s.signed_at, pr.name AS signer_name,
+           (SELECT COALESCE(json_agg(c.v), '[]'::json) FROM jsonb_array_elements_text(s.checks) AS c(v)
+             WHERE EXISTS (SELECT 1 FROM vita_hero.camp_findings f
+               WHERE f.camp_id = s.camp_id AND f.kid_id = s.kid_id AND f.check_type = c.v
+                 AND f.recorded_at <= s.signed_at)) AS valid_checks
+    FROM vita_hero.camp_signoffs s
+    LEFT JOIN vita_hero.profiles pr ON pr.id = s.signed_by
+    WHERE s.camp_id = ${campId} AND s.kid_id = ${kidId}
+  `;
+  return rows.map((r) => ({
+    profileId: r.signed_by as string,
+    checks: (r.valid_checks as string[]) || [],
+    urgency: ((r.urgency as string) || "NONE") as Urgency,
+    recommendation: (r.recommendation as string) || "",
+    signedAt: r.signed_at ? new Date(r.signed_at as string).toISOString() : "",
+    signerName: (r.signer_name as string) || "",
+  }));
+}
+
+/**
+ * What the guardian reads: each specialist's words, in the camp's order of
+ * checks. One sign-off covering everything reads as it was written.
+ */
+export function combineSignoffs(
+  rows: Array<{ checks: string[]; recommendation: string }>,
+  campChecks: string[]
+): string {
+  const order = (r: { checks: string[] }) =>
+    Math.min(...r.checks.map((c) => (campChecks.indexOf(c) + 1) || 999));
+  const parts = rows.filter((r) => r.checks.length > 0).sort((a, b) => order(a) - order(b));
+  if (parts.length <= 1) return parts[0]?.recommendation || "";
+  return parts.map((r) => `${r.checks.join(", ")}: ${r.recommendation}`).join("\n\n");
 }
 
 /** Everything a physician needs to decide on one child. */
@@ -1679,7 +1780,22 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
     ORDER BY f.check_type
   `;
 
-  const findings = fRows.map((f) => ({
+  // A specialist reviews their own checks only. The rest of the child is
+  // somebody else's to read and sign; they see only whether it is done.
+  const campChecks = campCheckList(access.camp);
+  const consented = consentedChecks(p, campChecks);
+  const mine = access.checkScope ? consented.filter((c) => access.checkScope!.includes(c)) : consented;
+  const recordedSet = new Set(fRows
+    .filter((f) => f.flag !== "NOT_MEASURED" || String(f.screener_note || "") !== "")
+    .map((f) => f.check_type as string));
+  const signoffs = await validSignoffs(sql, campId, kidId);
+  const signerOf = new Map<string, string>();
+  for (const so of signoffs) for (const c of so.checks) signerOf.set(c, so.signerName || "A clinician");
+  const mySignoff = signoffs.find((so) => so.profileId === actor.profileId && so.checks.length > 0) || null;
+
+  const findings = fRows
+    .filter((f) => !access.checkScope || access.checkScope.includes(f.check_type as string))
+    .map((f) => ({
     checkType: f.check_type as string,
     detail: (f.detail as Record<string, unknown>) || {},
     flag: f.flag as Flag,
@@ -1690,6 +1806,7 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
     screenerName: (f.screener_name as string) || "",
     reviewNote: (f.review_note as string) || "",
     overridden: (f.flag as string) !== (f.auto_flag as string),
+    signedBy: signerOf.get(f.check_type as string) || "",
   }));
 
   // I4 — the same flag at a previous camp changes what this one means. Pull the
@@ -1722,7 +1839,10 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
   if (recurring.length > 0 && (summary.urgency === "NONE" || summary.urgency === "ROUTINE")) {
     summary.urgency = "SOON";
   }
-  const existing = (p.recommendation as string) || "";
+  // A specialist starts from their own earlier words, or a draft about their
+  // own checks; a general physician from the child's whole message.
+  const existing = mySignoff?.recommendation || (access.checkScope ? "" : (p.recommendation as string) || "");
+  const area = access.checkScope ? mine.join(" and ") : "";
 
   return {
     child: {
@@ -1740,9 +1860,18 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
       checkType: f.checkType,
       timesBefore: ((f as Record<string, unknown>).previous as unknown[]).length,
     })),
-    suggestedUrgency: summary.urgency,
-    recommendation: existing || draftRecommendation(String(p.name), summary, findings),
+    suggestedUrgency: mySignoff?.urgency || summary.urgency,
+    recommendation: existing || draftRecommendation(String(p.name), summary, findings, area),
     recommendationIsDraft: !existing,
+    myChecks: mine,
+    mySignedAt: mySignoff?.signedAt || "",
+    // Everyone else's share, without their results: done or not, and by whom.
+    otherChecks: consented.filter((c) => !mine.includes(c)).map((c) => ({
+      checkType: c,
+      recorded: recordedSet.has(c),
+      signedBy: signerOf.get(c) || "",
+    })),
+    waitingFor: consented.filter((c) => !signerOf.has(c) && !mine.includes(c)),
     // What the family has logged since the last camp, for the doctor
     // signing off. Null when this reader is not one of the clinical team.
     illnessHistory: await illnessHistoryOrNull(sql, actor, campId, kidId),
@@ -1773,22 +1902,32 @@ export async function reviewParticipant(
     throw new ApiError(409, "This child has not been screened yet", "NOT_SCREENED");
   }
 
-  // Every check the guardian agreed to, whoever's specialty it is, before a
-  // physician signs. A camp with no paediatrician on the day would otherwise
-  // approve children whose heights nobody took.
+  // Each clinician signs off their own share: a specialist the checks of their
+  // specialty, a general physician all of them. The child is approved when
+  // every check the guardian agreed to has been signed by somebody.
+  const campChecks = campCheckList(access.camp);
+  const consented = consentedChecks(pRows[0], campChecks);
+  const mine = access.checkScope ? consented.filter((c) => access.checkScope!.includes(c)) : consented;
+  if (mine.length === 0) {
+    throw new ApiError(
+      403,
+      "None of this child's checks are in your specialty, so there is nothing for you to sign off.",
+      "NOT_YOUR_CHILD"
+    );
+  }
   const done = (await recordedChecks(sql, campId, [kidId])).get(kidId);
-  const outstanding = consentedChecks(pRows[0], campCheckList(access.camp))
-    .filter((c) => !done?.has(c));
+  const outstanding = mine.filter((c) => !done?.has(c));
   if (outstanding.length > 0) {
     throw new ApiError(
       409,
       `Not yet recorded for this child: ${outstanding.join(", ")}. ` +
-        "The clinician who does that check must record it, or mark it could not be done with a reason, before you approve.",
+        "Record it, or mark it could not be done with a reason, before you sign off.",
       "CHECKS_OUTSTANDING"
     );
   }
 
-  // Apply per-finding adjustments.
+  // Apply per-finding adjustments, to this clinician's own checks only: a
+  // dentist must not turn a vision ALERT to GOOD.
   const adjustments = Array.isArray(body.findings) ? (body.findings as Record<string, unknown>[]) : [];
   for (const a of adjustments) {
     const checkType = String(a.checkType || "");
@@ -1797,21 +1936,16 @@ export async function reviewParticipant(
     if (!["GOOD", "WATCH", "ALERT", "NOT_MEASURED"].includes(flag)) {
       throw new ApiError(400, "Unknown flag value", "BAD_FLAG");
     }
-    // A specialist signs off the child, but another specialty's finding is
-    // not theirs to overrule: a dentist must not turn a vision ALERT to GOOD.
-    if (access.checkScope && !access.checkScope.includes(checkType)) {
+    if (!mine.includes(checkType)) {
       throw new ApiError(
         403,
-        `${checkType} was recorded by another specialty. Only that clinician, or a general physician, can change its flag.`,
+        `${checkType} is signed off by the clinician whose specialty it is, not by you.`,
         "NOT_YOUR_CHECK"
       );
     }
     await sql`
       UPDATE vita_hero.camp_findings
-      SET flag = ${flag},
-          review_note = ${String(a.note || "")},
-          reviewed_by = ${actor.profileId},
-          reviewed_at = NOW()
+      SET flag = ${flag}, review_note = ${String(a.note || "")}
       WHERE camp_id = ${campId} AND kid_id = ${kidId} AND check_type = ${checkType}
     `;
   }
@@ -1822,29 +1956,57 @@ export async function reviewParticipant(
   }
 
   const fRows = await sql`
-    SELECT check_type, flag, urgency, detail FROM vita_hero.camp_findings
-    WHERE camp_id = ${campId} AND kid_id = ${kidId}
+    SELECT check_type, urgency FROM vita_hero.camp_findings
+    WHERE camp_id = ${campId} AND kid_id = ${kidId} AND check_type = ANY(${mine})
   `;
-  const findings = fRows.map((f) => ({
-    checkType: f.check_type as string,
-    flag: f.flag as Flag,
-    urgency: (f.urgency as Urgency) || "NONE",
-    detail: (f.detail as Record<string, unknown>) || {},
-  }));
-
   const urgencyInput = String(body.urgency || "").toUpperCase();
   const urgency: Urgency = ["NONE", "ROUTINE", "SOON", "URGENT"].includes(urgencyInput)
     ? (urgencyInput as Urgency)
-    : worstUrgency(findings.map((f) => f.urgency));
+    : worstUrgency(fRows.map((f) => ((f.urgency as Urgency) || "NONE")));
 
   const wasUrgent = (pRows[0].urgency as string) === "URGENT";
 
   await sql`
-    UPDATE vita_hero.camp_participants
-    SET status = 'APPROVED', urgency = ${urgency}, recommendation = ${recommendation},
-        reviewed_at = NOW(), reviewed_by = ${actor.profileId}
-    WHERE camp_id = ${campId} AND kid_id = ${kidId}
+    UPDATE vita_hero.camp_findings SET reviewed_by = ${actor.profileId}, reviewed_at = NOW()
+    WHERE camp_id = ${campId} AND kid_id = ${kidId} AND check_type = ANY(${mine})
   `;
+  await sql`
+    INSERT INTO vita_hero.camp_signoffs (camp_id, kid_id, signed_by, checks, urgency, recommendation, signed_at)
+    VALUES (${campId}, ${kidId}, ${actor.profileId}, ${JSON.stringify(mine)}::jsonb, ${urgency}, ${recommendation}, NOW())
+    ON CONFLICT (camp_id, kid_id, signed_by) DO UPDATE SET
+      checks = EXCLUDED.checks, urgency = EXCLUDED.urgency,
+      recommendation = EXCLUDED.recommendation, signed_at = NOW()
+  `;
+  // These checks are now this clinician's; whoever signed them before no
+  // longer answers for them, so the family does not read both.
+  await sql`
+    UPDATE vita_hero.camp_signoffs s
+    SET checks = (SELECT COALESCE(jsonb_agg(c.v), '[]'::jsonb)
+                  FROM jsonb_array_elements_text(s.checks) AS c(v) WHERE NOT (c.v = ANY(${mine})))
+    WHERE s.camp_id = ${campId} AND s.kid_id = ${kidId} AND s.signed_by <> ${actor.profileId}
+  `;
+
+  const signoffs = await validSignoffs(sql, campId, kidId);
+  const signed = new Set(signoffs.flatMap((so) => so.checks));
+  const complete = consented.every((c) => signed.has(c));
+  const overall = worstUrgency(signoffs.filter((so) => so.checks.length > 0).map((so) => so.urgency));
+  const combined = combineSignoffs(signoffs, campChecks);
+
+  if (complete) {
+    await sql`
+      UPDATE vita_hero.camp_participants
+      SET status = 'APPROVED', urgency = ${overall}, recommendation = ${combined},
+          reviewed_at = NOW(), reviewed_by = ${actor.profileId}
+      WHERE camp_id = ${campId} AND kid_id = ${kidId}
+    `;
+  } else {
+    // Not approved yet, but the urgency is kept so an urgent part is told
+    // once, now, and not again when the next specialist signs.
+    await sql`
+      UPDATE vita_hero.camp_participants SET urgency = ${overall}, recommendation = ${combined}
+      WHERE camp_id = ${campId} AND kid_id = ${kidId}
+    `;
+  }
 
   // D4 — an urgent case is told now, not batched with everyone else at release.
   // Waiting for the whole camp to be reviewed could be days.
@@ -1877,7 +2039,15 @@ export async function reviewParticipant(
     `;
   }
 
-  return { kidId, status: "APPROVED", urgency, escalated };
+  return {
+    kidId,
+    status: complete ? "APPROVED" : (pRows[0].status as string),
+    urgency: overall,
+    escalated,
+    signedChecks: mine,
+    // The checks still to be signed, by others, before the child is approved.
+    waitingFor: consented.filter((c) => !signed.has(c)),
+  };
 }
 
 // ─── D6 · Release ───────────────────────────────────────────

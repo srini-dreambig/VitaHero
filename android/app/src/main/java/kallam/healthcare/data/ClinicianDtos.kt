@@ -233,9 +233,25 @@ data class ReviewQueueItemDto(
     val urgency: String = "NONE",
     val recommendation: String = "",
     val reviewed: Boolean = false,
-    /** Consented checks nobody has recorded yet; sign-off is refused until empty. */
+    /** Other specialties' checks not yet signed off; the child is approved once none are left. */
     val waitingFor: List<String> = emptyList(),
-)
+    /**
+     * Where this child stands for the physician reading the queue. TO_SIGN:
+     * their checks are recorded and theirs to sign. NOT_READY: one of their
+     * checks is not recorded yet. SIGNED: they have signed, others have not.
+     * APPROVED: every check is signed.
+     */
+    val reviewState: String = "",
+    /** The checks this physician signs off. All of them for a general physician. */
+    val myChecks: List<String> = emptyList(),
+    val signedChecks: List<String> = emptyList(),
+    /** Checks no physician assigned to this camp can sign; the school has to add one. */
+    val noSigner: List<String> = emptyList(),
+) {
+    /** The state, worked out from status for a server that does not send one. */
+    val state: String
+        get() = reviewState.ifBlank { if (status == "APPROVED") "APPROVED" else "TO_SIGN" }
+}
 
 @Serializable
 data class ReviewQueueDto(
@@ -277,6 +293,16 @@ data class ReviewFindingDto(
     val overridden: Boolean = false,
     /** The same check flagged at earlier camps. Empty is the common case. */
     val previous: List<PriorFindingDto> = emptyList(),
+    /** Who signed this check off, when someone has. */
+    val signedBy: String = "",
+)
+
+/** Another specialist's check on this child: only whether it is done, never the result. */
+@Serializable
+data class OtherCheckDto(
+    val checkType: String = "",
+    val recorded: Boolean = false,
+    val signedBy: String = "",
 )
 
 @Serializable
@@ -303,6 +329,23 @@ data class ReviewDetailDto(
      */
     val recommendation: String = "",
     val recommendationIsDraft: Boolean = false,
+    /** The checks this physician signs off; the findings above are only these. */
+    val myChecks: List<String> = emptyList(),
+    /** When this physician last signed this child, or blank. */
+    val mySignedAt: String = "",
+    val otherChecks: List<OtherCheckDto> = emptyList(),
+    val waitingFor: List<String> = emptyList(),
+)
+
+/** What a sign-off left behind: APPROVED once every check is signed. */
+@Serializable
+data class ReviewResultDto(
+    val kidId: String = "",
+    val status: String = "",
+    val urgency: String = "NONE",
+    val escalated: Boolean = false,
+    val signedChecks: List<String> = emptyList(),
+    val waitingFor: List<String> = emptyList(),
 )
 
 /** A flag a physician moved off what the rules decided. */

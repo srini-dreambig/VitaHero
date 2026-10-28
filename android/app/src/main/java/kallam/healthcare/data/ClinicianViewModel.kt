@@ -289,14 +289,23 @@ class ClinicianViewModel(
                 recommendation = recommendation.trim(),
             )
             repo.approve(campId, kidId, body).fold(
-                onSuccess = {
+                onSuccess = { result ->
                     _saved.value = true
                     _message.value = ""
+                    val approved = result.status == "APPROVED"
                     // The queue is what tells a physician how much is left, so
-                    // it cannot wait for a manual refresh.
+                    // it cannot wait for a manual refresh. Signing one's own
+                    // checks approves the child only when nobody else is left.
                     _queue.value = _queue.value.map {
                         if (it.kidId == kidId) {
-                            it.copy(status = "APPROVED", reviewed = true, urgency = urgency)
+                            it.copy(
+                                status = if (approved) "APPROVED" else it.status,
+                                reviewState = if (approved) "APPROVED" else "SIGNED",
+                                reviewed = approved,
+                                urgency = result.urgency,
+                                signedChecks = (it.signedChecks + result.signedChecks).distinct(),
+                                waitingFor = result.waitingFor,
+                            )
                         } else it
                     }
                 },

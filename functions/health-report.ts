@@ -81,7 +81,11 @@ export async function campHealthReport(
   const kids = await sql`
     SELECT p.kid_id, p.urgency, p.recommendation, p.reviewed_at,
            k.name, k.grade, k.section, k.age, k.gender, k.student_ref,
-           r.name AS reviewer
+           COALESCE((SELECT string_agg(sp.name, ', ' ORDER BY so.signed_at)
+                      FROM vita_hero.camp_signoffs so
+                      JOIN vita_hero.profiles sp ON sp.id = so.signed_by
+                      WHERE so.camp_id = p.camp_id AND so.kid_id = p.kid_id
+                        AND jsonb_array_length(so.checks) > 0), r.name) AS reviewer
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
     LEFT JOIN vita_hero.profiles r ON r.id = p.reviewed_by
@@ -158,7 +162,7 @@ function page(
     <tbody>${rows || `<tr><td colspan="4">No checks were recorded.</td></tr>`}</tbody>
   </table>
   ${URGENCY_LABEL[urgency] ? `<div class="box${urgency === "URGENT" ? " urgent" : ""}"><b>${esc(URGENCY_LABEL[urgency])}</b></div>` : ""}
-  <div class="box"><b>Recommendation</b><br>${esc(k.recommendation) || "No further action needed."}</div>
+  <div class="box" style="white-space:pre-line"><b>Recommendation</b><br>${esc(k.recommendation) || "No further action needed."}</div>
   <div class="sign">
     <span>Reviewed by: <b>${esc(k.reviewer || "—")}</b></span>
     <span>${signed ? `Signed off: ${esc(signed)}` : ""}</span>

@@ -306,6 +306,7 @@ export async function deleteChild(sql: Sql, profileId: string, kidId: string, ac
   if (owns.length === 0) throw new ApiError(403, "That is not your child", "NOT_YOUR_CHILD");
 
   await sql`DELETE FROM vita_hero.camp_findings WHERE kid_id = ${kidId}`;
+  await sql`DELETE FROM vita_hero.camp_signoffs WHERE kid_id = ${kidId}`;
   await sql`DELETE FROM vita_hero.camp_kid_results WHERE kid_id = ${kidId}`;
   await sql`DELETE FROM vita_hero.camp_participants WHERE kid_id = ${kidId}`;
   await sql`DELETE FROM vita_hero.camp_registrations WHERE kid_id = ${kidId}`;

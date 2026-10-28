@@ -13,7 +13,10 @@ import type { Actor } from "./schools";
 import { SCHEMA_STEPS } from "./index";
 import { migrate } from "./migrate";
 import { missingRequired } from "./clinical";
-import { listParticipants, releaseCamp, reviewParticipant, reviewQueue, saveScreening, setAttendance } from "./camps";
+import {
+  combineSignoffs, listParticipants, releaseCamp, reviewDetail, reviewParticipant, reviewQueue,
+  saveScreening, setAttendance,
+} from "./camps";
 
 describe("the fields each check needs", () => {
   test("height without weight is not a height and weight check", () => {
@@ -260,14 +263,118 @@ suite("a camp's checks are recorded in full", () => {
     await saveScreening(sql, EYE, camp, kid, { findings: [vision] });
     expect((await row(EYE)).screeningState).toBe("DONE");
     expect((await row(EYE)).checksDone).toBe(2);
-    expect((await reviewQueue(sql, DENT, camp)).queue.find((x) => x.kidId === kid)!.waitingFor).toEqual([]);
+    const queued = async (who: Actor) =>
+      (await reviewQueue(sql, who, camp)).queue.find((x) => x.kidId === kid)!;
+    expect((await queued(DENT)).reviewState).toBe("TO_SIGN");
+    // Recorded is not signed: the dentist still waits for the eye doctor.
+    expect((await queued(DENT)).waitingFor).toEqual(["Vision"]);
+    expect((await queued(DENT)).noSigner).toEqual([]);
 
-    // The dentist may sign off, but not overrule the eye doctor's finding.
+    // A specialist reads their own checks, and only whether the rest are done.
+    const dentView = await reviewDetail(sql, DENT, camp, kid);
+    expect(dentView.findings.map((f) => f.checkType)).toEqual(["Dental"]);
+    expect(dentView.myChecks).toEqual(["Dental"]);
+    expect(dentView.otherChecks).toEqual([{ checkType: "Vision", recorded: true, signedBy: "" }]);
+    expect(dentView.recommendation).toContain("Meera's Dental check");
+    expect((await queued(DENT)).alerts + (await queued(DENT)).watches).toBe(0);
+
+    // The dentist signs off Dental, and cannot touch the eye doctor's finding.
     await expect(reviewParticipant(sql, DENT, camp, kid, {
       approve: true, recommendation: "All well.", findings: [{ checkType: "Vision", flag: "GOOD" }],
-    })).rejects.toThrow(/recorded by another specialty/);
-    await reviewParticipant(sql, DENT, camp, kid, {
-      approve: true, recommendation: "All well.", findings: [{ checkType: "Dental", flag: "GOOD" }],
+    })).rejects.toThrow(/signed off by the clinician whose specialty it is/);
+    const dentSigned = await reviewParticipant(sql, DENT, camp, kid, {
+      approve: true, recommendation: "Teeth are healthy. Keep brushing twice a day.",
+      findings: [{ checkType: "Dental", flag: "GOOD" }],
     });
+    // Not approved: half the child is still unsigned.
+    expect(dentSigned.status).toBe("SCREENED");
+    expect(dentSigned.waitingFor).toEqual(["Vision"]);
+    expect((await queued(DENT)).reviewState).toBe("SIGNED");
+    expect((await queued(EYE)).reviewState).toBe("TO_SIGN");
+    expect((await queued(EYE)).signedChecks).toEqual(["Dental"]);
+    const eyeView = await reviewDetail(sql, EYE, camp, kid);
+    expect(eyeView.otherChecks).toEqual([{ checkType: "Dental", recorded: true, signedBy: "Dr Dent" }]);
+    expect(eyeView.findings.map((f) => f.checkType)).toEqual(["Vision"]);
+
+    // The eye doctor's sign-off completes the child, and the family reads both.
+    const eyeSigned = await reviewParticipant(sql, EYE, camp, kid, {
+      approve: true, urgency: "ROUTINE", recommendation: "Mild strain. Recheck in a year.",
+      findings: [{ checkType: "Vision", flag: "WATCH" }],
+    });
+    expect(eyeSigned.status).toBe("APPROVED");
+    expect(eyeSigned.urgency).toBe("ROUTINE");
+    let [p] = await sql`SELECT status, recommendation, urgency FROM vita_hero.camp_participants
+                        WHERE camp_id = ${camp} AND kid_id = ${kid}`;
+    expect(p.status).toBe("APPROVED");
+    expect(p.recommendation).toBe(
+      "Vision: Mild strain. Recheck in a year.\n\nDental: Teeth are healthy. Keep brushing twice a day."
+    );
+    expect((await queued(DENT)).reviewState).toBe("APPROVED");
+
+    // The dentist changing their words later changes only their part.
+    await reviewParticipant(sql, DENT, camp, kid, {
+      approve: true, recommendation: "Healthy teeth.",
+    });
+    [p] = await sql`SELECT status, recommendation FROM vita_hero.camp_participants
+                    WHERE camp_id = ${camp} AND kid_id = ${kid}`;
+    expect(p.status).toBe("APPROVED");
+    expect(p.recommendation).toBe("Vision: Mild strain. Recheck in a year.\n\nDental: Healthy teeth.");
+
+    // Re-recording a check takes it out of review and voids its signature.
+    await saveScreening(sql, EYE, camp, kid, {
+      findings: [{ checkType: "Vision", detail: { leftAcuity: "6/12", rightAcuity: "6/6" } }],
+    });
+    expect((await queued(EYE)).reviewState).toBe("TO_SIGN");
+    expect((await queued(DENT)).reviewState).toBe("SIGNED");
+    expect((await queued(DENT)).waitingFor).toEqual(["Vision"]);
+  });
+
+  test("a general physician signs off every check at once, in their own words", async () => {
+    const camp = "sc_spec";
+    const kid = "k_meera";
+    const GP: Actor = { profileId: "ph_gp", name: "Dr Gen", role: "PHYSICIAN", schoolId: "sch_q" };
+    await sql`INSERT INTO vita_hero.profiles (id, phone, name, role, provisioned, school_id)
+              VALUES ('ph_gp', '+919100000023', 'Dr Gen', 'PHYSICIAN', true, 'sch_q')`;
+    await sql`INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role, active)
+              VALUES ('cst_gp', ${camp}, 'ph_gp', 'PHYSICIAN', true)`;
+    const view = await reviewDetail(sql, GP, camp, kid);
+    expect(view.findings.map((f) => f.checkType).sort()).toEqual(["Dental", "Vision"]);
+    expect(view.otherChecks).toEqual([]);
+
+    const r = await reviewParticipant(sql, GP, camp, kid, {
+      approve: true, recommendation: "See an eye doctor this term; teeth are fine.",
+    });
+    expect(r.status).toBe("APPROVED");
+    const [p] = await sql`SELECT recommendation FROM vita_hero.camp_participants
+                          WHERE camp_id = ${camp} AND kid_id = ${kid}`;
+    // The GP now answers for both checks; the dentist's earlier note is not repeated.
+    expect(p.recommendation).toBe("See an eye doctor this term; teeth are fine.");
+  });
+
+  test("a check no assigned physician can sign is named in the queue", async () => {
+    const camp = "sc_eyeonly";
+    const kid = "k_meera";
+    const EYE: Actor = { profileId: "ph_eye", name: "Dr Eye", role: "PHYSICIAN", schoolId: "sch_q" };
+    await sql`INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, checks)
+              VALUES (${camp}, 'sch_q', 'Eye camp', '2026-08-03', 'SCHEDULED',
+                      ${JSON.stringify(["Vision", "Dental"])}::jsonb)`;
+    await sql`INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role, active, doctor_id)
+              VALUES ('cst_eye2', ${camp}, 'ph_eye', 'PHYSICIAN', true, 'doc_eye')`;
+    await sql`INSERT INTO vita_hero.camp_participants
+                (id, camp_id, school_id, kid_id, profile_id, consent_status, consent_checks,
+                 attendance, status)
+              VALUES ('cp_meera2', ${camp}, 'sch_q', ${kid}, ${PARENT}, 'GRANTED', '[]'::jsonb,
+                      'PRESENT', 'NOT_SCREENED')`;
+    await saveScreening(sql, EYE, camp, kid, { findings: [vision] });
+    const q = (await reviewQueue(sql, EYE, camp)).queue.find((x) => x.kidId === kid)!;
+    expect(q.noSigner).toEqual(["Dental"]);
+  });
+
+  test("the family's message keeps the camp's order of checks", () => {
+    const checks = ["Height & weight", "Vision", "Dental"];
+    expect(combineSignoffs([{ checks: ["Dental"], recommendation: "B" }, { checks: ["Vision"], recommendation: "A" }], checks))
+      .toBe("Vision: A\n\nDental: B");
+    expect(combineSignoffs([{ checks: ["Vision", "Dental"], recommendation: "Only one" }], checks)).toBe("Only one");
+    expect(combineSignoffs([{ checks: [], recommendation: "gone" }], checks)).toBe("");
   });
 });

@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.ClinicianViewModel
+import kallam.healthcare.data.OtherCheckDto
 import kallam.healthcare.data.ReviewFindingDto
 import kotlinx.serialization.json.JsonPrimitive
 import kallam.healthcare.ui.components.HeroCard
@@ -51,6 +52,11 @@ private val URGENCIES = listOf("NONE", "ROUTINE", "SOON", "URGENT")
 
 /**
  * One child's record, and the signature that lets it out.
+ *
+ * A specialist signs off only their own checks, and sees only those results:
+ * the other checks are listed by name with whether they are done and by whom.
+ * What they write is their part of the guardian's message; the child is
+ * approved, and the parts put together, once every check has been signed.
  *
  * This is the step that turns measurements into something a parent may read.
  * The physician sees every finding with the flag the clinical rules gave it,
@@ -142,8 +148,16 @@ fun ClinicianReviewChildScreen(
             item {
                 if (d.status == "APPROVED") {
                     Notice(
-                        "Already approved. Changing anything here replaces what was recorded, "
-                            + "up until the camp is released.",
+                        "Already approved. Changing anything here replaces your part of what "
+                            + "was recorded, up until the camp is released.",
+                        error = false,
+                    )
+                } else if (d.mySignedAt.isNotBlank()) {
+                    Notice(
+                        "You have signed off " + d.myChecks.joinToString(", ") + ". " +
+                            (if (d.waitingFor.isEmpty()) ""
+                            else "Waiting for " + d.waitingFor.joinToString(", ") + ". ") +
+                            "Signing again replaces your note.",
                         error = false,
                     )
                 }
@@ -173,6 +187,12 @@ fun ClinicianReviewChildScreen(
                 }
             }
 
+            if (d.otherChecks.isNotEmpty()) {
+                item(key = "other-checks") {
+                    OtherChecksCard(d.otherChecks)
+                }
+            }
+
             item {
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -197,8 +217,8 @@ fun ClinicianReviewChildScreen(
                 }
                 if (urgency == "URGENT") {
                     Notice(
-                        "Marking this urgent texts the guardian as soon as the camp is "
-                            + "released, not when you press approve.",
+                        "Marking this urgent texts the guardian as soon as you sign off, "
+                            + "without waiting for the camp to be released.",
                         error = false,
                     )
                 }
@@ -207,7 +227,8 @@ fun ClinicianReviewChildScreen(
             item {
                 Spacer(Modifier.height(14.dp))
                 Text(
-                    "What the guardian will read",
+                    if (d.otherChecks.isEmpty()) "What the guardian will read"
+                    else "Your part of what the guardian will read",
                     Modifier.padding(horizontal = 20.dp),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
@@ -243,15 +264,20 @@ fun ClinicianReviewChildScreen(
                     )
                 }
                 PrimaryGradientButton(
-                    text = if (busy) "Approving…" else "Approve",
+                    text = when {
+                        busy -> "Signing…"
+                        d.otherChecks.isEmpty() -> "Approve"
+                        else -> "Sign off " + d.myChecks.joinToString(", ")
+                    },
                     onClick = onApprove,
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
                     enabled = !busy && recommendation.isNotBlank(),
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    "Approving does not send anything yet. Results reach guardians when the "
-                        + "whole camp is released.",
+                    (if (d.otherChecks.isEmpty()) ""
+                    else "The child is approved once every specialist has signed their part. ") +
+                        "Nothing is sent yet: results reach guardians when the camp is released.",
                     Modifier.padding(horizontal = 20.dp),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -360,6 +386,40 @@ private fun FindingCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+        }
+    }
+}
+
+/** The checks other specialists sign: done or not, and by whom. Never their results. */
+@Composable
+private fun OtherChecksCard(checks: List<OtherCheckDto>) {
+    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                "Other specialists",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Spacer(Modifier.height(6.dp))
+            checks.forEach { c ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    Text(
+                        c.checkType,
+                        Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Text(
+                        when {
+                            c.signedBy.isNotBlank() -> "Signed by ${c.signedBy}"
+                            c.recorded -> "Recorded, not signed"
+                            else -> "Not recorded yet"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (c.signedBy.isNotBlank()) HeroBlue else HeroOrange,
+                    )
+                }
             }
         }
     }
