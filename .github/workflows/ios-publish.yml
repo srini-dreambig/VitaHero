@@ -20,6 +20,8 @@
 #        APPLE_CERTIFICATE_PASSWORD     (Password for the .p12 certificate, if applicable)
 #        APPLE_PROVISIONING_PROFILE_BASE64 (Base64 string of your App Store .mobileprovision, if manual signing)
 #        APPLE_TEAM_ID                  (10-character Apple Developer Team ID, e.g. ABCDE12345)
+#        GOOGLE_SERVICE_INFO_PLIST_BASE64 (Base64 of GoogleService-Info.plist for the iOS app
+#                                        com.vitahero.health in Firebase project vitahero-8c5c0)
 #
 name: Publish to Apple App Store (TestFlight)
 
@@ -35,14 +37,20 @@ on:
 jobs:
   build:
     name: Build & Publish iOS App
-    runs-on: macos-14
+    # App Store Connect accepts uploads only from a recent Xcode, so this
+    # takes the newest one the runner image has.
+    runs-on: macos-15
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode 15.4
-        run: sudo xcode-select -switch /Applications/Xcode_15.4.app
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -switch "$XCODE"
+          xcodebuild -version
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -55,6 +63,32 @@ jobs:
           mkdir -p ~/.appstoreconnect/private_keys
           echo "$APP_STORE_CONNECT_PRIVATE_KEY" > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
           chmod 600 ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
+
+      - name: Write Firebase config
+        env:
+          GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
+        run: |
+          if [ -z "$GOOGLE_SERVICE_INFO_PLIST_BASE64" ]; then
+            echo "::error::GOOGLE_SERVICE_INFO_PLIST_BASE64 is not set. Without it the app cannot sign anyone in."
+            exit 1
+          fi
+          PLIST=ios/VitaHero/GoogleService-Info.plist
+          echo -n "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 --decode -o "$PLIST"
+          BUNDLE=$(/usr/libexec/PlistBuddy -c "Print :BUNDLE_ID" "$PLIST")
+          if [ "$BUNDLE" != "com.vitahero.health" ]; then
+            echo "::error::GoogleService-Info.plist is for $BUNDLE, not com.vitahero.health."
+            exit 1
+          fi
+          # The scheme Firebase's reCAPTCHA check returns to after verifying the app:
+          # REVERSED_CLIENT_ID when the plist has one, else the Encoded App ID
+          # (GOOGLE_APP_ID with ':' as '-', after "app-"), which newer plists need.
+          SCHEME=$(/usr/libexec/PlistBuddy -c "Print :REVERSED_CLIENT_ID" "$PLIST" 2>/dev/null || true)
+          if [ -z "$SCHEME" ]; then
+            APP_ID=$(/usr/libexec/PlistBuddy -c "Print :GOOGLE_APP_ID" "$PLIST")
+            SCHEME="app-$(echo "$APP_ID" | tr ':' '-')"
+          fi
+          echo "URL scheme: $SCHEME"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $SCHEME" ios/VitaHero/Info.plist
 
       - name: Generate Xcode Project
         env:
@@ -110,10 +144,13 @@ jobs:
 
           AUTH_ARGS=""
           if [ -n "$APP_STORE_CONNECT_KEY_ID" ] && [ -n "$APP_STORE_CONNECT_ISSUER_ID" ]; then
-            AUTH_ARGS="-allowProvisioningUpdates -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 -authenticationKeyID ${APP_STORE_CONNECT_KEY_ID} -authenticationKeyIssuerID ${APP_STORE_CONNECT_ISSUER_ID}"
+            AUTH_ARGS="-allowProvisioningUpdates -authenticationKeyPath $HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 -authenticationKeyID ${APP_STORE_CONNECT_KEY_ID} -authenticationKeyIssuerID ${APP_STORE_CONNECT_ISSUER_ID}"
           fi
 
-          echo "Archiving VitaHero with Xcode..."
+          # Each upload needs a build number App Store Connect has not seen.
+          BUILD_NUMBER=$((100 + ${{ github.run_number }}))
+
+          echo "Archiving VitaHero build $BUILD_NUMBER with Xcode..."
           xcodebuild archive \
             -project ios/VitaHero.xcodeproj \
             -scheme VitaHero \
@@ -121,6 +158,7 @@ jobs:
             -archivePath build/VitaHero.xcarchive \
             -destination "generic/platform=iOS" \
             CODE_SIGN_STYLE=Automatic \
+            CURRENT_PROJECT_VERSION=$BUILD_NUMBER \
             $TEAM_ARG \
             $AUTH_ARGS
 
@@ -131,7 +169,7 @@ jobs:
         run: |
           AUTH_ARGS=""
           if [ -n "$APP_STORE_CONNECT_KEY_ID" ] && [ -n "$APP_STORE_CONNECT_ISSUER_ID" ]; then
-            AUTH_ARGS="-allowProvisioningUpdates -authenticationKeyPath ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 -authenticationKeyID ${APP_STORE_CONNECT_KEY_ID} -authenticationKeyIssuerID ${APP_STORE_CONNECT_ISSUER_ID}"
+            AUTH_ARGS="-allowProvisioningUpdates -authenticationKeyPath $HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 -authenticationKeyID ${APP_STORE_CONNECT_KEY_ID} -authenticationKeyIssuerID ${APP_STORE_CONNECT_ISSUER_ID}"
           fi
 
           xcodebuild -exportArchive \

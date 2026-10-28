@@ -30,3 +30,11 @@ __pycache__/
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
+
+# iOS Firebase config. CI writes it from GOOGLE_SERVICE_INFO_PLIST_BASE64;
+# signing material never goes in the repository either.
+ios/VitaHero/GoogleService-Info.plist
+ios/*.xcodeproj/
+*.p8
+*.p12
+*.mobileprovision

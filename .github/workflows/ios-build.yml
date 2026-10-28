@@ -1,0 +1,77 @@
+# Compiles the iOS app on every push that touches it, outside main.
+#
+# No signing and no secrets: an unsigned simulator build is enough to know the
+# Swift compiles and the Firebase package resolves. Without
+# GoogleService-Info.plist the app builds and launches with sign-in switched
+# off. Publishing is ios-publish.yml.
+name: iOS build check
+
+on:
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Compile for the simulator
+    runs-on: macos-15
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -switch "$XCODE"
+          xcodebuild -version
+
+      - name: Strings match the Android app
+        run: |
+          python3 ios/tools/gen_strings.py
+          git diff --exit-code -- ios/VitaHero/Resources
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode Project
+        run: cd ios && xcodegen generate
+
+      - name: Build
+        run: |
+          xcodebuild build \
+            -project ios/VitaHero.xcodeproj \
+            -scheme VitaHero \
+            -configuration Debug \
+            -destination "generic/platform=iOS Simulator" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build.log | grep -E "error:|warning: .*deprecated|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Unit tests (required-field rules)
+        run: |
+          UDID=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          ios = [d for runtime, ds in devices.items() if "iOS" in runtime for d in ds if "iPhone" in d["name"]]
+          print(ios[-1]["udid"] if ios else "")')
+          echo "Simulator: $UDID"
+          test -n "$UDID"
+          xcodebuild test \
+            -project ios/VitaHero.xcodeproj \
+            -scheme VitaHero \
+            -only-testing:VitaHeroTests \
+            -destination "id=$UDID" \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee test.log | grep -E "error:|Test Case .* failed|Executed|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" test.log
