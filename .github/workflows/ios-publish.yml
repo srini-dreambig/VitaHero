@@ -133,6 +133,7 @@ jobs:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.APPLE_CERTIFICATE_BASE64 }}
         run: |
           mkdir -p build
           
@@ -145,6 +146,16 @@ jobs:
           AUTH_ARGS=""
           if [ -n "$APP_STORE_CONNECT_KEY_ID" ] && [ -n "$APP_STORE_CONNECT_ISSUER_ID" ]; then
             AUTH_ARGS="-allowProvisioningUpdates -authenticationKeyPath $HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 -authenticationKeyID ${APP_STORE_CONNECT_KEY_ID} -authenticationKeyIssuerID ${APP_STORE_CONNECT_ISSUER_ID}"
+          fi
+
+          # Without a .p12, automatic signing would sign the archive for
+          # development, and Apple only issues a development profile to a team
+          # with a registered device. Archive unsigned instead; the export below
+          # signs for the App Store with a cloud-managed distribution
+          # certificate, which needs no device.
+          UNSIGNED_ARGS=""
+          if [ -z "$BUILD_CERTIFICATE_BASE64" ]; then
+            UNSIGNED_ARGS="CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="
           fi
 
           # Each upload needs a build number App Store Connect has not seen.
@@ -160,13 +171,21 @@ jobs:
             CODE_SIGN_STYLE=Automatic \
             CURRENT_PROJECT_VERSION=$BUILD_NUMBER \
             $TEAM_ARG \
-            $AUTH_ARGS
+            $AUTH_ARGS \
+            $UNSIGNED_ARGS
 
       - name: Export IPA
         env:
           APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
           APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
+          # Automatic App Store signing needs to know the team to sign for.
+          if [ -n "$APPLE_TEAM_ID" ]; then
+            /usr/libexec/PlistBuddy -c "Add :teamID string $APPLE_TEAM_ID" ios/ExportOptions.plist
+            /usr/libexec/PlistBuddy -c "Add :signingStyle string automatic" ios/ExportOptions.plist
+          fi
+
           AUTH_ARGS=""
           if [ -n "$APP_STORE_CONNECT_KEY_ID" ] && [ -n "$APP_STORE_CONNECT_ISSUER_ID" ]; then
             AUTH_ARGS="-allowProvisioningUpdates -authenticationKeyPath $HOME/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8 -authenticationKeyID ${APP_STORE_CONNECT_KEY_ID} -authenticationKeyIssuerID ${APP_STORE_CONNECT_ISSUER_ID}"
