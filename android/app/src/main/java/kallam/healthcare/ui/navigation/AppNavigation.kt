@@ -170,7 +170,6 @@ fun AppNavigation(
     val darkTheme by appViewModel.uiState.selectAsState { it.darkTheme }
     val kids by appViewModel.uiState.selectAsState { it.kids }
     val profilePhone by appViewModel.uiState.selectAsState { it.phone }
-    val wearablesByKid by appViewModel.uiState.selectAsState { it.wearableData }
     val onboardingComplete by appViewModel.onboardingComplete.collectAsState()
     val isLoggedIn by appViewModel.isLoggedIn.collectAsState()
     val authLoading by appViewModel.authLoading.collectAsState()
@@ -255,6 +254,7 @@ fun AppNavigation(
     }
     val pendingConsents by guardianViewModel.pendingConsents.collectAsState()
     val dietPlans by guardianViewModel.dietPlans.collectAsState()
+    val campProgress by guardianViewModel.campProgress.collectAsState()
 
     NavHost(
         navController = navController,
@@ -562,11 +562,9 @@ fun AppNavigation(
                 val meals = kidsViewModel.mealsForKid(kid.id)
                 val streak = kidsViewModel.streakForKid(kid.id)
                 val badges = kidsViewModel.badgeProgressForKid(kid.id).badges
-                val wearableData = wearablesByKid[kid.id]
                 val reportLocale = LocalAppLocale.current
                 KidDetailScreen(
                     kid = kid,
-                    wearableData = wearableData,
                     onBack = { navController.popBackStack() },
                     onOpenDiet = { navController.navigate("diet/${kid.id}") },
                     onShareReport = { ctx ->
@@ -580,7 +578,6 @@ fun AppNavigation(
                         }
                         PdfReportGenerator.shareReport(ctx, file)
                     },
-                    onRefreshWearable = { kidsViewModel.refreshWearableData(kid.id) },
                     onLogSymptom = { navController.navigate("symptoms/${kid.id}") },
                     onOpenGrowthCharts = { navController.navigate("growth/${kid.id}") },
                     growthAssessment = kidsViewModel.growthAssessmentForKid(kid.id),
@@ -615,11 +612,6 @@ fun AppNavigation(
                     onOpenFoodRecognition = {
                         navController.navigate("foodRecognition/$kidId/${kid.name}")
                     },
-                    // The burnt half of the day. Read here rather than on the
-                    // child's detail screen alone, so the two numbers the
-                    // habit loop is about sit beside each other.
-                    wearable = wearablesByKid[kidId],
-                    onConnectWearable = { kidsViewModel.refreshWearableData(kidId) },
                     plan = dietPlans[kidId],
                 )
             }
@@ -807,6 +799,8 @@ fun AppNavigation(
                     onOpenResult = { campId, kidId ->
                         navController.navigate("campResult/$campId/$kidId")
                     },
+                    progress = campProgress,
+                    onRefreshProgress = { campId, kidIds -> guardianViewModel.loadCampProgress(campId, kidIds) },
                 )
             }
         }

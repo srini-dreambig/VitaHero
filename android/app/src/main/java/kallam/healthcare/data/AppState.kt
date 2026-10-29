@@ -18,7 +18,6 @@ data class AppUiState(
     val locale: AppLocale = AppLocale.ENGLISH,
     val familyCode: String = "",
     val coParents: List<CoParent> = emptyList(),
-    val wearableData: Map<String, HealthConnectService.WearableData> = emptyMap(),
     val notificationsEnabled: Boolean = true,
     val campRemindersEnabled: Boolean = true,
     val authProvider: String = "",

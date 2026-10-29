@@ -100,7 +100,7 @@ fun MainScaffold(
     onLogout: () -> Unit,
 ) {
     var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
-    // Eight fields of thirty. The rest — wearable readings, booking slots, the
+    // Eight fields of thirty. The rest — meal logs, booking slots, the
     // school directory — have no bearing on the scaffold and no longer redraw it.
     val appointments by appViewModel.uiState.selectAsState { it.appointments }
     val campRemindersEnabled by appViewModel.uiState.selectAsState { it.campRemindersEnabled }

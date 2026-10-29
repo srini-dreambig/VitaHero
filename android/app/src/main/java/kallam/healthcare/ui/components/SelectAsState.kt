@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.map
  * Read one field of a shared state object without recomposing on the rest.
  *
  * `AppUiState` is a single object with thirty fields — the kids, the camps, the
- * appointments, the notifications, the wearable readings, the language, the
+ * appointments, the notifications, the meals, the language, the
  * theme. Collecting it whole ties the reading scope to all thirty: the root of
  * the app reads the language and the theme, and used to be invalidated every
  * time a meal was logged or a watch synced a step count.

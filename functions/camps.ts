@@ -2087,17 +2087,23 @@ export async function releaseCamp(
   sql: Sql,
   actor: Actor,
   campId: string,
-  sendSms: SmsSender
+  sendSms: SmsSender,
+  opts: { kidIds?: string[] } = {}
 ) {
   const access = await assertCampAccess(sql, actor, campId);
   assertCan(access.canReview, "release results for this camp");
   const camp = access.camp;
+  // One child, released the moment their doctor approves them, so a family is
+  // not kept waiting on the rest of the school. Leaving it out releases every
+  // approved child, as the camp-wide button always has.
+  const only = Array.isArray(opts.kidIds) && opts.kidIds.length > 0 ? opts.kidIds.map(String) : null;
 
   const approved = await sql`
     SELECT p.kid_id, p.profile_id, p.urgency, p.recommendation, k.name
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
     WHERE p.camp_id = ${campId} AND p.status = 'APPROVED'
+      AND (${!only} OR p.kid_id = ANY(${only || []}))
   `;
   if (approved.length === 0) {
     throw new ApiError(400, "Nothing has been approved for release yet", "NOTHING_APPROVED");
@@ -2263,13 +2269,18 @@ export async function releaseCamp(
     UPDATE vita_hero.camp_participants
     SET status = 'RELEASED', released_at = NOW()
     WHERE camp_id = ${campId} AND status = 'APPROVED'
+      AND (${!only} OR kid_id = ANY(${only || []}))
   `;
 
-  await sql`
-    UPDATE vita_hero.school_camps
-    SET status = 'RELEASED', released_at = NOW(), released_by = ${actor.profileId}
-    WHERE id = ${campId}
-  `;
+  // Releasing one child does not finish the camp: its RELEASED status locks
+  // the camp and tells every unscreened family their child was missed.
+  if (!only) {
+    await sql`
+      UPDATE vita_hero.school_camps
+      SET status = 'RELEASED', released_at = NOW(), released_by = ${actor.profileId}
+      WHERE id = ${campId}
+    `;
+  }
 
   // Everybody is told their child's results exist.
   //
@@ -2294,6 +2305,7 @@ export async function releaseCamp(
     JOIN vita_hero.kids k ON k.id = p.kid_id
     LEFT JOIN vita_hero.profiles pr ON pr.id = p.profile_id
     WHERE p.camp_id = ${campId} AND p.status = 'RELEASED'
+      AND (${!only} OR p.kid_id = ANY(${only || []}))
       AND COALESCE(pr.phone,'') <> ''
       AND NOT EXISTS (
         SELECT 1 FROM vita_hero.consent_log cl
@@ -2401,6 +2413,51 @@ export async function pendingConsents(sql: Sql, profileId: string) {
   };
 }
 
+/**
+ * Where a child is in the camp, for their guardian, at any moment: which of
+ * the camp's checks have been done, which are still to come, and who has the
+ * result now. It says nothing about what any check found. A reading nobody has
+ * reviewed can be wrong, and an alert with no doctor's words beside it only
+ * frightens; the findings themselves still wait for release.
+ */
+export function guardianProgress(
+  p: Record<string, unknown>,
+  campChecks: string[],
+  recorded: Map<string, boolean>
+) {
+  const consent = (p.consent_status as string) || "PENDING";
+  const attendance = (p.attendance as string) || "UNKNOWN";
+  const status = (p.status as string) || "NOT_SCREENED";
+  const campStatus = (p.camp_status as string) || "";
+  const agreed = consent === "GRANTED" || consent === "PAPER";
+  const consented = new Set(agreed ? consentedChecks(p, campChecks) : []);
+  // Absent, refused, or the camp has closed without them: nothing more is coming.
+  const finished = status === "RELEASED" || attendance === "ABSENT" || attendance === "REFUSED" ||
+    campStatus === "RELEASED";
+  const checks = campChecks.map((c) => {
+    let state: string;
+    if (!consented.has(c)) state = "NOT_CONSENTED";
+    else if (recorded.get(c) === true) state = "DONE";
+    // Recorded as not done, with the screener's reason.
+    else if (recorded.has(c) || finished) state = "NOT_DONE";
+    else state = "PENDING";
+    return { checkType: c, state };
+  });
+  const asked = checks.filter((c) => c.state !== "NOT_CONSENTED");
+  const done = asked.filter((c) => c.state === "DONE").length;
+  let stage: string;
+  if (status === "RELEASED") stage = "RELEASED";
+  else if (consent === "DECLINED") stage = "DECLINED";
+  else if (!agreed) stage = "CONSENT_NEEDED";
+  else if (status === "SCREENED" || status === "APPROVED") {
+    // Screened children whose remaining checks will never happen are with the
+    // doctor too: the camp is not waiting on them any more.
+    stage = asked.some((c) => c.state === "PENDING") && !finished ? "SCREENING" : "WITH_DOCTOR";
+  } else if (finished) stage = "NOT_SCREENED";
+  else stage = done > 0 ? "SCREENING" : "WAITING";
+  return { stage, done, total: asked.length, checks };
+}
+
 /** A released result, in the detail the app's results screen wants. */
 export async function guardianCampResult(
   sql: Sql,
@@ -2409,7 +2466,8 @@ export async function guardianCampResult(
   kidId: string
 ) {
   const pRows = await sql`
-    SELECT p.*, k.name, sc.title, sc.date, sc.status AS camp_status, s.name AS school_name
+    SELECT p.*, k.name, sc.title, sc.date, sc.status AS camp_status, sc.checks AS camp_checks,
+           s.name AS school_name
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
     JOIN vita_hero.school_camps sc ON sc.id = p.camp_id
@@ -2419,6 +2477,17 @@ export async function guardianCampResult(
   `;
   if (pRows.length === 0) throw new ApiError(404, "No result for that child at that camp", "NOT_FOUND");
   const p = pRows[0];
+  // Measured, or declared not done with a reason (false). The same rule as
+  // recordedChecks, but with the difference kept for the guardian.
+  const rec = await sql`
+    SELECT check_type, flag FROM vita_hero.camp_findings
+    WHERE camp_id = ${campId} AND kid_id = ${kidId}
+      AND (flag <> 'NOT_MEASURED' OR COALESCE(screener_note, '') <> '')
+  `;
+  const recorded = new Map<string, boolean>(
+    rec.map((r) => [r.check_type as string, (r.flag as string) !== "NOT_MEASURED"])
+  );
+  const progress = guardianProgress(p, campCheckList({ checks: p.camp_checks }), recorded);
   if ((p.status as string) !== "RELEASED") {
     // A child who was away, refused, or was never reached will not have a
     // result, and telling the parent a doctor is reviewing it kept them
@@ -2429,12 +2498,20 @@ export async function guardianCampResult(
     if (neverSeen) {
       return {
         status: "NOT_SCREENED",
+        progress,
         message: attendance === "REFUSED"
           ? "Your child did not take part in this check-up, so there is no result. Ask the school about the next camp."
           : "Your child was not checked at this camp, so there is no result. Ask the school about the next camp.",
       };
     }
-    return { status: "PENDING", message: "Results are being reviewed by a doctor and will appear here soon." };
+    const message = progress.stage === "WITH_DOCTOR"
+      ? "Every check is done. A doctor is reviewing the results, which will appear here once they sign them off."
+      : progress.stage === "CONSENT_NEEDED"
+        ? "The school is waiting for your consent before your child can be checked."
+        : progress.stage === "DECLINED"
+          ? "You declined consent for this camp, so your child will not be checked."
+          : "Your child's check-up is under way. Each check shows here as it is done; results follow once a doctor has reviewed them.";
+    return { status: "PENDING", progress, message };
   }
   const fRows = await sql`
     SELECT check_type, flag, rationale, review_note, value_text FROM vita_hero.camp_findings
@@ -2442,6 +2519,7 @@ export async function guardianCampResult(
   `;
   return {
     status: "RELEASED",
+    progress,
     kidName: p.name as string,
     schoolName: p.school_name as string,
     campTitle: p.title as string,

@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.Camp
+import kallam.healthcare.data.CampResultDto
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.S
 import kallam.healthcare.ui.components.HeroCard
@@ -45,6 +47,7 @@ import kallam.healthcare.ui.components.campWhen
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.theme.HeroBlue
 import kallam.healthcare.ui.theme.HeroOrange
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -56,6 +59,10 @@ fun CampDetailScreen(
     onBookFollowUp: () -> Unit,
     /** Open what a doctor released for one child at this camp. */
     onOpenResult: (campId: String, kidId: String) -> Unit = { _, _ -> },
+    /** Each child's place in the camp, keyed "campId/kidId". */
+    progress: Map<String, CampResultDto> = emptyMap(),
+    /** Ask the server again where these children are in the camp. */
+    onRefreshProgress: (campId: String, kidIds: List<String>) -> Unit = { _, _ -> },
 ) {
     val upcoming = camp.status.isUpcoming
     val accent = if (upcoming) HeroBlue else HeroOrange
@@ -222,49 +229,48 @@ fun CampDetailScreen(
             }
         }
 
-        // After a school camp, each child's own result is a separate screen —
-        // the flags on the Kids tab are the summary, this is what the doctor
-        // actually wrote. Only the children who were on this camp's list: a
-        // brother at another school was told "a doctor is still checking this"
-        // for a camp he never attended. Every server sends this list for a
-        // partner camp, so an empty one means none of this family's children
-        // took part — not "show them all".
+        // Each child on this camp's list, from the day they are put on it: which
+        // checks are done and which are still to come, then the result once a
+        // doctor releases it. Only the children on this camp's list: a brother
+        // at another school was once told "a doctor is still checking this" for
+        // a camp he never attended. Every server sends this list for a partner
+        // camp, so an empty one means none of this family's children take part.
+        //
+        // It shows progress, never findings. What a check found reaches the
+        // parent only through a doctor's release, on the result screen.
         val resultKids = kids.filter { it.id in registered }
-        if (!upcoming && camp.isPartnerCamp && resultKids.isNotEmpty()) {
+        val campKey = camp.schoolCampId.ifBlank { camp.id }
+        if (camp.isPartnerCamp && resultKids.isNotEmpty()) {
             item {
-                Text(t(S.campResultTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(10.dp))
-                resultKids.forEach { kid ->
-                    HeroCard(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 10.dp)
-                            .clickable {
-                                onOpenResult(camp.schoolCampId.ifBlank { camp.id }, kid.id)
-                            }
-                    ) {
-                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    t(S.campResultTitle),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Text(
-                                t(S.viewLabel),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = HeroBlue,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
+                // Live while the screen is open: asked again every half minute
+                // until every child has an answer that will not change.
+                val kidIds = resultKids.map { it.id }
+                val settled = kidIds.all { id ->
+                    progress["$campKey/$id"]?.progress?.stage in setOf("RELEASED", "NOT_SCREENED", "DECLINED")
+                }
+                LaunchedEffect(campKey, kidIds, settled) {
+                    while (true) {
+                        onRefreshProgress(campKey, kidIds)
+                        if (settled) break
+                        delay(30_000)
                     }
                 }
-                Spacer(Modifier.height(8.dp))
+
+                Text(t(S.campProgressTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(10.dp))
+                resultKids.forEach { kid ->
+                    ChildProgressCard(
+                        name = kid.name,
+                        result = progress["$campKey/${kid.id}"],
+                        onOpen = { onOpenResult(campKey, kid.id) },
+                    )
+                }
+                Text(
+                    t(S.progressValuesNote),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(16.dp))
             }
         }
 
@@ -273,6 +279,80 @@ fun CampDetailScreen(
                 text = if (upcoming) t(S.addToReminders) else t(S.bookFollowUp),
                 onClick = onBookFollowUp,
             )
+        }
+    }
+}
+
+/** One child: where they are in the camp, and each check's state under it. */
+@Composable
+private fun ChildProgressCard(name: String, result: CampResultDto?, onOpen: () -> Unit) {
+    val p = result?.progress
+    val released = p?.stage == "RELEASED"
+    HeroCard(
+        Modifier
+            .fillMaxWidth()
+            .padding(bottom = 10.dp)
+            .clickable(onClick = onOpen)
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        when (p?.stage) {
+                            null -> t(S.loadingLabel)
+                            "RELEASED" -> t(S.progressReleased)
+                            "WITH_DOCTOR" -> t(S.progressWithDoctor)
+                            "SCREENING" -> "${t(S.progressScreening)} · ${p.done}/${p.total}"
+                            "CONSENT_NEEDED" -> t(S.progressConsentNeeded)
+                            "DECLINED" -> t(S.progressDeclined)
+                            "NOT_SCREENED" -> t(S.progressNotScreened)
+                            else -> t(S.progressWaiting)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (released) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = if (released) FontWeight.Bold else FontWeight.Normal,
+                    )
+                }
+                if (released) {
+                    Text(
+                        t(S.viewLabel),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = HeroBlue,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            p?.checks?.forEach { c ->
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        c.checkType,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        when (c.state) {
+                            "DONE" -> "\u2713 " + t(S.checkStateDone)
+                            "NOT_DONE" -> t(S.checkStateNotDone)
+                            "NOT_CONSENTED" -> t(S.checkStateNotIncluded)
+                            else -> t(S.checkStatePending)
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = when (c.state) {
+                            "DONE" -> HeroBlue
+                            "PENDING" -> HeroOrange
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
         }
     }
 }

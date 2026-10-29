@@ -124,18 +124,6 @@ object S {
     // The plan a dietician wrote for this child, as the family reads it.
     const val dietPlanTitle = "diet_plan_title"
     const val dietPlanFrom = "diet_plan_from"
-    // Energy in against energy out. Both halves of this have worked for a
-    // while — food photographs become logged meals, Health Connect reads the
-    // day's active calories — and neither was ever shown beside the other.
-    const val energyToday = "energy_today"
-    const val energyEaten = "energy_eaten"
-    const val energyBurnt = "energy_burnt"
-    const val energyNetMore = "energy_net_more"
-    const val energyNetLess = "energy_net_less"
-    const val energyNetEven = "energy_net_even"
-    const val energyNoWearable = "energy_no_wearable"
-    const val energyConnect = "energy_connect"
-    const val energyKcal = "energy_kcal"
     const val todaysPlan = "todays_plan"
     const val kcalLogged = "kcal_logged"
     const val allMealsLogged = "all_meals_logged"
@@ -233,15 +221,6 @@ object S {
     const val save = "save"
     const val cancel = "cancel"
     const val ok = "ok"
-
-    // ---- Wearable ----
-    const val wearableTitle = "wearable_title"
-    const val wearableSub = "wearable_sub"
-    const val connectHealth = "connect_health"
-    const val stepsToday = "steps_today"
-    const val activeMinutes = "active_minutes"
-    const val syncedFrom = "synced_from"
-    const val healthConnectInstall = "health_connect_install"
 
     // ---- Kid management ----
     const val deleteKid = "delete_kid"
@@ -502,6 +481,19 @@ object S {
     const val photoConsentAgree = "photo_consent_agree"
     const val campResultTitle = "camp_result_title"
     const val resultUnderReview = "result_under_review"
+    const val campProgressTitle = "camp_progress_title"
+    const val progressWaiting = "progress_waiting"
+    const val progressScreening = "progress_screening"
+    const val progressWithDoctor = "progress_with_doctor"
+    const val progressReleased = "progress_released"
+    const val progressConsentNeeded = "progress_consent_needed"
+    const val progressDeclined = "progress_declined"
+    const val progressNotScreened = "progress_not_screened"
+    const val checkStateDone = "check_state_done"
+    const val checkStatePending = "check_state_pending"
+    const val checkStateNotDone = "check_state_not_done"
+    const val checkStateNotIncluded = "check_state_not_included"
+    const val progressValuesNote = "progress_values_note"
     const val resultUnderReviewSub = "result_under_review_sub"
     const val resultNotScreened = "result_not_screened"
     const val doctorSays = "doctor_says"
@@ -661,15 +653,6 @@ private val en = mapOf(
     S.mealPhotoOnDevice to "Photos are read on this phone and never sent.",
     S.dietPlanTitle to "Your dietician's plan",
     S.dietPlanFrom to "Written by %s",
-    S.energyToday to "Energy today",
-    S.energyEaten to "Eaten",
-    S.energyBurnt to "Burnt",
-    S.energyNetMore to "%s kcal more in than out",
-    S.energyNetLess to "%s kcal more out than in",
-    S.energyNetEven to "In and out are level today",
-    S.energyNoWearable to "Connect a watch or phone to see what they burnt.",
-    S.energyConnect to "Connect",
-    S.energyKcal to "%s kcal",
     S.todaysPlan to "Today's plan",
     S.kcalLogged to "%d of %d kcal logged",
     S.allMealsLogged to "All meals logged — Super Eater streak continues!",
@@ -751,13 +734,6 @@ private val en = mapOf(
     S.save to "Save",
     S.cancel to "Cancel",
     S.ok to "OK",
-    S.wearableTitle to "Health Connect",
-    S.wearableSub to "Sync step count and activity data from your child's device",
-    S.connectHealth to "Connect Health Data",
-    S.stepsToday to "Steps today",
-    S.activeMinutes to "Active minutes",
-    S.syncedFrom to "Synced from device",
-    S.healthConnectInstall to "Install Health Connect from Play Store to sync activity data.",
     S.deleteKid to "Remove child",
     S.deleteKidConfirm to "Remove this child?",
     S.deleteKidBody to "Everything held for this child is permanently deleted.",
@@ -928,6 +904,19 @@ private val en = mapOf(
     S.photoConsentAgree to "Photographs are allowed",
     S.campResultTitle to "Camp result",
     S.resultUnderReview to "A doctor is still checking this",
+    S.campProgressTitle to "Check-up progress",
+    S.progressWaiting to "Waiting to be checked",
+    S.progressScreening to "Being checked",
+    S.progressWithDoctor to "All checks done \u00B7 with the doctor",
+    S.progressReleased to "Results ready",
+    S.progressConsentNeeded to "Waiting for your consent",
+    S.progressDeclined to "Consent declined",
+    S.progressNotScreened to "Not checked at this camp",
+    S.checkStateDone to "Done",
+    S.checkStatePending to "Waiting",
+    S.checkStateNotDone to "Not done",
+    S.checkStateNotIncluded to "Not included",
+    S.progressValuesNote to "Results appear here after a doctor reviews them.",
     S.resultNotScreened to "No result from this camp",
     S.resultUnderReviewSub to "Nothing is shown until a doctor has read it. It will appear here when they are done.",
     S.doctorSays to "What the doctor advises",
@@ -1149,15 +1138,6 @@ private val hi = mapOf(
     S.mealPhotoOnDevice to "\u092B\u093C\u094B\u091F\u094B \u0907\u0938\u0940 \u092B\u093C\u094B\u0928 \u092A\u0930 \u092A\u0922\u093C\u0940 \u091C\u093E\u0924\u0940 \u0939\u0948, \u092D\u0947\u091C\u0940 \u0928\u0939\u0940\u0902 \u091C\u093E\u0924\u0940\u0964",
     S.dietPlanTitle to "\u0906\u092A\u0915\u0947 \u0921\u093E\u092F\u091F\u0940\u0936\u093F\u092F\u0928 \u0915\u0940 \u092F\u094B\u091C\u0928\u093E",
     S.dietPlanFrom to "%s \u0926\u094D\u0935\u093E\u0930\u093E \u0932\u093F\u0916\u0940 \u0917\u0908",
-    S.energyToday to "\u0906\u091C \u0915\u0940 \u090A\u0930\u094D\u091C\u093E",
-    S.energyEaten to "\u0916\u093E\u092F\u093E",
-    S.energyBurnt to "\u0916\u0930\u094D\u091A \u0939\u0941\u0906",
-    S.energyNetMore to "%s \u0915\u0948\u0932\u094B\u0930\u0940 \u0905\u0902\u0926\u0930 \u091C\u094D\u092F\u093E\u0926\u093E",
-    S.energyNetLess to "%s \u0915\u0948\u0932\u094B\u0930\u0940 \u092C\u093E\u0939\u0930 \u091C\u094D\u092F\u093E\u0926\u093E",
-    S.energyNetEven to "\u0906\u091C \u0905\u0902\u0926\u0930 \u0914\u0930 \u092C\u093E\u0939\u0930 \u092C\u0930\u093E\u092C\u0930 \u0939\u0948\u0902",
-    S.energyNoWearable to "\u0916\u0930\u094D\u091A \u0939\u0941\u0908 \u090A\u0930\u094D\u091C\u093E \u0926\u0947\u0916\u0928\u0947 \u0915\u0947 \u0932\u093F\u090F \u0918\u0921\u093C\u0940 \u092F\u093E \u092B\u093C\u094B\u0928 \u091C\u094B\u0921\u093C\u0947\u0902\u0964",
-    S.energyConnect to "\u091C\u094B\u0921\u093C\u0947\u0902",
-    S.energyKcal to "%s \u0915\u0948\u0932\u094B\u0930\u0940",
     S.todaysPlan to "\u0906\u091C \u0915\u093E \u092A\u094D\u0932\u093E\u0928",
     S.kcalLogged to "%d \u092E\u0947\u0902 \u0938\u0947 %d kcal \u0926\u0930\u094D\u091C",
     S.allMealsLogged to "\u0938\u092D\u0940 \u092D\u094B\u091C\u0928 \u0926\u0930\u094D\u091C — \u0938\u0941\u092A\u0930 \u0908\u091F\u0930 \u0938\u094D\u091F\u094D\u0930\u0940\u0915 \u091C\u093E\u0930\u0940!",
@@ -1238,13 +1218,6 @@ private val hi = mapOf(
     S.save to "\u0938\u0947\u0935 \u0915\u0930\u0947\u0902",
     S.cancel to "\u0930\u0926\u094D\u0926 \u0915\u0930\u0947\u0902",
     S.ok to "\u0920\u0940\u0915 \u0939\u0948",
-    S.wearableTitle to "\u0939\u0947\u0932\u094D\u0925 \u0915\u0928\u0947\u0915\u094D\u091F",
-    S.wearableSub to "\u0905\u092A\u0928\u0947 \u092C\u091A\u094D\u091A\u0947 \u0915\u0947 \u0921\u093F\u0935\u093E\u0907\u0938 \u0938\u0947 \u0915\u0926\u092E\u094B\u0902 \u0915\u0940 \u0917\u093F\u0928\u0924\u0940 \u0914\u0930 \u0917\u0924\u093F\u0935\u093F\u0927\u093F \u0921\u0947\u091F\u093E \u0938\u093F\u0902\u0915 \u0915\u0930\u0947\u0902",
-    S.connectHealth to "\u0939\u0947\u0932\u094D\u0925 \u0921\u0947\u091F\u093E \u0915\u0928\u0947\u0915\u094D\u091F \u0915\u0930\u0947\u0902",
-    S.stepsToday to "\u0906\u091C \u0915\u0947 \u0915\u0926\u092E",
-    S.activeMinutes to "\u0938\u0915\u094D\u0930\u093F\u092F \u092E\u093F\u0928\u091F",
-    S.syncedFrom to "\u0921\u093F\u0935\u093E\u0907\u0938 \u0938\u0947 \u0938\u093F\u0902\u0915",
-    S.healthConnectInstall to "\u0917\u0924\u093F\u0935\u093F\u0927\u093F \u0921\u0947\u091F\u093E \u0938\u093F\u0902\u0915 \u0915\u0930\u0928\u0947 \u0915\u0947 \u0932\u093F\u090F Play Store \u0938\u0947 Health Connect \u0907\u0902\u0938\u094D\u091F\u0949\u0932 \u0915\u0930\u0947\u0902\u0964",
     S.deleteKid to "\u092C\u091A\u094D\u091A\u0947 \u0939\u091F\u093E\u090F\u0902",
     S.deleteKidConfirm to "\u0915\u094D\u092F\u093E \u0907\u0938 \u092C\u091A\u094D\u091A\u0947 \u0915\u094B \u0939\u091F\u093E\u0928\u093E \u0939\u0948?",
     S.deleteKidBody to "\u0907\u0938 \u092C\u091A\u094D\u091A\u0947 \u0915\u0947 \u0938\u092D\u0940 \u092D\u094B\u091C\u0928, \u0938\u094D\u091F\u094D\u0930\u0940\u0915 \u0914\u0930 \u0935\u093F\u0915\u093E\u0938 \u0921\u0947\u091F\u093E \u0939\u092E\u0947\u0936\u093E \u0915\u0947 \u0932\u093F\u090F \u0939\u091F \u091C\u093E\u090F\u0917\u093E\u0964",
@@ -1286,6 +1259,19 @@ private val hi = mapOf(
     S.photoConsentAgree to "\u092B\u093C\u094B\u091F\u094B \u0932\u0947\u0928\u0947 \u0915\u0940 \u0905\u0928\u0941\u092E\u0924\u093F \u0939\u0948",
     S.campResultTitle to "\u0915\u0948\u0902\u092A \u0915\u093E \u092A\u0930\u093F\u0923\u093E\u092E",
     S.resultUnderReview to "\u0921\u0949\u0915\u094D\u091F\u0930 \u0905\u092D\u0940 \u0907\u0938\u0947 \u0926\u0947\u0916 \u0930\u0939\u0947 \u0939\u0948\u0902",
+    S.campProgressTitle to "\u091C\u093E\u0901\u091A \u0915\u0940 \u092A\u094D\u0930\u0917\u0924\u093F",
+    S.progressWaiting to "\u091C\u093E\u0901\u091A \u0915\u093E \u0907\u0902\u0924\u091C\u093C\u093E\u0930",
+    S.progressScreening to "\u091C\u093E\u0901\u091A \u091A\u0932 \u0930\u0939\u0940 \u0939\u0948",
+    S.progressWithDoctor to "\u0938\u092D\u0940 \u091C\u093E\u0901\u091A\u0947\u0902 \u092A\u0942\u0930\u0940 \u00B7 \u0921\u0949\u0915\u094D\u091F\u0930 \u0926\u0947\u0916 \u0930\u0939\u0947 \u0939\u0948\u0902",
+    S.progressReleased to "\u092A\u0930\u093F\u0923\u093E\u092E \u0924\u0948\u092F\u093E\u0930 \u0939\u0948\u0902",
+    S.progressConsentNeeded to "\u0906\u092A\u0915\u0940 \u0938\u0939\u092E\u0924\u093F \u0915\u093E \u0907\u0902\u0924\u091C\u093C\u093E\u0930",
+    S.progressDeclined to "\u0938\u0939\u092E\u0924\u093F \u0928\u0939\u0940\u0902 \u0926\u0940 \u0917\u0908",
+    S.progressNotScreened to "\u0907\u0938 \u0915\u0948\u0902\u092A \u092E\u0947\u0902 \u091C\u093E\u0901\u091A \u0928\u0939\u0940\u0902 \u0939\u0941\u0908",
+    S.checkStateDone to "\u0939\u094B \u0917\u092F\u093E",
+    S.checkStatePending to "\u092C\u093E\u0915\u0940",
+    S.checkStateNotDone to "\u0928\u0939\u0940\u0902 \u0939\u0941\u0906",
+    S.checkStateNotIncluded to "\u0936\u093E\u092E\u093F\u0932 \u0928\u0939\u0940\u0902",
+    S.progressValuesNote to "\u0921\u0949\u0915\u094D\u091F\u0930 \u0915\u0947 \u0926\u0947\u0916\u0928\u0947 \u0915\u0947 \u092C\u093E\u0926 \u092A\u0930\u093F\u0923\u093E\u092E \u092F\u0939\u093E\u0901 \u0926\u093F\u0916\u0947\u0902\u0917\u0947\u0964",
     S.resultNotScreened to "\u0907\u0938 \u0936\u093F\u0935\u093F\u0930 \u0915\u093E \u0915\u094B\u0908 \u092A\u0930\u093F\u0923\u093E\u092E \u0928\u0939\u0940\u0902",
     S.resultUnderReviewSub to "\u091C\u092C \u0924\u0915 \u0921\u0949\u0915\u094D\u091F\u0930 \u0907\u0938\u0947 \u0928\u0939\u0940\u0902 \u0926\u0947\u0916 \u0932\u0947\u0924\u0947, \u0915\u0941\u091B \u0928\u0939\u0940\u0902 \u0926\u093F\u0916\u093E\u092F\u093E \u091C\u093E\u0924\u093E\u0964 \u0909\u0928\u0915\u0947 \u0926\u0947\u0916 \u0932\u0947\u0928\u0947 \u092A\u0930 \u092F\u0939 \u092F\u0939\u093E\u0901 \u0906 \u091C\u093E\u090F\u0917\u093E\u0964",
     S.doctorSays to "\u0921\u0949\u0915\u094D\u091F\u0930 \u0915\u0940 \u0938\u0932\u093E\u0939",
@@ -1506,15 +1492,6 @@ private val te = mapOf(
     S.mealPhotoOnDevice to "\u0C2B\u0C4B\u0C1F\u0C4B\u0C32\u0C41 \u0C08 \u0C2B\u0C4B\u0C28\u0C4D\u200C\u0C32\u0C4B\u0C28\u0C47 \u0C1A\u0C26\u0C35\u0C2C\u0C21\u0C24\u0C3E\u0C2F\u0C3F, \u0C2A\u0C02\u0C2A\u0C2C\u0C21\u0C35\u0C41.",
     S.dietPlanTitle to "\u0C2E\u0C40 \u0C21\u0C2F\u0C1F\u0C40\u0C37\u0C3F\u0C2F\u0C28\u0C4D \u0C2A\u0C4D\u0C32\u0C3E\u0C28\u0C4D",
     S.dietPlanFrom to "%s \u0C30\u0C3E\u0C38\u0C3F\u0C28\u0C26\u0C3F",
-    S.energyToday to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C36\u0C15\u0C4D\u0C24\u0C3F",
-    S.energyEaten to "\u0C24\u0C3F\u0C28\u0C4D\u0C28\u0C26\u0C3F",
-    S.energyBurnt to "\u0C16\u0C30\u0C4D\u0C1A\u0C48\u0C28\u0C26\u0C3F",
-    S.energyNetMore to "%s \u0C15\u0C47\u0C32\u0C30\u0C40\u0C32\u0C41 \u0C0E\u0C15\u0C4D\u0C15\u0C41\u0C35 \u0C24\u0C40\u0C38\u0C41\u0C15\u0C41\u0C28\u0C4D\u0C28\u0C3E\u0C30\u0C41",
-    S.energyNetLess to "%s \u0C15\u0C47\u0C32\u0C30\u0C40\u0C32\u0C41 \u0C0E\u0C15\u0C4D\u0C15\u0C41\u0C35 \u0C16\u0C30\u0C4D\u0C1A\u0C48\u0C28\u0C3E\u0C2F\u0C3F",
-    S.energyNetEven to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C30\u0C46\u0C02\u0C21\u0C42 \u0C38\u0C2E\u0C3E\u0C28\u0C02",
-    S.energyNoWearable to "\u0C16\u0C30\u0C4D\u0C1A\u0C48\u0C28 \u0C36\u0C15\u0C4D\u0C24\u0C3F \u0C1A\u0C42\u0C21\u0C21\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C35\u0C3E\u0C1A\u0C40 \u0C32\u0C47\u0C26\u0C3E \u0C2B\u0C4B\u0C28\u0C4D \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C1F\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F.",
-    S.energyConnect to "\u0C15\u0C28\u0C46\u0C15\u0C4D\u0C1F\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
-    S.energyKcal to "%s \u0C15\u0C47\u0C32\u0C30\u0C40\u0C32\u0C41",
     S.todaysPlan to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C2A\u0C4D\u0C32\u0C3E\u0C28\u0C4D",
     S.kcalLogged to "%d \u0C32\u0C4B %d kcal \u0C28\u0C2E\u0C4B\u0C26\u0C41 \u0C1A\u0C47\u0C36\u0C3E\u0C30\u0C41",
     S.allMealsLogged to "\u0C05\u0C28\u0C4D\u0C28\u0C40 \u0C2D\u0C4B\u0C1C\u0C28\u0C3E\u0C32\u0C41 \u0C28\u0C2E\u0C4B\u0C26\u0C41 \u0C1A\u0C47\u0C2F\u0C2C\u0C21\u0C4D\u0C21\u0C3E\u0C2F\u0C3F — \u0C38\u0C42\u0C2A\u0C30\u0C4D \u0C08\u0C1F\u0C30\u0C4D \u0C38\u0C4D\u0C1F\u0C4D\u0C30\u0C40\u0C15\u0C4D \u0C15\u0C4A\u0C28\u0C38\u0C3E\u0C17\u0C41\u0C24\u0C4B\u0C02\u0C26\u0C3F!",
@@ -1595,12 +1572,6 @@ private val te = mapOf(
     S.save to "\u0C38\u0C47\u0C35\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
     S.cancel to "\u0C30\u0C26\u0C4D\u0C26\u0C41 \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
     S.ok to "\u0C38\u0C30\u0C47",
-    S.wearableTitle to "\u0C39\u0C46\u0C32\u0C4D\u0C24\u0C4D \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C1F\u0C4D",
-    S.wearableSub to "\u0C2E\u0C40 \u0C2A\u0C3F\u0C32\u0C4D\u0C32 \u0C2A\u0C30\u0C3F\u0C15\u0C30\u0C02 \u0C28\u0C41\u0C02\u0C21\u0C3F \u0C38\u0C4D\u0C1F\u0C46\u0C2A\u0C4D\u200C\u0C32 \u0C2E\u0C30\u0C3F\u0C2F\u0C41 \u0C2F\u0C3E\u0C15\u0C4D\u0C1F\u0C3F\u0C35\u0C3F\u0C1F\u0C40 \u0C21\u0C47\u0C1F\u0C3E\u0C28\u0C41 \u0C38\u0C3F\u0C02\u0C15\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
-    S.connectHealth to "\u0C39\u0C46\u0C32\u0C4D\u0C24\u0C4D \u0C21\u0C47\u0C1F\u0C3E\u0C28\u0C41 \u0C15\u0C28\u0C46\u0C15\u0C4D\u0C1F\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
-    S.stepsToday to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C05\u0C21\u0C41\u0C17\u0C41\u0C32\u0C41",
-    S.activeMinutes to "\u0C2F\u0C3E\u0C15\u0C4D\u0C1F\u0C3F\u0C35\u0C4D \u0C28\u0C3F\u0C2E\u0C3F\u0C37\u0C3E\u0C32\u0C41",
-    S.syncedFrom to "\u0C2A\u0C30\u0C3F\u0C15\u0C30\u0C02 \u0C28\u0C41\u0C02\u0C21\u0C3F \u0C38\u0C3F\u0C02\u0C15\u0C4D",
     S.syncFailed to "\u0C21\u0C47\u0C1F\u0C3E\u0C28\u0C41 \u0C38\u0C47\u0C35\u0C4D \u0C1A\u0C47\u0C2F\u0C32\u0C47\u0C2E\u0C41\u0C02\u0C26\u0C32\u0C47\u0C26\u0C41\u0964 \u0C26\u0C2F\u0C1A\u0C47\u0C38\u0C3F \u0C2E\u0C33\u0C4D\u0C32\u0C40 \u0C2A\u0C4D\u0C30\u0C2F\u0C24\u0C4D\u0C28\u0C02\u0C1A\u0C02\u0C21\u0C3F\u0964",
     S.familyInvalid to "\u0C15\u0C41\u0C1F\u0C41\u0C02\u0C2C \u0C15\u0C4B\u0C21\u0C4D \u0C15\u0C28\u0C41\u0C17\u0C4B\u0C28\u0C02\u0C32\u0C47\u0C26\u0C41\u0964 \u0C15\u0C4B\u0C21\u0C4D \u0C24\u0C2A\u0C4D\u0C2A\u0C3F\u0C02\u0C1A\u0C3F \u0C1A\u0C42\u0C21\u0C02\u0C21\u0C3F\u0964",
     S.familyRequestSent to "\u0C05\u0C2D\u0C4D\u0C2F\u0C30\u0C4D\u0C25\u0C28 \u0C2A\u0C02\u0C2A\u0C2C\u0C21\u0C3F\u0C02\u0C26\u0C3F. \u0C15\u0C41\u0C1F\u0C41\u0C02\u0C2C\u0C02 \u0C06\u0C2E\u0C4B\u0C26\u0C3F\u0C02\u0C1A\u0C3F\u0C28 \u0C24\u0C30\u0C4D\u0C35\u0C3E\u0C24 \u0C2E\u0C40\u0C30\u0C41 \u0C2A\u0C3F\u0C32\u0C4D\u0C32\u0C32\u0C28\u0C41 \u0C1A\u0C42\u0C21\u0C17\u0C32\u0C30\u0C41.",
@@ -1639,6 +1610,19 @@ private val te = mapOf(
     S.photoConsentAgree to "\u0C2B\u0C4B\u0C1F\u0C4B\u0C32\u0C41 \u0C24\u0C40\u0C2F\u0C21\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C05\u0C28\u0C41\u0C2E\u0C24\u0C3F \u0C09\u0C02\u0C26\u0C3F",
     S.campResultTitle to "\u0C36\u0C3F\u0C2C\u0C3F\u0C30 \u0C2B\u0C32\u0C3F\u0C24\u0C02",
     S.resultUnderReview to "\u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D \u0C07\u0C02\u0C15\u0C3E \u0C26\u0C40\u0C28\u0C4D\u0C28\u0C3F \u0C1A\u0C42\u0C38\u0C4D\u0C24\u0C41\u0C28\u0C4D\u0C28\u0C3E\u0C30\u0C41",
+    S.campProgressTitle to "\u0C2A\u0C30\u0C40\u0C15\u0C4D\u0C37\u0C32 \u0C2A\u0C41\u0C30\u0C4B\u0C17\u0C24\u0C3F",
+    S.progressWaiting to "\u0C2A\u0C30\u0C40\u0C15\u0C4D\u0C37 \u0C15\u0C4B\u0C38\u0C02 \u0C35\u0C47\u0C1A\u0C3F \u0C09\u0C02\u0C26\u0C3F",
+    S.progressScreening to "\u0C2A\u0C30\u0C40\u0C15\u0C4D\u0C37\u0C32\u0C41 \u0C1C\u0C30\u0C41\u0C17\u0C41\u0C24\u0C41\u0C28\u0C4D\u0C28\u0C3E\u0C2F\u0C3F",
+    S.progressWithDoctor to "\u0C05\u0C28\u0C4D\u0C28\u0C3F \u0C2A\u0C30\u0C40\u0C15\u0C4D\u0C37\u0C32\u0C41 \u0C2A\u0C42\u0C30\u0C4D\u0C24\u0C3F \u00B7 \u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D \u0C1A\u0C42\u0C38\u0C4D\u0C24\u0C41\u0C28\u0C4D\u0C28\u0C3E\u0C30\u0C41",
+    S.progressReleased to "\u0C2B\u0C32\u0C3F\u0C24\u0C3E\u0C32\u0C41 \u0C38\u0C3F\u0C26\u0C4D\u0C27\u0C02",
+    S.progressConsentNeeded to "\u0C2E\u0C40 \u0C05\u0C28\u0C41\u0C2E\u0C24\u0C3F \u0C15\u0C4B\u0C38\u0C02 \u0C35\u0C47\u0C1A\u0C3F \u0C09\u0C02\u0C26\u0C3F",
+    S.progressDeclined to "\u0C05\u0C28\u0C41\u0C2E\u0C24\u0C3F \u0C07\u0C35\u0C4D\u0C35\u0C32\u0C47\u0C26\u0C41",
+    S.progressNotScreened to "\u0C08 \u0C36\u0C3F\u0C2C\u0C3F\u0C30\u0C02\u0C32\u0C4B \u0C2A\u0C30\u0C40\u0C15\u0C4D\u0C37\u0C3F\u0C02\u0C1A\u0C32\u0C47\u0C26\u0C41",
+    S.checkStateDone to "\u0C2A\u0C42\u0C30\u0C4D\u0C24\u0C48\u0C02\u0C26\u0C3F",
+    S.checkStatePending to "\u0C2E\u0C3F\u0C17\u0C3F\u0C32\u0C3F \u0C09\u0C02\u0C26\u0C3F",
+    S.checkStateNotDone to "\u0C1C\u0C30\u0C17\u0C32\u0C47\u0C26\u0C41",
+    S.checkStateNotIncluded to "\u0C1A\u0C47\u0C30\u0C4D\u0C1A\u0C32\u0C47\u0C26\u0C41",
+    S.progressValuesNote to "\u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D \u0C38\u0C2E\u0C40\u0C15\u0C4D\u0C37\u0C3F\u0C02\u0C1A\u0C3F\u0C28 \u0C24\u0C30\u0C4D\u0C35\u0C3E\u0C24 \u0C2B\u0C32\u0C3F\u0C24\u0C3E\u0C32\u0C41 \u0C07\u0C15\u0C4D\u0C15\u0C21 \u0C15\u0C28\u0C3F\u0C2A\u0C3F\u0C38\u0C4D\u0C24\u0C3E\u0C2F\u0C3F.",
     S.resultNotScreened to "\u0C08 \u0C36\u0C3F\u0C2C\u0C3F\u0C30\u0C02 \u0C28\u0C41\u0C02\u0C21\u0C3F \u0C2B\u0C32\u0C3F\u0C24\u0C02 \u0C32\u0C47\u0C26\u0C41",
     S.resultUnderReviewSub to "\u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D \u0C1A\u0C42\u0C38\u0C47 \u0C35\u0C30\u0C15\u0C41 \u0C0F\u0C26\u0C40 \u0C1A\u0C42\u0C2A\u0C2C\u0C21\u0C26\u0C41. \u0C35\u0C3E\u0C30\u0C41 \u0C2A\u0C42\u0C30\u0C4D\u0C24\u0C3F \u0C1A\u0C47\u0C38\u0C3F\u0C28 \u0C24\u0C30\u0C4D\u0C35\u0C3E\u0C24 \u0C07\u0C26\u0C3F \u0C07\u0C15\u0C4D\u0C15\u0C21 \u0C15\u0C28\u0C3F\u0C2A\u0C3F\u0C38\u0C4D\u0C24\u0C41\u0C02\u0C26\u0C3F.",
     S.doctorSays to "\u0C21\u0C3E\u0C15\u0C4D\u0C1F\u0C30\u0C4D \u0C38\u0C32\u0C39\u0C3E",

@@ -2271,7 +2271,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (section === "release" && method === "POST") {
             const blocked = appOnly();
             if (blocked) return blocked;
-            return json(await releaseCamp(sql, actor, campId, smsSender));
+            // Older apps post no body at all: that is the whole camp.
+            const rb = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+            return json(await releaseCamp(sql, actor, campId, smsSender, {
+              kidIds: Array.isArray(rb.kidIds) ? (rb.kidIds as string[]) : undefined,
+            }));
           }
 
           if (section === "staff") {

@@ -22,10 +22,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.Watch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -53,7 +51,6 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kallam.healthcare.data.GrowthAssessment
 import kallam.healthcare.data.GrowthPoint
-import kallam.healthcare.data.HealthConnectService
 import kallam.healthcare.data.HealthFlag
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.heightText
@@ -68,7 +65,6 @@ import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf
 import kallam.healthcare.ui.theme.HeroBlue
 import kallam.healthcare.ui.theme.HeroOrange
-import kallam.healthcare.ui.theme.HeroYellow
 
 private enum class DetailTab(val labelKey: String) {
     GROWTH(S.growthTabLabel), DENTAL(S.dentalTabLabel), EYE(S.eyeTabLabel), NUTRITION(S.nutritionTabLabel)
@@ -77,11 +73,9 @@ private enum class DetailTab(val labelKey: String) {
 @Composable
 fun KidDetailScreen(
     kid: Kid,
-    wearableData: HealthConnectService.WearableData? = null,
     onBack: () -> Unit,
     onOpenDiet: () -> Unit,
     onShareReport: suspend (Context) -> Unit,
-    onRefreshWearable: () -> Unit = {},
     onLogSymptom: () -> Unit = {},
     onOpenGrowthCharts: () -> Unit = {},
     growthAssessment: GrowthAssessment? = null,
@@ -266,35 +260,6 @@ fun KidDetailScreen(
                             color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-        }
-
-        // Wearable / Health Connect card
-        item {
-            HeroCard(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .clickable { onRefreshWearable() }
-            ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconBubble(Icons.Outlined.Watch, HeroYellow)
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(t(S.activityData), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            when {
-                                wearableData?.isConnected == true ->
-                                    "${wearableData.stepsToday} ${t(S.stepsToday)} · ${wearableData.activeMinutes} ${t(S.activeMinutes)}"
-                                else -> t(S.wearableSub)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    IconBubble(Icons.Outlined.Refresh, HeroOrange)
                 }
             }
             Spacer(Modifier.height(14.dp))

@@ -12,7 +12,7 @@ settings:
     ENABLE_BITCODE: NO
     # CI passes CURRENT_PROJECT_VERSION=<run number>, so every TestFlight
     # upload carries a new build number.
-    MARKETING_VERSION: "1.1.6"
+    MARKETING_VERSION: "1.1.8"
     CURRENT_PROJECT_VERSION: "1"
 
 packages:

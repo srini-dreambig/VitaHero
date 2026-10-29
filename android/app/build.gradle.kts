@@ -38,11 +38,11 @@ android {
         // versionCode is what Play orders releases by and can never repeat or
         // go backwards; versionName is what a person reads. 1789668240 (1.1.6)
         // was built on 22 Oct 2026, the day Play last took an update, so this
-        // release goes one above it: per-specialist sign-off, where each
-        // specialist signs only their own checks and the guardian reads them
-        // together.
-        versionCode = 1789668241
-        versionName = "1.1.7"
+        // release went one above it (1.1.7, 1789668241: per-specialist
+        // sign-off). 1.1.8 is one above that: parents follow each check of a
+        // school camp live, and the Health Connect reading is gone.
+        versionCode = 1789668242
+        versionName = "1.1.8"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //
@@ -233,10 +233,6 @@ dependencies {
     implementation(libs.ktor.serialization.json)
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
-    implementation(libs.health.connect.client) {
-        exclude(group = "com.google.guava", module = "guava")
-        exclude(group = "com.google.guava", module = "failureaccess")
-    }
     implementation(libs.androidx.security.crypto)
     implementation(libs.guava.android)
     implementation(libs.mlkit.image.labeling)

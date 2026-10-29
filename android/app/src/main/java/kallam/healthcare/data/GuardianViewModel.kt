@@ -48,6 +48,10 @@ class GuardianViewModel(
     private val _result = MutableStateFlow<CampResultDto?>(null)
     val result: StateFlow<CampResultDto?> = _result.asStateFlow()
 
+    /** Each child's place in a camp, keyed "campId/kidId", for the camp's own screen. */
+    private val _campProgress = MutableStateFlow<Map<String, CampResultDto>>(emptyMap())
+    val campProgress: StateFlow<Map<String, CampResultDto>> = _campProgress.asStateFlow()
+
     // ── photographs ──
     private val _photos = MutableStateFlow<List<FindingPhotoDto>>(emptyList())
     val photos: StateFlow<List<FindingPhotoDto>> = _photos.asStateFlow()
@@ -159,6 +163,7 @@ class GuardianViewModel(
         runCatching { _hero.value = emptyMap() }
         runCatching { _heroNameConsent.value = emptyMap() }
         runCatching { _result.value = null }
+        runCatching { _campProgress.value = emptyMap() }
         runCatching { _photos.value = emptyList() }
         runCatching { _openPhoto.value = null }
         runCatching { _questionPolicy.value = QuestionPolicyDto() }
@@ -330,6 +335,18 @@ class GuardianViewModel(
         viewModelScope.launch {
             _result.value = repo.campResult(campId, kidId)
             _photos.value = repo.photos(kidId)
+        }
+    }
+
+    /**
+     * Ask again where each of these children is in the camp. A failed read
+     * keeps what was shown rather than blanking it.
+     */
+    fun loadCampProgress(campId: String, kidIds: List<String>) {
+        viewModelScope.launch {
+            val fresh = kidIds.associate { "$campId/$it" to repo.campResult(campId, it) }
+                .filterValues { it.progress != null }
+            _campProgress.value = _campProgress.value + fresh
         }
     }
 

@@ -12,7 +12,7 @@ import java.util.UUID
 private val kidPalette = listOf(0xFF10B981, 0xFF2563EB, 0xFF8B5CF6, 0xFFFB7185, 0xFFF59E0B)
 
 /**
- * Kids, meals, streaks, diet AI, growth, gamification, and wearables.
+ * Kids, meals, streaks, diet AI, growth, and gamification.
  */
 class KidsViewModel(
     application: Application,
@@ -28,20 +28,6 @@ class KidsViewModel(
     val streaks get() = state.streaks
     val aiContent get() = state.aiContent
     val leaderboards get() = state.leaderboards
-
-    private var healthConnectRequest: (() -> Unit)? = null
-    private var pendingWearableKidId: String? = null
-
-    fun setHealthConnectRequestHandler(handler: () -> Unit) {
-        healthConnectRequest = handler
-    }
-
-    fun onHealthConnectPermissionsGranted() {
-        pendingWearableKidId?.let { kidId ->
-            pendingWearableKidId = null
-            refreshWearableData(kidId)
-        }
-    }
 
     fun kidById(id: String?): Kid? = state.uiState.value.kids.firstOrNull { it.id == id }
 
@@ -195,7 +181,6 @@ class KidsViewModel(
         state.uiState.update { ui ->
             ui.copy(
                 kids = ui.kids.filter { it.id != kidId },
-                wearableData = ui.wearableData - kidId,
             )
         }
         state.meals.update { it - kidId }
@@ -203,24 +188,6 @@ class KidsViewModel(
         state.aiContent.update { it - kidId }
         state.leaderboards.update { it - kidId }
         state.badges.update { it - kidId }
-    }
-
-    fun refreshWearableData(kidId: String) {
-        val kid = kidById(kidId) ?: return
-        viewModelScope.launch {
-            val app = getApplication<Application>()
-            if (!HealthConnectService.isHealthConnectAvailable(app)) {
-                container.reportSyncError(Exception(tr(S.healthConnectInstall, state.uiState.value.locale)))
-                return@launch
-            }
-            if (!HealthConnectPermissions.hasAllPermissions(app)) {
-                pendingWearableKidId = kidId
-                healthConnectRequest?.invoke()
-                return@launch
-            }
-            val d = HealthConnectService.fetchHealthData(app, kid.name)
-            state.uiState.update { it.copy(wearableData = it.wearableData + (kidId to d)) }
-        }
     }
 
     fun refreshLeaderboard(kidId: String) {

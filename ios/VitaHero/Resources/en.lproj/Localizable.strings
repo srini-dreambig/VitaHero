@@ -2,7 +2,6 @@
    LocaleStrings.kt and ios/tools/ios_strings.json. Do not edit. */
 
 "about_which_child" = "About which child?";
-"active_minutes" = "Active minutes";
 "activity_data" = "Activity data";
 "add_first_child" = "Add a child";
 "add_to_reminders" = "Add to reminders";
@@ -226,7 +225,6 @@
 "conducted_camps_count" = "%d school camps conducted";
 "confirm_booking" = "Confirm Booking";
 "confirm_registration" = "Confirm registration";
-"connect_health" = "Connect Health Data";
 "consent_accept" = "I Agree — Continue";
 "consent_body" = "VitaHero collects your child's health data (height, weight, dental, eyesight, nutrition) to provide personalized insights and recommendations. This data is stored securely and never shared without your permission. You can delete it anytime.";
 "consent_change_mind" = "You can change your mind at any time, before or after the camp.";
@@ -288,15 +286,6 @@
 "email_placeholder" = "parent@example.com";
 "email_tab" = "Email";
 "ended_on" = "Got better on";
-"energy_burnt" = "Burnt";
-"energy_connect" = "Connect";
-"energy_eaten" = "Eaten";
-"energy_kcal" = "%@ kcal";
-"energy_net_even" = "In and out are level today";
-"energy_net_less" = "%@ kcal more out than in";
-"energy_net_more" = "%@ kcal more in than out";
-"energy_no_wearable" = "Connect a watch or phone to see what they burnt.";
-"energy_today" = "Energy today";
 "enter_family_code" = "Join a Family";
 "enter_partner_code" = "Enter partner code";
 "erase_action" = "Delete";
@@ -342,7 +331,6 @@
 "growth_on_track" = "Growth on track";
 "growth_tab" = "Growth";
 "growth_tab_label" = "Growth";
-"health_connect_install" = "Install Health Connect from Play Store to sync activity data.";
 "health_score" = "Health score";
 "height_chart" = "Height";
 "height_label" = "Height";
@@ -558,7 +546,6 @@
 "skip" = "Skip";
 "sms_note" = "We'll send a 6-digit code via SMS";
 "steps_min" = "%d steps · %d min active";
-"steps_today" = "Steps today";
 "still_unwell" = "Still unwell";
 "streak_best" = "Best streak";
 "streak_current" = "Days in a row";
@@ -571,7 +558,6 @@
 "symptoms_sub" = "Fever, cough and the like, for %@";
 "symptoms_title" = "Everyday illness";
 "sync_failed" = "Could not save your data. Please try again.";
-"synced_from" = "Synced from device";
 "take_photo_of" = "Take a photo of %@'s meal to log it instantly";
 "tap_again" = "Tap to capture again";
 "the_school_label" = "The school";
@@ -600,8 +586,6 @@
 "view_diet_plan" = "View today's diet plan";
 "view_label" = "View";
 "we_will_send_code" = "We'll send a 6-digit verification code to this number.";
-"wearable_sub" = "Sync step count and activity data from your child's device";
-"wearable_title" = "Health Connect";
 "weight_chart" = "Weight";
 "weight_label" = "Weight";
 "weight_percentile" = "Weight percentile";
@@ -622,3 +606,18 @@
 "your_kids" = "Your kids";
 "your_name" = "Your Name";
 "your_questions" = "Your questions";
+
+/* Live check-up progress at a school camp */
+"camp_progress_title" = "Check-up progress";
+"progress_waiting" = "Waiting to be checked";
+"progress_screening" = "Being checked";
+"progress_with_doctor" = "All checks done · with the doctor";
+"progress_released" = "Results ready";
+"progress_consent_needed" = "Waiting for your consent";
+"progress_declined" = "Consent declined";
+"progress_not_screened" = "Not checked at this camp";
+"check_state_done" = "Done";
+"check_state_pending" = "Waiting";
+"check_state_not_done" = "Not done";
+"check_state_not_included" = "Not included";
+"progress_values_note" = "Results appear here after a doctor reviews them.";

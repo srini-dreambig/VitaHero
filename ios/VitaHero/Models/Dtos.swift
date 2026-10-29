@@ -291,6 +291,50 @@ struct CampResult: Decodable {
     let urgency: String
     let recommendation: String
     let findings: [Finding]
+    /// Where the child is in the camp: which checks are done, never what they found.
+    let progress: Progress?
+
+    struct Progress: Decodable {
+        struct Check: Decodable, Identifiable {
+            let checkType: String
+            let state: String
+            var id: String { checkType }
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: AnyKey.self)
+                checkType = c.str("checkType")
+                state = c.str("state", "PENDING").uppercased()
+            }
+        }
+
+        let stage: String
+        let done: Int
+        let total: Int
+        let checks: [Check]
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: AnyKey.self)
+            stage = c.str("stage", "WAITING").uppercased()
+            done = c.int("done")
+            total = c.int("total")
+            checks = c.list("checks")
+        }
+
+        /// An answer that will not change while the screen is open.
+        var settled: Bool { ["RELEASED", "NOT_SCREENED", "DECLINED"].contains(stage) }
+
+        var stageLabel: String {
+            switch stage {
+            case "RELEASED": return L("progress_released")
+            case "WITH_DOCTOR": return L("progress_with_doctor")
+            case "SCREENING": return L("progress_screening") + " \u{00B7} \(done)/\(total)"
+            case "CONSENT_NEEDED": return L("progress_consent_needed")
+            case "DECLINED": return L("progress_declined")
+            case "NOT_SCREENED": return L("progress_not_screened")
+            default: return L("progress_waiting")
+            }
+        }
+    }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -302,6 +346,7 @@ struct CampResult: Decodable {
         urgency = c.str("urgency").uppercased()
         recommendation = c.str("recommendation")
         findings = c.list("findings")
+        progress = c.obj("progress")
     }
 }
 

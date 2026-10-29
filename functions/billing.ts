@@ -42,14 +42,13 @@ export const PAYWALLABLE = [
   "AI_DIET_COACH",       // the generated meal suggestions
   "FOOD_PHOTO_LOGGING",  // convenience, not care
   "EXTRA_CHILD_PROFILES", // beyond the children a school enrolled
-  "WEARABLE_SYNC",
 ] as const;
 export type Paywallable = (typeof PAYWALLABLE)[number];
 
 /** What each plan unlocks. FREE is the floor, and the floor includes all care. */
 const PLAN_FEATURES: Record<string, Paywallable[]> = {
   FREE: [],
-  PLUS: ["AI_DIET_COACH", "FOOD_PHOTO_LOGGING", "EXTRA_CHILD_PROFILES", "WEARABLE_SYNC"],
+  PLUS: ["AI_DIET_COACH", "FOOD_PHOTO_LOGGING", "EXTRA_CHILD_PROFILES"],
 };
 
 export async function ensureBillingSchema(sql: Sql): Promise<void> {

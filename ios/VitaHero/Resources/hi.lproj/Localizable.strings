@@ -2,7 +2,6 @@
    LocaleStrings.kt and ios/tools/ios_strings.json. Do not edit. */
 
 "about_which_child" = "किस बच्चे के बारे में?";
-"active_minutes" = "सक्रिय मिनट";
 "ai_diet_coach" = "AI डाइट कोच";
 "ai_subtitle" = "AI द्वारा व्यक्तिगत सुझाव";
 "all_camps" = "सभी कैंप";
@@ -189,7 +188,6 @@
 "completed" = "पूर्ण";
 "conducted_camps_count" = "%d स्कूल शिबिर कर चुके";
 "confirm_booking" = "बुकिंग की पुष्टि करें";
-"connect_health" = "हेल्थ डेटा कनेक्ट करें";
 "consent_accept" = "मैं सहमत हूँ — जारी रखें";
 "consent_body" = "विटाहीरो आपके बच्चे का स्वास्थ्य डेटा (ऊंचाई, वजन, दांत, आंखें, पोषण) एकत्र करता है ताकि व्यक्तिगत सुझाव दे सकें। यह डेटा सुरक्षित रखा जाता है और आपकी अनुमति के बिना कभी साझा नहीं किया जाता।";
 "consent_change_mind" = "आप कभी भी अपना निर्णय बदल सकते हैं — कैंप से पहले या बाद में।";
@@ -235,15 +233,6 @@
 "email_placeholder" = "parent@example.com";
 "email_tab" = "ईमेल";
 "ended_on" = "ठीक हुए";
-"energy_burnt" = "खर्च हुआ";
-"energy_connect" = "जोड़ें";
-"energy_eaten" = "खाया";
-"energy_kcal" = "%@ कैलोरी";
-"energy_net_even" = "आज अंदर और बाहर बराबर हैं";
-"energy_net_less" = "%@ कैलोरी बाहर ज्यादा";
-"energy_net_more" = "%@ कैलोरी अंदर ज्यादा";
-"energy_no_wearable" = "खर्च हुई ऊर्जा देखने के लिए घड़ी या फ़ोन जोड़ें।";
-"energy_today" = "आज की ऊर्जा";
 "enter_family_code" = "परिवार से जुड़ें";
 "erase_action" = "हटाएँ";
 "erase_body" = "इससे सब कुछ हट जाएगा: कैंप के नतीजे, आगे की कार्रवाई, फ़ोटो और यह बीमारी रिकॉर्ड। इसे वापस नहीं लाया जा सकता, स्कूल भी नहीं ला सकता।";
@@ -277,7 +266,6 @@
 "good_morning" = "सुप्रभात,";
 "growth_on_track" = "विकास ट्रैक पर";
 "growth_tab" = "विकास";
-"health_connect_install" = "गतिविधि डेटा सिंक करने के लिए Play Store से Health Connect इंस्टॉल करें।";
 "health_score" = "स्वास्थ्य स्कोर";
 "height_label" = "ऊंचाई";
 "height_trend" = "ऊंचाई का रुझान";
@@ -444,7 +432,6 @@
 "signup_tab" = "साइन अप";
 "skip" = "छोड़ें";
 "sms_note" = "हम SMS द्वारा 6-अंकों का कोड भेजेंगे";
-"steps_today" = "आज के कदम";
 "still_unwell" = "अभी भी बीमार";
 "streak_best" = "सबसे लंबी लगातार";
 "streak_current" = "लगातार दिन";
@@ -457,7 +444,6 @@
 "symptoms_sub" = "%@ के लिए बुखार, खाँसी वगैरह";
 "symptoms_title" = "रोज़मर्रा की बीमारी";
 "sync_failed" = "डेटा सेव नहीं हो सका। कृपया पुनः प्रयास करें।";
-"synced_from" = "डिवाइस से सिंक";
 "the_school_label" = "स्कूल";
 "today_label" = "आज";
 "todays_meals" = "आज का भोजन";
@@ -481,8 +467,6 @@
 "view_details" = "विवरण देखें";
 "view_diet_plan" = "आज का डाइट प्लान देखें";
 "view_label" = "देखें";
-"wearable_sub" = "अपने बच्चे के डिवाइस से कदमों की गिनती और गतिविधि डेटा सिंक करें";
-"wearable_title" = "हेल्थ कनेक्ट";
 "weight_label" = "वजन";
 "weight_trend" = "वजन का रुझान";
 "what_happened" = "क्या हुआ?";
@@ -500,3 +484,18 @@
 "your_kids" = "आपके बच्चे";
 "your_name" = "आपका नाम";
 "your_questions" = "आपके सवाल";
+
+/* Live check-up progress at a school camp */
+"camp_progress_title" = "जाँच की प्रगति";
+"progress_waiting" = "जाँच का इंतज़ार";
+"progress_screening" = "जाँच चल रही है";
+"progress_with_doctor" = "सभी जाँचें पूरी · डॉक्टर देख रहे हैं";
+"progress_released" = "परिणाम तैयार हैं";
+"progress_consent_needed" = "आपकी सहमति का इंतज़ार";
+"progress_declined" = "सहमति नहीं दी गई";
+"progress_not_screened" = "इस कैंप में जाँच नहीं हुई";
+"check_state_done" = "हो गया";
+"check_state_pending" = "बाकी";
+"check_state_not_done" = "नहीं हुआ";
+"check_state_not_included" = "शामिल नहीं";
+"progress_values_note" = "डॉक्टर के देखने के बाद परिणाम यहाँ दिखेंगे।";

@@ -85,12 +85,20 @@ struct CampStatusPill: View {
 struct CampDetailView: View {
     let camp: Camp
     @EnvironmentObject private var store: AppStore
+    /// Each child's place in the camp, by kid id.
+    @State private var progress: [String: CampResult] = [:]
 
     /// The parent's children registered for this camp; all of them when the
     /// camp does not say.
     private var kids: [Kid] {
-        let registered = store.allKids.filter { camp.registeredKidIds.contains($0.id) }
+        let registered = registeredKids
         return registered.isEmpty ? store.allKids : registered
+    }
+
+    /// Only the children on this camp's list: a brother at another school must
+    /// not be told a doctor is checking him for a camp he never attended.
+    private var registeredKids: [Kid] {
+        store.allKids.filter { camp.registeredKidIds.contains($0.id) }
     }
 
     var body: some View {
@@ -116,7 +124,22 @@ struct CampDetailView: View {
                 }
             }
 
-            if !camp.isUpcoming && !camp.isCancelled {
+            // Each child on this camp's list, from the day they are put on it:
+            // which checks are done and which are still to come, then the
+            // result once a doctor releases it. Progress only, never findings.
+            if camp.isPartner && !registeredKids.isEmpty {
+                Section {
+                    ForEach(registeredKids) { kid in
+                        NavigationLink { CampResultView(camp: camp, kid: kid) } label: {
+                            progressRow(kid, progress[kid.id]?.progress)
+                        }
+                    }
+                } header: {
+                    Text(L("camp_progress_title"))
+                } footer: {
+                    Text(L("progress_values_note"))
+                }
+            } else if !camp.isUpcoming && !camp.isCancelled {
                 Section(L("camp_result_title")) {
                     ForEach(kids) { kid in
                         NavigationLink { CampResultView(camp: camp, kid: kid) } label: {
@@ -131,6 +154,46 @@ struct CampDetailView: View {
         }
         .navigationTitle(L("camp_details"))
         .navigationBarTitleDisplayMode(.inline)
+        // Live while the screen is open: asked again every half minute until
+        // every child has an answer that will not change.
+        .task(id: camp.id) {
+            guard camp.isPartner else { return }
+            while !Task.isCancelled {
+                await loadProgress()
+                let kids = registeredKids
+                if kids.isEmpty || kids.allSatisfy({ progress[$0.id]?.progress?.settled == true }) { break }
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+            }
+        }
+        .refreshable { await loadProgress() }
+    }
+
+    private func loadProgress() async {
+        for kid in registeredKids {
+            if let r = try? await store.campResult(campId: camp.id, kidId: kid.id), r.progress != nil {
+                progress[kid.id] = r
+            }
+        }
+    }
+
+    private func progressRow(_ kid: Kid, _ p: CampResult.Progress?) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                Avatar(kid: kid, size: 32)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(kid.name).font(.headline).lineLimit(1)
+                    if let p {
+                        Text(p.stageLabel).font(.caption)
+                            .fontWeight(p.stage == "RELEASED" ? .bold : .regular)
+                            .foregroundColor(p.stage == "RELEASED" ? Brand.amber : .secondary)
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+            }
+            ForEach(p?.checks ?? []) { CheckStateRow(check: $0) }
+        }
+        .padding(.vertical, 4)
     }
 
     private func row(_ icon: String, _ text: String) -> some View {
@@ -152,7 +215,16 @@ struct CampResultView: View {
             if let result {
                 switch result.status {
                 case "PENDING", "UNDER_REVIEW", "SCREENED":
-                    EmptyState(icon: "hourglass", title: L("result_under_review"), subtitle: L("result_under_review_sub"))
+                    // The stage, when the server says it: "a doctor is still
+                    // checking this" was wrong for a child still in the queue.
+                    EmptyState(icon: "hourglass",
+                               title: pendingTitle(result.progress),
+                               subtitle: result.message.isEmpty ? L("result_under_review_sub") : result.message)
+                    if let checks = result.progress?.checks, !checks.isEmpty {
+                        Section(L("camp_progress_title")) {
+                            ForEach(checks) { CheckStateRow(check: $0) }
+                        }
+                    }
                 case "NOT_SCREENED", "NONE", "NOT_FOUND":
                     EmptyState(icon: "minus.circle", title: L("result_not_screened"),
                                subtitle: result.message.isEmpty ? nil : result.message)
@@ -203,6 +275,16 @@ struct CampResultView: View {
         }
     }
 
+    private func pendingTitle(_ p: CampResult.Progress?) -> String {
+        switch p?.stage {
+        case "SCREENING": return L("progress_screening")
+        case "WAITING": return L("progress_waiting")
+        case "CONSENT_NEEDED": return L("progress_consent_needed")
+        case "DECLINED": return L("progress_declined")
+        default: return L("result_under_review")
+        }
+    }
+
     @ViewBuilder
     private func urgency(_ value: String) -> some View {
         switch value {
@@ -219,6 +301,36 @@ struct CampResultView: View {
             error = nil
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+}
+
+/// One check at a camp and whether it is done yet. Never what it found.
+struct CheckStateRow: View {
+    let check: CampResult.Progress.Check
+
+    var body: some View {
+        HStack {
+            Text(check.checkType).font(.subheadline).lineLimit(1)
+            Spacer()
+            Text(label).font(.caption.weight(.semibold)).foregroundColor(color)
+        }
+    }
+
+    private var label: String {
+        switch check.state {
+        case "DONE": return "\u{2713} " + L("check_state_done")
+        case "NOT_DONE": return L("check_state_not_done")
+        case "NOT_CONSENTED": return L("check_state_not_included")
+        default: return L("check_state_pending")
+        }
+    }
+
+    private var color: Color {
+        switch check.state {
+        case "DONE": return Brand.blue
+        case "PENDING": return Brand.amber
+        default: return .secondary
         }
     }
 }

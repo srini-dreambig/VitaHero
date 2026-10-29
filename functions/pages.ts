@@ -92,11 +92,6 @@ export function servePrivacyPage(): Response {
       <li><strong>Photos of meals:</strong> a photo you choose to log may be
       processed to identify the food item. Photos are used for that purpose
       only and are never used for advertising.</li>
-      <li><strong>Device activity data (optional):</strong> if you connect
-      Google Health Connect, the app can read today's steps, active minutes and
-      calories <em>on your device only</em>, to show them on your child's
-      activity card. This data is never uploaded, shared or transmitted off the
-      device, and the app works fully without this permission.</li>
       <li><strong>Approximate location (optional):</strong> only when you
       search for a hospital or doctor to book, and only if you allow it, the
       app sends your phone's approximate location with that search so we can

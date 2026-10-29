@@ -23,13 +23,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.core.content.ContextCompat
-import androidx.health.connect.client.PermissionController
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kallam.healthcare.data.ApiRepositoryProvider
 import kallam.healthcare.data.AppViewModel
-import kallam.healthcare.data.HealthConnectPermissions
-import kallam.healthcare.data.KidsViewModel
 import kallam.healthcare.data.LocalAppLocale
 import kallam.healthcare.data.NotificationScheduler
 import kallam.healthcare.data.VitaHeroViewModelFactory
@@ -48,16 +45,7 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { }
 
-    private val healthConnectPermissionLauncher = registerForActivityResult(
-        PermissionController.createRequestPermissionResultContract()
-    ) { granted ->
-        if (granted.containsAll(HealthConnectPermissions.permissions)) {
-            kidsViewModel.onHealthConnectPermissionsGranted()
-        }
-    }
-
     private lateinit var appViewModel: AppViewModel
-    private lateinit var kidsViewModel: KidsViewModel
 
     // Phone resolved from an invite deep link (SMS), used to prefill the sign-in screen.
     private val invitePhoneState = mutableStateOf("")
@@ -77,11 +65,6 @@ class MainActivity : ComponentActivity() {
             } ?: remember { kallam.healthcare.data.AppContainer(application) }
             val factory = remember(container) { VitaHeroViewModelFactory(application, container) }
             appViewModel = viewModel(factory = factory)
-            kidsViewModel = viewModel(factory = factory)
-
-            kidsViewModel.setHealthConnectRequestHandler {
-                healthConnectPermissionLauncher.launch(HealthConnectPermissions.permissions)
-            }
 
             // The root of the app. It needs the language and the theme and nothing else,
             // but it used to collect all thirty fields of AppUiState — so logging a meal

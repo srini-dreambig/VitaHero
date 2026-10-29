@@ -100,8 +100,17 @@ fun CampResultScreen(
                     Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         IconBubble(Icons.Outlined.HealthAndSafety, HeroBlue)
                         Spacer(Modifier.height(12.dp))
+                        // The stage, when the server says it: "a doctor is still
+                        // checking this" was wrong for a child still in the queue.
                         Text(
-                            t(if (r.status == "NOT_SCREENED") S.resultNotScreened else S.resultUnderReview),
+                            when {
+                                r.status == "NOT_SCREENED" -> t(S.resultNotScreened)
+                                r.progress?.stage == "SCREENING" -> t(S.progressScreening)
+                                r.progress?.stage == "WAITING" -> t(S.progressWaiting)
+                                r.progress?.stage == "CONSENT_NEEDED" -> t(S.progressConsentNeeded)
+                                r.progress?.stage == "DECLINED" -> t(S.progressDeclined)
+                                else -> t(S.resultUnderReview)
+                            },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                         )
@@ -111,6 +120,39 @@ fun CampResultScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                }
+            }
+            // Which checks are done so far. Never what they found.
+            val checks = r.progress?.checks.orEmpty()
+            if (checks.isNotEmpty()) {
+                item {
+                    Spacer(Modifier.height(14.dp))
+                    HeroCard(Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp)) {
+                            Text(t(S.campProgressTitle), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                            checks.forEach { c ->
+                                Spacer(Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(c.checkType, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                    Text(
+                                        when (c.state) {
+                                            "DONE" -> "\u2713 " + t(S.checkStateDone)
+                                            "NOT_DONE" -> t(S.checkStateNotDone)
+                                            "NOT_CONSENTED" -> t(S.checkStateNotIncluded)
+                                            else -> t(S.checkStatePending)
+                                        },
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = when (c.state) {
+                                            "DONE" -> HeroBlue
+                                            "PENDING" -> HeroOrange
+                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

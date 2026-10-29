@@ -2,7 +2,6 @@
    LocaleStrings.kt and ios/tools/ios_strings.json. Do not edit. */
 
 "about_which_child" = "ఏ బిడ్డ గురించి?";
-"active_minutes" = "యాక్టివ్ నిమిషాలు";
 "ai_diet_coach" = "AI డైట్ కోచ్";
 "ai_subtitle" = "AI ద్వారా వ్యక్తిగత సలహాలు";
 "all_camps" = "అన్నీ క్యాంపులు";
@@ -189,7 +188,6 @@
 "completed" = "పూర్తి చేసినది";
 "conducted_camps_count" = "%d స్కూల్ కాంప్‌లు నిరవహించిరి";
 "confirm_booking" = "బుకింగ్ నిర్ధారించండి";
-"connect_health" = "హెల్త్ డేటాను కనెక్ట్ చేయండి";
 "consent_accept" = "నేను అంగీకరిస్తున్నాను — కొనసాగించండి";
 "consent_body" = "వ్యక్తిగత సలహాలు మరియు సిఫార్సులను అందించడానికి వీటాహీరో మీ పిల్ల ఆరోగ్య డేటాను సేకరిస్తుంది. ఈ డేటా సురక్షితంగా ఉంచబడుతుంది మరియు మీ అనుమతి లేకుండా ఎప్పుడూ షేర్ చేయబడదు.";
 "consent_change_mind" = "మీరు ఎప్పుడైనా మీ నిర్ణయాన్ని మార్చుకోవచ్చు — శిబిరానికి ముందు లేదా తర్వాత.";
@@ -232,15 +230,6 @@
 "email_placeholder" = "parent@example.com";
 "email_tab" = "ఇమెయిల్";
 "ended_on" = "కోలుకున్న రోజు";
-"energy_burnt" = "ఖర్చైనది";
-"energy_connect" = "కనెక్ట్ చేయండి";
-"energy_eaten" = "తిన్నది";
-"energy_kcal" = "%@ కేలరీలు";
-"energy_net_even" = "ఈరోజు రెండూ సమానం";
-"energy_net_less" = "%@ కేలరీలు ఎక్కువ ఖర్చైనాయి";
-"energy_net_more" = "%@ కేలరీలు ఎక్కువ తీసుకున్నారు";
-"energy_no_wearable" = "ఖర్చైన శక్తి చూడడానికి వాచీ లేదా ఫోన్ కనెక్ట్ చేయండి.";
-"energy_today" = "ఈరోజు శక్తి";
 "enter_family_code" = "ఫ్యామిలీలో చేరండి";
 "erase_action" = "తొలగించు";
 "erase_body" = "ఇది అన్నింటినీ తొలగిస్తుంది: శిబిర ఫలితాలు, తదుపరి చర్యలు, ఫోటోలు మరియు ఈ అనారోగ్య నమోదు. దీన్ని తిరిగి పొందలేరు, పాఠశాల కూడా తీసుకురాలేదు.";
@@ -440,7 +429,6 @@
 "signup_tab" = "సైన్ అప్";
 "skip" = "దాటవేయండి";
 "sms_note" = "మేమ్ SMS ద్వారా 6-అంకెల కోడ్ పంపుతాము";
-"steps_today" = "ఈరోజు అడుగులు";
 "still_unwell" = "ఇంకా అనారోగ్యంగా ఉంది";
 "streak_best" = "అత్యుత్తమ వరుస";
 "streak_current" = "వరుస రోజులు";
@@ -453,7 +441,6 @@
 "symptoms_sub" = "%@ కోసం జ్వరం, దగ్గు వంటివి";
 "symptoms_title" = "సాధారణ అనారోగ్యం";
 "sync_failed" = "డేటాను సేవ్ చేయలేముందలేదు। దయచేసి మళ్లీ ప్రయత్నంచండి।";
-"synced_from" = "పరికరం నుండి సింక్";
 "the_school_label" = "పాఠశాల";
 "today_label" = "ఈరోజు";
 "todays_meals" = "ఈరోజు భోజనాలు";
@@ -477,8 +464,6 @@
 "view_details" = "వివరాలు చూడండి";
 "view_diet_plan" = "ఈరోజు డైట్ ప్లాన్ చూడండి";
 "view_label" = "చూడండి";
-"wearable_sub" = "మీ పిల్ల పరికరం నుండి స్టెప్‌ల మరియు యాక్టివిటీ డేటాను సింక్ చేయండి";
-"wearable_title" = "హెల్త్ కనెక్ట్";
 "weight_label" = "బరువు";
 "weight_trend" = "బరువు ధోరణి";
 "what_happened" = "ఏమి జరిగింది?";
@@ -496,3 +481,18 @@
 "your_kids" = "మీ పిల్లలు";
 "your_name" = "మీ పేరు";
 "your_questions" = "మీ ప్రశ్నలు";
+
+/* Live check-up progress at a school camp */
+"camp_progress_title" = "పరీక్షల పురోగతి";
+"progress_waiting" = "పరీక్ష కోసం వేచి ఉంది";
+"progress_screening" = "పరీక్షలు జరుగుతున్నాయి";
+"progress_with_doctor" = "అన్ని పరీక్షలు పూర్తి · డాక్టర్ చూస్తున్నారు";
+"progress_released" = "ఫలితాలు సిద్ధం";
+"progress_consent_needed" = "మీ అనుమతి కోసం వేచి ఉంది";
+"progress_declined" = "అనుమతి ఇవ్వలేదు";
+"progress_not_screened" = "ఈ శిబిరంలో పరీక్షించలేదు";
+"check_state_done" = "పూర్తైంది";
+"check_state_pending" = "మిగిలి ఉంది";
+"check_state_not_done" = "జరగలేదు";
+"check_state_not_included" = "చేర్చలేదు";
+"progress_values_note" = "డాక్టర్ సమీక్షించిన తర్వాత ఫలితాలు ఇక్కడ కనిపిస్తాయి.";

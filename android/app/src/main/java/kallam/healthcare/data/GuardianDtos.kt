@@ -118,6 +118,28 @@ data class CampResultDto(
     val urgency: String = "NONE",
     val recommendation: String = "",
     val findings: List<ReleasedFindingDto> = emptyList(),
+    /** Where the child is in the camp. Absent from servers that predate it. */
+    val progress: CampProgressDto? = null,
+)
+
+/**
+ * Which of the camp's checks are done, live, and who has the result now.
+ * Never what a check found: that waits for a doctor's release.
+ */
+@Serializable
+data class CampProgressDto(
+    /** WAITING, SCREENING, WITH_DOCTOR, RELEASED, CONSENT_NEEDED, DECLINED or NOT_SCREENED. */
+    val stage: String = "WAITING",
+    val done: Int = 0,
+    val total: Int = 0,
+    val checks: List<CampCheckProgressDto> = emptyList(),
+)
+
+@Serializable
+data class CampCheckProgressDto(
+    val checkType: String = "",
+    /** DONE, PENDING, NOT_DONE or NOT_CONSENTED. */
+    val state: String = "PENDING",
 )
 
 // ─── Photographs ────────────────────────────────────────────
