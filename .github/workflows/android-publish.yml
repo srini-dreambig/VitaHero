@@ -43,6 +43,14 @@ on:
         type: choice
         default: draft
         options: [draft, inProgress, completed]
+      promote_from:
+        # A version code goes to Play once. To put a build that is already on
+        # one track onto another, it is promoted there, not uploaded again.
+        description: "Promote the release already on this track instead of uploading a new bundle"
+        required: true
+        type: choice
+        default: none
+        options: [none, internal, alpha, beta]
 
 jobs:
   publish:
@@ -85,6 +93,7 @@ jobs:
           echo "dir=$dir" >> "$GITHUB_OUTPUT"
 
       - name: Build and upload
+        if: inputs.promote_from == 'none'
         working-directory: android
         env:
           ANDROID_PUBLISHER_CREDENTIALS: ${{ steps.creds.outputs.dir }}/play.json
@@ -95,6 +104,19 @@ jobs:
           PLAY_TRACK: ${{ inputs.track }}
           PLAY_RELEASE_STATUS: ${{ inputs.status }}
         run: ./gradlew :app:publishReleaseBundle --stacktrace
+
+      - name: Promote
+        if: inputs.promote_from != 'none'
+        working-directory: android
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ steps.creds.outputs.dir }}/play.json
+          VITAHERO_KEYSTORE: ${{ steps.creds.outputs.dir }}/upload.jks
+          PLAY_TRACK: ${{ inputs.track }}
+          PLAY_RELEASE_STATUS: ${{ inputs.status }}
+          FROM_TRACK: ${{ inputs.promote_from }}
+        run: |
+          test "$FROM_TRACK" != "$PLAY_TRACK" || { echo "::error::promote_from and track are the same"; exit 1; }
+          ./gradlew :app:promoteReleaseArtifact --from-track "$FROM_TRACK" --promote-track "$PLAY_TRACK" --release-status "$PLAY_RELEASE_STATUS" --stacktrace
 
       # Kept for matching a crash report to a build. The bundle is signed with
       # the upload key, not the app signing key, so it is not installable as-is
