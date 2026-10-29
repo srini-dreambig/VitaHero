@@ -162,7 +162,7 @@ async function seedLibrary(sql: Sql): Promise<void> {
             v.check_types::jsonb, v.flags::jsonb, v.min_age::int, v.max_age::int, true, 'seed'
      FROM (VALUES %VALUES%) AS v(id, slug, locale, title, summary, body,
                                  check_types, flags, min_age, max_age)
-     ON CONFLICT (slug, locale) DO NOTHING`,
+     ON CONFLICT DO NOTHING`,
     rows
   );
 }
@@ -344,7 +344,7 @@ export async function upsertArticle(sql: Sql, actor: Actor, body: Record<string,
   await sql`
     INSERT INTO vita_hero.library_articles
       (id, slug, locale, title, summary, body, check_types, flags, min_age, max_age, published, created_by, updated_at)
-    VALUES (${`lib_${slug}_${locale}`}, ${slug}, ${locale}, ${title}, ${String(body.summary || "")}, ${text},
+    VALUES (${`lib_${slug}_${locale}_${crypto.randomUUID().slice(0, 8)}`}, ${slug}, ${locale}, ${title}, ${String(body.summary || "")}, ${text},
             ${JSON.stringify(checks)}::jsonb, ${JSON.stringify(flags)}::jsonb,
             ${minAge}, ${maxAge}, ${body.published !== false}, ${actor.profileId}, NOW())
     ON CONFLICT (slug, locale) DO UPDATE SET

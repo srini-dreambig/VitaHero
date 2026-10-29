@@ -113,7 +113,9 @@ function dueDate(urgency: string, from = new Date()): string {
  *
  * Same idempotency: the unique index on (camp, kid, check, generation) is what
  * makes a re-release add nothing, and DO NOTHING plus RETURNING tells us how
- * many were genuinely new.
+ * many were genuinely new. It skips on any key, not only that one: two
+ * releases at once insert the same id, and a skip naming only the index
+ * failed the second release on the primary key instead.
  */
 export async function openReferralsForCamp(
   sql: Sql,
@@ -161,7 +163,7 @@ export async function openReferralsForCamp(
          (id, camp_id, kid_id, profile_id, school_id, check_type, specialty, flag,
           urgency, reason, status, created_by, due_by)
        VALUES ${values.join(", ")}
-       ON CONFLICT (camp_id, kid_id, check_type, generation) DO NOTHING
+       ON CONFLICT DO NOTHING
        RETURNING id`,
       params
     );
@@ -361,7 +363,7 @@ export async function recordReferralOutcome(
          ${String(body.referredTo || r.specialty || "Paediatrics")}, ${r.flag as string},
          'SOON', ${"Referred on: " + diagnosis}, 'OPEN', ${actor.profileId}, ${dueDate("SOON")},
          ${generation})
-      ON CONFLICT (camp_id, kid_id, check_type, generation) DO NOTHING
+      ON CONFLICT DO NOTHING
     `;
   }
 
@@ -528,15 +530,21 @@ export async function nudgeReferrals(
   // overdue referrals is what decides which ones are still worth a nudge.
   // Issuing these two together would text families about referrals that had
   // just lapsed.
+  //
+  // Picking who to text and recording that they were texted are one
+  // statement. Read first and written after the sends, two clicks a moment
+  // apart both found the same families due and texted each of them twice.
+  // A claim that did not turn into a text is handed back below.
   const due = await sql`
-    SELECT r.id, r.urgency, r.specialty, k.name AS kid_name, p.phone
-    FROM vita_hero.referrals r
-    JOIN vita_hero.kids k ON k.id = r.kid_id
-    LEFT JOIN vita_hero.profiles p ON p.id = r.profile_id
-    WHERE r.school_id = ${schoolId} AND r.status = 'OPEN'
+    UPDATE vita_hero.referrals r
+    SET nudge_count = r.nudge_count + 1, last_nudge_at = NOW()
+    FROM vita_hero.kids k, vita_hero.profiles p
+    WHERE k.id = r.kid_id AND p.id = r.profile_id
+      AND r.school_id = ${schoolId} AND r.status = 'OPEN'
       AND COALESCE(p.phone,'') <> ''
       AND (r.last_nudge_at IS NULL OR r.last_nudge_at < NOW() - INTERVAL '7 days')
       AND r.nudge_count < 3
+    RETURNING r.id, r.urgency, r.specialty, k.name AS kid_name, p.phone
   `;
 
   const byId = new Map(due.map((r) => [r.id as string, r]));
@@ -551,14 +559,14 @@ export async function nudgeReferrals(
     }
   );
   const sent = outcome.sent.length;
-  // One statement for everyone who was reached. The interval and the cap were
-  // already right here; what was not was a write per referral on top of a send
-  // per referral, both waited on one at a time.
-  if (outcome.sent.length > 0) {
+  // A text that did not go out does not spend one of the family's nudges, and
+  // they are due again on the next run.
+  const unsent = outcome.failed.map((f) => f.id);
+  if (unsent.length > 0) {
     await sql`
       UPDATE vita_hero.referrals
-      SET nudge_count = nudge_count + 1, last_nudge_at = NOW()
-      WHERE id = ANY(${outcome.sent})
+      SET nudge_count = GREATEST(nudge_count - 1, 0), last_nudge_at = NULL
+      WHERE id = ANY(${unsent})
     `;
   }
 

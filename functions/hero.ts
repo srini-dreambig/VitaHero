@@ -169,7 +169,7 @@ export async function setHeroOfMonth(
     );
   }
   const month = String(body.month || "").trim() || monthOf();
-  const id = `hom_${schoolId}_${month}`;
+  const id = `hom_${schoolId}_${month}_${crypto.randomUUID().slice(0, 8)}`;
   await sql`
     INSERT INTO vita_hero.hero_of_month
       (id, school_id, month, kid_id, story, achievement, published, chosen_by)

@@ -595,7 +595,7 @@ export async function commitRoster(
       await sql.query(
         `INSERT INTO vita_hero.school_enrollments (id, profile_id, school_id, status)
          VALUES ${values.join(", ")}
-         ON CONFLICT (profile_id, school_id) DO NOTHING`,
+         ON CONFLICT DO NOTHING`,
         params
       );
     }
@@ -618,7 +618,7 @@ export async function commitRoster(
       await sql`
         INSERT INTO vita_hero.school_classes (id, school_id, academic_year, grade, section)
         VALUES (${id}, ${schoolId}, ${report.academicYear}, ${grade}, ${section})
-        ON CONFLICT (school_id, academic_year, grade, section) DO NOTHING
+        ON CONFLICT DO NOTHING
       `;
     }
   }

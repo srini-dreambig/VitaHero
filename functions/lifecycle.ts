@@ -476,7 +476,7 @@ export async function rolloverClasses(
           INSERT INTO vita_hero.school_classes (id, school_id, academic_year, grade, section)
           VALUES (${`cls_${slugify(schoolId)}_${slugify(toYear)}_${slugify(target)}_${slugify(sec) || "na"}`},
                   ${schoolId}, ${toYear}, ${target}, ${sec})
-          ON CONFLICT (school_id, academic_year, grade, section) DO NOTHING
+          ON CONFLICT DO NOTHING
         `;
       }
     } else if (grade === finalGrade) {

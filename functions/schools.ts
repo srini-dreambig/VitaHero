@@ -606,7 +606,7 @@ export async function setClasses(
       `INSERT INTO vita_hero.school_classes (id, school_id, academic_year, grade, section)
        SELECT v.id, v.school_id, v.academic_year, v.grade, v.section
        FROM (VALUES %VALUES%) AS v(id, school_id, academic_year, grade, section)
-       ON CONFLICT (school_id, academic_year, grade, section) DO NOTHING`,
+       ON CONFLICT DO NOTHING`,
       pairs.map((p) => [
         `cls_${slugify(schoolId)}_${slugify(year)}_${slugify(p.grade)}_${slugify(p.section) || "na"}`,
         schoolId, year, p.grade, p.section,

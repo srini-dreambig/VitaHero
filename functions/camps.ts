@@ -122,6 +122,10 @@ export async function ensureCampSchema(sql: Sql): Promise<void> {
   // click on "remind everyone" does not text the school again.
   await sql`ALTER TABLE vita_hero.camp_participants ADD COLUMN IF NOT EXISTS consent_reminded_at TIMESTAMPTZ`;
   await sql`ALTER TABLE vita_hero.camp_participants ADD COLUMN IF NOT EXISTS consent_reminder_count INT DEFAULT 0`;
+  // When a release took this family to text about the result. Two releases
+  // at the same moment both found every parent untold and both texted them;
+  // releaseCamp now claims a family here before sending.
+  await sql`ALTER TABLE vita_hero.camp_participants ADD COLUMN IF NOT EXISTS result_notified_at TIMESTAMPTZ`;
   await sql`CREATE INDEX IF NOT EXISTS camp_participants_camp ON vita_hero.camp_participants(camp_id, status)`;
   await sql`CREATE INDEX IF NOT EXISTS camp_participants_kid ON vita_hero.camp_participants(kid_id)`;
   await sql`CREATE INDEX IF NOT EXISTS camp_participants_profile ON vita_hero.camp_participants(profile_id, consent_status)`;
@@ -639,7 +643,7 @@ export async function buildCampRoster(sql: Sql, actor: Actor, campId: string) {
        SELECT v.id, v.camp_id, v.school_id, v.kid_id, k.profile_id
        FROM (VALUES ${values.join(", ")}) AS v(id, camp_id, school_id, kid_id)
        JOIN vita_hero.kids k ON k.id = v.kid_id
-       ON CONFLICT (camp_id, kid_id) DO NOTHING`,
+       ON CONFLICT DO NOTHING`,
       params
     );
   }
@@ -803,19 +807,31 @@ export async function requestConsent(
   // replied should not re-text the forty who already have.
   const picked = Array.isArray(opts.profileIds) ? opts.profileIds.filter(Boolean) : [];
 
-  const rows = await sql`
-    SELECT DISTINCT p.profile_id, pr.phone, pr.name
-    FROM vita_hero.camp_participants p
-    JOIN vita_hero.profiles pr ON pr.id = p.profile_id
-    WHERE p.camp_id = ${campId} AND p.consent_status = 'PENDING' AND COALESCE(pr.phone,'') <> ''
+  // Choosing who to remind and recording the reminder are one statement.
+  // Read first and written after the sends, an operator clicking twice a
+  // moment apart had both clicks find the same guardians and text each twice.
+  // A claim that did not turn into a text is handed back after the sends.
+  const claimed = await sql`
+    UPDATE vita_hero.camp_participants p
+    SET consent_reminded_at = NOW(),
+        consent_reminder_count = COALESCE(p.consent_reminder_count, 0) + 1
+    FROM vita_hero.profiles pr
+    WHERE pr.id = p.profile_id
+      AND p.camp_id = ${campId} AND p.consent_status = 'PENDING' AND COALESCE(pr.phone,'') <> ''
       AND (${picked.length === 0} OR p.profile_id = ANY(${picked}))
       -- Reminding everyone is throttled; reminding one named guardian is a
-      -- deliberate act by someone who has just spoken to them, and is not.
+      -- deliberate act by someone who has just spoken to them, and is only
+      -- kept from going twice on a double tap.
+      AND (p.consent_reminded_at IS NULL
+           OR p.consent_reminded_at < NOW() - INTERVAL '1 minute')
       AND (${picked.length > 0}
            OR ((p.consent_reminded_at IS NULL
                 OR p.consent_reminded_at < NOW() - INTERVAL '2 days')
                AND COALESCE(p.consent_reminder_count, 0) < 3))
+    RETURNING p.id, p.profile_id, pr.phone
   `;
+  // One text per guardian, however many of their children are waiting.
+  const rows = [...new Map(claimed.map((r) => [r.profile_id as string, r])).values()];
 
   const checks: string[] = Array.isArray(camp.checks)
     ? (camp.checks as string[])
@@ -835,17 +851,16 @@ export async function requestConsent(
   );
   const sent = outcome.sent.length;
 
-  // One statement for everyone reached. It also gives this the restraint the
-  // referral nudge already had and this did not: nothing recorded that a
-  // guardian had been reminded, so an operator clicking the button twice
-  // texted a whole school's waiting families twice, immediately, with no cap
-  // and no interval.
-  if (outcome.sent.length > 0) {
+  // A reminder that did not go out does not count against the guardian's
+  // three, and they are due again straight away.
+  const unsent = new Set(outcome.failed.map((f) => f.id));
+  const handBack = claimed.filter((r) => unsent.has(r.profile_id as string)).map((r) => r.id as string);
+  if (handBack.length > 0) {
     await sql`
       UPDATE vita_hero.camp_participants
-      SET consent_reminded_at = NOW(),
-          consent_reminder_count = COALESCE(consent_reminder_count, 0) + 1
-      WHERE camp_id = ${campId} AND profile_id = ANY(${outcome.sent})
+      SET consent_reminded_at = NULL,
+          consent_reminder_count = GREATEST(COALESCE(consent_reminder_count, 0) - 1, 0)
+      WHERE id = ANY(${handBack})
     `;
   }
 
@@ -1202,7 +1217,10 @@ function evaluateChild(
     out.push({
       // Whole ids, not prefixes: children added from admission numbers share
       // their first characters, and a cut id made the second child's save collide.
-      id: `cf_${campId}_${kidId}_${slugify(checkType)}`,
+      // The suffix is for two screeners saving the same check at once: the
+      // upsert arbitrates on (camp, kid, check), and a shared id made the
+      // second insert fail on the primary key instead of updating the row.
+      id: `cf_${campId}_${kidId}_${slugify(checkType)}_${crypto.randomUUID().slice(0, 8)}`,
       checkType,
       detail,
       valueNum: proposal.valueNum,
@@ -1978,12 +1996,18 @@ export async function reviewParticipant(
       recommendation = EXCLUDED.recommendation, signed_at = NOW()
   `;
   // These checks are now this clinician's; whoever signed them before no
-  // longer answers for them, so the family does not read both.
+  // longer answers for them, so the family does not read both. Only older
+  // sign-offs give way: two clinicians signing at the same moment each
+  // stripped the other, nobody held the check, and the child stayed
+  // unapproved while both were told it had worked.
   await sql`
     UPDATE vita_hero.camp_signoffs s
     SET checks = (SELECT COALESCE(jsonb_agg(c.v), '[]'::jsonb)
                   FROM jsonb_array_elements_text(s.checks) AS c(v) WHERE NOT (c.v = ANY(${mine})))
     WHERE s.camp_id = ${campId} AND s.kid_id = ${kidId} AND s.signed_by <> ${actor.profileId}
+      AND s.signed_at < (SELECT m.signed_at FROM vita_hero.camp_signoffs m
+                         WHERE m.camp_id = ${campId} AND m.kid_id = ${kidId}
+                           AND m.signed_by = ${actor.profileId})
   `;
 
   const signoffs = await validSignoffs(sql, campId, kidId);
@@ -2012,31 +2036,44 @@ export async function reviewParticipant(
   // Waiting for the whole camp to be reviewed could be days.
   let escalated = false;
   if (urgency === "URGENT" && !wasUrgent && sendSms) {
-    const who = await sql`
-      SELECT k.name, pr.phone, s.name AS school_name
-      FROM vita_hero.camp_participants p
-      JOIN vita_hero.kids k ON k.id = p.kid_id
-      LEFT JOIN vita_hero.profiles pr ON pr.id = p.profile_id
-      LEFT JOIN vita_hero.school_camps sc ON sc.id = p.camp_id
-      LEFT JOIN vita_hero.schools s ON s.id = sc.school_id
-      WHERE p.camp_id = ${campId} AND p.kid_id = ${kidId} LIMIT 1
-    `;
-    const phone = (who[0]?.phone as string) || "";
-    if (phone) {
-      escalated = (await sendSms(
-        phone,
-        "VitaHero: the doctor reviewing " + String(who[0]?.name || "your child") +
-          "'s school health check-up has flagged something that needs attention within a few days. " +
-          "Please open the VitaHero app, or call the school."
-      )).ok;
-    }
-    await sql`
+    // Two clinicians signing the same child at once both read it as not yet
+    // urgent, and both texted the family. The log row is the claim: its id is
+    // the child's, so only one of them writes it and only that one texts.
+    const claim = await sql`
       INSERT INTO vita_hero.consent_log (id, camp_id, kid_id, profile_id, action, source, actor_id, note)
-      SELECT ${"esc_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)},
+      SELECT ${"esc_" + campId + "_" + kidId},
              ${campId}, ${kidId}, p.profile_id, 'URGENT_ESCALATED', 'SMS', ${actor.profileId},
-             ${escalated ? "Guardian notified immediately" : "No mobile on file — school must call"}
+             'No mobile on file — school must call'
       FROM vita_hero.camp_participants p WHERE p.camp_id = ${campId} AND p.kid_id = ${kidId}
+      ON CONFLICT DO NOTHING
+      RETURNING id
     `;
+    if (claim.length > 0) {
+      const who = await sql`
+        SELECT k.name, pr.phone, s.name AS school_name
+        FROM vita_hero.camp_participants p
+        JOIN vita_hero.kids k ON k.id = p.kid_id
+        LEFT JOIN vita_hero.profiles pr ON pr.id = p.profile_id
+        LEFT JOIN vita_hero.school_camps sc ON sc.id = p.camp_id
+        LEFT JOIN vita_hero.schools s ON s.id = sc.school_id
+        WHERE p.camp_id = ${campId} AND p.kid_id = ${kidId} LIMIT 1
+      `;
+      const phone = (who[0]?.phone as string) || "";
+      if (phone) {
+        escalated = (await sendSms(
+          phone,
+          "VitaHero: the doctor reviewing " + String(who[0]?.name || "your child") +
+            "'s school health check-up has flagged something that needs attention within a few days. " +
+            "Please open the VitaHero app, or call the school."
+        )).ok;
+      }
+      if (escalated) {
+        await sql`
+          UPDATE vita_hero.consent_log SET note = 'Guardian notified immediately'
+          WHERE id = ${claim[0].id as string}
+        `;
+      }
+    }
   }
 
   return {
@@ -2164,9 +2201,16 @@ export async function releaseCamp(
   };
 
   // The parent app's camp result row.
+  //
+  // The statements below run alongside any other release of the same camp,
+  // which a doctor approving one child while another releases the school
+  // does. Each one's id is derived from its key, and an upsert or skip only
+  // arbitrates on the key it names: the second insert of the same id failed
+  // on the primary key and the release answered 500. So ids here are unique
+  // per write, and the skips skip on any key.
   await writeBatched(
     plan.map((p) => [
-      `ckr_${campId}_${p.kidId}`,
+      `ckr_${campId}_${p.kidId}_${crypto.randomUUID().slice(0, 8)}`,
       p.profileId, campId, p.kidId,
       p.summary.dental, p.summary.eyesight, p.summary.nutrition,
       p.summary.heightCm, p.summary.weightKg,
@@ -2227,7 +2271,7 @@ export async function releaseCamp(
     (values) => `
       INSERT INTO vita_hero.camp_registrations (id, profile_id, school_camp_id, kid_id)
       VALUES ${values}
-      ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING`
+      ON CONFLICT DO NOTHING`
   );
 
   // The guardian must be enrolled with the school to see partner camps. One
@@ -2249,7 +2293,7 @@ export async function releaseCamp(
     (values) => `
       INSERT INTO vita_hero.school_enrollments (id, profile_id, school_id, kid_id, status)
       VALUES ${values}
-      ON CONFLICT (profile_id, school_id) DO NOTHING`
+      ON CONFLICT DO NOTHING`
   );
 
   // G1 — every flag a physician confirmed becomes a tracked referral, so a
@@ -2299,19 +2343,27 @@ export async function releaseCamp(
   // The URGENT_ESCALATED guard stays and now covers everyone: a camp released
   // twice — which happens, because approving a straggler and releasing again
   // is the normal way to finish one — must not text the same family twice.
+  //
+  // Reading who is untold and then texting them was not enough on its own:
+  // two releases at the same moment both read every family as untold before
+  // either had logged a text, and every parent got two. So a family is
+  // claimed first, in one statement, and a release that loses the row to
+  // another skips it. A claim that is old and never became a logged text
+  // (the worker died mid-send) is free to be taken again.
   const toTell = await sql`
-    SELECT p.kid_id, p.profile_id, p.urgency, k.name, pr.phone
-    FROM vita_hero.camp_participants p
-    JOIN vita_hero.kids k ON k.id = p.kid_id
-    LEFT JOIN vita_hero.profiles pr ON pr.id = p.profile_id
-    WHERE p.camp_id = ${campId} AND p.status = 'RELEASED'
+    UPDATE vita_hero.camp_participants p SET result_notified_at = NOW()
+    FROM vita_hero.kids k, vita_hero.profiles pr
+    WHERE k.id = p.kid_id AND pr.id = p.profile_id
+      AND p.camp_id = ${campId} AND p.status = 'RELEASED'
       AND (${!only} OR p.kid_id = ANY(${only || []}))
       AND COALESCE(pr.phone,'') <> ''
+      AND (p.result_notified_at IS NULL OR p.result_notified_at < NOW() - INTERVAL '15 minutes')
       AND NOT EXISTS (
         SELECT 1 FROM vita_hero.consent_log cl
         WHERE cl.camp_id = p.camp_id AND cl.kid_id = p.kid_id
           AND cl.action IN ('URGENT_ESCALATED','RESULT_NOTIFIED')
       )
+    RETURNING p.kid_id, p.profile_id, p.urgency, k.name, pr.phone
   `;
 
   const messageFor = (name: string, urgency: string): string =>
@@ -2338,6 +2390,15 @@ export async function releaseCamp(
       })
     );
     landedAll.push(...(sent.filter(Boolean) as Record<string, unknown>[]));
+  }
+  // A text that did not go is let go of, so the next release tries it again.
+  const landedIds = new Set(landedAll.map((u) => u.kid_id as string));
+  const unsent = toTell.map((u) => u.kid_id as string).filter((id) => !landedIds.has(id));
+  if (unsent.length > 0) {
+    await sql`
+      UPDATE vita_hero.camp_participants SET result_notified_at = NULL
+      WHERE camp_id = ${campId} AND kid_id = ANY(${unsent})
+    `;
   }
   const notified = landedAll.length;
   const urgentNotified = landedAll.filter((u) => u.urgency === "URGENT").length;
@@ -2733,7 +2794,7 @@ export async function assignCampStaff(
 
   await sql`
     INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role)
-    VALUES (${"cst_" + campId + "_" + profileId}, ${campId}, ${profileId}, ${role})
+    VALUES (${"cst_" + campId + "_" + profileId + "_" + crypto.randomUUID().slice(0, 8)}, ${campId}, ${profileId}, ${role})
     ON CONFLICT (camp_id, profile_id) DO UPDATE SET staff_role = EXCLUDED.staff_role
   `;
   return { assigned: { profileId, name: rows[0].name as string, role } };
@@ -2851,7 +2912,7 @@ export async function assignDoctorToCamp(
 
   await sql`
     INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role, doctor_id, active)
-    VALUES (${"cst_" + campId + "_" + profileId},
+    VALUES (${"cst_" + campId + "_" + profileId + "_" + crypto.randomUUID().slice(0, 8)},
             ${campId}, ${profileId}, 'PHYSICIAN', ${doctorId}, true)
     ON CONFLICT (camp_id, profile_id) DO UPDATE SET
       staff_role = 'PHYSICIAN', doctor_id = ${doctorId},

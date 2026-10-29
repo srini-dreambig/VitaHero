@@ -1461,12 +1461,12 @@ async function processImport(
           await sql`
             INSERT INTO vita_hero.camp_registrations (id, profile_id, school_camp_id, kid_id)
             VALUES (${"reg_" + kidId + "_" + campId.slice(-6)}, ${profileId}, ${campId}, ${kidId})
-            ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING
+            ON CONFLICT DO NOTHING
           `;
           await sql`
             INSERT INTO vita_hero.camp_kid_results
               (id, profile_id, school_camp_id, kid_id, dental, eyesight, nutrition, height_cm, weight_kg)
-            VALUES (${"ckr_" + kidId + "_" + campId.slice(-6)}, ${profileId}, ${campId}, ${kidId},
+            VALUES (${"ckr_" + kidId + "_" + campId.slice(-6) + "_" + crypto.randomUUID().slice(0, 8)}, ${profileId}, ${campId}, ${kidId},
                     ${dental}, ${eyesight}, ${nutrition}, ${heightCm}, ${weightKg})
             ON CONFLICT (school_camp_id, kid_id) DO UPDATE SET
               dental = EXCLUDED.dental, eyesight = EXCLUDED.eyesight, nutrition = EXCLUDED.nutrition,
@@ -4763,7 +4763,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
         if (kidId && !(await kidOwnedByProfile(sql, kidId, session.profileId))) {
           return json({ error: "Kid not found" }, 404);
         }
-        const enrollId = `enr_${session.profileId}_${school.id}`;
+        const enrollId = `enr_${session.profileId}_${school.id}_${crypto.randomUUID().slice(0, 8)}`;
         await sql`
           INSERT INTO vita_hero.school_enrollments
             (id, profile_id, school_id, kid_id, status)
@@ -4821,7 +4821,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           INSERT INTO vita_hero.camp_registrations
             (id, profile_id, school_camp_id, kid_id)
           VALUES (${regId}, ${session.profileId}, ${schoolCampId}, ${kidId})
-          ON CONFLICT (profile_id, school_camp_id, kid_id) DO NOTHING
+          ON CONFLICT DO NOTHING
         `;
         await sql`
           UPDATE vita_hero.school_camps
