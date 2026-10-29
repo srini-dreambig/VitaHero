@@ -42,6 +42,7 @@
 "camp_consent_sub" = "स्कूल आपके बच्चे की जाँच की अनुमति माँग रहा है";
 "camp_consent_title" = "अनुमति";
 "camp_partner_hospital" = "शिबिर साथी";
+"camp_progress_title" = "जाँच की प्रगति";
 "camp_reminder_sub" = "स्कूल कैंप से पहले सूचना पाएं";
 "camp_reminders" = "कैंप रिमाइंडर";
 "camp_result_title" = "कैंप का परिणाम";
@@ -51,6 +52,10 @@
 "capture_food" = "भोजन की तस्वीर लें";
 "care_is_free_body" = "आपके बच्चे के स्वास्थ्य परिणाम, आगे की कार्रवाई और रिकॉर्ड मुफ़्त हैं और हमेशा रहेंगे। भुगतान वाली योजना केवल सुविधाएँ जोड़ती है।";
 "care_is_free_title" = "स्वास्थ्य परिणाम मुफ़्त हैं";
+"check_state_done" = "हो गया";
+"check_state_not_done" = "नहीं हुआ";
+"check_state_not_included" = "शामिल नहीं";
+"check_state_pending" = "बाकी";
 "child_erase_failed" = "हम इसे हटा नहीं सके। कृपया दोबारा कोशिश करें।";
 "child_erased" = "हटा दिया गया। कुछ नहीं बचा।";
 "clear_label" = "मिटाएँ";
@@ -379,6 +384,14 @@
 "privacy_data_sub" = "DPDP अनुपालन · माता-पिता सहमति";
 "privacy_rights_sub" = "क्या रखा जाता है, और आप उसके बारे में क्या कर सकते हैं";
 "privacy_rights_title" = "आपके बच्चे का रिकॉर्ड";
+"progress_consent_needed" = "आपकी सहमति का इंतज़ार";
+"progress_declined" = "सहमति नहीं दी गई";
+"progress_not_screened" = "इस कैंप में जाँच नहीं हुई";
+"progress_released" = "परिणाम तैयार हैं";
+"progress_screening" = "जाँच चल रही है";
+"progress_values_note" = "डॉक्टर के देखने के बाद परिणाम यहाँ दिखेंगे।";
+"progress_waiting" = "जाँच का इंतज़ार";
+"progress_with_doctor" = "सभी जाँचें पूरी · डॉक्टर देख रहे हैं";
 "push_notif" = "पुश नोटिफिकेशन";
 "question_failed" = "हम इसे भेज नहीं सके। कृपया दोबारा कोशिश करें।";
 "question_placeholder" = "अपना सवाल यहाँ लिखें";
@@ -484,18 +497,3 @@
 "your_kids" = "आपके बच्चे";
 "your_name" = "आपका नाम";
 "your_questions" = "आपके सवाल";
-
-/* Live check-up progress at a school camp */
-"camp_progress_title" = "जाँच की प्रगति";
-"progress_waiting" = "जाँच का इंतज़ार";
-"progress_screening" = "जाँच चल रही है";
-"progress_with_doctor" = "सभी जाँचें पूरी · डॉक्टर देख रहे हैं";
-"progress_released" = "परिणाम तैयार हैं";
-"progress_consent_needed" = "आपकी सहमति का इंतज़ार";
-"progress_declined" = "सहमति नहीं दी गई";
-"progress_not_screened" = "इस कैंप में जाँच नहीं हुई";
-"check_state_done" = "हो गया";
-"check_state_pending" = "बाकी";
-"check_state_not_done" = "नहीं हुआ";
-"check_state_not_included" = "शामिल नहीं";
-"progress_values_note" = "डॉक्टर के देखने के बाद परिणाम यहाँ दिखेंगे।";

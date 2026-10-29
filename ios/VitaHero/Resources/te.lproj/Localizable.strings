@@ -42,6 +42,7 @@
 "camp_consent_sub" = "మీ బిడ్డను పరీక్షించడానికి పాఠశాల అనుమతి అడుగుతోంది";
 "camp_consent_title" = "అనుమతి";
 "camp_partner_hospital" = "కాంప్ భాగస్వామి";
+"camp_progress_title" = "పరీక్షల పురోగతి";
 "camp_reminder_sub" = "స్కూల్ క్యాంపులకు ముందు నోటిఫికేషన్ పొండండి";
 "camp_reminders" = "క్యాంప్ రిమైండర్లు";
 "camp_result_title" = "శిబిర ఫలితం";
@@ -51,6 +52,10 @@
 "capture_food" = "భోజనాన్ని క్యాప్చర్ చేయండి";
 "care_is_free_body" = "మీ బిడ్డ ఆరోగ్య ఫలితాలు, తదుపరి చర్యలు మరియు రికార్డులు ఉచితం, ఎప్పటికీ ఉచితమే. చెల్లింపు ప్లాన్ కేవలం సౌకర్యాలను మాత్రమే జోడిస్తుంది.";
 "care_is_free_title" = "ఆరోగ్య ఫలితాలు ఉచితం";
+"check_state_done" = "పూర్తైంది";
+"check_state_not_done" = "జరగలేదు";
+"check_state_not_included" = "చేర్చలేదు";
+"check_state_pending" = "మిగిలి ఉంది";
 "child_erase_failed" = "మేము దానిని తొలగించలేకపోయాము. దయచేసి మళ్లీ ప్రయత్నించండి.";
 "child_erased" = "తొలగించబడింది. ఏమీ మిగలలేదు.";
 "clear_label" = "తొలగించు";
@@ -376,6 +381,14 @@
 "privacy_data_sub" = "DPDP అనుపాలన · తండ్రి అంగీకరణ";
 "privacy_rights_sub" = "ఏమి ఉంచబడుతుంది, దాని గురించి మీరు ఏమి చేయవచ్చు";
 "privacy_rights_title" = "మీ బిడ్డ రికార్డు";
+"progress_consent_needed" = "మీ అనుమతి కోసం వేచి ఉంది";
+"progress_declined" = "అనుమతి ఇవ్వలేదు";
+"progress_not_screened" = "ఈ శిబిరంలో పరీక్షించలేదు";
+"progress_released" = "ఫలితాలు సిద్ధం";
+"progress_screening" = "పరీక్షలు జరుగుతున్నాయి";
+"progress_values_note" = "డాక్టర్ సమీక్షించిన తర్వాత ఫలితాలు ఇక్కడ కనిపిస్తాయి.";
+"progress_waiting" = "పరీక్ష కోసం వేచి ఉంది";
+"progress_with_doctor" = "అన్ని పరీక్షలు పూర్తి · డాక్టర్ చూస్తున్నారు";
 "push_notif" = "పుష్ నోటిఫికేషన్లు";
 "question_failed" = "మేము దానిని పంపలేకపోయాము. దయచేసి మళ్లీ ప్రయత్నించండి.";
 "question_placeholder" = "మీ ప్రశ్నను ఇక్కడ రాయండి";
@@ -481,18 +494,3 @@
 "your_kids" = "మీ పిల్లలు";
 "your_name" = "మీ పేరు";
 "your_questions" = "మీ ప్రశ్నలు";
-
-/* Live check-up progress at a school camp */
-"camp_progress_title" = "పరీక్షల పురోగతి";
-"progress_waiting" = "పరీక్ష కోసం వేచి ఉంది";
-"progress_screening" = "పరీక్షలు జరుగుతున్నాయి";
-"progress_with_doctor" = "అన్ని పరీక్షలు పూర్తి · డాక్టర్ చూస్తున్నారు";
-"progress_released" = "ఫలితాలు సిద్ధం";
-"progress_consent_needed" = "మీ అనుమతి కోసం వేచి ఉంది";
-"progress_declined" = "అనుమతి ఇవ్వలేదు";
-"progress_not_screened" = "ఈ శిబిరంలో పరీక్షించలేదు";
-"check_state_done" = "పూర్తైంది";
-"check_state_pending" = "మిగిలి ఉంది";
-"check_state_not_done" = "జరగలేదు";
-"check_state_not_included" = "చేర్చలేదు";
-"progress_values_note" = "డాక్టర్ సమీక్షించిన తర్వాత ఫలితాలు ఇక్కడ కనిపిస్తాయి.";

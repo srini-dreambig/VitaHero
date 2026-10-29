@@ -63,6 +63,7 @@
 "camp_consent_title" = "Permission";
 "camp_details" = "Camp details";
 "camp_partner_hospital" = "Camp partner";
+"camp_progress_title" = "Check-up progress";
 "camp_register_failed" = "Registration failed. Enroll with your school first.";
 "camp_registered" = "Camp registration confirmed! A reminder will appear before the camp.";
 "camp_reminder_sub" = "Get notified before school camps";
@@ -80,6 +81,10 @@
 "capture_meal" = "Capture Meal";
 "care_is_free_body" = "Your child's health results, follow-ups and records are free and always will be. A paid plan only adds convenience features.";
 "care_is_free_title" = "Health results are free";
+"check_state_done" = "Done";
+"check_state_not_done" = "Not done";
+"check_state_not_included" = "Not included";
+"check_state_pending" = "Waiting";
 "child_erase_failed" = "We could not delete that. Please try again.";
 "child_erased" = "Deleted. Nothing is left.";
 "child_tracked" = "%@ child tracked";
@@ -475,6 +480,14 @@
 "privacy_data_sub" = "DPDP compliant · parental consent";
 "privacy_rights_sub" = "What is kept, and what you can do about it";
 "privacy_rights_title" = "Your child's record";
+"progress_consent_needed" = "Waiting for your consent";
+"progress_declined" = "Consent declined";
+"progress_not_screened" = "Not checked at this camp";
+"progress_released" = "Results ready";
+"progress_screening" = "Being checked";
+"progress_values_note" = "Results appear here after a doctor reviews them.";
+"progress_waiting" = "Waiting to be checked";
+"progress_with_doctor" = "All checks done · with the doctor";
 "push_notif" = "Push notifications";
 "question_failed" = "We could not send that. Please try again.";
 "question_placeholder" = "Type your question here";
@@ -606,18 +619,3 @@
 "your_kids" = "Your kids";
 "your_name" = "Your Name";
 "your_questions" = "Your questions";
-
-/* Live check-up progress at a school camp */
-"camp_progress_title" = "Check-up progress";
-"progress_waiting" = "Waiting to be checked";
-"progress_screening" = "Being checked";
-"progress_with_doctor" = "All checks done · with the doctor";
-"progress_released" = "Results ready";
-"progress_consent_needed" = "Waiting for your consent";
-"progress_declined" = "Consent declined";
-"progress_not_screened" = "Not checked at this camp";
-"check_state_done" = "Done";
-"check_state_pending" = "Waiting";
-"check_state_not_done" = "Not done";
-"check_state_not_included" = "Not included";
-"progress_values_note" = "Results appear here after a doctor reviews them.";
