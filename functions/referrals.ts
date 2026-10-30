@@ -24,23 +24,49 @@ import {
 import { SmsSender, sendToMany } from "./messaging";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { assertCampAccess } from "./camps";
-import { Flag, Urgency } from "./clinical";
+import { Flag, Urgency, normaliseSpecialty } from "./clinical";
 import { logRecordAccess } from "./oversight";
 
 export const REFERRAL_STATUSES = ["OPEN", "BOOKED", "ATTENDED", "CLOSED", "DECLINED", "EXPIRED"] as const;
 export const OUTCOMES = ["RESOLVED", "ONGOING", "REFERRED_ON", "NO_ISSUE"] as const;
 
-/** Which kind of clinician a flagged check should send the child to. */
-const SPECIALTY: Record<string, string> = {
+/**
+ * Which kind of clinician a flagged check should send the child to.
+ *
+ * Every value is a specialty the doctor directory actually offers, because the
+ * app finds a family's doctors by matching this string exactly. "Dental" and
+ * "Nutrition" were written here before the directory had a fixed list; a
+ * dental referral then matched no dentist ("Dentistry") and a growth referral
+ * matched nobody at all, so the booking screen showed an empty list. Diet
+ * follow-up is the school's dietician, who is not in the doctor directory; the
+ * doctor a growth finding sends a family to is a paediatrician.
+ */
+export const REFERRAL_SPECIALTY: Record<string, string> = {
   "Vision": "Ophthalmology",
-  "Dental": "Dental",
-  "Height & weight": "Nutrition",
+  "Dental": "Dentistry",
+  "Height & weight": "Paediatrics",
   "Haemoglobin": "Paediatrics",
   "ENT": "ENT",
   "Skin": "Dermatology",
   "Spine": "Orthopaedics",
   "Immunisation review": "Paediatrics",
 };
+
+/** Names written by the old map above, read back as what they meant. */
+const LEGACY_SPECIALTY: Record<string, string> = { nutrition: "Paediatrics" };
+
+/**
+ * The directory's name for a stored referral specialty.
+ *
+ * Referrals raised before the map was corrected still say "Dental" or
+ * "Nutrition". They are read back under the name the directory uses rather
+ * than rewritten, so the record of what was written stays as it was.
+ */
+export function referralSpecialty(v: unknown): string {
+  const raw = String(v || "").trim();
+  if (!raw) return "";
+  return normaliseSpecialty(raw) || LEGACY_SPECIALTY[raw.toLowerCase()] || raw;
+}
 
 /** How long a guardian has before we stop nudging and call it expired. */
 const EXPIRY_DAYS: Record<string, number> = { URGENT: 14, SOON: 45, ROUTINE: 120, NONE: 120 };
@@ -142,7 +168,7 @@ export async function openReferralsForCamp(
       const urgency = f.flag === "ALERT" ? (c.urgency === "NONE" ? "SOON" : c.urgency) : "ROUTINE";
       rows.push([
         id, campId, c.kidId, c.profileId, schoolId, f.checkType,
-        SPECIALTY[f.checkType] || "Paediatrics", f.flag, urgency,
+        REFERRAL_SPECIALTY[f.checkType] || "Paediatrics", f.flag, urgency,
         f.rationale, "OPEN", createdBy, dueDate(urgency),
       ]);
     }
@@ -181,7 +207,7 @@ function mapReferral(r: Record<string, unknown>) {
     kidId: r.kid_id as string,
     kidName: (r.kid_name as string) || "",
     checkType: r.check_type as string,
-    specialty: (r.specialty as string) || "",
+    specialty: referralSpecialty(r.specialty),
     flag: (r.flag as string) || "WATCH",
     urgency: (r.urgency as string) || "ROUTINE",
     reason: (r.reason as string) || "",
@@ -360,7 +386,7 @@ export async function recordReferralOutcome(
       VALUES
         (${nextId}, ${r.camp_id as string}, ${r.kid_id as string}, ${r.profile_id as string},
          ${r.school_id as string}, ${r.check_type as string},
-         ${String(body.referredTo || r.specialty || "Paediatrics")}, ${r.flag as string},
+         ${referralSpecialty(body.referredTo || r.specialty) || "Paediatrics"}, ${r.flag as string},
          'SOON', ${"Referred on: " + diagnosis}, 'OPEN', ${actor.profileId}, ${dueDate("SOON")},
          ${generation})
       ON CONFLICT DO NOTHING
@@ -371,6 +397,23 @@ export async function recordReferralOutcome(
 }
 
 /** G9 — the school's and ops' view of whether screening is actually helping. */
+/**
+ * The dashboard's per-specialty tally, with old and new names counted as one.
+ * Without this a school with referrals from both sides of the correction sees
+ * "Dental" and "Dentistry" as two rows that are the same dentist.
+ */
+function mergeSpecialties(rows: Record<string, unknown>[]) {
+  const by = new Map<string, { specialty: string; total: number; closed: number }>();
+  for (const s of rows) {
+    const name = referralSpecialty(s.specialty) || "Other";
+    const cur = by.get(name) || { specialty: name, total: 0, closed: 0 };
+    cur.total += (s.total as number) || 0;
+    cur.closed += (s.closed as number) || 0;
+    by.set(name, cur);
+  }
+  return [...by.values()].sort((a, b) => b.total - a.total);
+}
+
 export async function referralDashboard(
   sql: Sql,
   actor: Actor,
@@ -433,11 +476,7 @@ export async function referralDashboard(
 
   return {
     totals: { ...t, closureRate },
-    bySpecialty: bySpecialty.map((s) => ({
-      specialty: (s.specialty as string) || "Other",
-      total: (s.total as number) || 0,
-      closed: (s.closed as number) || 0,
-    })),
+    bySpecialty: mergeSpecialties(bySpecialty),
     referrals: rows.map((r) => ({
       ...mapReferral(r),
       grade: `${(r.grade as string) || ""} ${(r.section as string) || ""}`.trim(),
@@ -604,12 +643,12 @@ export async function openReferralSpecialties(sql: Sql, profileId: string) {
     ORDER BY CASE r.urgency WHEN 'URGENT' THEN 0 WHEN 'SOON' THEN 1 ELSE 2 END
   `;
   return {
-    specialties: [...new Set(rows.map((r2) => r2.specialty as string))].filter(Boolean),
+    specialties: [...new Set(rows.map((r2) => referralSpecialty(r2.specialty)))].filter(Boolean),
     forChildren: rows.map((r2) => ({
       referralId: r2.id as string,
       kidId: r2.kid_id as string,
       kidName: r2.kid_name as string,
-      specialty: (r2.specialty as string) || "",
+      specialty: referralSpecialty(r2.specialty),
       urgency: (r2.urgency as string) || "ROUTINE",
     })),
   };

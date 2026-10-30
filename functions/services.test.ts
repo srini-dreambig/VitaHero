@@ -73,6 +73,7 @@ import {
   symptomHistoryForClinician,
   SYMPTOMS,
 } from "./symptoms";
+import { ensureDieticianSchema } from "./dietician";
 import {
   ensureBillingSchema,
   setContract,
@@ -198,6 +199,8 @@ beforeAll(async () => {
   await seedLibraryIfEmpty(sql);
   await ensureBillingSchema(sql);
   await ensureSymptomSchema(sql);
+  // A school's dietitian count is part of every school read.
+  await ensureDieticianSchema(sql);
 });
 afterAll(async () => { if (client) await client.end(); });
 

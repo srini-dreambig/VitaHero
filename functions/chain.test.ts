@@ -45,6 +45,7 @@ import { adminAnalytics } from "./analytics";
 import { ensureOversightSchema, hospitalPerformance, recordAccessLog } from "./oversight";
 import { ensureMediaSchema } from "./media";
 import { ensureSymptomSchema } from "./symptoms";
+import { ensureDieticianSchema } from "./dietician";
 import { markReferralBooked } from "./referrals";
 import { listDoctors, upsertDoctor } from "./directory";
 import { addStudent } from "./roster";
@@ -191,6 +192,8 @@ beforeAll(async () => {
   await ensureMediaSchema(sql);
   // The screening form carries the illness history the family logged.
   await ensureSymptomSchema(sql);
+  // A school's dietitian count is part of every school read.
+  await ensureDieticianSchema(sql);
   // Hospitals and doctors are seeded by the worker's own schema step; the
   // partner report joins against them.
   await sql`CREATE TABLE IF NOT EXISTS vita_hero.hospitals (

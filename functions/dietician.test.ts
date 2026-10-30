@@ -33,6 +33,8 @@ import { myArticles, upsertArticle } from "./library";
 import { APP_ROLES, CONSOLE_ROLES, surfaceRefusal } from "./surfaces";
 import * as surfaces from "./surfaces";
 import { DESIGNED_CHECKS } from "./clinical";
+import { getCamp } from "./camps";
+import { getSchool, listSchools } from "./schools";
 
 describe("which door a dietician stands at", () => {
   test("the app admits them; the console does not", () => {
@@ -429,6 +431,18 @@ suite("what a dietician can reach", () => {
     })();
   });
 
+  // ── the camp and the school can see who follows up ──
+
+  test("a camp names the school's dietician, so growth follow-up has a face", async () => {
+    const c = await getCamp(sql, OPS, "sc_d");
+    expect(c.dieticians.map((d) => d.name)).toEqual(["Meera"]);
+    expect(c.dieticians[0].phone).toContain("9100000001");
+    const all = await listSchools(sql, OPS);
+    const counts = Object.fromEntries(all.schools.map((s) => [s.id, s.dieticians]));
+    expect(counts).toEqual({ sch_mine: 1, sch_other: 1 });
+    expect((await getSchool(sql, OPS, "sch_mine")).school.dieticians).toBe(1);
+  });
+
   // ── retiring one ──
 
   test("retiring a dietician takes the schools and the sign-in with it", async () => {
@@ -454,5 +468,13 @@ suite("what a dietician can reach", () => {
     // The advice was given. Withdrawing the person does not unsay it.
     const seen = await guardianDietPlan(sql, "ph_par", "k_mine");
     expect(seen.plan).not.toBeNull();
+  });
+
+  test("and when the dietician leaves, the camp and the school say nobody is there", async () => {
+    // Meera was restored above; take her off the school again.
+    await setDieticianSchool(sql, OPS, dieticianId, "sch_mine", false);
+    const c = await getCamp(sql, OPS, "sc_d");
+    expect(c.dieticians).toEqual([]);
+    expect((await getSchool(sql, OPS, "sch_mine")).school.dieticians).toBe(0);
   });
 });

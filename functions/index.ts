@@ -60,6 +60,7 @@ import {
   listParticipants,
   requestConsent,
   recordConsent,
+  recordConsentBulk,
   setAttendance,
   getScreeningForm,
   saveScreening,
@@ -2211,6 +2212,11 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
                 consentPhotos: b.consentPhotos === true,
                 note: String(b.note || ""),
               }));
+            }
+            // A class's paper slips in one go. Pending children only; the
+            // rules live in recordConsentBulk, not here.
+            if (third === "bulk" && method === "POST") {
+              return json(await recordConsentBulk(sql, actor, campId, await readBody()));
             }
             return json({ error: "Method not allowed" }, 405);
           }

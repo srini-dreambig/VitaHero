@@ -232,6 +232,10 @@ suite("every write reaches its own SQL, and none of it answers 500", () => {
   }> = [
     { name: "the console asks a school for consent", method: "POST", as: "ops",
       path: () => `/api/admin/camps/${campId}/consent/request`, body: () => ({}) },
+    // While the child is still pending: bulk entry changes nobody who answered.
+    { name: "the console records a class's paper slips at once", method: "POST", as: "ops",
+      path: () => `/api/admin/camps/${campId}/consent/bulk`,
+      body: () => ({ kidIds: [kidId], decision: "PAPER" }) },
     { name: "a guardian answers the consent request", method: "POST", as: "guardian",
       path: () => "/api/camps/consent",
       body: () => ({ campId, kidId, decision: "GRANTED", consentPhotos: true }) },

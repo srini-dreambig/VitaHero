@@ -36,14 +36,16 @@ export const PORTAL_HTML = `<!doctype html>
     --blue:#1FA2DD;         /* HeroBlue */
     --blue-dk:#1380B8;
     --blue-sf:#D6EFFA;
-    --nav:#0F172A;          /* Ink */
-    --nav-2:#1A2341;        /* DarkSurface */
-    --nav-tx:#94A3B8;       /* InkFaint */
+    /* A light sidebar. The dark one shouted louder than the work beside it;
+       the navigation is where you go, not what you look at. */
+    --nav:#FFFFFF;
+    --nav-2:#F1F5F9;
+    --nav-tx:#475569;
     --nav-ac:#F47B20;
     --ink:#0F172A;          /* Ink */
     --ink-2:#475569;        /* InkSoft */
     --ink-3:#94A3B8;        /* InkFaint */
-    --bg:#FAFCFE;           /* Canvas */
+    --bg:#F8FAFC;           /* Canvas */
     --card:#FFFFFF;         /* SurfaceWhite */
     --sunk:#EEF4F8;         /* SurfaceMuted */
     --line:#E2E9EF;         /* HairLine */
@@ -64,8 +66,8 @@ export const PORTAL_HTML = `<!doctype html>
     /* Console density. The app rounds cards at 18-22dp because it is held at
        arm's length and touched; a console is read at a desk with a mouse, so
        the chrome shrinks and the data takes the space it gives up. */
-    --r:6px;
-    --r-lg:8px;
+    --r:8px;
+    --r-lg:10px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -92,15 +94,16 @@ export const PORTAL_HTML = `<!doctype html>
      collapsed nav strip — push the whole shell past the viewport instead of
      scrolling inside itself. */
   .shell{display:grid;grid-template-columns:214px minmax(0,1fr);min-height:100vh}
-  .nav{background:var(--nav);color:#fff;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+  .nav{background:var(--nav);color:var(--ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+    border-right:1px solid var(--line)}
   .brand{display:flex;align-items:center;gap:10px;padding:14px 14px 12px;font-weight:700;font-size:14px;letter-spacing:-.02em}
   /* The wordmark as the brand actually sets it: "vita" orange, "hero" blue,
      lowercase, tight. Previously a gradient square stood in for the logo. */
   .wm{font-weight:700;letter-spacing:-.02em;font-size:17px;line-height:1}
   .wm i{font-style:normal;color:var(--brand)}
   .wm b{font-weight:700;color:var(--blue)}
-  .nav .wm i{color:#F9A45C}
-  .nav .wm b{color:#6FC7EE}
+  .nav .wm i{color:var(--brand)}
+  .nav .wm b{color:var(--blue)}
   .wm.big{font-size:30px}
   .signbrand{display:flex;flex-direction:column;align-items:center;gap:8px;margin-bottom:18px}
   .signbrand .tag{font-size:11px;font-weight:600;letter-spacing:.13em;
@@ -109,43 +112,90 @@ export const PORTAL_HTML = `<!doctype html>
      at the top and sign-out stays put at the bottom. */
   .navscroll{flex:1;min-height:0;overflow-y:auto;padding-bottom:8px}
   .navscroll::-webkit-scrollbar{width:6px}
-  .navscroll::-webkit-scrollbar-thumb{background:#2C3E4E;border-radius:3px}
-  .navsec{padding:4px 8px}
-  .navsec + .navsec{border-top:1px solid #1B2836;margin-top:2px}
-  .navi .n{margin-left:auto;background:#2C3E4E;color:#CBD5E1;border-radius:9px;
+  .navscroll::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  .navsec{padding:4px 10px}
+  .navsec + .navsec{margin-top:6px}
+  .navi .n{margin-left:auto;background:var(--sunk);color:var(--ink-2);border-radius:9px;
     padding:0 6px;font-size:11px;font-weight:650;line-height:17px}
-  .navsec h4{color:#5D707E;padding:8px 8px 5px;font-size:10px}
+  .navsec h4{color:var(--ink-3);padding:10px 9px 6px;font-size:11px;text-transform:none;letter-spacing:0;font-weight:600}
   .navi{
-    display:flex;align-items:center;gap:8px;width:100%;text-align:left;
-    background:none;border:none;color:var(--nav-tx);font:inherit;font-size:12.5px;font-weight:500;
-    padding:6px 9px;border-radius:5px;cursor:pointer;margin-bottom:1px;
+    display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+    background:none;border:none;color:var(--nav-tx);font:inherit;font-size:13px;font-weight:500;
+    padding:7px 10px;border-radius:7px;cursor:pointer;margin-bottom:1px;
   }
-  .navi:hover{background:var(--nav-2);color:#fff}
-  .navi.on{background:var(--nav-2);color:#fff;font-weight:600}
+  .navi:hover{background:var(--nav-2);color:var(--ink)}
+  .navi.on{background:var(--nav-2);color:var(--ink);font-weight:600}
   .navi.on .ic{color:var(--nav-ac)}
+  .navi .lbl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* A collapsible group: the open school and its sections, one click each. */
+  .navgrp{display:flex;align-items:center;gap:6px;width:100%;background:none;border:none;
+    padding:10px 9px 6px;font:inherit;font-size:11px;font-weight:600;color:var(--ink-3);cursor:pointer;text-align:left}
+  .navgrp:hover:not(:disabled){color:var(--ink);background:none}
+  .navgrp .chev{margin-left:auto}
+  .navgrp .gname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .navsub{margin-left:17px;padding-left:8px;border-left:1px solid var(--line)}
+  .navsub .navi{font-size:12.5px;padding:6px 9px}
   .ic{width:15px;height:15px;display:flex;align-items:center;justify-content:center;flex:none;opacity:.9}
-  .navfoot{margin-top:auto;padding:14px;border-top:1px solid #223140;font-size:12.5px;color:var(--nav-tx)}
-  .navfoot b{display:block;color:#fff;font-weight:600;font-size:13px}
-  .navfoot .role{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#5D707E;margin-top:1px}
-  .navfoot button{margin-top:10px;width:100%;background:none;border:1px solid #2C3E4E;color:var(--nav-tx);
-    padding:6px;border-radius:6px;font:inherit;font-size:12.5px;cursor:pointer}
-  .navfoot button:hover{background:var(--nav-2);color:#fff}
+  .navfoot{margin-top:auto;padding:12px 14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--nav-tx);
+    display:flex;align-items:center;gap:10px}
+  .navfoot .whot{flex:1;min-width:0}
+  .navfoot b{display:block;color:var(--ink);font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .navfoot .role{font-size:11.5px;color:var(--ink-3);margin-top:1px}
+  .navfoot button{background:none;border:1px solid var(--line);color:var(--ink-2);
+    padding:6px;border-radius:7px;font:inherit;cursor:pointer}
+  .navfoot button:hover:not(:disabled){background:var(--nav-2);color:var(--ink)}
 
   .main{min-width:0;display:flex;flex-direction:column}
+  /* The page header: where you are, what this is, how many, and the one
+     thing you most likely came to do \u2014 on the right, never in a menu. */
   .bar{
-    background:var(--card);border-bottom:1px solid var(--line);padding:9px 18px;
-    display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:10;min-height:46px;
+    background:var(--card);border-bottom:1px solid var(--line);padding:14px 24px;
+    display:flex;align-items:flex-end;gap:12px;position:sticky;top:0;z-index:10;flex-wrap:wrap;
   }
-  .bar .grow{flex:1;min-width:0}
-  .crumb{font-size:11.5px;color:var(--ink-3);margin-bottom:1px}
-  .crumb button{background:none;border:none;color:var(--ink-3);font:inherit;padding:0;cursor:pointer;text-decoration:underline}
-  .crumb button:hover{color:var(--brand-dk)}
-  .content{padding:16px 18px 56px;flex:1}
+  .bar .grow{flex:1;min-width:240px}
+  .bar h1{font-size:22px;font-weight:680;letter-spacing:-.02em;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .bar .badge{font-size:12px;font-weight:650;color:var(--ink-2);background:var(--sunk);border:1px solid var(--line);
+    border-radius:999px;padding:1px 9px;line-height:18px;font-variant-numeric:tabular-nums;letter-spacing:0}
+  .bar .desc{font-size:13px;color:var(--ink-3);margin-top:3px}
+  .bar .acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .crumb{font-size:12.5px;color:var(--ink-3);margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .crumb button{background:none;border:none;color:var(--ink-3);font:inherit;padding:0;cursor:pointer}
+  .crumb button:hover:not(:disabled){color:var(--ink);background:none}
+  .crumb .here{color:var(--ink);font-weight:550}
+  .content{padding:18px 24px 56px;flex:1}
+  /* On a wide screen the open school's sections are in the sidebar, so the
+     tab row would be the same list twice. A phone has no sidebar column. */
+  @media(min-width:821px){.tabs.stabs{display:none}}
+
+  /* ── toast ── what just happened, top right, out of the way of the work. */
+  .toast{position:fixed;top:16px;right:16px;z-index:80;max-width:min(420px,calc(100vw - 32px));
+    background:#0F172A;color:#fff;border-radius:10px;box-shadow:var(--sh-lg);padding:12px 10px 12px 14px;
+    display:flex;gap:10px;align-items:flex-start;font-size:13px;animation:tin .18s ease-out}
+  .toast .ti{flex:none;width:20px;height:20px;border-radius:50%;background:var(--ok);display:grid;place-items:center;margin-top:1px}
+  .toast.err .ti{background:var(--err)}
+  .toast b{display:block;font-weight:650;margin-bottom:1px}
+  .toast .tx{flex:1;min-width:0;color:#CBD5E1;line-height:1.45}
+  .toast button{background:none;border:none;color:#94A3B8;padding:2px}
+  .toast button:hover:not(:disabled){background:rgba(255,255,255,.08);color:#fff;border-color:transparent}
+  @keyframes tin{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+
+  /* ── people, row actions, pages ── */
+  .av{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;
+    font-size:11px;font-weight:700;color:#fff;letter-spacing:.02em}
+  .who{display:flex;align-items:center;gap:10px;min-width:0}
+  .rowact{display:inline-flex;gap:4px;justify-content:flex-end;flex-wrap:nowrap}
+  .rowact button{padding:4px 9px;font-size:12px;border-radius:6px}
+  .pager{display:flex;align-items:center;gap:10px;padding:10px 14px;font-size:12.5px;color:var(--ink-3);
+    flex-wrap:wrap;border-top:1px solid var(--line-2);background:var(--card)}
+  .pager select{width:auto;padding:3px 6px}
+  .pager .pgs{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}
+  .pager .pgs button{min-width:30px;justify-content:center;padding:4px 8px}
+  .pager .pgs button.on{background:var(--ink);color:#fff;border-color:var(--ink)}
 
   /* ── controls ── */
   button,.btn{
     font:inherit;font-size:12.5px;font-weight:550;cursor:pointer;border:1px solid var(--line);
-    background:var(--card);color:var(--ink);padding:5px 10px;border-radius:5px;
+    background:var(--card);color:var(--ink);padding:6px 11px;border-radius:7px;
     transition:background .12s,border-color .12s;white-space:nowrap;
     display:inline-flex;align-items:center;gap:6px;line-height:1.3;
   }
@@ -206,12 +256,12 @@ export const PORTAL_HTML = `<!doctype html>
      scrolls the whole page sideways and takes the sticky nav with it. */
   .tws{overflow-x:auto;max-width:100%}
   table{border-collapse:separate;border-spacing:0;width:100%;font-size:12.5px}
-  th,td{text-align:left;padding:5px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line-2);vertical-align:middle}
   /* Sticky header. A roster runs to hundreds of rows and the whole point of a
      dense table is that you scroll it; a column you can no longer name is a
      column you have to scroll back up to read. */
-  th{position:sticky;top:0;z-index:2;background:var(--sunk);font-size:10.5px;text-transform:uppercase;
-    letter-spacing:.07em;color:var(--ink-2);font-weight:650;white-space:nowrap;padding-top:6px;padding-bottom:6px;
+  th{position:sticky;top:0;z-index:2;background:#F8FAFC;font-size:12px;
+    color:var(--ink-2);font-weight:600;white-space:nowrap;padding-top:8px;padding-bottom:8px;
     border-bottom:1px solid var(--line)}
   tbody td{height:var(--row)}
   tbody tr:last-child td{border-bottom:none}
@@ -311,13 +361,17 @@ export const PORTAL_HTML = `<!doctype html>
     font-variant-numeric:tabular-nums}
   .qf button.on .c{color:var(--brand-dk)}
 
-  .pill{display:inline-block;font-size:10px;font-weight:650;letter-spacing:.04em;text-transform:uppercase;
-    padding:1px 6px;border-radius:3px;white-space:nowrap;line-height:1.6}
-  .pill.ok{background:var(--ok-bg);color:var(--ok)}
-  .pill.warn{background:var(--warn-bg);color:var(--warn)}
-  .pill.err{background:var(--err-bg);color:var(--err)}
-  .pill.info{background:var(--info-bg);color:var(--info)}
-  .pill.mute{background:var(--mute-bg);color:var(--mute)}
+  /* A status reads as a coloured dot and a plain word, the way a person says it. */
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:550;
+    padding:1px 9px 1px 8px;border-radius:999px;white-space:nowrap;line-height:1.6;
+    background:var(--card);border:1px solid var(--line);color:var(--ink-2)}
+  .pill::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--mute);flex:none}
+  .pill.ok::before{background:var(--ok)}
+  .pill.warn::before{background:var(--warn)}
+  .pill.err::before{background:var(--err)}
+  .pill.info::before{background:var(--info)}
+  .pill.err{color:#B91C1C;border-color:#F5CACA;background:#FFF7F7}
+  .pill.warn{color:#92580A;border-color:#F3DDB0;background:#FFFBF2}
   .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:650;background:var(--sunk);
     border:1px solid var(--line);border-radius:4px;padding:1px 6px;letter-spacing:.04em;font-size:11.5px}
 
@@ -502,7 +556,9 @@ export const PORTAL_HTML = `<!doctype html>
        instead of half the screen. */
     .navscroll{display:flex;overflow-x:auto;overflow-y:visible;flex:1;min-width:0;padding:0}
     .navsec{display:flex;gap:4px;padding:0 6px 8px;flex:none;min-width:0;align-items:center}
-    .navsec + .navsec{border-top:none;border-left:1px solid #1B2836;margin-top:0}
+    .navsec + .navsec{border-top:none;border-left:1px solid var(--line);margin-top:0}
+    .navsub{margin-left:0;padding-left:0;border-left:none;display:flex;gap:4px}
+    .navgrp{display:none}
     .navi.sub{padding-left:10px}
     .nav{max-width:100%;min-width:0}
     /* The signed-in name and role can be long; let the footer wrap rather than
@@ -513,6 +569,7 @@ export const PORTAL_HTML = `<!doctype html>
     .navfoot{margin:0;border:none;padding:8px 14px;display:flex;align-items:center;gap:12px}
     .navfoot button{width:auto;margin:0}
     .content{padding:18px 16px 48px}.bar{padding:12px 16px}
+    .nav{border-right:none;border-bottom:1px solid var(--line)}
   }
 </style>
 </head>
@@ -656,6 +713,54 @@ export const PORTAL_HTML = `<!doctype html>
         el("span", { class: "mn" + (tone ? " " + tone : "") }, value)));
   }
 
+  /**
+   * A person's or a school's initials on a colour that is always the same for
+   * the same name, so a row can be found again by eye.
+   */
+  var AV_COLOURS = ["#F47B20", "#1FA2DD", "#10B981", "#8B5CF6", "#EF4444", "#0EA5E9", "#D97706", "#14B8A6"];
+  function avatar(name) {
+    var n = String(name || "").trim();
+    var words = n.split(" ").filter(Boolean);
+    var ini = words.length > 1 ? words[0].charAt(0) + words[1].charAt(0) : n.slice(0, 2);
+    var h = 0;
+    for (var i = 0; i < n.length; i++) h = (h * 31 + n.charCodeAt(i)) % 997;
+    return el("span", { class: "av", style: "background:" + AV_COLOURS[h % AV_COLOURS.length], "aria-hidden": "true" },
+      ini.toUpperCase() || "?");
+  }
+
+  /**
+   * One page of a long list, and the footer that moves between pages.
+   *
+   * Returns [rowsOnThisPage, footer]. The footer is null when everything fits,
+   * so a short list carries no chrome it does not need.
+   */
+  function paged(key, rows) {
+    var size = S.pageSize || 15, total = rows.length;
+    var pages = Math.max(1, Math.ceil(total / size));
+    var at = Math.min(Math.max(1, (S.pages && S.pages[key]) || 1), pages);
+    var from = (at - 1) * size;
+    function go(n) { var pg = {}; for (var k in S.pages) pg[k] = S.pages[k]; pg[key] = n; set({ pages: pg }); }
+    if (total <= 10) return [rows, null];
+    var nums = [];
+    for (var i = 1; i <= pages; i++) {
+      if (i === 1 || i === pages || Math.abs(i - at) <= 1) nums.push(i);
+      else if (nums[nums.length - 1] !== "\u2026") nums.push("\u2026");
+    }
+    return [rows.slice(from, from + size), el("div", { class: "pager" },
+      el("span", null, "Rows per page"),
+      el("select", { onchange: function (e) { var pg = {}; for (var k in S.pages) pg[k] = S.pages[k]; pg[key] = 1;
+          set({ pageSize: Number(e.target.value) || 15, pages: pg }); } },
+        [10, 15, 25, 50, 100].map(function (n) { return el("option", { value: String(n), selected: n === size }, String(n)); })),
+      el("span", null, (from + 1) + "\u2013" + Math.min(total, from + size) + " of " + total),
+      el("div", { class: "pgs" },
+        el("button", { class: "sm", disabled: at <= 1, title: "Previous page", onclick: function () { go(at - 1); } }, "\u2039"),
+        nums.map(function (n) {
+          return n === "\u2026" ? el("span", { style: "padding:4px 2px" }, "\u2026")
+            : el("button", { class: "sm" + (n === at ? " on" : ""), onclick: function () { go(n); } }, String(n));
+        }),
+        el("button", { class: "sm", disabled: at >= pages, title: "Next page", onclick: function () { go(at + 1); } }, "\u203a")))];
+  }
+
   /** The band a rate falls in. Used for the ring and the figure alike. */
   function rateTone(pct) {
     if (pct === null || pct === undefined) return "";
@@ -728,6 +833,9 @@ export const PORTAL_HTML = `<!doctype html>
       overview: null, schools: [], school: null, schoolTab: "roster",
       classes: null, admins: null, staff: null, roster: null, batches: null,
       camps: null, camp: null, campTab: "setup", participants: null, queue: null,
+      // Bulk consent on the camp's Consent tab: which camp the ticks belong
+      // to, the ticks themselves, and the class / section filters.
+      consentFor: null, consentSel: {}, consentGrades: [], consentSections: [],
       screenKid: null, screenForm: null, screenTried: null, reviewKid: null, reviewData: null,
       myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
       referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
@@ -790,6 +898,11 @@ export const PORTAL_HTML = `<!doctype html>
       // row, so opening a second menu closes the first without either knowing
       // about the other.
       menu: "",
+      // Paging for long lists: rows per page, and which page each list is on,
+      // by list name. One object so a new list needs no new field.
+      pageSize: 15, pages: {},
+      // Whether the open school's sections are folded away in the sidebar.
+      navSchoolShut: false,
     };
   }
   var S = freshState();
@@ -848,25 +961,27 @@ export const PORTAL_HTML = `<!doctype html>
    * may use, and the server checks again regardless.
    */
   function rowMenu(id, items, label) {
-    var open = S.menu === id;
-    return el("div", { class: "menuw" },
-      el("button", {
-        class: "ibtn" + (open ? " on" : ""), title: label || "Actions",
-        "aria-haspopup": "menu", "aria-expanded": open ? "true" : "false",
-        onclick: function (e) {
-          // The row underneath usually opens something on click. Without this
-          // the menu button would open the row instead of the menu.
-          e.stopPropagation();
-          set({ menu: open ? "" : id });
-        },
-      }, icon("more", 15)),
-      open ? el("div", { class: "menu", role: "menu" }, items.map(function (it) {
-        if (it === "-") return el("div", { class: "sepm" });
+    // Every action on the row, on the row. These were behind a "\u22ee" button,
+    // and an action you have to open a menu to discover is an action half the
+    // office never finds. The label loses the thing's own name \u2014 the row
+    // already says which school or doctor it is \u2014 and keeps it as the tooltip.
+    return el("div", { class: "rowact", role: "group", "aria-label": label || "Actions" },
+      items.filter(function (it) { return it && it !== "-"; }).map(function (it) {
         return el("button", {
-          class: it[3] ? "dang" : "", role: "menuitem", disabled: !!it[4],
-          onclick: function (e) { e.stopPropagation(); S.menu = ""; it[2](); render(); },
-        }, icon(it[0], 14), it[1]);
-      })) : null);
+          class: "sm" + (it[3] ? " dang" : ""), disabled: !!it[4], title: it[1],
+          onclick: function (e) { e.stopPropagation(); it[2](); render(); },
+        }, icon(it[0], 13), shortAction(it[1]));
+      }));
+  }
+  function shortAction(label) {
+    var t = String(label || "");
+    if (t.slice(-1) === "\u2026") t = t.slice(0, -1);
+    var nouns = [" school", " hospital", " doctor", " dietician"];
+    for (var i = 0; i < nouns.length; i++) {
+      var n = nouns[i];
+      if (t.length > n.length && t.slice(-n.length) === n) return t.slice(0, -n.length);
+    }
+    return t;
   }
 
   /**
@@ -1921,9 +2036,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { style: "flex:1" }),
         el("span", { class: "cnt" }, rows.length === all.length
           ? rows.length + (rows.length === 1 ? " school" : " schools")
-          : rows.length + " of " + all.length),
-        isOps() ? el("button", { class: "pri", onclick: function () { set({ view: "newSchool", form: null, error: "" }); } },
-          icon("plus", 14), " Add school") : null),
+          : rows.length + " of " + all.length)),
 
       rows.length === 0
         ? el("div", { class: "card" }, el("div", { class: "empty" },
@@ -1935,7 +2048,10 @@ export const PORTAL_HTML = `<!doctype html>
               ? el("button", { class: "pri", onclick: function () { set({ view: "newSchool" }); } },
                   icon("plus", 14), " Add school")
               : null))
-        : el("div", { class: "recs" }, rows.map(schoolRow)));
+        : (function () {
+            var pg = paged("schools", rows);
+            return el("div", { class: "recs" }, pg[0].map(schoolRow), pg[1]);
+          })());
   }
 
   /** One school, whole, on one row — with the rest of it underneath on ask. */
@@ -1949,10 +2065,10 @@ export const PORTAL_HTML = `<!doctype html>
       // compare them down a column — and chips squeezed to "D..." say nothing
       // at all. They are in the panel underneath, in full.
       style: "grid-template-columns:28px minmax(220px,1.6fr) "
-        + "repeat(4,minmax(118px,.9fr)) minmax(76px,.5fr) 84px 64px",
+        + "repeat(4,minmax(104px,.9fr)) minmax(76px,.5fr) 92px minmax(176px,auto)",
       onclick: function () { openSchool(s.id); },
     },
-      el("span", { class: "rt" }, icon("school", 15)),
+      avatar(s.name),
 
       el("div", { class: "rcol" },
         el("div", { class: "rid" }, s.partnerCode || "\u2014"),
@@ -1983,7 +2099,11 @@ export const PORTAL_HTML = `<!doctype html>
           (s.adminCount || 0) + (s.adminCount === 1 ? " member of staff" : " staff"))),
 
       el("div", { class: "rcol" },
-        statusPill(!off && s.status === "ACTIVE" ? "ACTIVE" : s.status || "ARCHIVED")),
+        statusPill(!off && s.status === "ACTIVE" ? "ACTIVE" : s.status || "ARCHIVED"),
+        !off && s.dieticians === 0
+          ? el("div", { style: "margin-top:4px" },
+              el("span", { class: "pill warn", title: "Nobody follows up growth and haemoglobin" }, "No dietitian"))
+          : null),
 
 
       el("div", { class: "row", style: "gap:2px;justify-content:flex-end",
@@ -1996,13 +2116,11 @@ export const PORTAL_HTML = `<!doctype html>
         }, el("span", { class: "chev" + (open ? " up" : "") }, icon("chevron", 15))),
         isOps()
         ? rowMenu("sch:" + s.id, [
-            ["open", "Open school", function () { openSchool(s.id); }],
-            ["settings", "School settings", function () { openSchool(s.id, "programme"); }],
+            ["settings", "Settings", function () { openSchool(s.id, "programme"); }],
             "-",
             off
               ? ["restore", "Reopen school", function () { setSchoolArchived(s, false); }]
               : ["archive", "Archive school\u2026", function () { setSchoolArchived(s, true); }],
-            ["trash", "Delete school\u2026", function () { openSchool(s.id, "programme"); }, true],
           ], "Manage " + s.name)
         : null)),
       open ? schoolDetail(s) : null);
@@ -2123,7 +2241,10 @@ export const PORTAL_HTML = `<!doctype html>
               S.parentQuery || S.parentSchool || S.parentOnApp
                 ? "Nothing matches. Change the filter or clear the search."
                 : "Guardians appear here once a school's roster has been imported.")))
-        : el("div", { class: "recs" }, rows.map(parentRow)));
+        : (function () {
+            var pg = paged("parents", rows);
+            return el("div", { class: "recs" }, pg[0].map(parentRow), pg[1]);
+          })());
   }
 
   function parentRow(g) {
@@ -2214,9 +2335,8 @@ export const PORTAL_HTML = `<!doctype html>
   function viewSchool() {
     var s = S.school;
     return el("div", null,
-      tabBar(schoolTabs(), S.schoolTab, goSchoolTab),
+      tabBar(schoolTabs(), S.schoolTab, goSchoolTab, "stabs"),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
-      S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       safely(function () {
       return S.schoolTab === "roster" ? tabRoster()
         : S.schoolTab === "camps" ? tabCamps()
@@ -3612,7 +3732,6 @@ export const PORTAL_HTML = `<!doctype html>
         el("div", { class: "stat ok" }, el("b", null, c.released || 0), el("span", null, "released"))),
       tabBar(campTabs(), S.campTab, goCampTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
-      S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       safely(function () {
         return S.campTab === "setup" ? campSetup()
           : S.campTab === "people" ? campPeopleTab()
@@ -3655,6 +3774,7 @@ export const PORTAL_HTML = `<!doctype html>
               ? c.participants + " children are on this camp. Rebuild after changing classes or uploading a new roster."
               : "This pulls every child in the selected classes onto the camp. Nothing can happen until you do this."))),
       photosCard(c),
+      dieticianCard(S.camp.dieticians || []),
       el("div", { class: "card" }, el("div", { class: "card-h" }, el("h2", null, "Team on this camp")),
         staff.length === 0
           ? el("div", { class: "empty" },
@@ -3684,6 +3804,39 @@ export const PORTAL_HTML = `<!doctype html>
                   : el("button", { class: "sm", onclick: function () { setActive(true); } }, "Restore")));
             }))),
         el("div", { class: "card-f" }, assignStaffRow(c))));
+  }
+
+  /**
+   * Who follows up growth and haemoglobin after this camp.
+   *
+   * A dietician belongs to the school, not to a camp, so this is read-only
+   * here. It is on the camp because this is where somebody planning the day
+   * needs to know that a child flagged for weight or anaemia has somewhere to
+   * go — and where an empty answer is worth shouting about.
+   */
+  function dieticianCard(list) {
+    return el("div", { class: "card" },
+      el("div", { class: "card-h" }, el("h2", null, "Dietitian follow-up"),
+        list.length
+          ? el("span", { class: "pill ok" }, list.length === 1 ? "Assigned" : list.length + " assigned")
+          : el("span", { class: "pill warn" }, "No dietitian")),
+      list.length
+        ? el("table", null, el("tbody", null, list.map(function (d) {
+            return el("tr", null,
+              el("td", null, el("div", { class: "who" }, avatar(d.name),
+                el("div", null, el("b", null, d.name),
+                  d.qualification ? el("div", { class: "muted", style: "font-size:12px" }, d.qualification) : null))),
+              el("td", { class: "mono" }, d.phone || ""));
+          })))
+        : el("div", { class: "card-b" },
+            el("div", { class: "msg warn", style: "margin:0" },
+              "No dietitian is assigned to this school, so children flagged for growth or "
+              + "haemoglobin have nobody to follow them up."),
+            isOps()
+              ? el("div", { class: "row", style: "margin-top:10px" },
+                  el("button", { class: "pri sm", onclick: loadDieticians },
+                    icon("users", 13), " Assign a dietitian"))
+              : el("div", { class: "hint" }, "Ask VitaHero operations to assign one.")));
   }
 
   // Photography is a second consent, not a setting. The copy says so, because
@@ -3962,6 +4115,88 @@ export const PORTAL_HTML = `<!doctype html>
         });
     }
 
+    // Bulk paper entry: a class's slips at once. The filters narrow the table,
+    // and only pending, unscreened rows can be ticked, because those are the
+    // only ones the server will change. A tick hidden by a filter does not
+    // count: what is sent is what is on screen.
+    if (S.consentFor !== c.id) {
+      S.consentFor = c.id; S.consentSel = {}; S.consentGrades = []; S.consentSections = [];
+    }
+    function uniq(a) { return a.filter(function (x, i) { return a.indexOf(x) === i; }); }
+    function byNum(a, b) { return a.localeCompare(b, undefined, { numeric: true }); }
+    function gradeOf(p) { return String(p.grade || ""); }
+    function sectionOf(p) { return String(p.section || ""); }
+    function classOf(p) { return (gradeOf(p) + (p.section ? " " + p.section : "")).trim(); }
+    function tickable(p) { return p.consentStatus === "PENDING" && p.status === "NOT_SCREENED"; }
+    var grades = uniq(S.participants.map(gradeOf)).filter(Boolean).sort(byNum);
+    var sections = uniq(S.participants.map(sectionOf)).filter(Boolean).sort(byNum);
+    var shown = S.participants.filter(function (p) {
+      return (!S.consentGrades.length || S.consentGrades.indexOf(gradeOf(p)) >= 0)
+        && (!S.consentSections.length || S.consentSections.indexOf(sectionOf(p)) >= 0);
+    });
+    var shownPending = shown.filter(tickable);
+    var chosen = shownPending.filter(function (p) { return S.consentSel[p.kidId]; });
+    var allChosen = shownPending.length > 0 && chosen.length === shownPending.length;
+
+    function togFilter(list, v) {
+      var i = list.indexOf(v);
+      if (i >= 0) list.splice(i, 1); else list.push(v);
+      render();
+    }
+    function filterChips(label, list, values, show) {
+      if (values.length < 2) return null;
+      return el("div", { class: "row", style: "gap:6px;align-items:center;flex-wrap:wrap" },
+        el("span", { style: "font-size:12.5px;font-weight:600;min-width:58px" }, label),
+        el("div", { class: "chips" }, values.map(function (v) {
+          var on = list.indexOf(v) >= 0;
+          return el("label", { class: "chip" + (on ? " on" : "") },
+            el("input", { type: "checkbox", checked: on, onchange: function () { togFilter(list, v); } }), show(v));
+        })));
+    }
+
+    function bulk(decision, photos) {
+      if (!chosen.length) return;
+      var what = decision === "DECLINED" ? "DECLINED"
+        : photos ? "GRANTED on paper, with photographs" : "GRANTED on paper";
+      if (!confirm("Record consent as " + what + " for " + chosen.length
+          + (chosen.length === 1 ? " child" : " children") + " (" + uniq(chosen.map(classOf)).join(", ") + ")?"
+          + "\\n\\nOnly do this with the signed slips in hand. A guardian who has already answered is left as they are.")) return;
+      run(api("/api/admin/camps/" + c.id + "/consent/bulk", { method: "POST",
+        body: { kidIds: chosen.map(function (p) { return p.kidId; }), decision: decision,
+                consentPhotos: photos === true } }),
+        function (r) {
+          var sk = r.skipped || {};
+          var left = (sk.alreadyAnswered || 0) + (sk.alreadyScreened || 0) + (sk.notOnCamp || 0);
+          S.notice = "Recorded for " + r.updated + (r.updated === 1 ? " child" : " children")
+            + (left ? "; " + left + " left as they were (already answered or screened)." : ".");
+          S.consentSel = {}; S.participants = null; refreshCamp("consent");
+        });
+    }
+
+    var bulkBar = el("div", { class: "card", style: "padding:12px 14px;margin-bottom:12px" },
+      el("div", { style: "font-size:12.5px;font-weight:600;margin-bottom:8px" }, "Record a class's paper slips at once"),
+      filterChips("Class", S.consentGrades, grades, function (g) { return /^\\d+$/.test(g) ? "Class " + g : g; }),
+      filterChips("Section", S.consentSections, sections, function (s) { return s; }),
+      el("div", { class: "row", style: "gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px" },
+        el("span", { class: "muted", style: "font-size:12.5px" },
+          chosen.length + " of " + shownPending.length + " pending "
+          + (shownPending.length === 1 ? "child" : "children") + " ticked"
+          + (shown.length !== S.participants.length ? " (filtered: " + shown.length + " shown)" : "")),
+        el("button", { class: "sm pri", disabled: S.busy || !chosen.length,
+          onclick: function () { bulk("PAPER", false); } },
+          c.photosEnabled ? "Check-up only" : "Granted on paper"),
+        c.photosEnabled
+          ? el("button", { class: "sm", disabled: S.busy || !chosen.length,
+              onclick: function () { bulk("PAPER", true); } }, "Check-up + photographs")
+          : null,
+        el("button", { class: "sm dang", disabled: S.busy || !chosen.length,
+          onclick: function () { bulk("DECLINED"); } }, "Declined"),
+        chosen.length
+          ? el("button", { class: "sm", onclick: function () { S.consentSel = {}; render(); } }, "Clear ticks")
+          : null),
+      el("div", { class: "hint", style: "margin-top:6px" },
+        "Only children still waiting can be ticked. Anyone whose guardian answered in the app, or who has been screened, is never changed."));
+
     function step(n, label, hint, button) {
       return el("div", { class: "card", style: "flex:1;min-width:190px;padding:12px 14px" },
         el("div", { style: "font-size:22px;font-weight:700;line-height:1.1" }, String(n)),
@@ -4021,13 +4256,26 @@ export const PORTAL_HTML = `<!doctype html>
         ? el("div", { class: "msg warn" },
             "Photographs are on for this camp, so the paper form has two questions. Tick photographs only where the guardian ticked it themselves \\u2014 agreeing to a check-up is not agreeing to a camera.")
         : null,
+      bulkBar,
       el("div", { class: "tw" }, el("table", null,
-        el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"), el("th", null, "Guardian"),
+        el("thead", null, el("tr", null,
+          el("th", { style: "width:28px" }, shownPending.length
+            ? el("input", { type: "checkbox", checked: allChosen, title: "Tick every pending child shown",
+                onchange: function (e) {
+                  shownPending.forEach(function (p) { S.consentSel[p.kidId] = e.target.checked; });
+                  render();
+                } })
+            : null),
+          el("th", null, "Child"), el("th", null, "Class"), el("th", null, "Guardian"),
           el("th", null, "Mobile"), el("th", null, "App"), el("th", null, "Consent"),
           c.photosEnabled ? el("th", null, "Photographs") : null,
           el("th", null, "Chase"), el("th", null, "Record a paper form"))),
-        el("tbody", null, S.participants.map(function (p) {
+        el("tbody", null, shown.map(function (p) {
           return el("tr", null,
+            el("td", null, tickable(p)
+              ? el("input", { type: "checkbox", checked: !!S.consentSel[p.kidId],
+                  onchange: function (e) { S.consentSel[p.kidId] = e.target.checked; render(); } })
+              : null),
             el("td", null, el("b", null, p.name)),
             el("td", null, (p.grade || "") + (p.section ? " " + p.section : "")),
             el("td", null, p.guardianName || el("span", { class: "muted" }, "\\u2014")),
@@ -5085,7 +5333,6 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       tabBar(oversightTabs(), S.oversightTab, goOversightTab),
       S.error ? el("div", { class: "msg err" }, S.error) : null,
-      S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
       safely(function () {
         return S.oversightTab === "access" ? tabAccessLog()
           : S.oversightTab === "retention" ? tabRetention()
@@ -5609,6 +5856,7 @@ export const PORTAL_HTML = `<!doctype html>
   }
 
   function viewHospitals() {
+    var docPg = paged("doctors", S.doctors && S.doctors.doctors || []);
     if (!S.hospitals) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var canEdit = S.hospitals.canEdit;
 
@@ -5883,7 +6131,7 @@ export const PORTAL_HTML = `<!doctype html>
                 el("th", null, "Sign-in"),
                 el("th", { class: "num" }, "Camps"), el("th", { class: "num" }, "Rating"),
                 el("th", null, "Status"), el("th", { class: "act" }, ""))),
-              el("tbody", null, (S.doctors.doctors || []).map(function (d) {
+              el("tbody", null, docPg[0].map(function (d) {
                 return el("tr", { class: d.active ? "" : "muted" },
                   el("td", null, el("b", null, d.name)),
                   el("td", null, d.specialty || el("span", { class: "muted" }, "\u2014")),
@@ -5946,12 +6194,15 @@ export const PORTAL_HTML = `<!doctype html>
                           : ["restore", "Restore doctor", function () { restore("doctors", d); }],
                       ], "Manage " + d.name)
                     : null));
-              })))));
+              }))), docPg[1]));
   }
 
-  function navItem(name, label, view, onclick) {
-    return el("button", { class: "navi" + (S.view === view ? " on" : ""), onclick: onclick },
-      el("span", { class: "ic" }, icon(name, 17)), label);
+  function navItem(name, label, view, onclick, on, badge) {
+    var lit = on === undefined ? S.view === view : on;
+    return el("button", { class: "navi" + (lit ? " on" : ""), onclick: onclick, title: label,
+        "aria-current": lit ? "page" : null },
+      el("span", { class: "ic" }, icon(name, 17)), el("span", { class: "lbl" }, label),
+      badge ? el("span", { class: "n" }, String(badge)) : null);
   }
 
   /**
@@ -5988,10 +6239,10 @@ export const PORTAL_HTML = `<!doctype html>
    * sideways when it has to rather than wrapping, so the order stays the
    * order — for a camp that order is the day itself.
    */
-  function tabBar(tabs, current, go) {
+  function tabBar(tabs, current, go, extra) {
     var live = (tabs || []).filter(Boolean);
     if (!live.length) return null;
-    return el("div", { class: "tabs" }, live.map(function (tb) {
+    return el("div", { class: "tabs" + (extra ? " " + extra : "") }, live.map(function (tb) {
       return el("button", {
         class: "tab" + (tb[0] === current ? " on" : "") + (tb[3] ? " dang" : ""),
         onclick: tb[0] === current ? function () {} : function () { go(tb[0]); },
@@ -6279,13 +6530,44 @@ export const PORTAL_HTML = `<!doctype html>
     return v.length > n ? v.slice(0, n - 1) + "…" : v;
   }
 
+  var SCHOOL_TAB_ICONS = { roster: "users", classes: "school", history: "clock", camps: "calendar",
+    invites: "mail", referrals: "stethoscope", questions: "message", report: "chart", people: "users",
+    programme: "settings", requests: "clipboard", billing: "clipboard" };
+
+  /**
+   * The open school, and every one of its sections, one click from anywhere.
+   *
+   * Reaching a school's camps used to be Schools, then the school, then the
+   * tab \u2014 and from a camp, back up the crumbs first. Now the school you are
+   * working in stays in the sidebar with its sections under it.
+   */
+  function schoolNav() {
+    var sc = S.school;
+    if (!sc || !canManage()) return null;
+    var inSchool = S.view === "school" || S.view === "camp";
+    var shut = S.navSchoolShut;
+    return el("div", { class: "navsec" },
+      el("button", { class: "navgrp", "aria-expanded": shut ? "false" : "true",
+          onclick: function () { set({ navSchoolShut: !shut }); } },
+        el("span", { class: "gname" }, sc.name),
+        el("span", { class: "chev" + (shut ? "" : " up") }, icon("chevron", 13))),
+      shut ? null : el("div", { class: "navsub" }, schoolTabs().filter(Boolean).map(function (tb) {
+        var on = inSchool && S.view === "school" && S.schoolTab === tb[0]
+          || (S.view === "camp" && tb[0] === "camps");
+        return navItem(SCHOOL_TAB_ICONS[tb[0]] || "check", tb[1], null, function () {
+          if (S.view === "school") goSchoolTab(tb[0]);
+          else openSchool(sc.id, tb[0]);
+        }, on);
+      })));
+  }
+
   function sidebar() {
     return el("nav", { class: "nav" },
       el("div", { class: "brand" }, brandMark(26),
         el("span", { class: "wm" }, el("i", null, "vita"), el("b", null, "hero"))),
       el("div", { class: "navscroll" },
         el("div", { class: "navsec" },
-          el("h4", null, "Menu"),
+          el("h4", null, "General"),
           canManage() ? navItem("home", "Overview", "overview", function () { set({ view: "overview" }); if (!S.overview) boot(); }) : null,
           canManage() ? navItem("school", isSchoolAdmin() ? "My school" : "Schools", "schools", function () {
             if (isSchoolAdmin() && S.school) openSchool(S.school.id); else loadSchools();
@@ -6300,32 +6582,109 @@ export const PORTAL_HTML = `<!doctype html>
           // asked about them at the office — "is this parent on the app" — is
           // never scoped to a school you already know.
           canManage() ? navItem("users", "Parents", "parents", function () { loadParents(); }) : null,
-          isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null)),
+          isOps() ? navItem("clipboard", "Oversight", "oversight", loadOversight) : null),
+        schoolNav()),
       el("div", { class: "navfoot" },
-        el("b", null, S.auth.name),
-        el("div", { class: "role" }, roleLabel()),
-        el("button", { onclick: signOut }, icon("logout", 14), " Sign out")));
+        avatar(S.auth.name),
+        el("div", { class: "whot" },
+          el("b", null, S.auth.name),
+          el("div", { class: "role" }, roleLabel())),
+        el("button", { onclick: signOut, title: "Sign out", "aria-label": "Sign out" }, icon("logout", 15))));
   }
 
   function crumbs() {
     var parts = [];
+    var SL = el("span", { "aria-hidden": "true" }, "/");
+    function sep() { return SL.cloneNode(true); }
+    function here(t) { return el("span", { class: "here" }, t); }
+    var schoolsLabel = isSchoolAdmin() ? "My school" : "Schools";
     if (S.view === "school" && S.school) {
-      parts.push(el("button", { onclick: loadSchools }, "Schools"), " / ", S.school.name);
+      if (!isSchoolAdmin()) parts.push(el("button", { onclick: loadSchools }, schoolsLabel), sep());
+      parts.push(el("button", { onclick: function () { goSchoolTab("roster"); } }, S.school.name), sep(),
+        here((schoolTabs().filter(Boolean).filter(function (t) { return t[0] === S.schoolTab; })[0] || [0, ""])[1]));
     } else if (S.view === "camp" && S.camp) {
       if (canManage() && S.school) {
-        parts.push(el("button", { onclick: function () { openSchool(S.school.id, "camps"); } }, S.school.name), " / ");
+        if (!isSchoolAdmin()) parts.push(el("button", { onclick: loadSchools }, schoolsLabel), sep());
+        parts.push(el("button", { onclick: function () { openSchool(S.school.id, "camps"); } }, S.school.name), sep());
       } else if (isClinical()) {
-        parts.push(el("button", { onclick: loadMyCamps }, "My camps"), " / ");
+        parts.push(el("button", { onclick: loadMyCamps }, "My camps"), sep());
       }
       // Only name the school here when it is not already the crumb before
       // this one, or it reads "Oakridge / Oakridge · Annual Camp".
       var named = canManage() && S.school;
-      parts.push(!named && S.camp.camp.schoolName ? S.camp.camp.schoolName + " \\u00b7 " : "",
-        S.camp.camp.title);
+      parts.push(here((!named && S.camp.camp.schoolName ? S.camp.camp.schoolName + " \\u00b7 " : "")
+        + S.camp.camp.title));
     } else if (S.view === "newSchool") {
-      parts.push(el("button", { onclick: loadSchools }, "Schools"), " / New school");
+      parts.push(el("button", { onclick: loadSchools }, "Schools"), sep(), here("New school"));
+    } else {
+      parts.push(el("span", null, "VitaHero"), sep(), here(title()));
     }
-    return parts.length ? el("div", { class: "crumb" }, parts) : null;
+    return el("div", { class: "crumb" }, parts);
+  }
+
+  /**
+   * What the header says under the title, the count beside it, and the
+   * actions on its right. The most common thing to do on a screen is a
+   * button in the header, not something to go looking for.
+   */
+  function headerInfo() {
+    var v = S.view, info = { count: null, desc: "", acts: [] };
+    function len(x) { return Array.isArray(x) ? x.length : null; }
+    if (v === "overview") info.desc = "How the programme is doing, and what needs you today.";
+    else if (v === "schools") {
+      info.count = len(S.schools);
+      info.desc = "Every partner school. Click a school to manage its roster, camps and follow-up.";
+      if (isOps()) info.acts.push(el("button", { class: "pri", onclick: function () { set({ view: "newSchool", form: null, error: "" }); } },
+        icon("plus", 14), "Add school"));
+    } else if (v === "school" && S.school) {
+      var sc = S.school;
+      info.desc = [sc.city, sc.district].filter(Boolean).join(" \\u00b7 ")
+        + (sc.academicYear ? " \\u00b7 " + sc.academicYear : "");
+      info.acts.push(el("span", { class: "code", title: "Partner code" }, sc.partnerCode));
+      if (sc.dieticians === 0) info.acts.push(isOps()
+        ? el("button", { class: "sm", title: "Nobody follows up growth and haemoglobin", onclick: loadDieticians },
+            el("span", { class: "pill warn" }, "No dietitian"), "Assign")
+        : el("span", { class: "pill warn", title: "Nobody follows up growth and haemoglobin" }, "No dietitian"));
+      if (S.schoolTab !== "camps") info.acts.push(el("button", { onclick: function () { goSchoolTab("camps"); } },
+        icon("calendar", 14), "Camps"));
+      if (S.schoolTab !== "roster") info.acts.push(el("button", { onclick: function () { goSchoolTab("roster"); } },
+        icon("users", 14), "Roster"));
+    } else if (v === "camp" && S.camp) {
+      var c = S.camp.camp;
+      info.desc = [c.schoolName, c.date ? fmtDate(c.date) : "", c.venue].filter(Boolean).join(" \\u00b7 ");
+      info.acts.push(statusPill(c.status));
+    } else if (v === "parents") {
+      info.count = S.parents ? len(S.parents.guardians) : null;
+      info.desc = "Every guardian in the programme, and whether they are on the app.";
+    } else if (v === "hospitals") {
+      info.count = S.hospitals ? len(S.hospitals.hospitals) : null;
+      info.desc = "The hospitals and doctors families are referred to.";
+    } else if (v === "dieticians") {
+      info.count = S.dieticians ? len(S.dieticians.dieticians) : null;
+      info.desc = "Dietitians follow up growth and haemoglobin. Assign each one to their schools.";
+    } else if (v === "mycamps") {
+      info.count = len(S.myCamps);
+      info.desc = "The camps you are assigned to.";
+    } else if (v === "library") info.desc = "What a guardian reads in the app.";
+    else if (v === "oversight") info.desc = "Partners, access, data and the controls that touch everything.";
+    return info;
+  }
+
+  // The toast's timer, and which message it is for, so a new message gets a
+  // full few seconds rather than whatever was left of the last one's.
+  var toastFor = "", toastTimer = 0;
+  function toast() {
+    if (!S.notice) { toastFor = ""; return null; }
+    if (toastFor !== S.notice) {
+      toastFor = S.notice;
+      clearTimeout(toastTimer);
+      var mine = S.notice;
+      toastTimer = setTimeout(function () { if (S.notice === mine) set({ notice: "" }); }, 7000);
+    }
+    return el("div", { class: "toast", role: "status", "aria-live": "polite" },
+      el("span", { class: "ti" }, icon("check", 12)),
+      el("div", { class: "tx" }, el("b", null, "Done"), S.notice),
+      el("button", { title: "Dismiss", "aria-label": "Dismiss", onclick: function () { set({ notice: "" }); } }, icon("x", 14)));
   }
 
   function title() {
@@ -6506,16 +6865,20 @@ export const PORTAL_HTML = `<!doctype html>
       body = brokenScreen(renderErr);
     }
 
-    add(root, el("div", { class: "shell" }, sidebar(),
+    var hi;
+    try { hi = headerInfo(); } catch (e) { hi = { count: null, desc: "", acts: [] }; }
+    add(root, [el("div", { class: "shell" }, sidebar(),
       el("div", { class: "main" },
         el("div", { class: "bar" },
-          el("div", { class: "grow" }, crumbs(), el("h1", null, title())),
-          S.view === "camp" && S.camp ? statusPill(S.camp.camp.status) : null,
-          S.view === "school" && S.school ? el("span", { class: "code" }, S.school.partnerCode) : null),
+          el("div", { class: "grow" }, crumbs(),
+            el("h1", null, title(), hi.count !== null && hi.count !== undefined
+              ? el("span", { class: "badge" }, String(hi.count)) : null),
+            hi.desc ? el("div", { class: "desc" }, hi.desc) : null),
+          hi.acts.length ? el("div", { class: "acts" }, hi.acts) : null),
         el("div", { class: "content" },
           S.view !== "school" && S.view !== "camp" && S.error ? el("div", { class: "msg err" }, S.error) : null,
-          S.view !== "school" && S.view !== "camp" && S.notice ? el("div", { class: "msg ok" }, S.notice) : null,
-          body))));
+          body))),
+      toast()]);
 
     // Any table that was not given a scroller gets one. A phone is 390px wide
     // and a roster table is 620px; without this the document itself scrolls

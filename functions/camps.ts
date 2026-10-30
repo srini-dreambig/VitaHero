@@ -397,8 +397,9 @@ export async function listMyCamps(sql: Sql, actor: Actor) {
 
 export async function getCamp(sql: Sql, actor: Actor, campId: string) {
   const access = await assertCampAccess(sql, actor, campId);
-  // The tallies and the assigned staff are independent; one wait.
-  const [counts, staff] = await Promise.all([
+  // The tallies, the assigned staff and the school's dietician are
+  // independent; one wait.
+  const [counts, staff, dieticians] = await Promise.all([
     sql`
       SELECT
         COUNT(*)::int AS participant_count,
@@ -421,6 +422,17 @@ export async function getCamp(sql: Sql, actor: Actor, campId: string) {
       LEFT JOIN vita_hero.profiles p ON p.id = cs.profile_id
       WHERE cs.camp_id = ${campId}
       ORDER BY cs.active DESC, cs.staff_role, p.name
+    `,
+    // Growth and haemoglobin findings are followed up by the school's
+    // dietician, who is assigned to the school rather than to a camp. Shown on
+    // the camp so whoever runs it can see the follow-up has somebody — and
+    // can see when it has nobody.
+    sql`
+      SELECT d.name, d.phone, d.qualification
+      FROM vita_hero.dietician_schools ds
+      JOIN vita_hero.dieticians d ON d.id = ds.dietician_id
+      WHERE ds.school_id = ${access.camp.school_id as string} AND ds.active AND d.active
+      ORDER BY d.name
     `,
   ]);
   // Counts come back snake_case from SQL; the rest of the API is camelCase, so
@@ -451,6 +463,13 @@ export async function getCamp(sql: Sql, actor: Actor, campId: string) {
       active: s.active !== false,
       doctorId: (s.doctor_id as string) || "",
       revokedAt: s.revoked_at ? new Date(s.revoked_at as string).toISOString() : "",
+    })),
+    // The number only for those who run the camp; a screener needs to know
+    // there is a dietician, not how to ring them.
+    dieticians: dieticians.map((d) => ({
+      name: d.name as string,
+      qualification: (d.qualification as string) || "",
+      phone: access.canSchedule ? (d.phone as string) || "" : "",
     })),
     can: {
       schedule: access.canSchedule,
@@ -929,6 +948,94 @@ export async function recordConsent(
             ${campId}, ${kidId}, ${owner}, ${decision}, ${opts.source}, ${opts.actorId}, ${opts.note || ""})
   `;
   return { kidId, consentStatus: decision, consentPhotos: photos };
+}
+
+/** The most children one bulk entry may touch: a large school's whole camp. */
+export const BULK_CONSENT_LIMIT = 500;
+
+/**
+ * Key in a class's worth of paper slips at once.
+ *
+ * Only children still PENDING and not yet screened change. A guardian who
+ * answered in the app has answered, and a bulk click must never turn their
+ * "no" into a "yes"; those children come back counted as skipped instead. The
+ * claim is the UPDATE itself, so two people entering the same pile at the same
+ * moment write each child once and log each child once.
+ */
+export async function recordConsentBulk(
+  sql: Sql,
+  actor: Actor,
+  campId: string,
+  body: Record<string, unknown>,
+) {
+  const access = await assertCampAccess(sql, actor, campId);
+  assertCan(access.canSchedule, "record consent for this camp");
+
+  const decision = String(body.decision || "").toUpperCase();
+  if (decision !== "PAPER" && decision !== "DECLINED") {
+    throw new ApiError(400, "Decision must be PAPER or DECLINED", "BAD_DECISION");
+  }
+  const kidIds = [...new Set(
+    (Array.isArray(body.kidIds) ? body.kidIds : []).map((k) => String(k || "").trim()).filter(Boolean),
+  )];
+  if (kidIds.length === 0) throw new ApiError(400, "Choose at least one child", "NO_CHILDREN");
+  if (kidIds.length > BULK_CONSENT_LIMIT) {
+    throw new ApiError(
+      400,
+      `At most ${BULK_CONSENT_LIMIT} children at a time — narrow it by class`,
+      "TOO_MANY",
+    );
+  }
+  // Photographs only where the camp asks the question at all.
+  const photos = decision === "PAPER" && body.consentPhotos === true
+    && access.camp.photos_enabled === true;
+  const note = String(body.note || "").trim().slice(0, 500) || "Bulk paper entry in the console";
+
+  const claimed = await sql`
+    UPDATE vita_hero.camp_participants
+    SET consent_status = ${decision},
+        consent_checks = '[]'::jsonb,
+        consent_photos = ${photos},
+        consent_at = NOW(),
+        consent_source = 'PAPER',
+        consent_recorded_by = ${actor.profileId}
+    WHERE camp_id = ${campId} AND kid_id = ANY(${kidIds}::text[])
+      AND consent_status = 'PENDING' AND status = 'NOT_SCREENED'
+    RETURNING kid_id, profile_id
+  `;
+  if (claimed.length > 0) {
+    const stamp = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    await sql`
+      INSERT INTO vita_hero.consent_log (id, camp_id, kid_id, profile_id, action, source, actor_id, note)
+      SELECT 'cl_' || ${stamp} || '_' || u.kid_id, ${campId}, u.kid_id, u.profile_id,
+             ${decision}, 'PAPER', ${actor.profileId}, ${note}
+      FROM UNNEST(${claimed.map((r) => r.kid_id as string)}::text[],
+                  ${claimed.map((r) => (r.profile_id as string) || "")}::text[]) AS u(kid_id, profile_id)
+    `;
+  }
+
+  // Say why the rest were left alone, so "12 of 40" is not a mystery.
+  const done = new Set(claimed.map((r) => r.kid_id as string));
+  const rest = kidIds.filter((k) => !done.has(k));
+  const skipped = { alreadyAnswered: 0, alreadyScreened: 0, notOnCamp: 0 };
+  if (rest.length > 0) {
+    const found = await sql`
+      SELECT kid_id, consent_status, status FROM vita_hero.camp_participants
+      WHERE camp_id = ${campId} AND kid_id = ANY(${rest}::text[])
+    `;
+    skipped.notOnCamp = rest.length - found.length;
+    for (const r of found) {
+      if ((r.status as string) !== "NOT_SCREENED") skipped.alreadyScreened++;
+      else skipped.alreadyAnswered++;
+    }
+  }
+  return {
+    decision,
+    consentPhotos: photos,
+    updated: claimed.length,
+    kidIds: [...done],
+    skipped,
+  };
 }
 
 // ─── C · Camp-day capture ───────────────────────────────────

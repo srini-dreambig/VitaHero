@@ -191,6 +191,9 @@ function mapSchool(r: SchoolRow) {
     consented: num(r.consented_count),
     screened: num(r.screened_count),
     openReferrals: num(r.open_referrals),
+    // Growth and haemoglobin follow-up has nobody when this is nought, which
+    // the console says out loud rather than leaving to be discovered.
+    dieticians: num(r.dietician_count),
     // Ratios are derived here so that no screen has to remember which
     // denominator is the right one — and a denominator of zero reads as "not
     // started" rather than as nought per cent, which looks like a failure.
@@ -234,7 +237,10 @@ export async function listSchools(sql: Sql, actor: Actor) {
                AND UPPER(COALESCE(cp.status, '')) IN ('SCREENED','RELEASED')) AS screened_count,
           (SELECT COUNT(*)::int FROM vita_hero.referrals r
              WHERE r.school_id = s.id
-               AND UPPER(COALESCE(r.status, '')) IN ('OPEN','BOOKED')) AS open_referrals
+               AND UPPER(COALESCE(r.status, '')) IN ('OPEN','BOOKED')) AS open_referrals,
+          (SELECT COUNT(*)::int FROM vita_hero.dietician_schools ds
+             JOIN vita_hero.dieticians d ON d.id = ds.dietician_id
+             WHERE ds.school_id = s.id AND ds.active AND d.active) AS dietician_count
         FROM vita_hero.schools s
         WHERE s.id = ${actor.schoolId}
         ORDER BY s.name
@@ -259,7 +265,10 @@ export async function listSchools(sql: Sql, actor: Actor) {
                AND UPPER(COALESCE(cp.status, '')) IN ('SCREENED','RELEASED')) AS screened_count,
           (SELECT COUNT(*)::int FROM vita_hero.referrals r
              WHERE r.school_id = s.id
-               AND UPPER(COALESCE(r.status, '')) IN ('OPEN','BOOKED')) AS open_referrals
+               AND UPPER(COALESCE(r.status, '')) IN ('OPEN','BOOKED')) AS open_referrals,
+          (SELECT COUNT(*)::int FROM vita_hero.dietician_schools ds
+             JOIN vita_hero.dieticians d ON d.id = ds.dietician_id
+             WHERE ds.school_id = s.id AND ds.active AND d.active) AS dietician_count
         FROM vita_hero.schools s
         ORDER BY s.name
       `;
@@ -272,7 +281,10 @@ export async function getSchool(sql: Sql, actor: Actor, schoolId: string) {
     SELECT s.*,
       (SELECT COUNT(*)::int FROM vita_hero.kids k WHERE k.school_id = s.id) AS student_count,
       (SELECT COUNT(*)::int FROM vita_hero.profiles p
-         WHERE p.school_id = s.id AND p.role = 'SCHOOL_ADMIN') AS admin_count
+         WHERE p.school_id = s.id AND p.role = 'SCHOOL_ADMIN') AS admin_count,
+      (SELECT COUNT(*)::int FROM vita_hero.dietician_schools ds
+         JOIN vita_hero.dieticians d ON d.id = ds.dietician_id
+         WHERE ds.school_id = s.id AND ds.active AND d.active) AS dietician_count
     FROM vita_hero.schools s WHERE s.id = ${schoolId} LIMIT 1
   `;
   if (rows.length === 0) throw new ApiError(404, "School not found", "NOT_FOUND");

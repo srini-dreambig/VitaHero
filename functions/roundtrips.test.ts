@@ -18,6 +18,7 @@ import { ensureLifecycleSchema } from "./lifecycle";
 import { ensureMediaSchema } from "./media";
 import { ensureMessageSchema } from "./messages";
 import { ensureOversightSchema } from "./oversight";
+import { ensureDieticianSchema } from "./dietician";
 import { adminAnalytics } from "./analytics";
 import { schoolReport, programmeReport } from "./reports";
 import { listRoster } from "./roster";
@@ -135,6 +136,7 @@ suite("round trips per console operation", () => {
     await ensureMediaSchema(sql);
     await ensureMessageSchema(sql);
     await ensureOversightSchema(sql);
+    await ensureDieticianSchema(sql);
 
     const s = await createSchool(sql, OPS, { name: "Measured School", city: "Hyderabad",
       checksOffered: ["Height & weight", "Dental", "Vision"] });
