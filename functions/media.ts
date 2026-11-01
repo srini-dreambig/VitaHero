@@ -353,7 +353,7 @@ export async function guardianPhotos(sql: Sql, profileId: string, kidId: string)
     FROM vita_hero.finding_photos f
     JOIN vita_hero.camp_participants cp ON cp.camp_id = f.camp_id AND cp.kid_id = f.kid_id
     LEFT JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
-    WHERE f.kid_id = ${kidId} AND cp.profile_id = ${profileId} AND cp.status = 'RELEASED'
+    WHERE f.kid_id = ${kidId} AND cp.profile_id = ${profileId} AND cp.status IN ('SCREENED','APPROVED','RELEASED')
     ORDER BY f.uploaded_at DESC
   `;
   return {

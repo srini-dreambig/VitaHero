@@ -45,6 +45,7 @@ import kallam.healthcare.ui.screens.DietScreen
 import kallam.healthcare.ui.screens.DieticianArticlesScreen
 import kallam.healthcare.ui.screens.DieticianChildScreen
 import kallam.healthcare.ui.screens.DieticianChildrenScreen
+import kallam.healthcare.ui.screens.DieticianGroupsScreen
 import kallam.healthcare.ui.screens.DieticianSchoolsScreen
 import kallam.healthcare.ui.screens.FamilySharingScreen
 import kallam.healthcare.ui.screens.FoodRecognitionScreen
@@ -88,6 +89,7 @@ object Routes {
     const val DIETICIAN = "dietician"
     const val DIETICIAN_SCHOOL = "dietician/{schoolId}/{name}"
     const val DIETICIAN_CHILD = "dietician/child/{kidId}"
+    const val DIETICIAN_GROUPS = "dietician/groups/{schoolId}/{name}"
     const val DIETICIAN_ARTICLES = "dietician/articles"
     const val KID_DETAIL = "kid/{kidId}"
     const val DIET = "diet/{kidId}"
@@ -405,6 +407,25 @@ fun AppNavigation(
             ),
         ) { backStack ->
             DieticianChildrenScreen(
+                schoolId = backStack.arguments?.getString("schoolId").orEmpty(),
+                schoolName = backStack.arguments?.getString("name").orEmpty(),
+                dietician = vms.dietician,
+                onOpenChild = { kidId -> navController.navigate("dietician/child/$kidId") },
+                onOpenGroups = { id, name ->
+                    navController.navigate("dietician/groups/$id/${Uri.encode(name)}")
+                },
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(
+            Routes.DIETICIAN_GROUPS,
+            arguments = listOf(
+                navArgument("schoolId") { type = NavType.StringType },
+                navArgument("name") { type = NavType.StringType },
+            ),
+        ) { backStack ->
+            DieticianGroupsScreen(
                 schoolId = backStack.arguments?.getString("schoolId").orEmpty(),
                 schoolName = backStack.arguments?.getString("name").orEmpty(),
                 dietician = vms.dietician,

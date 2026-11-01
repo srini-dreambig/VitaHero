@@ -176,7 +176,14 @@ struct ClinicianScreeningView: View {
     }
 
     private func heightWeight(_ c: String) -> some View {
-        pair(number("Height (cm) *", c, "heightCm"), number("Weight (kg) *", c, "weightKg"))
+        VStack(alignment: .leading, spacing: 12) {
+            pair(number("Height (cm) *", c, "heightCm"), number("Weight (kg) *", c, "weightKg"))
+            number("MUAC (cm)", c, "muacCm")
+            choice("Nutritional status", O.NUTRITIONAL_STATUS, c, "nutritionalStatus")
+            Text("Leave it empty and it is worked out from height and weight.")
+                .font(.footnote).foregroundColor(.secondary)
+            text("General advice", c, "generalAdvice", "e.g. more protein, play outdoors daily")
+        }
     }
 
     private func vision(_ c: String) -> some View {
@@ -270,6 +277,7 @@ struct ClinicianScreeningView: View {
                 text("Provisional Diagnosis", c, "provisionalDiagnosis", "e.g. Myopic Astigmatism OD/OS")
                 text("Plan of Care", c, "planOfCare", "Corrective glasses, repeat exam in 6 months...")
                 text("Final Diagnosis", c, "finalDiagnosis", "e.g. Simple Myopia OD -2.00, OS -2.25")
+                text("General advice", c, "generalAdvice", "e.g. limit screen time, sit near the board")
             }
         }
     }
@@ -277,6 +285,7 @@ struct ClinicianScreeningView: View {
     private func dental(_ c: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
+                choice("Type of dentition", O.DENTITION, c, "dentition")
                 FormSectionHeader(title: "Tooth Index (dmft / DMFT)")
                 HStack(alignment: .top, spacing: 8) {
                     number("Carious (Decayed) *", c, "cariesCount")
@@ -299,6 +308,12 @@ struct ClinicianScreeningView: View {
                 multi("Oral Habits (Thumb sucking, mouth breathing...)", O.DENTAL_HABITS, c, "dentalHabits")
                 FormSectionHeader(title: "Recommended Dental Treatment")
                 multi("Select Dental Treatments", O.DENTAL_TREATMENTS, c, "treatmentNeeded")
+            }
+            Group {
+                FormSectionHeader(title: "Findings, Plan & Advice")
+                text("Abnormal findings", c, "abnormalFindings", "e.g. deep caries 85, retained 51")
+                text("Treatment plan", c, "treatmentPlan", "e.g. restoration 85, extraction 51")
+                text("General advice", c, "generalAdvice", "e.g. brush twice daily, fewer sweets")
             }
         }
     }
@@ -384,7 +399,6 @@ struct ClinicianScreeningView: View {
                     multi("Systemic Diseases (DM, Polio, Paralysis...)", O.SYSTEMIC_DISEASES, "Systemic", "systemicDiseases")
                     multi("Drug Allergies (Penicillin, Xylocaine, Sulpha...)", O.ALLERGIES_LIST, "Systemic", "drugAllergies")
                     multi("Current Medications (Insulin, Anticoagulants...)", O.CURRENT_TREATMENTS, "Systemic", "currentTreatments")
-                    choice("Nutritional Screening", O.NUTRITIONAL_STATUS, "Systemic", "nutritionalStatus")
                 }
                 Group {
                     FormSectionHeader(title: "Diagnostic Lab Requisition Orders (Image 1)",
@@ -461,6 +475,11 @@ struct ClinicianScreeningView: View {
             for finding in fetched.findings {
                 let fields = ScreeningRecord.restore(flag: finding.flag, note: finding.note, detail: finding.detail)
                 if !fields.isEmpty { seeded[finding.checkType] = fields }
+                // Every check carries the same history and lab card; the first
+                // one found fills it.
+                for (section, saved) in finding.context where seeded[section] == nil && !saved.isEmpty {
+                    seeded[section] = saved
+                }
             }
             values = seeded
             form = fetched

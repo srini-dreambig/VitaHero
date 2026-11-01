@@ -137,13 +137,26 @@ fun ClinicianCampsScreen(
                             )
                             Spacer(Modifier.height(4.dp))
                             // The only number that matters mid-camp: how many
-                            // children are still to be seen.
+                            // children are still to be seen by this doctor.
                             Text(
-                                "${camp.screened} of ${camp.participants} screened",
+                                if (camp.myChildren > 0)
+                                    "${camp.myTodo} to do · ${camp.myDone} done"
+                                else "${camp.screened} of ${camp.participants} screened",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = HeroBlue,
                                 fontWeight = FontWeight.SemiBold,
                             )
+                            val mine = listOf(camp.specialty, camp.myChecks.joinToString(", "))
+                                .filter { it.isNotBlank() }.joinToString(": ")
+                            if (mine.isNotBlank()) {
+                                Text(
+                                    mine,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }

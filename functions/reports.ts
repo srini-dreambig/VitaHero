@@ -37,7 +37,7 @@ export async function kidHealthHistory(sql: Sql, profileId: string, kidId: strin
     FROM vita_hero.camp_participants p
     JOIN vita_hero.school_camps sc ON sc.id = p.camp_id
     LEFT JOIN vita_hero.schools s ON s.id = sc.school_id
-    WHERE p.kid_id = ${kidId} AND p.status = 'RELEASED'
+    WHERE p.kid_id = ${kidId} AND p.status IN ('SCREENED','APPROVED','RELEASED')
     ORDER BY sc.date DESC
   `;
 

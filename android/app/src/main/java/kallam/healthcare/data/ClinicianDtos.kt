@@ -34,6 +34,17 @@ data class ClinicianCampDto(
     @kotlinx.serialization.SerialName("approved")
     val awaitingReview: Int = 0,
     val status: String = "",
+    /**
+     * This clinician's own share, counted by their checks rather than the
+     * child's overall status: a dentist's "done" is the children whose
+     * teeth are recorded, whatever vision still has to do. Older servers
+     * send none of these, so [myChildren] = 0 falls back to the camp totals.
+     */
+    val myChildren: Int = 0,
+    val myTodo: Int = 0,
+    val myDone: Int = 0,
+    val myChecks: List<String> = emptyList(),
+    val specialty: String = "",
 )
 
 @Serializable

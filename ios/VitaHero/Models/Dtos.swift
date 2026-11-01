@@ -293,6 +293,10 @@ struct CampResult: Decodable {
     let findings: [Finding]
     /// Where the child is in the camp: which checks are done, never what they found.
     let progress: Progress?
+    /// Some checks are back and others are still to be done. The findings are
+    /// the ones recorded so far; `pendingChecks` names the rest.
+    let partial: Bool
+    let pendingChecks: [String]
 
     struct Progress: Decodable {
         struct Check: Decodable, Identifiable {
@@ -347,6 +351,8 @@ struct CampResult: Decodable {
         recommendation = c.str("recommendation")
         findings = c.list("findings")
         progress = c.obj("progress")
+        partial = c.bool("partial")
+        pendingChecks = c.strs("pendingChecks")
     }
 }
 
@@ -810,6 +816,13 @@ struct ClinicianCamp: Decodable, Identifiable, Hashable {
     /// `approved`, but for a clinician's camps it counts status SCREENED.
     let awaitingReview: Int
     let status: String
+    /// This clinician's own share: children with one of their checks, and how
+    /// many of those still need them. Another doctor's save does not move it.
+    let myChildren: Int
+    let myTodo: Int
+    let myDone: Int
+    let myChecks: [String]
+    let specialty: String
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -822,6 +835,11 @@ struct ClinicianCamp: Decodable, Identifiable, Hashable {
         screened = c.int("screened")
         awaitingReview = c.int("approved")
         status = c.str("status")
+        myChildren = c.int("myChildren")
+        myTodo = c.int("myTodo")
+        myDone = c.int("myDone")
+        myChecks = c.strs("myChecks")
+        specialty = c.str("specialty")
     }
 }
 
@@ -959,6 +977,10 @@ struct ExistingFinding: Decodable {
     /// The saved readings as the form holds them. Nested values have no field
     /// on the form and are left out.
     let detail: [String: String]
+    /// The history and lab card, which the server keeps inside each check's
+    /// detail as `history` and `investigations`. Read back so the card reopens
+    /// filled and a second save does not send it blank over what was there.
+    let context: [String: [String: String]]
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -967,8 +989,15 @@ struct ExistingFinding: Decodable {
         rationale = c.str("rationale")
         note = c.str("note")
         var fields: [String: String] = [:]
+        var sections: [String: [String: String]] = [:]
         if let nested = try? c.nestedContainer(keyedBy: AnyKey.self, forKey: AnyKey("detail")) {
             for key in nested.allKeys {
+                if let section = ExistingFinding.contextSections[key.stringValue] {
+                    if let inner = try? nested.nestedContainer(keyedBy: AnyKey.self, forKey: key) {
+                        sections[section] = ExistingFinding.flat(inner)
+                    }
+                    continue
+                }
                 guard let value = try? nested.decode(JSONValue.self, forKey: key) else { continue }
                 if case .other = value { continue }
                 if case .null = value { continue }
@@ -976,6 +1005,29 @@ struct ExistingFinding: Decodable {
             }
         }
         detail = fields
+        context = sections
+    }
+
+    /// The stored key of each form section that rides along with the checks.
+    static let contextSections = ["history": "Systemic", "investigations": "Investigations"]
+
+    /// One level of saved fields as text. A list (a multi-select saved as an
+    /// array) comes back comma-joined, as the form keeps it.
+    private static func flat(_ c: KeyedDecodingContainer<AnyKey>) -> [String: String] {
+        var out: [String: String] = [:]
+        for key in c.allKeys {
+            if let value = try? c.decode(JSONValue.self, forKey: key) {
+                switch value {
+                case .other, .null: break
+                default: out[key.stringValue] = value.text; continue
+                }
+            }
+            if let list = try? c.decode([JSONValue].self, forKey: key) {
+                let joined = list.map(\.text).filter { !$0.isEmpty }.joined(separator: ",")
+                if !joined.isEmpty { out[key.stringValue] = joined }
+            }
+        }
+        return out
     }
 }
 

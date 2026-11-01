@@ -159,6 +159,35 @@ fun CampResultScreen(
             return@LazyColumn
         }
 
+        // Some checks are in, others still to come: say which, above the ones
+        // that are, so a parent does not read the list as the whole check-up.
+        if (r.partial) {
+            item {
+                HeroCard(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(18.dp)) {
+                        Text(
+                            r.message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        r.pendingChecks.forEach { c ->
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(c, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                                Text(
+                                    t(S.checkStatePending),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = HeroOrange,
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+        }
+
         // The doctor's own words come first. A parent who reads nothing else on
         // this screen should still read this.
         if (r.recommendation.isNotBlank()) {

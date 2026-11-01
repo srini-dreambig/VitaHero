@@ -40,9 +40,10 @@ android {
         // was built on 22 Oct 2026, the day Play last took an update, so this
         // release went one above it (1.1.7, 1789668241: per-specialist
         // sign-off). 1.1.8 is one above that: parents follow each check of a
-        // school camp live, and the Health Connect reading is gone.
-        versionCode = 1789668242
-        versionName = "1.1.8"
+        // school camp live, and the Health Connect reading is gone. 1.1.9:
+        // each doctor's checks are their own, and dietitians plan by group.
+        versionCode = 1789668243
+        versionName = "1.1.9"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //

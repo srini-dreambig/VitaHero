@@ -81,6 +81,12 @@ export async function ensureCampSchema(sql: Sql): Promise<void> {
   await sql`ALTER TABLE vita_hero.camp_staff ADD COLUMN IF NOT EXISTS revoked_by TEXT DEFAULT ''`;
   // The directory entry and the login are the same person.
   await sql`ALTER TABLE vita_hero.camp_staff ADD COLUMN IF NOT EXISTS doctor_id TEXT`;
+  // What this person records at this camp. Set on the assignment rather than
+  // read only from the directory: a school's own physician has no directory
+  // entry, and without it they were given every check — so a dentist added
+  // that way had to fill in (or mark not done) the eye check to save, and the
+  // eye doctor's list then showed the child as done.
+  await sql`ALTER TABLE vita_hero.camp_staff ADD COLUMN IF NOT EXISTS specialty TEXT DEFAULT ''`;
 
   // 'UPCOMING' predates the camp lifecycle and is not one of CAMP_STATUSES, so
   // a camp carrying it could be listed but never advanced: no consent round,
@@ -222,6 +228,32 @@ export interface CampAccess {
 }
 
 /**
+ * A clinician's specialty from the doctor directory, by the entry they were
+ * assigned from or, failing that, by their mobile number (a provisioned login
+ * is ph_<last ten digits>). "" when there is no entry. Never throws: camp work
+ * must not stop because the directory is unavailable.
+ */
+async function directorySpecialty(sql: Sql, doctorId: string, profileId: string): Promise<string> {
+  try {
+    if (doctorId) {
+      const d = await sql`SELECT specialty FROM vita_hero.doctors WHERE id = ${doctorId} LIMIT 1`;
+      const s = normaliseSpecialty(String(d[0]?.specialty || ""));
+      if (s) return s;
+    }
+    const last10 = /^ph_\d{10}$/.test(profileId) ? profileId.slice(3) : "";
+    if (!last10) return "";
+    const d = await sql`
+      SELECT specialty FROM vita_hero.doctors
+      WHERE active = true AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10) = ${last10}
+      LIMIT 1
+    `;
+    return normaliseSpecialty(String(d[0]?.specialty || ""));
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Resolve what this actor may do with this camp.
  *
  * Ops and the school's own administrators can do everything. A screener or
@@ -267,7 +299,7 @@ export async function assertCampAccess(
   }
 
   const staff = await sql`
-    SELECT staff_role, active, doctor_id FROM vita_hero.camp_staff
+    SELECT staff_role, active, doctor_id, specialty FROM vita_hero.camp_staff
     WHERE camp_id = ${campId} AND profile_id = ${actor.profileId} LIMIT 1
   `;
   if (staff.length === 0) {
@@ -284,16 +316,15 @@ export async function assertCampAccess(
   }
   const staffRole = staff[0].staff_role as string;
 
-  // doctor_id is set only when this person was put on the camp from the
-  // directory, which is also the only place a specialty is recorded. Looked up
-  // separately rather than joined: camp access must not depend on the
-  // directory existing, and this costs a second round trip only for the one
-  // case that needs it.
+  // Looked up separately rather than joined: camp access must not depend on
+  // the directory existing.
   const doctorId = (staff[0].doctor_id as string) || "";
-  let specialty = "";
-  if (doctorId) {
-    const d = await sql`SELECT specialty FROM vita_hero.doctors WHERE id = ${doctorId} LIMIT 1`;
-    specialty = normaliseSpecialty(String(d[0]?.specialty || ""));
+  // The assignment's own specialty first, then the directory entry it came
+  // from, then a directory entry with the same number. Only when none of
+  // those exists is this person the school's generalist.
+  let specialty = normaliseSpecialty(String(staff[0].specialty || ""));
+  if (!specialty) {
+    specialty = await directorySpecialty(sql, doctorId, actor.profileId);
   }
   return {
     camp,
@@ -388,11 +419,50 @@ export async function listMyCamps(sql: Sql, actor: Actor) {
     JOIN vita_hero.school_camps sc ON sc.id = cs.camp_id AND cs.active = true
     JOIN vita_hero.schools s ON s.id = sc.school_id
     WHERE cs.profile_id = ${actor.profileId} AND sc.active = true
+      -- Only camps there is still work on: a released or cancelled camp is
+      -- locked and only crowded the doctor's list.
+      AND sc.status NOT IN ('RELEASED','CANCELLED')
     ORDER BY sc.date DESC
   `;
-  return {
-    camps: rows.map((r) => ({ ...mapCamp(r), staffRole: (r.staff_role as string) || "" })),
-  };
+  // The counts on each card are this clinician's own: "12 of 40 screened"
+  // meant children anyone had touched, so the eye doctor arrived to a camp
+  // that said done because the dentist had been through it.
+  const camps = [];
+  for (const r of rows) {
+    const base = { ...mapCamp(r), staffRole: (r.staff_role as string) || "" };
+    try {
+      const access = await assertCampAccess(sql, actor, r.id as string);
+      const campChecks = campCheckList(access.camp);
+      const parts = await sql`
+        SELECT p.status, p.consent_status, p.attendance, p.consent_checks,
+          (SELECT COALESCE(json_agg(DISTINCT f.check_type), '[]'::json) FROM vita_hero.camp_findings f
+            WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id
+              AND (f.flag <> 'NOT_MEASURED' OR COALESCE(f.screener_note, '') <> '')) AS recorded_checks
+        FROM vita_hero.camp_participants p WHERE p.camp_id = ${r.id as string}
+      `;
+      let mine = 0, done = 0, todo = 0;
+      for (const p of parts) {
+        const st = screeningProgress(p, campChecks, access.checkScope,
+          new Set((p.recorded_checks as string[]) || [])).screeningState;
+        if (st === "NOT_MINE" || st === "NO_CONSENT") continue;
+        mine++;
+        if (st === "DONE") done++;
+        else if (st === "TODO") todo++;
+      }
+      camps.push({
+        ...base,
+        screened: done,
+        myChildren: mine,
+        myTodo: todo,
+        myDone: done,
+        myChecks: access.checkScope ?? campChecks,
+        specialty: access.specialty || "",
+      });
+    } catch {
+      camps.push(base);
+    }
+  }
+  return { camps };
 }
 
 export async function getCamp(sql: Sql, actor: Actor, campId: string) {
@@ -417,7 +487,7 @@ export async function getCamp(sql: Sql, actor: Actor, campId: string) {
     `,
     sql`
       SELECT cs.profile_id, cs.staff_role, cs.active, cs.doctor_id, cs.revoked_at,
-             p.name, p.phone
+             COALESCE(cs.specialty, '') AS specialty, p.name, p.phone
       FROM vita_hero.camp_staff cs
       LEFT JOIN vita_hero.profiles p ON p.id = cs.profile_id
       WHERE cs.camp_id = ${campId}
@@ -435,6 +505,11 @@ export async function getCamp(sql: Sql, actor: Actor, campId: string) {
       ORDER BY d.name
     `,
   ]);
+  const staffSpecialty = await Promise.all(staff.map(async (st) =>
+    normaliseSpecialty(String(st.specialty || "")) ||
+    (st.staff_role === "PHYSICIAN"
+      ? await directorySpecialty(sql, (st.doctor_id as string) || "", st.profile_id as string)
+      : "")));
   // Counts come back snake_case from SQL; the rest of the API is camelCase, so
   // normalise here rather than leaving callers to guess which shape they got.
   const c = counts[0] as Record<string, number>;
@@ -453,7 +528,7 @@ export async function getCamp(sql: Sql, actor: Actor, campId: string) {
       released: c.released_count || 0,
       urgent: c.urgent_count || 0,
     },
-    staff: staff.map((s) => ({
+    staff: staff.map((s, i) => ({
       profileId: s.profile_id as string,
       role: s.staff_role as string,
       name: (s.name as string) || "",
@@ -463,6 +538,11 @@ export async function getCamp(sql: Sql, actor: Actor, campId: string) {
       active: s.active !== false,
       doctorId: (s.doctor_id as string) || "",
       revokedAt: s.revoked_at ? new Date(s.revoked_at as string).toISOString() : "",
+      // What they record here. "" with checks null is a generalist who
+      // records every check — the console shows that as a warning, since a
+      // specialist left like that marks other doctors' checks done.
+      specialty: staffSpecialty[i] || "",
+      checks: staffSpecialty[i] ? screeningChecksFor(staffSpecialty[i]) : null,
     })),
     // The number only for those who run the camp; a screener needs to know
     // there is a dietician, not how to ring them.
@@ -1491,6 +1571,116 @@ async function writeScreenings(
     UPDATE vita_hero.school_camps SET status = 'IN_PROGRESS'
     WHERE id = ${campId} AND status IN ('DRAFT','SCHEDULED')
   `;
+
+  // Each check reaches the family as soon as its doctor submits it, rather
+  // than after every doctor has been and a physician has released the camp.
+  // A failure here must not lose a doctor's save that has already been
+  // written: it is logged, and the next save for the child projects again.
+  try {
+    await shareWithFamilies(sql, campId, screened);
+  } catch (e) {
+    console.error("shareWithFamilies", campId, e);
+  }
+}
+
+/**
+ * Put what has been recorded for these children so far where the family's
+ * app reads it: the camp result row, the child's headline flags and the
+ * growth chart. The same projection releaseCamp makes, for the checks done so
+ * far — an area not checked yet keeps whatever the child had before.
+ *
+ * It does not open referrals or text anyone: those stay with the physician's
+ * review and release, which still happen and still lock the record.
+ */
+export async function shareWithFamilies(sql: Sql, campId: string, kidIds: string[]): Promise<void> {
+  if (kidIds.length === 0) return;
+  const [camp] = await sql`SELECT date, school_id FROM vita_hero.school_camps WHERE id = ${campId} LIMIT 1`;
+  if (!camp) return;
+  const campDate = (camp.date as string) || "";
+  const schoolId = camp.school_id as string;
+  const parts = await sql`
+    SELECT kid_id, profile_id FROM vita_hero.camp_participants
+    WHERE camp_id = ${campId} AND kid_id = ANY(${kidIds})
+      AND status <> 'RELEASED' AND COALESCE(profile_id, '') <> ''
+  `;
+  if (parts.length === 0) return;
+  const found = await sql`
+    SELECT kid_id, check_type, flag, urgency, detail FROM vita_hero.camp_findings
+    WHERE camp_id = ${campId} AND kid_id = ANY(${parts.map((p) => p.kid_id as string)})
+      AND flag <> 'NOT_MEASURED'
+  `;
+  const byKid = new Map<string, Array<{ checkType: string; flag: Flag; urgency: Urgency; detail: Record<string, unknown> }>>();
+  for (const f of found) {
+    const list = byKid.get(f.kid_id as string) || [];
+    list.push({
+      checkType: f.check_type as string,
+      flag: f.flag as Flag,
+      urgency: (f.urgency as Urgency) || "NONE",
+      detail: (f.detail as Record<string, unknown>) || {},
+    });
+    byKid.set(f.kid_id as string, list);
+  }
+  const rows = parts
+    .filter((p) => (byKid.get(p.kid_id as string) || []).length > 0)
+    .map((p) => {
+      const sm = summariseForApp(byKid.get(p.kid_id as string)!);
+      return {
+        id: `ckr_${campId}_${p.kid_id as string}_${crypto.randomUUID().slice(0, 8)}`,
+        gp_id: `gp_${p.kid_id as string}_${slugify(campDate || campId)}`,
+        profile_id: p.profile_id as string,
+        kid_id: p.kid_id as string,
+        dental: sm.dental, eyesight: sm.eyesight, nutrition: sm.nutrition,
+        height_cm: sm.heightCm, weight_kg: sm.weightKg, overall_score: sm.overallScore,
+      };
+    });
+  if (rows.length === 0) return;
+  const data = JSON.stringify(rows);
+  await sql`
+    INSERT INTO vita_hero.camp_kid_results
+      (id, profile_id, school_camp_id, kid_id, dental, eyesight, nutrition, height_cm, weight_kg, recorded_at)
+    SELECT v.id, v.profile_id, ${campId}, v.kid_id, v.dental, v.eyesight, v.nutrition, v.height_cm, v.weight_kg, NOW()
+    FROM jsonb_to_recordset(${data}::jsonb) AS v(id text, gp_id text, profile_id text, kid_id text,
+      dental text, eyesight text, nutrition text, height_cm numeric, weight_kg numeric, overall_score int)
+    ON CONFLICT (school_camp_id, kid_id) DO UPDATE SET
+      dental = EXCLUDED.dental, eyesight = EXCLUDED.eyesight, nutrition = EXCLUDED.nutrition,
+      height_cm = EXCLUDED.height_cm, weight_kg = EXCLUDED.weight_kg, recorded_at = NOW()
+  `;
+  await sql`
+    UPDATE vita_hero.kids k SET
+      dental = CASE WHEN v.dental <> 'NOT_MEASURED' THEN v.dental ELSE k.dental END,
+      eyesight = CASE WHEN v.eyesight <> 'NOT_MEASURED' THEN v.eyesight ELSE k.eyesight END,
+      nutrition = CASE WHEN v.nutrition <> 'NOT_MEASURED' THEN v.nutrition ELSE k.nutrition END,
+      height_cm = COALESCE(v.height_cm, k.height_cm),
+      weight_kg = COALESCE(v.weight_kg, k.weight_kg),
+      overall_score = v.overall_score,
+      last_checkup = ${campDate || "Camp"}
+    FROM jsonb_to_recordset(${data}::jsonb) AS v(id text, gp_id text, profile_id text, kid_id text,
+      dental text, eyesight text, nutrition text, height_cm numeric, weight_kg numeric, overall_score int)
+    WHERE k.id = v.kid_id
+  `;
+  await sql`
+    INSERT INTO vita_hero.growth_points (id, kid_id, user_id, label, height, weight)
+    SELECT v.gp_id, v.kid_id, v.profile_id, ${campDate || "Camp"}, COALESCE(v.height_cm, 0), COALESCE(v.weight_kg, 0)
+    FROM jsonb_to_recordset(${data}::jsonb) AS v(id text, gp_id text, profile_id text, kid_id text,
+      dental text, eyesight text, nutrition text, height_cm numeric, weight_kg numeric, overall_score int)
+    WHERE v.height_cm IS NOT NULL OR v.weight_kg IS NOT NULL
+    ON CONFLICT (id) DO UPDATE SET
+      height = EXCLUDED.height, weight = EXCLUDED.weight, recorded_at = NOW()
+  `;
+  await sql`
+    INSERT INTO vita_hero.camp_registrations (id, profile_id, school_camp_id, kid_id)
+    SELECT 'reg_' || v.kid_id || '_' || ${campId}, v.profile_id, ${campId}, v.kid_id
+    FROM jsonb_to_recordset(${data}::jsonb) AS v(id text, gp_id text, profile_id text, kid_id text,
+      dental text, eyesight text, nutrition text, height_cm numeric, weight_kg numeric, overall_score int)
+    ON CONFLICT DO NOTHING
+  `;
+  await sql`
+    INSERT INTO vita_hero.school_enrollments (id, profile_id, school_id, kid_id, status)
+    SELECT DISTINCT ON (v.profile_id) 'enr_' || v.profile_id || '_' || ${schoolId}, v.profile_id, ${schoolId}, v.kid_id, 'ACTIVE'
+    FROM jsonb_to_recordset(${data}::jsonb) AS v(id text, gp_id text, profile_id text, kid_id text,
+      dental text, eyesight text, nutrition text, height_cm numeric, weight_kg numeric, overall_score int)
+    ON CONFLICT DO NOTHING
+  `;
 }
 
 /** The camp's participants, keyed by child, for the children in one batch. */
@@ -1776,7 +1966,7 @@ export async function reviewQueue(sql: Sql, actor: Actor, campId: string) {
                    AND f.recorded_at <= s.signed_at))), '[]'::json)
              FROM vita_hero.camp_signoffs s
              WHERE s.camp_id = p.camp_id AND s.kid_id = p.kid_id) AS signoffs,
-           (SELECT COALESCE(json_agg(COALESCE(cs.doctor_id, '')), '[]'::json) FROM vita_hero.camp_staff cs
+           (SELECT COALESCE(json_agg(json_build_object('d', COALESCE(cs.doctor_id, ''), 's', COALESCE(cs.specialty, ''))), '[]'::json) FROM vita_hero.camp_staff cs
              WHERE cs.camp_id = ${campId} AND cs.staff_role = 'PHYSICIAN' AND cs.active IS NOT FALSE) AS signer_doctors
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
@@ -1786,13 +1976,14 @@ export async function reviewQueue(sql: Sql, actor: Actor, campId: string) {
 
   // Who on this camp can sign what. A check no assigned physician covers
   // would wait for ever, so the queue names it rather than leave it waiting.
-  const signerDoctors = (rows[0]?.signer_doctors as string[]) || [];
-  const doctorIds = signerDoctors.filter(Boolean);
+  const signers = (rows[0]?.signer_doctors as Array<{ d: string; s: string }>) || [];
+  const doctorIds = signers.filter((x) => !normaliseSpecialty(x.s) && x.d).map((x) => x.d);
   const specialties = doctorIds.length === 0 ? [] : await sql`
     SELECT specialty FROM vita_hero.doctors WHERE id = ANY(${doctorIds})
   `;
   const scopes: Array<string[] | null> = [
-    ...signerDoctors.filter((d) => !d).map(() => null),
+    ...signers.filter((x) => normaliseSpecialty(x.s)).map((x) => screeningChecksFor(x.s)),
+    ...signers.filter((x) => !normaliseSpecialty(x.s) && !x.d).map(() => null),
     ...specialties.map((d) => {
       const name = normaliseSpecialty(String(d.specialty || ""));
       return name ? screeningChecksFor(name) : null;
@@ -2672,6 +2863,40 @@ export async function guardianCampResult(
           : "Your child was not checked at this camp, so there is no result. Ask the school about the next camp.",
       };
     }
+    // Each check is shown the moment its doctor submits it. The ones still
+    // to come are listed in progress as PENDING.
+    if (progress.done > 0) {
+      const fRows = await sql`
+        SELECT check_type, flag, rationale, review_note, value_text FROM vita_hero.camp_findings
+        WHERE camp_id = ${campId} AND kid_id = ${kidId}
+          AND (flag <> 'NOT_MEASURED' OR COALESCE(screener_note, '') <> '')
+        ORDER BY check_type
+      `;
+      const pending = progress.checks.filter((c) => c.state === "PENDING").map((c) => c.checkType);
+      return {
+        // RELEASED so an app that knows only that word shows the findings; partial
+        // says more checks are still to come.
+        status: "RELEASED",
+        partial: pending.length > 0,
+        pendingChecks: pending,
+        progress,
+        kidName: p.name as string,
+        schoolName: p.school_name as string,
+        campTitle: p.title as string,
+        date: (p.date as string) || "",
+        urgency: (p.urgency as string) || "NONE",
+        recommendation: (p.recommendation as string) || "",
+        message: pending.length > 0
+          ? `Results so far. Still to be done: ${pending.join(", ")}.`
+          : "Every check is done. The doctor may add a note when they review the results.",
+        findings: fRows.map((f) => ({
+          checkType: f.check_type as string,
+          flag: f.flag as string,
+          summary: (f.value_text as string) || "",
+          note: String(f.review_note || "").trim() || (f.rationale as string) || "",
+        })),
+      };
+    }
     const message = progress.stage === "WITH_DOCTOR"
       ? "Every check is done. A doctor is reviewing the results, which will appear here once they sign them off."
       : progress.stage === "CONSENT_NEEDED"
@@ -2687,6 +2912,8 @@ export async function guardianCampResult(
   `;
   return {
     status: "RELEASED",
+    partial: false,
+    pendingChecks: [] as string[],
     progress,
     kidName: p.name as string,
     schoolName: p.school_name as string,
@@ -2872,25 +3099,45 @@ export async function assignCampStaff(
   //
   // Matched on the number, because that is what ties a profile to a directory
   // entry: assignDoctorToCamp mints the profile as ph_<last ten digits>.
-  if (role === "PHYSICIAN") {
-    // Wrapped, and a failure means "no directory entry to judge by".
-    // assertCampAccess looks the specialty up in its own statement for the
-    // same reason spelled out there: camp work must not stop because the
-    // directory table is absent. Reaching for it unguarded here is exactly
-    // the coupling that note warns against, and it turned a missing table
-    // into a camp nobody could be staffed for.
-    const dir = await sql`
-      SELECT name, specialty FROM vita_hero.doctors
-      WHERE active = true AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10)
-            = ${profileId.replace(/^ph_/, "")}
-      LIMIT 1
-    `.catch(() => [] as Record<string, unknown>[]);
-    if (dir.length > 0) {
-      const specialty = String(dir[0].specialty || "");
-      if (screeningChecksFor(specialty).length === 0) {
+  // What they record here. The console sends it ("What they check"); a
+  // directory doctor with the same number fills it in when it doesn't. A
+  // physician with neither is the school's generalist and records every check
+  // — that has to be a choice, because a dentist who silently became one had
+  // to fill in the eye check to save, and the eye doctor then found the child
+  // already done.
+  //
+  // The directory lookup is wrapped: a failure means "no entry to judge by",
+  // never a camp nobody can be staffed for.
+  const dir = role === "PHYSICIAN"
+    ? await sql`
+        SELECT id, name, specialty FROM vita_hero.doctors
+        WHERE active = true AND RIGHT(REGEXP_REPLACE(phone, '[^0-9]', '', 'g'), 10)
+              = ${profileId.replace(/^ph_/, "")}
+        LIMIT 1
+      `.catch(() => [] as Record<string, unknown>[])
+    : [];
+  const asked = String(body.specialty ?? "").trim();
+  let specialty = "";
+  {
+    if (asked) {
+      specialty = normaliseSpecialty(asked);
+      if (!specialty || screeningChecksFor(specialty).length === 0) {
         throw new ApiError(
           400,
-          `${dir[0].name as string} is ${specialty || "a doctor"} and VitaHero has no ` +
+          `VitaHero has no screening form for "${asked}", so there would be nothing ` +
+            `for them to record at this camp.`,
+          "SPECIALTY_NOT_SCREENED"
+        );
+      }
+    } else if (role === "PHYSICIAN" && dir.length > 0) {
+      // Same rule assignDoctorToCamp enforces, so the side door can't seat a
+      // dermatologist with an empty form either.
+      const raw = String(dir[0].specialty || "");
+      specialty = normaliseSpecialty(raw);
+      if (screeningChecksFor(raw).length === 0) {
+        throw new ApiError(
+          400,
+          `${dir[0].name as string} is ${raw || "a doctor"} and VitaHero has no ` +
             `screening form for that yet, so there would be nothing for them to record ` +
             `at this camp.`,
           "SPECIALTY_NOT_SCREENED"
@@ -2898,13 +3145,22 @@ export async function assignCampStaff(
       }
     }
   }
+  const doctorId = dir.length > 0 ? String(dir[0].id) : null;
 
   await sql`
-    INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role)
-    VALUES (${"cst_" + campId + "_" + profileId + "_" + crypto.randomUUID().slice(0, 8)}, ${campId}, ${profileId}, ${role})
-    ON CONFLICT (camp_id, profile_id) DO UPDATE SET staff_role = EXCLUDED.staff_role
+    INSERT INTO vita_hero.camp_staff (id, camp_id, profile_id, staff_role, doctor_id, specialty)
+    VALUES (${"cst_" + campId + "_" + profileId + "_" + crypto.randomUUID().slice(0, 8)}, ${campId}, ${profileId}, ${role}, ${doctorId}, ${specialty})
+    ON CONFLICT (camp_id, profile_id) DO UPDATE SET
+      staff_role = EXCLUDED.staff_role,
+      doctor_id = COALESCE(EXCLUDED.doctor_id, vita_hero.camp_staff.doctor_id),
+      specialty = CASE WHEN EXCLUDED.specialty <> '' THEN EXCLUDED.specialty ELSE vita_hero.camp_staff.specialty END
   `;
-  return { assigned: { profileId, name: rows[0].name as string, role } };
+  return {
+    assigned: {
+      profileId, name: rows[0].name as string, role, specialty,
+      checks: specialty ? screeningChecksFor(specialty) : null,
+    },
+  };
 }
 
 /**
@@ -3096,6 +3352,39 @@ export async function setCampStaffActive(
     throw new ApiError(404, "That person is not on this camp", "NOT_ASSIGNED");
   }
   return { profileId, active };
+}
+
+/**
+ * Set what someone records at this camp. "" makes them the generalist who
+ * records every check. Refused for a specialty with no screening form.
+ */
+export async function setCampStaffSpecialty(
+  sql: Sql,
+  actor: Actor,
+  campId: string,
+  profileId: string,
+  value: string
+) {
+  const access = await assertCampAccess(sql, actor, campId);
+  assertCan(access.canSchedule, "change staff on this camp");
+  const raw = String(value || "").trim();
+  const specialty = raw ? normaliseSpecialty(raw) : "";
+  if (raw && (!specialty || screeningChecksFor(specialty).length === 0)) {
+    throw new ApiError(
+      400,
+      `VitaHero has no screening form for "${raw}", so there would be nothing for them to record.`,
+      "SPECIALTY_NOT_SCREENED"
+    );
+  }
+  const rows = await sql`
+    UPDATE vita_hero.camp_staff SET specialty = ${specialty}
+    WHERE camp_id = ${campId} AND profile_id = ${profileId}
+    RETURNING profile_id
+  `;
+  if (rows.length === 0) {
+    throw new ApiError(404, "That person is not on this camp", "NOT_ASSIGNED");
+  }
+  return { profileId, specialty, checks: specialty ? screeningChecksFor(specialty) : null };
 }
 
 export async function removeCampStaff(sql: Sql, actor: Actor, campId: string, profileId: string) {

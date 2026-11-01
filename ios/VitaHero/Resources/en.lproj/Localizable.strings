@@ -185,7 +185,7 @@
 "clin_review_send_sub" = "%@ screened. Nothing reaches a guardian until you sign it off.";
 "clin_review_title" = "Review";
 "clin_review_watch" = "Watch";
-"clin_reviewed_first" = "A supervising physician reviews what you record before the child's parent can see it.";
+"clin_reviewed_first" = "Saved findings reach the child's parent straight away. Other doctors' checks stay to do until they record them.";
 "clin_roster_failed" = "Could not load the list";
 "clin_rules_said" = "The rules said %@. Your decision is what the guardian sees.";
 "clin_save_record" = "Save Screening Record";
@@ -217,6 +217,7 @@
 "clin_write_first" = "Write what the guardian should do before approving.";
 "clin_x_of_y_done_by_you" = "%1$@ of %2$@ done by you";
 "clin_x_of_y_screened" = "%1$@ of %2$@ screened";
+"clin_todo_done" = "%1$@ to do · %2$@ done";
 "clin_years" = "%@ years";
 "clin_your_part" = "Your part of what the guardian will read";
 "clinical_growth_charts" = "Clinical growth charts";

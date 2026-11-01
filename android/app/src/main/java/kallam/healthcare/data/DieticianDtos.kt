@@ -191,3 +191,85 @@ data class ArticleBody(
     val flags: List<String> = emptyList(),
     val published: Boolean = true,
 )
+
+// ─── Groups: one plan for many children ─────────────────────
+
+/**
+ * Children grouped by what their checks found, so one plan can go to every
+ * child who needs the same thing. Bands and flags only: the readings stay
+ * behind the per-child record, whose every opening is logged.
+ */
+@Serializable
+data class DieticianCohortsDto(
+    val schoolId: String = "",
+    val grade: String = "",
+    val grades: List<String> = emptyList(),
+    val total: Int = 0,
+    val cohorts: List<DieticianCohortDto> = emptyList(),
+)
+
+@Serializable
+data class DieticianCohortDto(
+    val key: String = "",
+    val label: String = "",
+    val focus: String = "GENERAL",
+    val priority: Int = 0,
+    val summary: CohortSummaryDto = CohortSummaryDto(),
+    val children: List<CohortChildDto> = emptyList(),
+    val draft: CohortDraftDto = CohortDraftDto(),
+)
+
+@Serializable
+data class CohortSummaryDto(
+    val count: Int = 0,
+    val withPlan: Int = 0,
+    val ageMin: Int? = null,
+    val ageMax: Int? = null,
+    val girls: Int = 0,
+    val boys: Int = 0,
+    val severeAnaemia: Int = 0,
+    val toothDecay: Int = 0,
+)
+
+@Serializable
+data class CohortChildDto(
+    val kidId: String = "",
+    val name: String = "",
+    val grade: String = "",
+    val section: String = "",
+    val age: Int? = null,
+    val gender: String = "",
+    val band: String = "",
+    /** "", NONE, MILD or SEVERE. */
+    val anaemia: String = "",
+    val toothDecay: Boolean = false,
+    val hasPlan: Boolean = false,
+)
+
+/** A starting point for the group's plan: RULES, or AI when the model wrote it. */
+@Serializable
+data class CohortDraftDto(
+    val title: String = "",
+    val focus: String = "GENERAL",
+    val guidance: String = "",
+    val targets: List<DietTargetDto> = emptyList(),
+    val source: String = "RULES",
+)
+
+@Serializable
+data class CohortDraftResponseDto(val draft: CohortDraftDto = CohortDraftDto())
+
+@Serializable
+data class CohortDraftBody(val schoolId: String, val key: String, val grade: String = "")
+
+@Serializable
+data class CohortPlanBody(
+    val kidIds: List<String>,
+    val title: String = "",
+    val focus: String = "GENERAL",
+    val guidance: String = "",
+    val targets: List<DietTargetDto> = emptyList(),
+)
+
+@Serializable
+data class CohortPlanSavedDto(val saved: Int = 0)

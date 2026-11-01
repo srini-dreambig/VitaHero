@@ -56,6 +56,18 @@ class DieticianViewModel(
     private val _articles = MutableStateFlow<List<LibraryArticleDto>>(emptyList())
     val articles: StateFlow<List<LibraryArticleDto>> = _articles.asStateFlow()
 
+    /** One school's children in groups, for planning many at once. */
+    private val _cohorts = MutableStateFlow<DieticianCohortsDto?>(null)
+    val cohorts: StateFlow<DieticianCohortsDto?> = _cohorts.asStateFlow()
+
+    /** The draft for the group being planned, as last asked for. */
+    private val _cohortDraft = MutableStateFlow<CohortDraftDto?>(null)
+    val cohortDraft: StateFlow<CohortDraftDto?> = _cohortDraft.asStateFlow()
+
+    /** How many children the last group plan went to, or 0. */
+    private val _cohortSaved = MutableStateFlow(0)
+    val cohortSaved: StateFlow<Int> = _cohortSaved.asStateFlow()
+
     fun clearMessage() { _message.value = "" }
     fun clearSaved() { _saved.value = false }
 
@@ -188,6 +200,61 @@ class DieticianViewModel(
                     // whatever plan was running, and the list of past plans is
                     // the server's to state.
                     openChild(kidId)
+                },
+                onFailure = { e -> _message.value = e.message ?: "The plan was not saved." },
+            )
+        }
+    }
+
+    fun loadCohorts(schoolId: String, grade: String = "") {
+        viewModelScope.launch {
+            _busy.value = true
+            val r = repo.cohorts(schoolId, grade)
+            _busy.value = false
+            if (r == null) {
+                _message.value = "The groups could not be loaded. Check the connection and try again."
+                return@launch
+            }
+            _cohorts.value = r
+        }
+    }
+
+    fun clearCohortDraft() {
+        _cohortDraft.value = null
+        _cohortSaved.value = 0
+    }
+
+    fun draftCohort(schoolId: String, key: String, grade: String) {
+        viewModelScope.launch {
+            _busy.value = true
+            val r = repo.cohortDraft(CohortDraftBody(schoolId, key, grade))
+            _busy.value = false
+            r.fold(
+                onSuccess = { _cohortDraft.value = it },
+                onFailure = { e -> _message.value = e.message ?: "No draft came back." },
+            )
+        }
+    }
+
+    fun saveCohortPlan(
+        schoolId: String,
+        grade: String,
+        kidIds: List<String>,
+        title: String,
+        focus: String,
+        guidance: String,
+        targets: List<DietTargetDto>,
+    ) {
+        viewModelScope.launch {
+            _busy.value = true
+            _message.value = ""
+            val r = repo.saveCohortPlan(CohortPlanBody(kidIds, title, focus, guidance, targets))
+            _busy.value = false
+            r.fold(
+                onSuccess = { n ->
+                    _cohortSaved.value = n
+                    // Re-read: who is on a plan is the server's to say.
+                    loadCohorts(schoolId, grade)
                 },
                 onFailure = { e -> _message.value = e.message ?: "The plan was not saved." },
             )

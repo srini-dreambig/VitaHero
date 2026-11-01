@@ -6,12 +6,19 @@ struct RootView: View {
     @EnvironmentObject private var store: AppStore
     @EnvironmentObject private var l10n: L10n
     @StateObject private var clinician = ClinicianStore()
+    @StateObject private var dietician = DieticianStore()
 
     /// Screeners and physicians work camps, not a family's records. The role
     /// is the server's; the screens they open ask it again for every action.
     private var isClinician: Bool {
         let role = auth.profile?.role.uppercased() ?? ""
         return role == "PHYSICIAN" || role == "SCREENER"
+    }
+
+    /// A dietician reads growth and haemoglobin across their schools and
+    /// writes plans; they have no family of their own to load.
+    private var isDietician: Bool {
+        auth.profile?.role.uppercased() == "DIETICIAN"
     }
 
     var body: some View {
@@ -24,6 +31,8 @@ struct RootView: View {
             case .signedIn:
                 if isClinician {
                     ClinicianHomeView().environmentObject(clinician)
+                } else if isDietician {
+                    DieticianHomeView().environmentObject(dietician)
                 } else {
                     MainTabView()
                 }
@@ -35,11 +44,12 @@ struct RootView: View {
             case .signedIn:
                 Task {
                     await syncLanguage()
-                    if !isClinician { await store.loadAll(profile: auth.profile) }
+                    if !isClinician && !isDietician { await store.loadAll(profile: auth.profile) }
                 }
             case .signedOut:
                 store.reset()
                 clinician.reset()
+                dietician.reset()
             case .restoring:
                 break
             }

@@ -241,15 +241,16 @@ private val CURRENT_TREATMENTS = listOf(
     "Other Medications"
 )
 
-// Image 5: Nutritional Screening
+// Nutritional status, in the words the physical exam sheet uses and the
+// server reads (NUTRITION_BANDS in clinical.ts). Left empty, the server
+// suggests one from height and weight; the dietician groups children by it.
 private val NUTRITIONAL_STATUS = listOf(
-    "Normal / Well-Nourished",
-    "Mild Malnutrition",
-    "Severe Malnutrition",
-    "Underweight for Age",
-    "Overweight / Obese",
-    "Stunted Growth"
+    "Normal", "Underweight", "Severely underweight", "Stunted", "Overweight", "Obese",
 )
+
+// Type of dentition, as the oral & dental sheet has it. It decides whether
+// the tooth index is read as dmft (milk teeth) or DMFT (permanent).
+private val DENTITION = listOf("Primary", "Mixed", "Permanent")
 
 // Dental Specialist Clinical Options
 private val GUMS_CONDITION = listOf("Healthy", "Gingivitis / Redness", "Bleeding Gums", "Swollen / Abscess", "Gingival Recession")
@@ -622,7 +623,6 @@ fun ClinicianScreeningScreen(
                             MultiChoiceField(SYSTEMIC_DISEASES, fields("Systemic"), "systemicDiseases", label = "Systemic Diseases (DM, Polio, Paralysis...)")
                             MultiChoiceField(ALLERGIES_LIST, fields("Systemic"), "drugAllergies", label = "Drug Allergies (Penicillin, Xylocaine, Sulpha...)")
                             MultiChoiceField(CURRENT_TREATMENTS, fields("Systemic"), "currentTreatments", label = "Current Medications (Insulin, Anticoagulants...)")
-                            ChoiceField("Nutritional Screening", NUTRITIONAL_STATUS, fields("Systemic"), "nutritionalStatus", Modifier.fillMaxWidth())
 
                             Spacer(Modifier.height(4.dp))
                             HeroFormSectionHeader(
@@ -668,7 +668,7 @@ fun ClinicianScreeningScreen(
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "A supervising physician reviews what you record before the child's parent can see it.",
+                        "Saved findings reach the child's parent straight away. Other doctors' checks stay to do until they record them.",
                         Modifier.padding(horizontal = 20.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -686,9 +686,19 @@ fun ClinicianScreeningScreen(
 @Composable
 private fun CheckFields(check: String, fields: MutableMap<String, String>) {
     when (check) {
-        "Height & weight" -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            NumberField("Height (cm) *", fields, "heightCm", Modifier.weight(1f))
-            NumberField("Weight (kg) *", fields, "weightKg", Modifier.weight(1f))
+        "Height & weight" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                NumberField("Height (cm) *", fields, "heightCm", Modifier.weight(1f))
+                NumberField("Weight (kg) *", fields, "weightKg", Modifier.weight(1f))
+                NumberField("MUAC (cm)", fields, "muacCm", Modifier.weight(1f))
+            }
+            ChoiceField("Nutritional status", NUTRITIONAL_STATUS, fields, "nutritionalStatus", Modifier.fillMaxWidth())
+            Text(
+                "Leave it empty and it is worked out from height and weight.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            SimpleTextField("General advice", fields, "generalAdvice", Modifier.fillMaxWidth(), placeholder = "e.g. more protein, play outdoors daily")
         }
         "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Visual Acuity (Distant & Near) - Image 3", subtitle = "Snellen distance & near reading metrics per eye")
@@ -831,9 +841,11 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             SimpleTextField("Provisional Diagnosis", fields, "provisionalDiagnosis", Modifier.fillMaxWidth(), placeholder = "e.g. Myopic Astigmatism OD/OS")
             SimpleTextField("Plan of Care", fields, "planOfCare", Modifier.fillMaxWidth(), placeholder = "Corrective glasses, repeat exam in 6 months...")
             SimpleTextField("Final Diagnosis", fields, "finalDiagnosis", Modifier.fillMaxWidth(), placeholder = "e.g. Simple Myopia OD -2.00, OS -2.25")
+            SimpleTextField("General advice", fields, "generalAdvice", Modifier.fillMaxWidth(), placeholder = "e.g. limit screen time, sit near the board")
         }
         "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Tooth Index (dmft / DMFT)")
+            ChoiceField("Type of dentition", DENTITION, fields, "dentition", Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 NumberField("Carious (Decayed) *", fields, "cariesCount", Modifier.weight(1f))
                 NumberField("Missing", fields, "missingCount", Modifier.weight(1f))
@@ -870,6 +882,12 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             Spacer(Modifier.height(2.dp))
             HeroFormSectionHeader("Recommended Dental Treatment")
             MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded", label = "Select Dental Treatments")
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Findings, Plan & Advice")
+            SimpleTextField("Abnormal findings", fields, "abnormalFindings", Modifier.fillMaxWidth(), placeholder = "e.g. deep caries 85, retained 51")
+            SimpleTextField("Treatment plan", fields, "treatmentPlan", Modifier.fillMaxWidth(), placeholder = "e.g. restoration 85, extraction 51")
+            SimpleTextField("General advice", fields, "generalAdvice", Modifier.fillMaxWidth(), placeholder = "e.g. brush twice daily, fewer sweets")
         }
         "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Hearing Acuity Screening")

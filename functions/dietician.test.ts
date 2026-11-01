@@ -21,10 +21,13 @@ import {
   DIETICIAN_CHECKS,
   dieticianChild,
   dieticianChildren,
+  dieticianCohortDraft,
+  dieticianCohorts,
   dieticianSchools,
   guardianDietPlan,
   listDieticians,
   retireDietician,
+  saveCohortPlan,
   saveDietPlan,
   setDieticianSchool,
   upsertDietician,
@@ -429,6 +432,94 @@ suite("what a dietician can reach", () => {
       expect(missing(fieldsOf("DieticianSchoolDto"),
         (mine.schools as Record<string, unknown>[])[0])).toEqual([]);
     })();
+  });
+
+  // ── groups ──
+
+  test("children are grouped by what their checks found, before any sign-off", async () => {
+    // Diya's growth and teeth were submitted at a camp still being screened:
+    // the dietician works from them without waiting for the doctor's review.
+    await sql`INSERT INTO vita_hero.school_camps (id, school_id, title, date, status, checks)
+              VALUES ('sc_live', 'sch_mine', 'Term two camp', '2027-03-01', 'IN_PROGRESS',
+                      ${JSON.stringify([...DESIGNED_CHECKS])}::jsonb)`;
+    await sql`INSERT INTO vita_hero.camp_participants
+                (id, camp_id, school_id, kid_id, profile_id, consent_status, attendance, status)
+              VALUES ('cp_live', 'sc_live', 'sch_mine', 'k_mine2', 'ph_par', 'GRANTED', 'PRESENT', 'SCREENED')`;
+    await sql`INSERT INTO vita_hero.camp_findings
+                (id, camp_id, kid_id, check_type, flag, auto_flag, value_text, detail)
+              VALUES ('f_live_hw', 'sc_live', 'k_mine2', 'Height & weight', 'WATCH', 'WATCH', '130 cm, 45 kg',
+                      ${JSON.stringify({ heightCm: 130, weightKg: 45 })}::jsonb),
+                     ('f_live_de', 'sc_live', 'k_mine2', 'Dental', 'WATCH', 'WATCH', '2 caries',
+                      ${JSON.stringify({ cariesCount: 2 })}::jsonb)`;
+
+    const r = await dieticianCohorts(sql, DIET, "sch_mine");
+    expect(r.total).toBe(2);
+    expect(r.grades).toEqual(["5"]);
+    const byKid = (id: string) => r.cohorts.find((c) => c.children.some((k) => k.kidId === id))!;
+    const diya = byKid("k_mine2");
+    expect(diya.key).toBe("OVER");
+    expect(diya.focus).toBe("WEIGHT_CONTROL");
+    expect(diya.children[0].toothDecay).toBe(true);
+    expect(diya.draft.guidance).toMatch(/tooth decay/);
+    // Aarav has an ALERT haemoglobin and no growth reading with numbers.
+    const aarav = byKid("k_mine");
+    expect(aarav.key).toBe("UNKNOWN+ANAEMIA");
+    expect(aarav.focus).toBe("ANAEMIA");
+    expect(aarav.summary.severeAnaemia).toBe(1);
+    // Bands and flags only; the readings stay behind the logged tap.
+    expect(JSON.stringify(r)).not.toContain("45");
+  });
+
+  test("a class filter narrows the groups, and another school is refused", async () => {
+    expect((await dieticianCohorts(sql, DIET, "sch_mine", "6")).total).toBe(0);
+    await expect(dieticianCohorts(sql, DIET, "sch_other")).rejects.toThrow(/not assigned/);
+  });
+
+  test("the model drafts a group's plan without being told who is in it", async () => {
+    let told = "";
+    const ask = async (system: string, user: string) => {
+      told = system + user;
+      return JSON.stringify({
+        title: "Healthy weight plan",
+        guidance: ["Fruit instead of biscuits.", "An hour of play every day."],
+        targets: [{ label: "Sweet drinks", value: "None" }],
+      });
+    };
+    const r = await dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "OVER" }, ask);
+    expect(r.draft.source).toBe("AI");
+    expect(r.draft.focus).toBe("WEIGHT_CONTROL");
+    expect(r.draft.guidance).toContain("An hour of play");
+    expect(told).not.toMatch(/Diya|Aarav|k_mine/);
+
+    // Junk from the model, or no model at all, falls back to the rules.
+    const junk = await dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "OVER" }, async () => "sorry");
+    expect(junk.draft.source).toBe("RULES");
+    const none = await dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "OVER" }, null);
+    expect(none.draft.source).toBe("RULES");
+    await expect(dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "SEVERE" }, null))
+      .rejects.toThrow(/no children/);
+  });
+
+  test("one plan goes to every child ticked, each with their own row", async () => {
+    const r = await saveCohortPlan(sql, DIET, {
+      kidIds: ["k_mine", "k_mine2"],
+      title: "Everyday plan",
+      focus: "GENERAL",
+      guidance: "A balanced plate every meal, with a fruit a day.",
+    });
+    expect(r.saved).toBe(2);
+    for (const kid of ["k_mine", "k_mine2"]) {
+      const seen = await guardianDietPlan(sql, "ph_par", kid);
+      expect(seen.plan!.guidance).toMatch(/balanced plate/);
+    }
+    // Still one running plan per child.
+    const active = await sql`SELECT kid_id, COUNT(*)::int AS n FROM vita_hero.diet_plans
+                             WHERE status = 'ACTIVE' GROUP BY kid_id`;
+    expect(active.every((a) => a.n === 1)).toBe(true);
+    // And a child at another school spoils the whole batch rather than half of it.
+    await expect(saveCohortPlan(sql, DIET, {
+      kidIds: ["k_mine", "k_far"], guidance: "A balanced plate every meal.",
+    })).rejects.toThrow(/not at one of your schools/);
   });
 
   // ── the camp and the school can see who follows up ──

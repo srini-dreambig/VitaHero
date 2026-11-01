@@ -383,8 +383,12 @@ suite("what the worker sends is what the app declares", () => {
     const released = await getJson(`/api/camps/result?camp_id=${campId}&kid_id=${kidId}`);
     const pending = await getJson(`/api/camps/result?camp_id=${pendingCampId}&kid_id=${kidId}`);
     expect(released.status).toBe("RELEASED");
-    expect(pending.status).toBe("PENDING");
-    // The under-review screen has one job, and an empty card is not it.
+    // Saved but not yet signed off: the parent already has what was found,
+    // marked partial, with a message saying what is still to come.
+    expect(pending.status).toBe("RELEASED");
+    expect(pending.partial).toBe(false);
+    expect(pending.findings.length).toBeGreaterThan(0);
+    // The under-review card has one job, and an empty card is not it.
     expect(String(pending.message || "").length).toBeGreaterThan(10);
 
     const never = DTO.CampResultDto

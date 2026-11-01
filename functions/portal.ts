@@ -3797,6 +3797,15 @@ export const PORTAL_HTML = `<!doctype html>
                 el("td", null, el("span", { class: "pill " + (s.role === "PHYSICIAN" ? "info" : "warn") },
                   s.role === "PHYSICIAN" ? "Physician" : "Screener")),
                 el("td", null, on
+                  ? checkRoleSelect(s.specialty, function (e) {
+                      run(api("/api/admin/camps/" + c.id + "/staff/" + encodeURIComponent(s.profileId),
+                        { method: "PATCH", body: { specialty: e.target.value } }), function () {
+                          S.notice = s.name + " now records: " + (e.target.value || "every check") + ".";
+                          refreshCamp();
+                        });
+                    }, s.specialty ? null : "⚠ Every check — choose")
+                  : el("span", { class: "muted" }, s.specialty || "Every check")),
+                el("td", null, on
                   ? el("span", { class: "pill ok" }, "Active")
                   : el("span", { class: "pill mute" }, "Access ended")),
                 el("td", { style: "text-align:right" }, on
@@ -3905,6 +3914,23 @@ export const PORTAL_HTML = `<!doctype html>
     return false;
   }
 
+  // What a clinician records at a camp. Saved on their assignment: a doctor
+  // with none records every check, so a dentist left blank would be asked
+  // for the eye check too and mark it done for the eye doctor.
+  var CHECK_ROLES = [
+    ["Dentistry", "Dental — dentist"],
+    ["Ophthalmology", "Vision — eye doctor / optometrist"],
+    ["Paediatrics", "Growth, Hb, immunisation — paediatrician"],
+    ["General physician", "Every check — general physician"]
+  ];
+  function checkRoleSelect(value, onchange, blank) {
+    return el("select", { style: "max-width:260px", onchange: onchange },
+      blank ? el("option", { value: "", selected: !value }, blank) : null,
+      CHECK_ROLES.map(function (o) {
+        return el("option", { value: o[0], selected: value === o[0] }, o[1]);
+      }));
+  }
+
   function assignStaffRow(c) {
     if (!loadOnce("staff", "/api/admin/schools/" + c.schoolId + "/staff",
         function (r) { return (r && r.staff) || []; })) {
@@ -3925,17 +3951,20 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "fld" }, reqLabel("Role"),
             el("select", { onchange: b("role") },
               el("option", { value: "SCREENER", selected: f.role === "SCREENER" }, "Screener"),
-              el("option", { value: "PHYSICIAN", selected: f.role === "PHYSICIAN" }, "Physician")))),
+              el("option", { value: "PHYSICIAN", selected: f.role === "PHYSICIAN" }, "Physician"))),
+          el("div", { class: "fld" }, reqLabel("What they check"),
+            checkRoleSelect(f.specialty, b("specialty"), "Choose…"))),
         el("div", { class: "hint", style: "margin-bottom:10px" },
           "They sign in to this console with that mobile number \\u2014 no password. A physician can approve results; a screener can only record them."),
         el("div", { class: "row" },
           el("button", { class: "pri", disabled: S.busy, onclick: function () {
+            if (!f.specialty) { set({ error: "Choose what they check — a dentist records only the dental check." }); return; }
             run(api("/api/admin/schools/" + c.schoolId + "/staff", { method: "POST",
               body: { name: f.name, phone: f.phone, role: f.role } }), function (d) {
               // Straight onto this camp: adding them was only ever a step
               // towards assigning them.
               run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST",
-                body: { profileId: d.staff.profileId } }), function () {
+                body: { profileId: d.staff.profileId, specialty: f.specialty } }), function () {
                 S.notice = d.staff.name + " added and assigned to this camp.";
                 S.form = null; S.staff = null; refreshCamp();
               });
@@ -3944,7 +3973,7 @@ export const PORTAL_HTML = `<!doctype html>
           el("button", { onclick: function () { set({ form: null }); } }, "Cancel")));
     }
 
-    var sel;
+    var sel, specSel;
     // Doctors from the directory are the other way onto a camp. Assigning one
     // provisions the login their phone number signs in to the app with, which
     // is the whole point: a doctor who cannot sign in cannot screen anybody.
@@ -3963,14 +3992,16 @@ export const PORTAL_HTML = `<!doctype html>
               return el("option", { value: s.profileId }, s.name + " — " + (s.role === "PHYSICIAN" ? "Physician" : "Screener")); }))
           : el("span", { class: "muted", style: "font-size:12.5px" },
               S.staff.length ? "Everyone at this school is already on this camp." : "No screeners or physicians yet."),
+        avail.length ? specSel = checkRoleSelect("", null, "What they check…") : null,
         avail.length
           ? el("button", { disabled: S.busy, onclick: function () {
-              run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST", body: { profileId: sel.value } }),
+              if (!specSel.value) { set({ error: "Choose what they check — a dentist records only the dental check." }); return; }
+              run(api("/api/admin/camps/" + c.id + "/staff", { method: "POST", body: { profileId: sel.value, specialty: specSel.value } }),
                 function () { S.notice = "Assigned."; refreshCamp(); });
             } }, "Assign to camp")
           : null,
         el("button", { class: avail.length ? "" : "pri", onclick: function () {
-          set({ form: { newStaff: true, name: "", phone: "", role: "SCREENER" } });
+          set({ form: { newStaff: true, name: "", phone: "", role: "SCREENER", specialty: "" } });
         } }, icon("userPlus", 14), " Add someone new")),
       el("div", { class: "row", style: "margin-top:10px" },
         docs.length

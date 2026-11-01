@@ -1,6 +1,6 @@
-// What a parent sees while their child's camp is still going on: each check
-// as it is done, and nothing of what any check found until a doctor has
-// signed it off. And a doctor can release one child without finishing the
+// What a parent sees while their child's camp is still going on: each check,
+// and what it found, the moment its doctor submits it, with the checks still
+// to come listed as pending. And a doctor can release one child without finishing the
 // camp, which must not tell everyone else their child was missed.
 
 import { afterAll, beforeAll, expect, test, describe } from "bun:test";
@@ -53,7 +53,7 @@ const PARENT = "ph_par_p";
 const vision = { checkType: "Vision", detail: { leftAcuity: "6/6", rightAcuity: "6/6" } };
 const states = (r: any) => Object.fromEntries(r.progress.checks.map((c: any) => [c.checkType, c.state]));
 
-suite("a parent follows the camp live, and reads results only after sign-off", () => {
+suite("a parent follows the camp live, and reads each check as it is submitted", () => {
   beforeAll(async () => {
     if (!URL) return;
     const admin = new pg.Client({ connectionString: URL });
@@ -100,22 +100,25 @@ suite("a parent follows the camp live, and reads results only after sign-off", (
     expect(r.progress.total).toBe(1);
   });
 
-  test("a check shows as done the moment it is saved, without what it found", async () => {
+  test("a check shows, with what it found, the moment it is saved", async () => {
     await saveScreening(sql, EYE, CAMP, TWO, { findings: [vision] });
     const r = await guardianCampResult(sql, PARENT, CAMP, TWO) as any;
-    expect(r.status).toBe("PENDING");
+    // RELEASED so an older app shows the findings; partial says more are coming.
+    expect(r.status).toBe("RELEASED");
+    expect(r.partial).toBe(true);
+    expect(r.pendingChecks).toEqual(["Dental"]);
     expect(r.progress.stage).toBe("SCREENING");
     expect(states(r)).toEqual({ Vision: "DONE", Dental: "PENDING" });
     expect(r.progress.done).toBe(1);
-    expect(r.findings).toBeUndefined();
-    expect(JSON.stringify(r)).not.toContain("6/6");
+    expect(r.findings.map((f: any) => f.checkType)).toEqual(["Vision"]);
   });
 
-  test("with every agreed check done the parent is told a doctor has it", async () => {
+  test("with every agreed check done the parent has all of it, and a doctor still reviews", async () => {
     await saveScreening(sql, DOC, CAMP, ONE, { findings: [vision] });
     const r = await guardianCampResult(sql, PARENT, CAMP, ONE) as any;
     expect(r.progress.stage).toBe("WITH_DOCTOR");
-    expect(r.findings).toBeUndefined();
+    expect(r.partial).toBe(false);
+    expect(r.findings.length).toBe(1);
   });
 
   test("one child can be released without closing the camp", async () => {
@@ -136,7 +139,7 @@ suite("a parent follows the camp live, and reads results only after sign-off", (
     expect(camp[0].status).toBe("IN_PROGRESS");
     // The other child is still being screened, not "was not checked".
     const two = await guardianCampResult(sql, PARENT, CAMP, TWO) as any;
-    expect(two.status).toBe("PENDING");
+    expect(two.partial).toBe(true);
     expect(two.progress.stage).toBe("SCREENING");
   });
 });

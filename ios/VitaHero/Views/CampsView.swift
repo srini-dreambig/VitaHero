@@ -251,6 +251,20 @@ struct CampResultView: View {
             }
             if !result.urgency.isEmpty { urgency(result.urgency) }
         }
+        // Each doctor's check reaches the family as it is saved, so the rest
+        // are named here rather than looking like nothing was found.
+        if result.partial {
+            Section {
+                if !result.message.isEmpty { Text(result.message).font(.subheadline) }
+                ForEach(result.pendingChecks, id: \.self) { check in
+                    HStack {
+                        Text(check).font(.subheadline).lineLimit(1)
+                        Spacer()
+                        Text(L("check_state_pending")).font(.caption.weight(.semibold)).foregroundColor(Brand.amber)
+                    }
+                }
+            }
+        }
         if result.findings.isEmpty {
             Section { Text(result.message.isEmpty ? L("result_not_screened") : result.message) }
         } else {

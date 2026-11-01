@@ -103,6 +103,16 @@ const ALIASES: Record<string, string> = {
   orthopedics: "Orthopaedics",
   dermatologist: "Dermatology",
   skin: "Dermatology",
+  // Other spellings of a real specialty. A phrase such as "Eye specialist"
+  // stays rejected: the camp team picker now offers the specialties as a list.
+  "dental surgeon": "Dentistry",
+  ophthalmic: "Ophthalmology",
+  optometrist: "Ophthalmology",
+  pediatrician: "Paediatrics",
+  pediatric: "Paediatrics",
+  paediatric: "Paediatrics",
+  orthopaedic: "Orthopaedics",
+  orthopedic: "Orthopaedics",
 };
 
 /**
@@ -323,6 +333,52 @@ export function acuityRank(v: string): number {
   return -1;
 }
 
+/**
+ * Nutritional status from height and weight, in the words the paper sheet
+ * uses. A suggestion: the doctor's own choice is recorded over it. Read from
+ * the same percentiles the growth flag uses, so the two never disagree.
+ */
+export const NUTRITION_BANDS = [
+  "Severely underweight", "Underweight", "Stunted", "Normal", "Overweight", "Obese",
+] as const;
+export function nutritionBand(heightCm: number, weightKg: number, ageYears: number | null, gender: string): string {
+  const age = ageYears ?? 8;
+  const hPct = estimatePercentile(heightCm, age, gender, "HEIGHT");
+  const wPct = estimatePercentile(weightKg, age, gender, "WEIGHT");
+  if (wPct < 3) return "Severely underweight";
+  if (wPct < 15) return "Underweight";
+  if (hPct < 3) return "Stunted";
+  if (wPct >= 97) return "Obese";
+  if (wPct > 90) return "Overweight";
+  return "Normal";
+}
+
+/**
+ * MUAC against the usual screening cut-offs. Under five, the WHO's 11.5 cm
+ * (severe) and 12.5 cm (moderate). For school-age children there is no single
+ * agreed cut-off, so a low arm is a watch, never an alert on its own.
+ */
+export function muacBand(cm: number, ageYears: number | null): { flag: Flag; note: string } {
+  const age = ageYears ?? 8;
+  if (age < 5) {
+    if (cm < 11.5) return { flag: "ALERT", note: "severe acute malnutrition range" };
+    if (cm < 12.5) return { flag: "WATCH", note: "moderate malnutrition range" };
+    return { flag: "GOOD", note: "" };
+  }
+  const low = age < 10 ? 13.5 : 16;
+  return cm < low ? { flag: "WATCH", note: "low for age" } : { flag: "GOOD", note: "" };
+}
+
+/** dmft (milk teeth) or DMFT (permanent), or "" when nothing was counted. */
+export function toothIndex(dentition: string, decayed: number | null, missing: number | null, filled: number | null): string {
+  if (decayed === null && missing === null && filled === null) return "";
+  const total = (decayed ?? 0) + (missing ?? 0) + (filled ?? 0);
+  const d = dentition.toLowerCase();
+  if (d.startsWith("primary")) return `dmft ${total}`;
+  if (d.startsWith("mixed")) return `dmft/DMFT ${total}`;
+  return `DMFT ${total}`;
+}
+
 export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal {
   const d = input.detail || {};
 
@@ -355,11 +411,26 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       } else {
         why += " — within the normal band";
       }
+      // Mid-upper arm circumference, as the paper sheet records it.
+      const muac = num(d.muacCm);
+      if (muac !== null) {
+        const m = muacBand(muac, ctx.ageYears);
+        why += `, MUAC ${muac} cm${m.note ? ` (${m.note})` : ""}`;
+        if (m.flag === "ALERT") flag = "ALERT";
+        else if (m.flag === "WATCH" && flag === "GOOD") flag = "WATCH";
+      }
+      // The doctor's nutritional status wins over the suggestion.
+      const status = String(d.nutritionalStatus || "").trim() ||
+        nutritionBand(h, w, ctx.ageYears, ctx.gender);
+      why += `, nutritional status: ${status}`;
+      if (status !== "Normal" && flag === "GOOD") flag = "WATCH";
+      const advice = String(d.generalAdvice || "").trim();
+      if (advice) why += `, advice: ${advice}`;
       return {
         flag,
         rationale: why,
         valueNum: b,
-        valueText: `${h} cm, ${w} kg`,
+        valueText: `${h} cm, ${w} kg, BMI ${b}${muac !== null ? `, MUAC ${muac} cm` : ""} — ${status}`,
         urgency: flag === "ALERT" ? "SOON" : flag === "WATCH" ? "ROUTINE" : "NONE",
       };
     }
@@ -508,6 +579,8 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       if (treatmentsRecommended.length > 0) {
         why += `, rec: ${treatmentsRecommended.join(", ")}`;
       }
+      const visionAdvice = String(d.generalAdvice || "").trim();
+      if (visionAdvice) why += `, advice: ${visionAdvice}`;
       const condition = String(d.testingCondition || "").trim();
       return {
         flag,
@@ -598,15 +671,30 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
         parts.push(`habits: ${habits.join(", ").toLowerCase()}`);
         if (flag === "GOOD") flag = "WATCH";
       }
+      const abnormal = String(d.abnormalFindings || "").trim();
+      if (abnormal && abnormal.toLowerCase() !== "none") {
+        parts.push(`findings: ${abnormal}`);
+        if (flag === "GOOD") flag = "WATCH";
+      }
       if (treatment.length > 0) {
         parts.push(`rec: ${treatment.join(", ")}`);
       }
+      const plan = String(d.treatmentPlan || "").trim();
+      if (plan) parts.push(`plan: ${plan}`);
 
       if (parts.length === 0) parts.push("healthy oral status");
+      // Type of dentition and the tooth index, as the paper sheet has them:
+      // dmft for milk teeth, DMFT for permanent ones.
+      const dentition = String(d.dentition || "").trim();
+      const index = toothIndex(dentition, caries, missing, filled);
+      if (dentition) parts.unshift(`${dentition.toLowerCase()} dentition`);
+      if (index) parts.push(index);
+      const dentalAdvice = String(d.generalAdvice || "").trim();
+      const rationale = dentalAdvice ? `${parts.join(", ")}, advice: ${dentalAdvice}` : parts.join(", ");
 
       return {
         flag,
-        rationale: parts.join(", "),
+        rationale,
         valueNum: caries ?? 0,
         valueText: parts.join(", "),
         urgency: flag === "ALERT" ? (pain || trauma ? "URGENT" : "SOON") : flag === "WATCH" ? "ROUTINE" : "NONE",
@@ -911,6 +999,7 @@ const RANGES: Record<string, readonly [number, number]> = {
   weightKg: [5, 150],
   hb: [3, 20],
   cariesCount: [0, 32],
+  muacCm: [5, 50],
 };
 
 /**

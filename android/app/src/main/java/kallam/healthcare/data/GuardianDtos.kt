@@ -120,6 +120,12 @@ data class CampResultDto(
     val findings: List<ReleasedFindingDto> = emptyList(),
     /** Where the child is in the camp. Absent from servers that predate it. */
     val progress: CampProgressDto? = null,
+    /**
+     * Each check reaches the parent as soon as its doctor submits it. True
+     * while some are still to come; [pendingChecks] names them.
+     */
+    val partial: Boolean = false,
+    val pendingChecks: List<String> = emptyList(),
 )
 
 /**

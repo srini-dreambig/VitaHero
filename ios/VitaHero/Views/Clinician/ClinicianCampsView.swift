@@ -67,8 +67,17 @@ struct ClinicianCampsView: View {
                             Text(camp.title).font(.headline)
                             Text([camp.schoolName, camp.date].filter { !$0.isEmpty }.joined(separator: " · "))
                                 .font(.subheadline).foregroundColor(.secondary)
-                            Text(L("clin_x_of_y_screened", String(camp.screened), String(camp.participants)))
-                                .font(.caption.weight(.semibold)).foregroundColor(Brand.blue)
+                            if camp.myChildren > 0 {
+                                Text(L("clin_todo_done", String(camp.myTodo), String(camp.myDone)))
+                                    .font(.caption.weight(.semibold)).foregroundColor(Brand.blue)
+                            } else {
+                                Text(L("clin_x_of_y_screened", String(camp.screened), String(camp.participants)))
+                                    .font(.caption.weight(.semibold)).foregroundColor(Brand.blue)
+                            }
+                            let mine = [camp.specialty, camp.myChecks.joined(separator: ", ")].filter { !$0.isEmpty }
+                            if !mine.isEmpty {
+                                Text(mine.joined(separator: ": ")).font(.caption).foregroundColor(.secondary)
+                            }
                         }
                         .padding(.vertical, 4)
                     }

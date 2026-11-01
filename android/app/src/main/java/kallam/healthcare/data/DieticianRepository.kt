@@ -153,4 +153,66 @@ class DieticianRepository {
             Result.failure(e)
         }
     }
+
+    /** The children at one school, grouped by what their checks found. */
+    suspend fun cohorts(schoolId: String, grade: String = ""): DieticianCohortsDto? = io {
+        if (!configured) return@io null
+        try {
+            val resp = http.get("$base/api/dietician/cohorts") {
+                headers().forEach { (k, v) -> header(k, v) }
+                url {
+                    parameters.append("school_id", schoolId)
+                    if (grade.isNotBlank()) parameters.append("grade", grade)
+                }
+            }
+            if (resp.observed()) resp.body<DieticianCohortsDto>() else null
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            null
+        }
+    }
+
+    /**
+     * A first draft of a group's plan from the model. The server sends it
+     * the group's make-up and never a name, and falls back to its own rules
+     * when the model is not there or answers nonsense.
+     */
+    suspend fun cohortDraft(body: CohortDraftBody): Result<CohortDraftDto> = io {
+        if (!configured) return@io Result.failure(IllegalStateException("No backend configured"))
+        try {
+            val resp = http.post("$base/api/dietician/cohort-draft") {
+                headers().forEach { (k, v) -> header(k, v) }
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            if (!resp.observed()) {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                return@io Result.failure(Exception(err?.error ?: "No draft came back"))
+            }
+            Result.success(resp.body<CohortDraftResponseDto>().draft)
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            Result.failure(e)
+        }
+    }
+
+    /** One plan to every child ticked. All of them or none: the server checks each is at one of these schools. */
+    suspend fun saveCohortPlan(body: CohortPlanBody): Result<Int> = io {
+        if (!configured) return@io Result.failure(IllegalStateException("No backend configured"))
+        try {
+            val resp = http.post("$base/api/dietician/cohort-plan") {
+                headers().forEach { (k, v) -> header(k, v) }
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            if (!resp.observed()) {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                return@io Result.failure(Exception(err?.error ?: "The plan was not saved"))
+            }
+            Result.success(resp.body<CohortPlanSavedDto>().saved)
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            Result.failure(e)
+        }
+    }
 }

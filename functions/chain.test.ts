@@ -462,12 +462,12 @@ suite("end to end", () => {
     expect((await reviewQueue(sql, admin, campId)).queue.length).toBeGreaterThan(0);
   });
 
-  test("nothing is visible to the guardian before release", async () => {
+  test("the guardian sees each submitted check before sign-off", async () => {
     const parts = (await listParticipants(sql, admin, campId, { status: "SCREENED" })).participants;
     const owner = await client.query("SELECT profile_id FROM vita_hero.camp_participants WHERE kid_id=$1", [parts[0].kidId]);
-    const res = await guardianCampResult(sql, owner.rows[0].profile_id, campId, parts[0].kidId);
-    expect(res.status).toBe("PENDING");
-    expect(res.findings).toBeUndefined();
+    const res = await guardianCampResult(sql, owner.rows[0].profile_id, campId, parts[0].kidId) as any;
+    expect(res.findings.length).toBeGreaterThan(0);
+    expect(typeof res.partial).toBe("boolean");
   });
 
   test("the physician's queue is ordered by severity", async () => {
@@ -1406,8 +1406,10 @@ suite("end to end", () => {
     const doc: Actor = {
       profileId: "ph_9812345678", name: "Dr Kavita Rao", role: "PHYSICIAN", schoolId,
     };
+    // This camp was released above, so it has left the doctor's list of
+    // camps with work on them; the camp itself still opens.
     const mine = await listMyCamps(sql, doc);
-    expect(mine.camps.some((c) => c.id === campId)).toBe(true);
+    expect(mine.camps.some((c) => c.id === campId)).toBe(false);
     // campPack is what the app downloads for the camp: the children, their
     // consent, and the checks — usable with no network in a school hall.
     const pack = await campPack(sql, doc, campId);

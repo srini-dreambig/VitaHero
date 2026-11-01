@@ -83,6 +83,7 @@ import {
   assignDoctorToCamp,
   doctorCamps,
   setCampStaffActive,
+  setCampStaffSpecialty,
 } from "./camps";
 import { campConsentForm } from "./consent-form";
 import { campHealthReport } from "./health-report";
@@ -105,6 +106,9 @@ import {
   listDieticians,
   retireDietician,
   saveDietPlan,
+  dieticianCohorts,
+  dieticianCohortDraft,
+  saveCohortPlan,
   setDieticianSchool,
   upsertDietician,
 } from "./dietician";
@@ -813,6 +817,28 @@ async function mergeCampResultsIntoKids(
     ) l
     WHERE k.id = l.kid_id AND k.profile_id = ${profileId}
   `;
+}
+
+/** One chat completion through the toolkit; the text of the answer, or null. */
+async function callToolkitChat(
+  env: Env, system: string, user: string, maxTokens: number,
+): Promise<string | null> {
+  const toolkitUrl = (env.TOOLKIT_URL || "").replace(/\/$/, "");
+  const toolkitKey = env.TOOLKIT_SECRET_KEY || "";
+  if (!toolkitUrl || !toolkitKey) return null;
+  const resp = await fetch(`${toolkitUrl}/v2/vercel/v1/chat/completions`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${toolkitKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "openai/gpt-4.1-mini",
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      temperature: 0.4,
+      max_tokens: maxTokens,
+    }),
+  });
+  if (!resp.ok) return null;
+  const data = (await resp.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  return data.choices?.[0]?.message?.content?.trim() || null;
 }
 
 async function callToolkitDietTip(
@@ -2299,7 +2325,16 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
             // record of who screened whom survives.
             if (method === "PATCH" && third) {
               const b = await readBody();
-              return json(await setCampStaffActive(sql, actor, campId, third, b.active === true));
+              // { specialty } changes what they record here; { active }
+              // revokes or restores. Either or both.
+              let out: Record<string, unknown> = { profileId: third };
+              if (typeof b.specialty === "string") {
+                out = { ...out, ...(await setCampStaffSpecialty(sql, actor, campId, third, b.specialty)) };
+              }
+              if (typeof b.active === "boolean" || typeof b.specialty !== "string") {
+                out = { ...out, ...(await setCampStaffActive(sql, actor, campId, third, b.active === true)) };
+              }
+              return json(out);
             }
             if (method === "DELETE" && third) return json(await removeCampStaff(sql, actor, campId, third));
             return json({ error: "Method not allowed" }, 405);
@@ -3747,6 +3782,26 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (path === "/api/dietician/plan" && request.method === "POST") {
             const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
             return json(await saveDietPlan(sql, me, body), 201);
+          }
+          // Children grouped by what their checks found, so one plan can be
+          // written for a group instead of one child at a time.
+          if (path === "/api/dietician/cohorts" && request.method === "GET") {
+            return json(await dieticianCohorts(
+              sql, me,
+              url.searchParams.get("school_id") || "",
+              url.searchParams.get("grade") || "",
+            ));
+          }
+          if (path === "/api/dietician/cohort-draft" && request.method === "POST") {
+            const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+            const ask = env.TOOLKIT_URL && env.TOOLKIT_SECRET_KEY
+              ? (system: string, user: string) => callToolkitChat(env, system, user, 700)
+              : null;
+            return json(await dieticianCohortDraft(sql, me, body, ask));
+          }
+          if (path === "/api/dietician/cohort-plan" && request.method === "POST") {
+            const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+            return json(await saveCohortPlan(sql, me, body), 201);
           }
           // C4 — the reading library. A permission change on a route that
           // already existed, scoped to this author's own articles.

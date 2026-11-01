@@ -158,14 +158,16 @@ enum ScreeningOptions {
     "Other Medications"
     ]
 
+    // Nutritional status, in the words the physical exam sheet uses and the
+    // server reads (NUTRITION_BANDS in clinical.ts). Left empty, the server
+    // suggests one from height and weight; the dietician groups children by it.
     static let NUTRITIONAL_STATUS = [
-    "Normal / Well-Nourished",
-    "Mild Malnutrition",
-    "Severe Malnutrition",
-    "Underweight for Age",
-    "Overweight / Obese",
-    "Stunted Growth"
+    "Normal", "Underweight", "Severely underweight", "Stunted", "Overweight", "Obese"
     ]
+
+    // Type of dentition, as the oral & dental sheet has it. It decides whether
+    // the tooth index is read as dmft (milk teeth) or DMFT (permanent).
+    static let DENTITION = ["Primary", "Mixed", "Permanent"]
 
     static let GUMS_CONDITION = ["Healthy", "Gingivitis / Redness", "Bleeding Gums", "Swollen / Abscess", "Gingival Recession"]
     static let ORAL_HYGIENE_INDEX = ["Good (Clean)", "Fair (Mild Plaque)", "Poor (Heavy Plaque / Calculus)", "Stains / Calculus Noted"]

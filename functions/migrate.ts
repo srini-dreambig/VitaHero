@@ -28,6 +28,9 @@ import { Sql } from "./common";
  * shape. SCHEMA_DDL_FINGERPRINT below is what actually enforces that, and it
  * is checked in migrate.test.ts.
  */
+// 16 — camp_staff gains `specialty`: what this person checks at this camp.
+//     A doctor assigned without a directory specialty owned every check, so
+//     the first one to save marked the child done for everyone.
 // 15 — camp_participants.result_notified_at: a release claims a family here
 //     before texting them, so two releases at once do not both text every
 //     parent. Existing rows start null, and the consent_log guard still
@@ -77,7 +80,7 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 15;
+export const SCHEMA_VERSION = 16;
 
 /**
  * A fingerprint of every DDL statement in this worker.
@@ -98,7 +101,7 @@ export const SCHEMA_VERSION = 15;
  * means updating both lines, together, which is the point: the second line is
  * what makes you look at the first.
  */
-export const SCHEMA_DDL_FINGERPRINT = "27a583936c88feb5";
+export const SCHEMA_DDL_FINGERPRINT = "7231e7f1bf7be6fa";
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

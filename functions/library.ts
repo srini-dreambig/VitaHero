@@ -203,7 +203,7 @@ export async function libraryForGuardian(sql: Sql, profileId: string, locale: st
       FROM vita_hero.camp_findings f
       JOIN vita_hero.kids k ON k.id = f.kid_id
       JOIN vita_hero.camp_participants p ON p.camp_id = f.camp_id AND p.kid_id = f.kid_id
-      WHERE k.profile_id = ${profileId} AND p.status = 'RELEASED'
+      WHERE k.profile_id = ${profileId} AND p.status IN ('SCREENED','APPROVED','RELEASED')
         AND f.flag IN ('WATCH','ALERT')
     `,
 

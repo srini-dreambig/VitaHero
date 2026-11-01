@@ -65,6 +65,7 @@ fun DieticianChildrenScreen(
     schoolName: String,
     dietician: DieticianViewModel,
     onOpenChild: (kidId: String) -> Unit,
+    onOpenGroups: (schoolId: String, schoolName: String) -> Unit,
     onBack: () -> Unit,
 ) {
     val children by dietician.children.collectAsState()
@@ -117,6 +118,33 @@ fun DieticianChildrenScreen(
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
             )
+            Spacer(Modifier.height(12.dp))
+            // Most children need one of a handful of plans. Writing it once
+            // per group is the quick way through a school.
+            HeroCard(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .clickable { onOpenGroups(schoolId, schoolName) },
+                background = HeroOrange.copy(alpha = 0.08f),
+            ) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    IconBubble(Icons.Outlined.Groups, HeroOrange)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "Plan by groups",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        Text(
+                            "Children grouped by what their checks found, each with a draft plan to edit and send.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
         }
 

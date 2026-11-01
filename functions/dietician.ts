@@ -29,6 +29,7 @@
 import { Sql, isOpsRole, normalizeMobile, normalizePhone, profileIdForPhone, programmeToday } from "./common";
 import { Actor, ApiError } from "./schools";
 import { logRecordAccess } from "./oversight";
+import { muacBand, nutritionBand } from "./clinical";
 
 /**
  * The checks a dietician may read.
@@ -405,7 +406,7 @@ export async function dieticianChildren(
       (SELECT COUNT(*)::int FROM vita_hero.camp_findings f
         JOIN vita_hero.camp_participants cp
           ON cp.camp_id = f.camp_id AND cp.kid_id = f.kid_id
-        WHERE f.kid_id = k.id AND cp.status = 'RELEASED'
+        WHERE f.kid_id = k.id AND cp.status IN ('SCREENED','APPROVED','RELEASED')
           AND f.check_type = ANY(${checks}::text[])
           AND f.flag IN ('WATCH','ALERT')) AS concerns
     FROM vita_hero.kids k
@@ -455,7 +456,7 @@ export async function dieticianChild(sql: Sql, actor: Actor, kidId: string) {
     JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
     JOIN vita_hero.camp_participants cp
       ON cp.camp_id = f.camp_id AND cp.kid_id = f.kid_id
-    WHERE f.kid_id = ${kidId} AND cp.status = 'RELEASED'
+    WHERE f.kid_id = ${kidId} AND cp.status IN ('SCREENED','APPROVED','RELEASED')
       AND f.check_type = ANY(${checks}::text[])
       AND f.flag <> 'NOT_MEASURED'
     ORDER BY sc.date DESC
@@ -511,6 +512,7 @@ export async function dieticianChild(sql: Sql, actor: Actor, kidId: string) {
     draft: draftPlan(
       kid.name as string,
       findings.map((f) => ({ checkType: f.check_type as string, flag: f.flag as string })),
+      latestBand(findings, kid),
     ),
   };
 }
@@ -538,17 +540,34 @@ function mapPlan(r: Record<string, unknown>) {
  * qualified to give it. The point is that the box is not empty and the
  * dietician does not have to remember which flag they just read.
  */
-function draftPlan(name: string, findings: Array<{ checkType: string; flag: string }>) {
+/** The nutrition band from the latest growth reading, or "" without one. */
+function latestBand(findings: Array<Record<string, unknown>>, kid: Record<string, unknown>): string {
+  const hw = findings.find((f) => f.check_type === "Height & weight");
+  if (!hw) return "";
+  const d = (hw.detail || {}) as Record<string, unknown>;
+  const override = String(d.nutritionalStatus || "").trim();
+  if (override) return override;
+  const h = num(d.heightCm), w = num(d.weightKg);
+  return h && w ? nutritionBand(h, w, num(kid.age), String(kid.gender || "")) : "";
+}
+
+function draftPlan(name: string, findings: Array<{ checkType: string; flag: string }>, band = "") {
   const bad = (c: string) =>
     findings.some((f) => f.checkType === c && (f.flag === "WATCH" || f.flag === "ALERT"));
   const anaemic = bad("Haemoglobin");
   const growth = bad("Height & weight");
-  const focus: PlanFocus = anaemic ? "ANAEMIA" : growth ? "WEIGHT_GAIN" : "GENERAL";
+  // A flagged growth reading is not always too little: an overweight child
+  // was being handed a weight-gain plan.
+  const heavy = band === "Overweight" || band === "Obese";
+  const focus: PlanFocus = anaemic ? "ANAEMIA"
+    : heavy ? "WEIGHT_CONTROL" : growth ? "WEIGHT_GAIN" : "GENERAL";
   const notes: string[] = [];
   if (anaemic) notes.push("the last camp flagged haemoglobin");
-  if (growth) notes.push("the last camp flagged height and weight");
+  if (growth) notes.push(band && band !== "Normal"
+    ? `the last camp found them ${band.toLowerCase()}`
+    : "the last camp flagged height and weight");
   return {
-    title: anaemic ? "Iron-rich plan" : growth ? "Growth plan" : "Everyday plan",
+    title: anaemic ? "Iron-rich plan" : heavy ? "Healthy weight plan" : growth ? "Growth plan" : "Everyday plan",
     focus,
     guidance: notes.length
       ? `A plan for ${name}: ${notes.join(", and ")}.`
@@ -571,7 +590,29 @@ export async function saveDietPlan(
   const kidId = String(body.kidId || "").trim();
   if (!kidId) throw new ApiError(400, "Which child?", "KID_REQUIRED");
   const kid = await assertChildInScope(sql, me.id, kidId);
+  const { guidance, focus, targets, startsOn, endsOn, title } = planFields(body);
 
+  const id = `dp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  await sql`
+    UPDATE vita_hero.diet_plans SET status = 'ENDED', updated_at = NOW()
+    WHERE kid_id = ${kidId} AND status = 'ACTIVE'
+  `;
+  await sql`
+    INSERT INTO vita_hero.diet_plans
+      (id, kid_id, school_id, dietician_id, author_profile_id, author_name,
+       title, focus, starts_on, ends_on, guidance, targets, status)
+    VALUES
+      (${id}, ${kidId}, ${(kid.school_id as string) || ""}, ${me.id}, ${actor.profileId},
+       ${me.name}, ${title}, ${focus},
+       ${startsOn}, ${endsOn},
+       ${guidance}, ${JSON.stringify(targets)}::jsonb, 'ACTIVE')
+  `;
+  const rows = await sql`SELECT * FROM vita_hero.diet_plans WHERE id = ${id} LIMIT 1`;
+  return { plan: mapPlan(rows[0]) };
+}
+
+/** A plan's fields, checked the same way for one child or a whole group. */
+function planFields(body: Record<string, unknown>) {
   const guidance = String(body.guidance || "").trim();
   if (guidance.length < 10) {
     throw new ApiError(400, "A plan needs something a family can act on", "GUIDANCE_REQUIRED");
@@ -599,24 +640,344 @@ export async function saveDietPlan(
   if (startsOn && endsOn && endsOn < startsOn) {
     throw new ApiError(400, "The plan ends before it starts", "BAD_DATE_RANGE");
   }
+  return { guidance, focus, targets, startsOn, endsOn, title: String(body.title || "").slice(0, 120) };
+}
 
-  const id = `dp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+// ─── Groups ─────────────────────────────────────────────────
+//
+// Writing a plan child by child does not scale to a school of six hundred, and
+// most of those children need one of a handful of plans: the underweight ones
+// a growth plan, the anaemic ones an iron plan, and so on. So the dietician
+// works a group at a time, edits the group's draft, and applies it to the
+// children they tick.
+//
+// Bands and flags only, not readings: the readings stay one logged tap away in
+// dieticianChild. Tooth decay is carried as a yes/no because it changes the
+// advice on sugar; the dental readings themselves stay with the dentist.
+
+type Growth = "SEVERE" | "UNDER" | "STUNTED" | "OVER" | "NORMAL" | "UNKNOWN";
+
+const GROWTH_LABEL: Record<Growth, string> = {
+  SEVERE: "Severely underweight",
+  UNDER: "Underweight",
+  STUNTED: "Short for age",
+  OVER: "Overweight or obese",
+  NORMAL: "Healthy weight",
+  UNKNOWN: "No growth reading yet",
+};
+const GROWTH_ORDER: Growth[] = ["SEVERE", "UNDER", "STUNTED", "OVER", "NORMAL", "UNKNOWN"];
+
+function growthOf(band: string, muacFlag: string): Growth {
+  if (band === "Severely underweight" || muacFlag === "ALERT") return "SEVERE";
+  if (band === "Underweight" || muacFlag === "WATCH") return "UNDER";
+  if (band === "Stunted") return "STUNTED";
+  if (band === "Overweight" || band === "Obese") return "OVER";
+  if (band === "Normal") return "NORMAL";
+  return "UNKNOWN";
+}
+
+function cohortFocus(growth: Growth, anaemic: boolean): PlanFocus {
+  if (growth === "SEVERE" || growth === "UNDER" || growth === "STUNTED") return "WEIGHT_GAIN";
+  if (growth === "OVER") return "WEIGHT_CONTROL";
+  return anaemic ? "ANAEMIA" : "GENERAL";
+}
+
+function cohortKey(growth: Growth, anaemic: boolean, teeth: boolean): string {
+  // Tooth decay splits only the otherwise-well group: for every other group
+  // it is a line in the plan, not a different plan.
+  return growth + (anaemic ? "+ANAEMIA" : "") + (teeth && growth === "NORMAL" && !anaemic ? "+TEETH" : "");
+}
+
+function cohortLabel(key: string): string {
+  const [g, ...rest] = key.split("+");
+  let label = GROWTH_LABEL[g as Growth] || g;
+  if (rest.includes("ANAEMIA")) label += ", low haemoglobin";
+  if (rest.includes("TEETH")) label += ", tooth decay";
+  return label;
+}
+
+function num(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+
+type CohortChild = {
+  kidId: string; name: string; grade: string; section: string;
+  age: number | null; gender: string;
+  band: string; anaemia: string; toothDecay: boolean; hasPlan: boolean;
+};
+
+type CohortSummary = {
+  count: number; withPlan: number; ageMin: number | null; ageMax: number | null;
+  girls: number; boys: number; severeAnaemia: number; toothDecay: number;
+};
+
+async function assertSchoolMine(sql: Sql, dieticianId: string, schoolId: string) {
+  const mine = await sql`
+    SELECT 1 FROM vita_hero.dietician_schools
+    WHERE dietician_id = ${dieticianId} AND school_id = ${schoolId} AND active LIMIT 1
+  `;
+  if (mine.length === 0) {
+    throw new ApiError(403, "You are not assigned to that school", "OUT_OF_SCOPE");
+  }
+}
+
+async function buildCohorts(sql: Sql, schoolId: string, grade: string) {
+  const checks = ["Height & weight", "Haemoglobin", "Dental"];
+  // The latest submitted reading of each check, per child. A check counts
+  // once its doctor submits it; the dietician does not wait for sign-off.
+  const rows = await sql`
+    SELECT k.id, k.name, k.grade, k.section, k.age, k.gender,
+      EXISTS (SELECT 1 FROM vita_hero.diet_plans p
+        WHERE p.kid_id = k.id AND p.status = 'ACTIVE') AS has_plan,
+      (SELECT COALESCE(json_agg(x), '[]'::json) FROM (
+         SELECT DISTINCT ON (f.check_type) f.check_type AS c, f.flag AS fl, f.detail AS d
+         FROM vita_hero.camp_findings f
+         JOIN vita_hero.camp_participants cp ON cp.camp_id = f.camp_id AND cp.kid_id = f.kid_id
+         JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
+         WHERE f.kid_id = k.id AND cp.status IN ('SCREENED','APPROVED','RELEASED')
+           AND f.check_type = ANY(${checks}::text[]) AND f.flag <> 'NOT_MEASURED'
+         ORDER BY f.check_type, sc.date DESC, f.id DESC
+      ) x) AS latest
+    FROM vita_hero.kids k
+    WHERE k.school_id = ${schoolId} AND COALESCE(k.status,'ACTIVE') = 'ACTIVE'
+      AND (${grade === ""} OR k.grade = ${grade})
+    ORDER BY k.grade, k.section, k.name
+  `;
+  const groups = new Map<string, { growth: Growth; anaemic: boolean; children: CohortChild[] }>();
+  for (const r of rows) {
+    const latest = (typeof r.latest === "string" ? JSON.parse(r.latest) : r.latest || []) as
+      Array<{ c: string; fl: string; d: Record<string, unknown> | null }>;
+    const by = (c: string) => latest.find((x) => x.c === c);
+    const hw = by("Height & weight"), hb = by("Haemoglobin"), dental = by("Dental");
+    const age = num(r.age);
+    const d = (hw?.d || {}) as Record<string, unknown>;
+    const h = num(d.heightCm), w = num(d.weightKg), muac = num(d.muacCm);
+    // A doctor's own call on nutritional status wins over the estimate.
+    const override = String(d.nutritionalStatus || "").trim();
+    const band = override || (h && w ? nutritionBand(h, w, age, String(r.gender || "")) : "");
+    const muacFlag = muac ? muacBand(muac, age).flag : "";
+    const growth = growthOf(band, muacFlag);
+    const anaemic = hb?.fl === "WATCH" || hb?.fl === "ALERT";
+    const dd = (dental?.d || {}) as Record<string, unknown>;
+    const teeth = dental?.fl === "WATCH" || dental?.fl === "ALERT" || (num(dd.cariesCount) ?? 0) > 0;
+    const key = cohortKey(growth, anaemic, teeth);
+    if (!groups.has(key)) groups.set(key, { growth, anaemic, children: [] });
+    groups.get(key)!.children.push({
+      kidId: r.id as string,
+      name: r.name as string,
+      grade: (r.grade as string) || "",
+      section: (r.section as string) || "",
+      age,
+      gender: (r.gender as string) || "",
+      band: band || (muacFlag === "ALERT" || muacFlag === "WATCH" ? "Low MUAC" : ""),
+      anaemia: !hb ? "" : hb.fl === "ALERT" ? "SEVERE" : anaemic ? "MILD" : "NONE",
+      toothDecay: teeth,
+      hasPlan: r.has_plan === true,
+    });
+  }
+  return [...groups.entries()].map(([key, g]) => {
+    const ages = g.children.map((c) => c.age).filter((a): a is number => a !== null);
+    const summary: CohortSummary = {
+      count: g.children.length,
+      withPlan: g.children.filter((c) => c.hasPlan).length,
+      ageMin: ages.length ? Math.min(...ages) : null,
+      ageMax: ages.length ? Math.max(...ages) : null,
+      girls: g.children.filter((c) => /^f/i.test(c.gender)).length,
+      boys: g.children.filter((c) => /^m/i.test(c.gender)).length,
+      severeAnaemia: g.children.filter((c) => c.anaemia === "SEVERE").length,
+      toothDecay: g.children.filter((c) => c.toothDecay).length,
+    };
+    return {
+      key,
+      label: cohortLabel(key),
+      focus: cohortFocus(g.growth, g.anaemic),
+      // Most urgent first: the order a dietician should work through them.
+      priority: GROWTH_ORDER.indexOf(g.growth) * 2 + (g.anaemic ? 0 : 1),
+      summary,
+      children: g.children,
+      draft: cohortDraft(g.growth, g.anaemic, summary),
+    };
+  }).sort((a, b) => a.priority - b.priority);
+}
+
+/** One school's children in groups, optionally one class only. */
+export async function dieticianCohorts(sql: Sql, actor: Actor, schoolId: string, grade = "") {
+  const me = await dieticianSelf(sql, actor);
+  await assertSchoolMine(sql, me.id, schoolId);
+  const grades = await sql`
+    SELECT DISTINCT grade FROM vita_hero.kids
+    WHERE school_id = ${schoolId} AND COALESCE(status,'ACTIVE') = 'ACTIVE' AND COALESCE(grade,'') <> ''
+    ORDER BY grade
+  `;
+  const cohorts = await buildCohorts(sql, schoolId, grade);
+  return {
+    schoolId,
+    grade,
+    grades: grades.map((g) => g.grade as string),
+    total: cohorts.reduce((n, c) => n + c.summary.count, 0),
+    cohorts,
+  };
+}
+
+/**
+ * The group's plan as rules write it: what the camp found, and the everyday
+ * Indian foods that answer it. A starting point the dietician edits, and what
+ * the screen shows when no model is reachable.
+ */
+function cohortDraft(growth: Growth, anaemic: boolean, s: CohortSummary) {
+  const focus = cohortFocus(growth, anaemic);
+  const lines: string[] = [];
+  const targets: Array<{ label: string; value: string }> = [];
+  switch (growth) {
+    case "SEVERE":
+      lines.push("Three meals and two snacks every day, each with a protein: dal, egg, paneer, curd, sprouts or groundnuts.");
+      lines.push("Add a spoon of ghee or oil to rice and roti for extra energy.");
+      lines.push("See the doctor if the child is unwell, loses weight or eats poorly.");
+      targets.push({ label: "Meals a day", value: "3 meals + 2 snacks" }, { label: "Weight check", value: "Every 2 weeks" });
+      break;
+    case "UNDER":
+    case "STUNTED":
+      lines.push("Three meals and two snacks a day, with a protein at every meal: dal, egg, paneer, curd, chana or sprouts.");
+      lines.push("Energy-dense snacks: groundnut chikki, banana with milk, ragi malt, poha with peanuts.");
+      targets.push({ label: "Milk or curd", value: "2 cups a day" }, { label: "Weight check", value: "Monthly" });
+      break;
+    case "OVER":
+      lines.push("Swap fried snacks, biscuits and sweet drinks for fruit, roasted chana or sprouts.");
+      lines.push("Half the plate vegetables, a quarter dal or paneer, a quarter rice or roti.");
+      lines.push("At least an hour of active play every day.");
+      targets.push({ label: "Sweet drinks", value: "None" }, { label: "Active play", value: "60 min a day" });
+      break;
+    default:
+      lines.push("A balanced plate every meal: vegetables, dal or egg, and rice or roti, with a fruit a day.");
+      targets.push({ label: "Fruit", value: "1 a day" });
+  }
+  if (anaemic) {
+    lines.push("Iron every day: green leafy vegetables (palak, methi), ragi, jaggery, dates, rajma or chana, egg.");
+    lines.push("Pair with vitamin C (lemon, amla, guava, orange) and keep tea away from meals.");
+    if (s.severeAnaemia > 0) {
+      lines.push(`${s.severeAnaemia} of these children have very low haemoglobin and need a doctor's review.`);
+    }
+    targets.push({ label: "Iron-rich food", value: "Every meal" });
+  }
+  if (s.toothDecay > 0) {
+    const who = s.toothDecay === s.count ? "These children have" : `${s.toothDecay} of these children have`;
+    lines.push(`${who} tooth decay: sweets only at mealtimes, no sticky snacks, rinse after eating.`);
+  }
+  const title = {
+    WEIGHT_GAIN: growth === "SEVERE" ? "Catch-up growth plan" : "Growth plan",
+    WEIGHT_CONTROL: "Healthy weight plan",
+    ANAEMIA: "Iron-rich plan",
+    GENERAL: s.toothDecay > 0 ? "Everyday plan, low sugar" : "Everyday plan",
+  }[focus];
+  return { title, focus, guidance: lines.join("\n"), targets, source: "RULES" };
+}
+
+/**
+ * A model's draft of a group's plan.
+ *
+ * The model is told about the group, never about a child: no names, no ids,
+ * nothing that would identify one of them. `ask` is the worker's call to the
+ * toolkit; when it is missing, fails, or answers something unusable, the
+ * rules' draft comes back instead, marked as such.
+ */
+export async function dieticianCohortDraft(
+  sql: Sql, actor: Actor, body: Record<string, unknown>,
+  ask: ((system: string, user: string) => Promise<string | null>) | null,
+) {
+  const me = await dieticianSelf(sql, actor);
+  const schoolId = String(body.schoolId || "");
+  await assertSchoolMine(sql, me.id, schoolId);
+  const cohort = (await buildCohorts(sql, schoolId, String(body.grade || "")))
+    .find((c) => c.key === String(body.key || ""));
+  if (!cohort) throw new ApiError(404, "That group has no children now", "NO_SUCH_GROUP");
+  if (!ask) return { draft: cohort.draft };
+
+  const s = cohort.summary;
+  const system = [
+    "You are a paediatric dietitian's assistant for VitaHero, a school health programme in India.",
+    "Draft a diet plan for a GROUP of school children. A dietitian edits it before families see it.",
+    "Use everyday, affordable Indian foods. Write for parents: plain words, one instruction per line.",
+    "Never give medicine or supplement doses; say 'see the doctor' where that is needed.",
+    'Answer ONLY with JSON: {"title":"...","guidance":"line 1\\nline 2","targets":[{"label":"...","value":"..."}]}',
+    "At most 8 guidance lines and 5 targets.",
+  ].join("\n");
+  const user = [
+    `Group: ${cohort.label}, ${s.count} children aged ${s.ageMin ?? "?"} to ${s.ageMax ?? "?"}.`,
+    `Plan focus: ${cohort.focus}.`,
+    s.severeAnaemia ? `${s.severeAnaemia} have severe anaemia.` : "",
+    s.toothDecay ? `${s.toothDecay} have tooth decay.` : "",
+    `Improve on this draft:\n${cohort.draft.guidance}`,
+  ].filter(Boolean).join("\n");
+
+  let raw: string | null = null;
+  try { raw = await ask(system, user); } catch { raw = null; }
+  const parsed = parseDraft(raw);
+  if (!parsed) return { draft: cohort.draft };
+  return { draft: { ...parsed, focus: cohort.focus, source: "AI" } };
+}
+
+function parseDraft(raw: string | null) {
+  if (!raw) return null;
+  const text = raw.includes("```") ? (raw.split(/```(?:json)?/)[1] || raw) : raw;
+  try {
+    const o = JSON.parse(text.trim()) as Record<string, unknown>;
+    const guidance = Array.isArray(o.guidance)
+      ? (o.guidance as unknown[]).map(String).join("\n")
+      : String(o.guidance || "");
+    if (guidance.trim().length < 10) return null;
+    const targets = Array.isArray(o.targets)
+      ? (o.targets as Array<Record<string, unknown>>).slice(0, 5)
+        .map((t) => ({ label: String(t?.label || "").slice(0, 80), value: String(t?.value || "").slice(0, 80) }))
+        .filter((t) => t.label !== "")
+      : [];
+    return { title: String(o.title || "Diet plan").slice(0, 120), guidance: guidance.slice(0, 2000), targets };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * One plan, written once, given to every child ticked in a group.
+ *
+ * Each child still gets their own row, so the parent's screen and any later
+ * change stay per child; and, as with one child, a new plan ends the one
+ * before it.
+ */
+export async function saveCohortPlan(sql: Sql, actor: Actor, body: Record<string, unknown>) {
+  const me = await dieticianSelf(sql, actor);
+  const kidIds = Array.isArray(body.kidIds)
+    ? [...new Set((body.kidIds as unknown[]).map(String).filter(Boolean))]
+    : [];
+  if (kidIds.length === 0) throw new ApiError(400, "Choose at least one child", "KIDS_REQUIRED");
+  if (kidIds.length > 1000) throw new ApiError(400, "At most 1000 children at a time", "TOO_MANY");
+  const { guidance, focus, targets, startsOn, endsOn, title } = planFields(body);
+  const kids = await sql`
+    SELECT k.id, k.school_id FROM vita_hero.kids k
+    JOIN vita_hero.dietician_schools ds
+      ON ds.school_id = k.school_id AND ds.dietician_id = ${me.id} AND ds.active
+    WHERE k.id = ANY(${kidIds}::text[]) AND COALESCE(k.status,'ACTIVE') = 'ACTIVE'
+  `;
+  if (kids.length !== kidIds.length) {
+    throw new ApiError(403, "Some of those children are not at one of your schools", "OUT_OF_SCOPE");
+  }
+  const stamp = Date.now().toString(36);
+  const ids = kids.map((_, i) => `dp_${stamp}_${i.toString(36)}${Math.random().toString(36).slice(2, 6)}`);
   await sql`
     UPDATE vita_hero.diet_plans SET status = 'ENDED', updated_at = NOW()
-    WHERE kid_id = ${kidId} AND status = 'ACTIVE'
+    WHERE kid_id = ANY(${kidIds}::text[]) AND status = 'ACTIVE'
   `;
   await sql`
     INSERT INTO vita_hero.diet_plans
       (id, kid_id, school_id, dietician_id, author_profile_id, author_name,
        title, focus, starts_on, ends_on, guidance, targets, status)
-    VALUES
-      (${id}, ${kidId}, ${(kid.school_id as string) || ""}, ${me.id}, ${actor.profileId},
-       ${me.name}, ${String(body.title || "").slice(0, 120)}, ${focus},
-       ${startsOn}, ${endsOn},
-       ${guidance}, ${JSON.stringify(targets)}::jsonb, 'ACTIVE')
+    SELECT v.id, v.kid_id, v.school_id, ${me.id}, ${actor.profileId}, ${me.name},
+           ${title}, ${focus}, ${startsOn}, ${endsOn}, ${guidance}, ${JSON.stringify(targets)}::jsonb, 'ACTIVE'
+    FROM unnest(${ids}::text[], ${kids.map((k) => k.id as string)}::text[],
+                ${kids.map((k) => (k.school_id as string) || "")}::text[]) AS v(id, kid_id, school_id)
   `;
-  const rows = await sql`SELECT * FROM vita_hero.diet_plans WHERE id = ${id} LIMIT 1`;
-  return { plan: mapPlan(rows[0]) };
+  return { saved: kids.length };
 }
 
 // ─── The parent's side ──────────────────────────────────────
