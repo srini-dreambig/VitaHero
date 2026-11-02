@@ -765,11 +765,12 @@ function classify(latest: Latest, age: number | null, gender: string, dob: strin
 
 // ─── The pre-camp plans ─────────────────────────────────────
 //
-// Twelve: each growth group, with and without low haemoglobin. Tooth decay is
-// a line added to the plan, not a plan of its own, so the "+TEETH" group
-// shares the healthy-weight plan.
+// One per growth group. Tooth decay is a line added to the plan, not a plan of
+// its own, so the "+TEETH" group shares the healthy-weight plan. There were
+// twelve, each also "+ANAEMIA"; camps no longer measure haemoglobin, so an
+// anaemia group only comes from an old camp and is drafted fresh.
 
-export const TEMPLATE_KEYS: string[] = GROWTH_ORDER.flatMap((g) => [g, `${g}+ANAEMIA`]);
+export const TEMPLATE_KEYS: string[] = [...GROWTH_ORDER];
 
 /** The pre-camp plan a group's children are given. */
 export function templateKeyOf(cohort: string): string {

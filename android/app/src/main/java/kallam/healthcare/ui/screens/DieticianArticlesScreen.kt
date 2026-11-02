@@ -47,7 +47,7 @@ import kallam.healthcare.ui.theme.HeroOrange
  *
  * The reading library already existed and was operations-only; this is the
  * permission change with a place to type. An article written here is offered
- * to families whose child was flagged on growth or haemoglobin, which is the
+ * to families whose child was flagged on growth, which is the
  * same scope this role reads — so a dietician is writing to the people they
  * would otherwise be writing individual plans for.
  *
@@ -97,7 +97,7 @@ fun DieticianArticlesScreen(
                         fontWeight = FontWeight.Bold,
                     )
                     Text(
-                        "Shown to families whose child was flagged on growth or haemoglobin",
+                        "Shown to families whose child was flagged on growth",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )

@@ -285,6 +285,7 @@
 "disclaimer_chart" = "Charts are for information only. Always consult a doctor for medical decisions.";
 "disclaimer_short" = "For information only. Consult a doctor for a diagnosis.";
 "doctor_says" = "What the doctor advises";
+"consult_paediatrician" = "This was a screening at school, not a diagnosis. Please see a paediatrician to confirm what was found and get the right advice for your child.";
 "doing_well" = "Doing well";
 "done" = "Done";
 "earned" = "Earned";

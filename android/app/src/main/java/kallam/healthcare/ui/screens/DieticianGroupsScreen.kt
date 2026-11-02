@@ -230,8 +230,8 @@ fun DieticianGroupsScreen(
                     },
                     subtitle = when {
                         busy || d == null -> "One moment."
-                        else -> "Groups appear once a camp's doctors have recorded growth, " +
-                            "haemoglobin or teeth for these children."
+                        else -> "Groups appear once a camp's doctors have recorded growth " +
+                            "or teeth for these children."
                     },
                     modifier = Modifier.padding(20.dp),
                 )

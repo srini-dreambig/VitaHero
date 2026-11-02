@@ -35,6 +35,7 @@ import {
   Urgency,
   draftRecommendation,
   isCheckType,
+  isDesignedCheck,
   normaliseSpecialty,
   proposeFlag,
   screeningChecksFor,
@@ -359,7 +360,7 @@ function mapCamp(r: Record<string, unknown>) {
     time: (r.time as string) || "",
     venue: (r.venue as string) || "",
     status: (r.status as string) || "DRAFT",
-    checks: jsonArr(r.checks),
+    checks: jsonArr(r.checks).filter(isDesignedCheck),
     grades: jsonArr(r.grades),
     sections: jsonArr(r.sections),
     academicYear: (r.academic_year as string) || "",
@@ -586,7 +587,7 @@ export async function createCamp(
 
   const checks = (Array.isArray(body.checks) ? (body.checks as unknown[]) : [])
     .map(String)
-    .filter(isCheckType);
+    .filter(isDesignedCheck);
   if (checks.length === 0) {
     throw new ApiError(400, "Choose at least one check for this camp", "NO_CHECKS");
   }
@@ -648,8 +649,8 @@ export async function updateCamp(
   }
 
   const checks = Array.isArray(body.checks)
-    ? (body.checks as unknown[]).map(String).filter(isCheckType)
-    : Array.isArray(cur.checks) ? (cur.checks as string[]) : JSON.parse(String(cur.checks || "[]"));
+    ? (body.checks as unknown[]).map(String).filter(isDesignedCheck)
+    : campCheckList(cur);
   const grades = Array.isArray(body.grades)
     ? (body.grades as unknown[]).map(String).filter(Boolean)
     : Array.isArray(cur.grades) ? (cur.grades as string[]) : JSON.parse(String(cur.grades || "[]"));
@@ -933,9 +934,7 @@ export async function requestConsent(
   // One text per guardian, however many of their children are waiting.
   const rows = [...new Map(claimed.map((r) => [r.profile_id as string, r])).values()];
 
-  const checks: string[] = Array.isArray(camp.checks)
-    ? (camp.checks as string[])
-    : JSON.parse(String(camp.checks || "[]"));
+  const checks = campCheckList(camp);
   const deadline = (camp.consent_deadline as string) || "";
   const message =
     `VitaHero: ${camp.school_name} is holding a health check-up on ${camp.date}` +
@@ -1170,9 +1169,7 @@ export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, k
   const findings = await sql`
     SELECT * FROM vita_hero.camp_findings WHERE camp_id = ${campId} AND kid_id = ${kidId}
   `;
-  const campChecks: string[] = Array.isArray(access.camp.checks)
-    ? (access.camp.checks as string[])
-    : JSON.parse(String(access.camp.checks || "[]"));
+  const campChecks = campCheckList(access.camp);
   const consentChecks: string[] = Array.isArray(p.consent_checks)
     ? (p.consent_checks as string[])
     : JSON.parse(String(p.consent_checks || "[]"));
@@ -1698,10 +1695,16 @@ async function participantsFor(sql: Sql, campId: string, kidIds: string[]) {
   return byKid;
 }
 
+/**
+ * What a camp still asks its doctors to record. A camp set up with a check
+ * since retired (haemoglobin) keeps it in its row; it is dropped here, so
+ * nobody is held up by a check the camp can no longer do.
+ */
 function campCheckList(camp: Record<string, unknown>): string[] {
-  return Array.isArray(camp.checks)
+  const list: string[] = Array.isArray(camp.checks)
     ? (camp.checks as string[])
     : JSON.parse(String(camp.checks || "[]"));
+  return list.filter(isDesignedCheck);
 }
 
 export async function saveScreening(
@@ -1788,9 +1791,7 @@ export async function campPack(sql: Sql, actor: Actor, campId: string) {
     recorded.get(k)!.add(f.check_type as string);
   }
 
-  const campChecks: string[] = Array.isArray(camp.checks)
-    ? (camp.checks as string[])
-    : JSON.parse(String(camp.checks || "[]"));
+  const campChecks = campCheckList(camp);
 
   return {
     downloadedAt: new Date().toISOString(),
@@ -2773,7 +2774,7 @@ export async function pendingConsents(sql: Sql, profileId: string) {
       time: (r.time as string) || "",
       venue: (r.venue as string) || "",
       deadline: (r.consent_deadline as string) || "",
-      checks: Array.isArray(r.checks) ? (r.checks as string[]) : JSON.parse(String(r.checks || "[]")),
+      checks: campCheckList(r),
       // When true the app must ask the photography question as well, as its own
       // yes/no. When false it must not show it at all.
       photosAsked: r.photos_enabled === true,

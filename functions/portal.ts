@@ -1009,7 +1009,7 @@ export const PORTAL_HTML = `<!doctype html>
   // agrees to a spine examination and nobody ever performs one. Mirrors
   // DESIGNED_CHECKS in clinical.ts; the rest stay recognised for historical
   // camps but are not offered anywhere.
-  var CHECKS = ["Height & weight","Vision","Dental","Haemoglobin","ENT","Skin","Spine","Immunisation review"];
+  var CHECKS = ["Height & weight","Vision","Dental","ENT","Skin","Spine","Immunisation review"];
   // The fields each check cannot be saved without. Written in from the
   // server's own list, so the asterisks here and the refusal there agree.
   var REQUIRED = ${JSON.stringify(REQUIRED_FIELDS)};
@@ -2112,7 +2112,7 @@ export const PORTAL_HTML = `<!doctype html>
         statusPill(!off && s.status === "ACTIVE" ? "ACTIVE" : s.status || "ARCHIVED"),
         !off && s.dieticians === 0
           ? el("div", { style: "margin-top:4px" },
-              el("span", { class: "pill warn", title: "Nobody follows up growth and haemoglobin" }, "No dietitian"))
+              el("span", { class: "pill warn", title: "Nobody follows up growth" }, "No dietitian"))
           : null),
 
 
@@ -3849,8 +3849,8 @@ export const PORTAL_HTML = `<!doctype html>
           })))
         : el("div", { class: "card-b" },
             el("div", { class: "msg warn", style: "margin:0" },
-              "No dietitian is assigned to this school, so children flagged for growth or "
-              + "haemoglobin have nobody to follow them up."),
+              "No dietitian is assigned to this school, so children flagged for growth "
+              + "have nobody to follow them up."),
             isOps()
               ? el("div", { class: "row", style: "margin-top:10px" },
                   el("button", { class: "pri sm", onclick: loadDieticians },
@@ -3930,7 +3930,7 @@ export const PORTAL_HTML = `<!doctype html>
   var CHECK_ROLES = [
     ["Dentistry", "Dental — dentist"],
     ["Ophthalmology", "Vision — eye doctor / optometrist"],
-    ["Paediatrics", "Growth, Hb, immunisation — paediatrician"],
+    ["Paediatrics", "Growth, immunisation — paediatrician"],
     ["General physician", "Every check — general physician"]
   ];
   function checkRoleSelect(value, onchange, blank) {
@@ -5931,7 +5931,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       el("div", { class: "msg info" },
         "A dietician works across a school rather than at one camp, so they are assigned to "
-        + "schools, not to camps. They see growth, haemoglobin and the food log for children "
+        + "schools, not to camps. They see growth and the food log for children "
         + "at their schools \u2014 not the dental, eye or illness record \u2014 and they write "
         + "the diet plan a family reads in the app."),
       el("div", { class: "tbar" },
@@ -6802,9 +6802,9 @@ export const PORTAL_HTML = `<!doctype html>
         + (sc.academicYear ? " \\u00b7 " + sc.academicYear : "");
       info.acts.push(el("span", { class: "code", title: "Partner code" }, sc.partnerCode));
       if (sc.dieticians === 0) info.acts.push(isOps()
-        ? el("button", { class: "sm", title: "Nobody follows up growth and haemoglobin", onclick: loadDieticians },
+        ? el("button", { class: "sm", title: "Nobody follows up growth", onclick: loadDieticians },
             el("span", { class: "pill warn" }, "No dietitian"), "Assign")
-        : el("span", { class: "pill warn", title: "Nobody follows up growth and haemoglobin" }, "No dietitian"));
+        : el("span", { class: "pill warn", title: "Nobody follows up growth" }, "No dietitian"));
       if (S.schoolTab !== "camps") info.acts.push(el("button", { onclick: function () { goSchoolTab("camps"); } },
         icon("calendar", 14), "Camps"));
       if (S.schoolTab !== "roster") info.acts.push(el("button", { onclick: function () { goSchoolTab("roster"); } },
@@ -6825,7 +6825,7 @@ export const PORTAL_HTML = `<!doctype html>
         info.desc = "The twelve plans this dietician sends to families before a camp.";
       } else {
         info.count = S.dieticians ? len(S.dieticians.dieticians) : null;
-        info.desc = "Dietitians follow up growth and haemoglobin. Assign each one to their schools.";
+        info.desc = "Dietitians follow up growth. Assign each one to their schools.";
       }
     } else if (v === "mycamps") {
       info.count = len(S.myCamps);

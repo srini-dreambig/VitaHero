@@ -26,13 +26,14 @@ import { iapReadings, MUAC_MIN_MONTHS, muacReading } from "./growthrefs";
  *
  * DESIGNED_CHECKS is what a school can be offered today. PLANNED_CHECKS are
  * recognised so existing camps and historical findings keep working, but are
- * not offered anywhere until their capture screen exists.
+ * not offered anywhere until their capture screen exists. RETIRED_CHECKS are
+ * the other way round: no longer done at a camp, still read wherever an old
+ * finding is.
  */
 export const DESIGNED_CHECKS = [
   "Height & weight",
   "Vision",
   "Dental",
-  "Haemoglobin",
   "ENT",
   "Skin",
   "Spine",
@@ -41,7 +42,12 @@ export const DESIGNED_CHECKS = [
 
 export const PLANNED_CHECKS = [] as const;
 
-export const CHECK_TYPES = [...DESIGNED_CHECKS, ...PLANNED_CHECKS] as const;
+// Camps carry no Hb meter. A haemoglobin "screen" was a pallor guess with a
+// number field nobody could fill, and it fed the nutrition flag and the
+// dietician's anaemia groups as though it were a blood test.
+export const RETIRED_CHECKS = ["Haemoglobin"] as const;
+
+export const CHECK_TYPES = [...DESIGNED_CHECKS, ...PLANNED_CHECKS, ...RETIRED_CHECKS] as const;
 export type CheckType = (typeof CHECK_TYPES)[number];
 
 /** Can a clinician actually record this check on a screen built for it? */
@@ -72,14 +78,14 @@ export function isCheckType(v: string): v is CheckType {
  * to remember this file exists.
  */
 const SPECIALTY_CHECKS: Record<string, readonly CheckType[]> = {
-  Paediatrics: ["Height & weight", "Haemoglobin", "Immunisation review"],
+  Paediatrics: ["Height & weight", "Immunisation review"],
   Ophthalmology: ["Vision"],
   Dentistry: ["Dental"],
   ENT: ["ENT"],
   Dermatology: ["Skin"],
   Orthopaedics: ["Spine"],
   // The generalist a school fields when it has one doctor for the day.
-  "General physician": CHECK_TYPES,
+  "General physician": [...DESIGNED_CHECKS, ...PLANNED_CHECKS],
 };
 
 /** Every specialty the directory offers, in the order a dropdown shows them. */
@@ -1231,5 +1237,5 @@ export function draftRecommendation(
       : summary.urgency === "SOON"
         ? "Please book an appointment in the next two weeks."
         : "Please mention this at your next routine visit.";
-  return `${name}'s ${area ? area + " check" : "check-up"} found something worth following up on ${list}. ${when} This screening is for information only and is not a diagnosis.`;
+  return `${name}'s ${area ? area + " check" : "check-up"} found something worth following up on ${list}. ${when} This was a screening at school, not a diagnosis: a paediatrician can confirm what was found and advise you on next steps.`;
 }

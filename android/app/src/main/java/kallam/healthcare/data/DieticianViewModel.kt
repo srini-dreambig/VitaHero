@@ -157,7 +157,7 @@ class DieticianViewModel(
                     // Nutrition is the reason a dietician is writing, so the
                     // article is offered to families whose child was flagged
                     // on one of the two checks this role reads.
-                    checkTypes = listOf("Height & weight", "Haemoglobin"),
+                    checkTypes = listOf("Height & weight"),
                     flags = listOf("WATCH", "ALERT"),
                 ),
             )

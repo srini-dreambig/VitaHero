@@ -142,6 +142,10 @@ object PdfReportGenerator {
             canvas.drawText("$name: $label", MARGIN + 4f, y, fp)
             y += 20f
         }
+        if (flags.any { it.third == HealthFlag.WATCH || it.third == HealthFlag.ALERT }) {
+            canvas.drawText(tr(S.consultPaediatrician, locale), MARGIN + 4f, y, disclaimerPaint)
+            y += 20f
+        }
         y += 10f
 
         // Badges

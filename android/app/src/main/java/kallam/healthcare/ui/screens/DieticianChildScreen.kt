@@ -154,8 +154,8 @@ fun DieticianChildScreen(
                 SectionTitle("What the camps found")
                 if (r.findings.isEmpty()) {
                     Text(
-                        "Nobody has measured this child yet. A camp records growth and "
-                            + "haemoglobin, and those are the two you see here.",
+                        "Nobody has measured this child yet. Once a camp records height and "
+                            + "weight, the child's growth shows here.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp),

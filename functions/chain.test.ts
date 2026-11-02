@@ -237,7 +237,8 @@ suite("end to end", () => {
     await setClasses(sql, OPS, schoolId, {
       academicYear: "2026-27", grades: ["Class 4", "Class 7"], sections: ["A", "B"],
     });
-    expect(r.school.checksOffered.length).toBe(4);
+    // Haemoglobin is no longer done at camps, so it is dropped from the offer.
+    expect(r.school.checksOffered).toEqual(["Height & weight", "Vision", "Dental"]);
   });
 
   test("its roster is imported", async () => {

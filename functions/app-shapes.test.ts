@@ -246,7 +246,6 @@ suite("what the worker sends is what the app declares", () => {
         { checkType: "Height & weight", detail: { heightCm: 118, weightKg: 19 } },
         { checkType: "Vision", detail: { leftAcuity: "6/36", rightAcuity: "6/24" } },
         { checkType: "Dental", detail: { cariesCount: 4, gums: "bleeding", hygiene: "Good", pain: true } },
-        { checkType: "Haemoglobin", detail: { hb: 9.1 } },
         { checkType: "ENT", detail: { leftHearing: "Normal", rightHearing: "Normal" } },
         { checkType: "Skin", detail: { skinCondition: "Normal" } },
         { checkType: "Spine", detail: { posture: "Normal", gaitLimb: "Normal" } },

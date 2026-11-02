@@ -69,12 +69,13 @@ describe("which door a dietician stands at", () => {
   });
 
   test("a dietician is not a specialty, so no camp can hand them a form", async () => {
-    // The four designed checks are the four the user asked to keep. A
-    // dietician reads two of them and screens none.
-    const { screeningChecksFor, SPECIALTIES } = await import("./clinical");
+    // A dietician reads growth and, from camps before it was retired,
+    // haemoglobin, and screens none.
+    const { screeningChecksFor, SPECIALTIES, CHECK_TYPES } = await import("./clinical");
     expect(SPECIALTIES).not.toContain("Dietician");
     expect(screeningChecksFor("Dietician")).toEqual([]);
-    for (const c of DIETICIAN_CHECKS) expect(DESIGNED_CHECKS).toContain(c as never);
+    for (const c of DIETICIAN_CHECKS) expect(CHECK_TYPES).toContain(c as never);
+    expect(DESIGNED_CHECKS).not.toContain("Haemoglobin" as never);
   });
 });
 

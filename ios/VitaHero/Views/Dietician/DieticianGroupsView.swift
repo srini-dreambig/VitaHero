@@ -81,8 +81,8 @@ struct DieticianGroupsView: View {
                         }
                     } else {
                         EmptyState(icon: "person.3", title: "No checks to plan from yet",
-                                   subtitle: "Groups appear once a camp's doctors have recorded growth, "
-                                       + "haemoglobin or teeth for these children.")
+                                   subtitle: "Groups appear once a camp's doctors have recorded growth "
+                                       + "or teeth for these children.")
                     }
                 }
                 .listRowBackground(Color.clear)

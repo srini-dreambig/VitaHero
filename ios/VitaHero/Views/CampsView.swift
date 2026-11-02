@@ -291,6 +291,15 @@ struct CampResultView: View {
         if !result.recommendation.isEmpty {
             Section(L("doctor_says")) { Text(result.recommendation) }
         }
+        // A camp screens; it does not diagnose. Whenever something was flagged
+        // the family is told who confirms it, whatever the doctor wrote above.
+        if result.findings.contains(where: { $0.flag == "WATCH" || $0.flag == "ALERT" }) {
+            Section {
+                Text(L("consult_paediatrician"))
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Brand.orange)
+            }
+        }
     }
 
     /// The assessment sheet, a row per column as the doctor filled it, and on

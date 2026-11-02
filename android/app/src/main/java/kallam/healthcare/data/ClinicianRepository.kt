@@ -139,7 +139,7 @@ class ClinicianRepository {
         consentStatus = "ACCEPTED",
         attendance = "PRESENT",
         status = "NOT_SCREENED",
-        checks = listOf("Vision", "Dental", "ENT", "Skin", "Spine", "Immunisation review", "Haemoglobin"),
+        checks = listOf("Vision", "Dental", "ENT", "Skin", "Spine", "Immunisation review"),
         specialty = "Pediatric Specialist"
     )
 

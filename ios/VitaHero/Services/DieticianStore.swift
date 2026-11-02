@@ -199,7 +199,7 @@ final class DieticianStore: ObservableObject {
                 title: title.trimmingCharacters(in: .whitespacesAndNewlines),
                 summary: summary.trimmingCharacters(in: .whitespacesAndNewlines),
                 body: body.trimmingCharacters(in: .whitespacesAndNewlines),
-                checkTypes: ["Height & weight", "Haemoglobin"],
+                checkTypes: ["Height & weight"],
                 flags: ["WATCH", "ALERT"])
             await loadArticles()
             return .success(())

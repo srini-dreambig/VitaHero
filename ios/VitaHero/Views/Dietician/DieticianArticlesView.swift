@@ -25,7 +25,7 @@ struct DieticianArticlesView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                Text("Shown to families whose child was flagged on growth or haemoglobin")
+                Text("Shown to families whose child was flagged on growth")
                     .font(.subheadline).foregroundColor(.secondary)
                 if let error = dietician.articlesError { Banner(text: error, color: Brand.red) }
                 if !message.isEmpty { Banner(text: message, color: Brand.red) }

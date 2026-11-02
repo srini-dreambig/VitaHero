@@ -66,7 +66,7 @@ struct DieticianChildView: View {
         Group {
             Text("What the camps found").font(.headline)
             if r.findings.isEmpty {
-                Text("Nobody has measured this child yet. A camp records growth and haemoglobin, and those are the two you see here.")
+                Text("Nobody has measured this child yet. Once a camp records height and weight, the child's growth shows here.")
                     .font(.footnote).foregroundColor(.secondary)
             }
             ForEach(Array(r.findings.enumerated()), id: \.offset) { _, finding in findingCard(finding) }

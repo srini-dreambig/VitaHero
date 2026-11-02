@@ -27,10 +27,10 @@ import {
 } from "./dietician";
 
 describe("the groups a plan is written for", () => {
-  test("twelve: each growth group, with and without low haemoglobin", () => {
-    expect(TEMPLATE_KEYS.length).toBe(12);
-    expect(new Set(TEMPLATE_KEYS).size).toBe(12);
-    expect(TEMPLATE_KEYS).toContain("NORMAL+ANAEMIA");
+  test("six: one per growth group, none for haemoglobin, which camps no longer measure", () => {
+    expect(TEMPLATE_KEYS.length).toBe(6);
+    expect(new Set(TEMPLATE_KEYS).size).toBe(6);
+    expect(TEMPLATE_KEYS.some((k) => k.includes("ANAEMIA"))).toBe(false);
   });
 
   test("tooth decay shares the healthy-weight plan", () => {
@@ -186,7 +186,7 @@ suite("pre-camp plans reach the family", () => {
   });
 
   // Operations read and correct a dietician's plans from the admin console.
-  test("operations see the dietician's twelve plans, written and draft", async () => {
+  test("operations see the dietician's six plans, written and draft", async () => {
     const [d] = await sql`SELECT id FROM vita_hero.dieticians WHERE name = 'Meera'`;
     const r = await adminDieticianTemplates(sql, OPS, d.id as string);
     expect(r.dietician.name).toBe("Meera");
@@ -198,15 +198,15 @@ suite("pre-camp plans reach the family", () => {
   test("a plan operations save is the dietician's plan", async () => {
     const [d] = await sql`SELECT id FROM vita_hero.dieticians WHERE name = 'Meera'`;
     const r = await adminSaveDieticianTemplate(sql, OPS, d.id as string, {
-      key: "UNDER+ANAEMIA", title: "Catch-up and iron",
-      guidance: "An egg or a cup of dal at every meal, with lemon to help the iron.",
-      targets: [{ label: "Iron-rich food", value: "Twice a day" }, { label: "", value: "dropped" }],
+      key: "UNDER", title: "Catch-up plan",
+      guidance: "An egg or a cup of dal at every meal.",
+      targets: [{ label: "Protein", value: "Every meal" }, { label: "", value: "dropped" }],
     });
-    const t = r.templates.find((x) => x.key === "UNDER+ANAEMIA")!;
+    const t = r.templates.find((x) => x.key === "UNDER")!;
     expect(t.saved).toBe(true);
-    expect(t.targets).toEqual([{ label: "Iron-rich food", value: "Twice a day" }]);
+    expect(t.targets).toEqual([{ label: "Protein", value: "Every meal" }]);
     const mine = await dieticianTemplates(sql, DIET);
-    expect(mine.templates.find((x) => x.key === "UNDER+ANAEMIA")!.title).toBe("Catch-up and iron");
+    expect(mine.templates.find((x) => x.key === "UNDER")!.title).toBe("Catch-up plan");
   });
 
   test("only operations reach another dietician's plans", async () => {

@@ -43,7 +43,6 @@ export const CHECK_TYPES = [
   "Height & weight",
   "Vision",
   "Dental",
-  "Haemoglobin",
   "ENT",
   "Skin",
   "Spine",

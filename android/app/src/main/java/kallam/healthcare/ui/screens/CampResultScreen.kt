@@ -211,6 +211,23 @@ fun CampResultScreen(
             }
         }
 
+        // A camp screens; it does not diagnose. Whenever something was flagged
+        // the family is told who confirms it, whatever the doctor wrote above.
+        if (r.findings.any { it.flag == "WATCH" || it.flag == "ALERT" }) {
+            item {
+                HeroCard(Modifier.fillMaxWidth()) {
+                    Text(
+                        t(S.consultPaediatrician),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = HeroOrange,
+                        modifier = Modifier.padding(18.dp),
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+            }
+        }
+
         items(r.findings, key = { it.checkType }) { f ->
             FindingCard(f, r.child)
             Spacer(Modifier.height(10.dp))

@@ -68,7 +68,7 @@ struct DieticianSchoolsView: View {
                     } else {
                         EmptyState(icon: "building.columns", title: "No schools yet",
                                    subtitle: "VitaHero operations assigns you to a school. Once they do, its "
-                                       + "children appear here with their growth and haemoglobin.")
+                                       + "children appear here with their growth.")
                     }
                 }
                 .listRowBackground(Color.clear)

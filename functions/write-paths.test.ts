@@ -254,7 +254,7 @@ suite("every write reaches its own SQL, and none of it answers 500", () => {
         { checkType: "Vision", detail: { leftAcuity: "6/36", rightAcuity: "6/24" } },
         // Every other check the parent agreed to is declared, not skipped:
         // a save that leaves one out is refused.
-        ...["Dental", "Haemoglobin", "ENT", "Skin", "Spine", "Immunisation review"].map(
+        ...["Dental", "ENT", "Skin", "Spine", "Immunisation review"].map(
           (checkType) => ({ checkType, flag: "NOT_MEASURED", note: "Lab kit arrives tomorrow" })),
       ] }) },
     // Before the review and the release, which is the order a camp runs in:
@@ -264,7 +264,7 @@ suite("every write reaches its own SQL, and none of it answers 500", () => {
     { name: "a screener syncs a batch of forms from a handset", method: "POST", as: "doctor",
       path: () => `/api/admin/camps/${campId}/screening-bulk`,
       body: () => ({ entries: [{ kidId, findings: [
-        { checkType: "Haemoglobin", detail: { hb: 9.4 } }] }] }) },
+        { checkType: "Dental", detail: { cariesCount: 0, gums: "Healthy", hygiene: "Good" } }] }] }) },
     { name: "a physician signs a child off", method: "POST", as: "doctor",
       path: () => `/api/admin/camps/${campId}/review/${kidId}`,
       body: () => ({ recommendation: "Please see an eye specialist within the month.",

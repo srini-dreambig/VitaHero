@@ -99,7 +99,7 @@ fun DieticianSchoolsScreen(
                     subtitle =
                         if (busy) "One moment."
                         else "VitaHero operations assigns you to a school. Once they do, its "
-                            + "children appear here with their growth and haemoglobin.",
+                            + "children appear here with their growth.",
                     modifier = Modifier.padding(20.dp),
                 )
             }
