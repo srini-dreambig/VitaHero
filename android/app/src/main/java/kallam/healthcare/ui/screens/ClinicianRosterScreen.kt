@@ -43,6 +43,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.CampChildDto
 import kallam.healthcare.data.ClinicianViewModel
+import kallam.healthcare.data.classTitle
 import kallam.healthcare.ui.components.EmptyState
 import kallam.healthcare.ui.components.HeroCard
 import kallam.healthcare.ui.components.IconBubble
@@ -158,7 +159,7 @@ fun ClinicianRosterScreen(
                         FilterPill("All classes", classFilter.isEmpty()) { classFilter = "" }
                     }
                     items(classes, key = { "c$it" }) { c ->
-                        FilterPill("Class $c", classFilter == c) {
+                        FilterPill(classTitle(c), classFilter == c) {
                             classFilter = if (classFilter == c) "" else c
                         }
                     }

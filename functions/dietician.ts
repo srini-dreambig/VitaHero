@@ -30,6 +30,7 @@ import { Sql, isOpsRole, normalizeMobile, normalizePhone, profileIdForPhone, pro
 import { Actor, ApiError } from "./schools";
 import { logRecordAccess } from "./oversight";
 import { muacBand, nutritionBand } from "./clinical";
+import { dobText } from "./parent-sheet";
 
 /**
  * The checks a dietician may read.
@@ -103,6 +104,25 @@ export async function ensureDieticianSchema(sql: Sql): Promise<void> {
     )
   `;
   await sql`CREATE INDEX IF NOT EXISTS diet_plans_kid ON vita_hero.diet_plans(kid_id, status)`;
+  // The twelve plans a dietician writes before a camp, one per group. A
+  // child's results put them in a group, and the group's plan reaches the
+  // family without waiting for the dietician to send it child by child.
+  await sql`
+    CREATE TABLE IF NOT EXISTS vita_hero.diet_plan_templates (
+      dietician_id TEXT NOT NULL,
+      cohort_key TEXT NOT NULL,
+      title TEXT DEFAULT '',
+      focus TEXT DEFAULT 'GENERAL',
+      guidance TEXT DEFAULT '',
+      targets JSONB DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ DEFAULT NOW(),
+      PRIMARY KEY (dietician_id, cohort_key)
+    )
+  `;
+  // Set on a plan that was given from a pre-camp plan, so a newer result or a
+  // newer version of that plan can replace it. Empty on a plan a dietician
+  // wrote for the child, which nothing replaces but the dietician.
+  await sql`ALTER TABLE vita_hero.diet_plans ADD COLUMN IF NOT EXISTS template_key TEXT DEFAULT ''`;
 }
 
 // ─── The directory side (operations) ────────────────────────
@@ -548,7 +568,7 @@ function latestBand(findings: Array<Record<string, unknown>>, kid: Record<string
   const override = String(d.nutritionalStatus || "").trim();
   if (override) return override;
   const h = num(d.heightCm), w = num(d.weightKg);
-  return h && w ? nutritionBand(h, w, num(kid.age), String(kid.gender || "")) : "";
+  return h && w ? nutritionBand(h, w, num(kid.age), String(kid.gender || ""), dobText(kid.date_of_birth)) : "";
 }
 
 function draftPlan(name: string, findings: Array<{ checkType: string; flag: string }>, band = "") {
@@ -646,7 +666,7 @@ function planFields(body: Record<string, unknown>) {
 // ─── Groups ─────────────────────────────────────────────────
 //
 // Writing a plan child by child does not scale to a school of six hundred, and
-// most of those children need one of a handful of plans: the underweight ones
+// most of those children need one of a handful of plans: the wasted ones
 // a growth plan, the anaemic ones an iron plan, and so on. So the dietician
 // works a group at a time, edits the group's draft, and applies it to the
 // children they tick.
@@ -658,8 +678,8 @@ function planFields(body: Record<string, unknown>) {
 type Growth = "SEVERE" | "UNDER" | "STUNTED" | "OVER" | "NORMAL" | "UNKNOWN";
 
 const GROWTH_LABEL: Record<Growth, string> = {
-  SEVERE: "Severely underweight",
-  UNDER: "Underweight",
+  SEVERE: "Severely wasted",
+  UNDER: "Wasted",
   STUNTED: "Short for age",
   OVER: "Overweight or obese",
   NORMAL: "Healthy weight",
@@ -667,9 +687,10 @@ const GROWTH_LABEL: Record<Growth, string> = {
 };
 const GROWTH_ORDER: Growth[] = ["SEVERE", "UNDER", "STUNTED", "OVER", "NORMAL", "UNKNOWN"];
 
+/** Readings saved before the camp's own cut-offs said "underweight" for "wasted"; both are read. */
 function growthOf(band: string, muacFlag: string): Growth {
-  if (band === "Severely underweight" || muacFlag === "ALERT") return "SEVERE";
-  if (band === "Underweight" || muacFlag === "WATCH") return "UNDER";
+  if (band === "Severely wasted" || band === "Severely underweight" || muacFlag === "ALERT") return "SEVERE";
+  if (band === "Wasted" || band === "Underweight" || muacFlag === "WATCH") return "UNDER";
   if (band === "Stunted") return "STUNTED";
   if (band === "Overweight" || band === "Obese") return "OVER";
   if (band === "Normal") return "NORMAL";
@@ -723,12 +744,143 @@ async function assertSchoolMine(sql: Sql, dieticianId: string, schoolId: string)
   }
 }
 
-async function buildCohorts(sql: Sql, schoolId: string, grade: string) {
+type Latest = Array<{ c: string; fl: string; d: Record<string, unknown> | null }>;
+
+/** Where one child's latest readings put them. */
+function classify(latest: Latest, age: number | null, gender: string, dob: string) {
+  const by = (c: string) => latest.find((x) => x.c === c);
+  const hw = by("Height & weight"), hb = by("Haemoglobin"), dental = by("Dental");
+  const d = (hw?.d || {}) as Record<string, unknown>;
+  const h = num(d.heightCm), w = num(d.weightKg), muac = num(d.muacCm);
+  // A doctor's own call on nutritional status wins over the estimate.
+  const override = String(d.nutritionalStatus || "").trim();
+  const band = override || (h && w ? nutritionBand(h, w, age, gender, dob) : "");
+  const muacFlag = muac ? muacBand(muac, age, gender, dob).flag : "";
+  const growth = growthOf(band, muacFlag);
+  const anaemic = hb?.fl === "WATCH" || hb?.fl === "ALERT";
+  const dd = (dental?.d || {}) as Record<string, unknown>;
+  const teeth = dental?.fl === "WATCH" || dental?.fl === "ALERT" || (num(dd.cariesCount) ?? 0) > 0;
+  return { growth, anaemic, teeth, band, muacFlag, hb, key: cohortKey(growth, anaemic, teeth) };
+}
+
+// ─── The pre-camp plans ─────────────────────────────────────
+//
+// Twelve: each growth group, with and without low haemoglobin. Tooth decay is
+// a line added to the plan, not a plan of its own, so the "+TEETH" group
+// shares the healthy-weight plan.
+
+export const TEMPLATE_KEYS: string[] = GROWTH_ORDER.flatMap((g) => [g, `${g}+ANAEMIA`]);
+
+/** The pre-camp plan a group's children are given. */
+export function templateKeyOf(cohort: string): string {
+  return cohort.split("+").filter((p) => p !== "TEETH").join("+");
+}
+
+const TOOTH_LINE = "If your child has tooth decay: sweets only at mealtimes, no sticky snacks, rinse after eating.";
+
+type Template = { title: string; focus: string; guidance: string; targets: Array<{ label: string; value: string }> };
+
+function mapTemplate(r: Record<string, unknown>): Template & { updatedAt: string } {
+  return {
+    title: (r.title as string) || "",
+    focus: (r.focus as string) || "GENERAL",
+    guidance: (r.guidance as string) || "",
+    targets: Array.isArray(r.targets) ? (r.targets as Template["targets"]) : JSON.parse(String(r.targets || "[]")),
+    updatedAt: r.updated_at ? String(r.updated_at) : "",
+  };
+}
+
+const EMPTY_SUMMARY: CohortSummary = {
+  count: 0, withPlan: 0, ageMin: null, ageMax: null, girls: 0, boys: 0, severeAnaemia: 0, toothDecay: 0,
+};
+
+/** The dietician's twelve pre-camp plans, written or still a starter draft. */
+export async function dieticianTemplates(sql: Sql, actor: Actor) {
+  const me = await dieticianSelf(sql, actor);
+  return templatesOf(sql, me.id);
+}
+
+async function templatesOf(sql: Sql, dieticianId: string) {
+  const rows = await sql`
+    SELECT * FROM vita_hero.diet_plan_templates WHERE dietician_id = ${dieticianId}`;
+  const saved = new Map(rows.map((r) => [r.cohort_key as string, mapTemplate(r)]));
+  const templates = TEMPLATE_KEYS.map((key) => {
+    const [g, ...rest] = key.split("+");
+    const anaemic = rest.includes("ANAEMIA");
+    const t = saved.get(key);
+    const draft = cohortDraft(g as Growth, anaemic, EMPTY_SUMMARY);
+    return {
+      key,
+      label: cohortLabel(key),
+      focus: cohortFocus(g as Growth, anaemic),
+      saved: !!t,
+      title: t ? t.title : draft.title,
+      guidance: t ? t.guidance : draft.guidance,
+      targets: t ? t.targets : draft.targets,
+      updatedAt: t ? t.updatedAt : "",
+    };
+  });
+  return { templates, ready: templates.filter((t) => t.saved).length };
+}
+
+/** Write or rewrite one pre-camp plan. */
+export async function saveDieticianTemplate(sql: Sql, actor: Actor, body: Record<string, unknown>) {
+  const me = await dieticianSelf(sql, actor);
+  await writeTemplate(sql, me.id, body);
+  return templatesOf(sql, me.id);
+}
+
+async function writeTemplate(sql: Sql, dieticianId: string, body: Record<string, unknown>) {
+  const key = String(body.key || "");
+  if (!TEMPLATE_KEYS.includes(key)) throw new ApiError(400, "No such group", "NO_SUCH_GROUP");
+  const { guidance, targets, title } = planFields(body);
+  const [g, ...rest] = key.split("+");
+  // The group decides the focus, so the plan cannot be filed under the wrong one.
+  const focus = cohortFocus(g as Growth, rest.includes("ANAEMIA"));
+  await sql`
+    INSERT INTO vita_hero.diet_plan_templates (dietician_id, cohort_key, title, focus, guidance, targets, updated_at)
+    VALUES (${dieticianId}, ${key}, ${title}, ${focus}, ${guidance}, ${JSON.stringify(targets)}::jsonb, NOW())
+    ON CONFLICT (dietician_id, cohort_key) DO UPDATE
+      SET title = EXCLUDED.title, focus = EXCLUDED.focus, guidance = EXCLUDED.guidance,
+          targets = EXCLUDED.targets, updated_at = NOW()
+  `;
+}
+
+/**
+ * Operations' view of one dietician's twelve plans, from the admin console.
+ * Operations can read and correct them, but the plans stay the dietician's:
+ * they go out under the dietician's name and number, the same as when the
+ * dietician writes them in the app.
+ */
+export async function adminDieticianTemplates(sql: Sql, actor: Actor, dieticianId: string) {
+  opsOnly(actor, "The dietician directory");
+  const rows = await sql`
+    SELECT id, name, active FROM vita_hero.dieticians WHERE id = ${dieticianId} LIMIT 1`;
+  if (rows.length === 0) throw new ApiError(404, "No such dietician", "NO_SUCH_DIETICIAN");
+  const d = rows[0];
+  return {
+    dietician: { id: d.id as string, name: d.name as string, active: d.active === true },
+    ...(await templatesOf(sql, d.id as string)),
+  };
+}
+
+/** Operations write or correct one of a dietician's plans. */
+export async function adminSaveDieticianTemplate(
+  sql: Sql, actor: Actor, dieticianId: string, body: Record<string, unknown>,
+) {
+  opsOnly(actor, "The dietician directory");
+  const rows = await sql`SELECT id FROM vita_hero.dieticians WHERE id = ${dieticianId} LIMIT 1`;
+  if (rows.length === 0) throw new ApiError(404, "No such dietician", "NO_SUCH_DIETICIAN");
+  await writeTemplate(sql, dieticianId, body);
+  return adminDieticianTemplates(sql, actor, dieticianId);
+}
+
+async function buildCohorts(sql: Sql, schoolId: string, grade: string, dieticianId = "") {
   const checks = ["Height & weight", "Haemoglobin", "Dental"];
   // The latest submitted reading of each check, per child. A check counts
   // once its doctor submits it; the dietician does not wait for sign-off.
   const rows = await sql`
-    SELECT k.id, k.name, k.grade, k.section, k.age, k.gender,
+    SELECT k.id, k.name, k.grade, k.section, k.age, k.gender, k.date_of_birth,
       EXISTS (SELECT 1 FROM vita_hero.diet_plans p
         WHERE p.kid_id = k.id AND p.status = 'ACTIVE') AS has_plan,
       (SELECT COALESCE(json_agg(x), '[]'::json) FROM (
@@ -745,24 +897,18 @@ async function buildCohorts(sql: Sql, schoolId: string, grade: string) {
       AND (${grade === ""} OR k.grade = ${grade})
     ORDER BY k.grade, k.section, k.name
   `;
+  // This dietician's pre-camp plans, which start each group's draft.
+  const templates = new Map<string, Template>();
+  if (dieticianId) {
+    const t = await sql`SELECT * FROM vita_hero.diet_plan_templates WHERE dietician_id = ${dieticianId}`;
+    for (const r of t) templates.set(r.cohort_key as string, mapTemplate(r));
+  }
   const groups = new Map<string, { growth: Growth; anaemic: boolean; children: CohortChild[] }>();
   for (const r of rows) {
-    const latest = (typeof r.latest === "string" ? JSON.parse(r.latest) : r.latest || []) as
-      Array<{ c: string; fl: string; d: Record<string, unknown> | null }>;
-    const by = (c: string) => latest.find((x) => x.c === c);
-    const hw = by("Height & weight"), hb = by("Haemoglobin"), dental = by("Dental");
+    const latest = (typeof r.latest === "string" ? JSON.parse(r.latest) : r.latest || []) as Latest;
     const age = num(r.age);
-    const d = (hw?.d || {}) as Record<string, unknown>;
-    const h = num(d.heightCm), w = num(d.weightKg), muac = num(d.muacCm);
-    // A doctor's own call on nutritional status wins over the estimate.
-    const override = String(d.nutritionalStatus || "").trim();
-    const band = override || (h && w ? nutritionBand(h, w, age, String(r.gender || "")) : "");
-    const muacFlag = muac ? muacBand(muac, age).flag : "";
-    const growth = growthOf(band, muacFlag);
-    const anaemic = hb?.fl === "WATCH" || hb?.fl === "ALERT";
-    const dd = (dental?.d || {}) as Record<string, unknown>;
-    const teeth = dental?.fl === "WATCH" || dental?.fl === "ALERT" || (num(dd.cariesCount) ?? 0) > 0;
-    const key = cohortKey(growth, anaemic, teeth);
+    const { growth, anaemic, teeth, band, muacFlag, hb, key } =
+      classify(latest, age, String(r.gender || ""), dobText(r.date_of_birth));
     if (!groups.has(key)) groups.set(key, { growth, anaemic, children: [] });
     groups.get(key)!.children.push({
       kidId: r.id as string,
@@ -797,9 +943,18 @@ async function buildCohorts(sql: Sql, schoolId: string, grade: string) {
       priority: GROWTH_ORDER.indexOf(g.growth) * 2 + (g.anaemic ? 0 : 1),
       summary,
       children: g.children,
-      draft: cohortDraft(g.growth, g.anaemic, summary),
+      draft: templateDraft(templates.get(templateKeyOf(key)), summary)
+        ?? cohortDraft(g.growth, g.anaemic, summary),
     };
   }).sort((a, b) => a.priority - b.priority);
+}
+
+/** A group's draft from the dietician's own pre-camp plan, when there is one. */
+function templateDraft(t: Template | undefined, s: CohortSummary) {
+  if (!t) return null;
+  const lines = t.guidance.split("\n");
+  if (s.toothDecay > 0 && !/tooth decay/i.test(t.guidance)) lines.push(TOOTH_LINE);
+  return { title: t.title, focus: t.focus, guidance: lines.join("\n"), targets: t.targets, source: "TEMPLATE" };
 }
 
 /** One school's children in groups, optionally one class only. */
@@ -811,7 +966,7 @@ export async function dieticianCohorts(sql: Sql, actor: Actor, schoolId: string,
     WHERE school_id = ${schoolId} AND COALESCE(status,'ACTIVE') = 'ACTIVE' AND COALESCE(grade,'') <> ''
     ORDER BY grade
   `;
-  const cohorts = await buildCohorts(sql, schoolId, grade);
+  const cohorts = await buildCohorts(sql, schoolId, grade, me.id);
   return {
     schoolId,
     grade,
@@ -889,7 +1044,7 @@ export async function dieticianCohortDraft(
   const me = await dieticianSelf(sql, actor);
   const schoolId = String(body.schoolId || "");
   await assertSchoolMine(sql, me.id, schoolId);
-  const cohort = (await buildCohorts(sql, schoolId, String(body.grade || "")))
+  const cohort = (await buildCohorts(sql, schoolId, String(body.grade || ""), me.id))
     .find((c) => c.key === String(body.key || ""));
   if (!cohort) throw new ApiError(404, "That group has no children now", "NO_SUCH_GROUP");
   if (!ask) return { draft: cohort.draft };
@@ -990,16 +1145,105 @@ export async function saveCohortPlan(sql: Sql, actor: Actor, body: Record<string
  */
 export async function guardianDietPlan(sql: Sql, profileId: string, kidId: string) {
   const owned = await sql`
-    SELECT id FROM vita_hero.kids WHERE id = ${kidId} AND profile_id = ${profileId} LIMIT 1`;
+    SELECT id, school_id, age, gender, date_of_birth FROM vita_hero.kids
+    WHERE id = ${kidId} AND profile_id = ${profileId} LIMIT 1`;
   if (owned.length === 0) throw new ApiError(404, "No such child", "NOT_FOUND");
+  const kid = owned[0];
+  const schoolId = (kid.school_id as string) || "";
   // A plan past its end date is over, even if nobody has written the next
   // one: a family should not keep following last term's advice.
   const today = programmeToday();
-  const rows = await sql`
+  const active = async () => sql`
     SELECT * FROM vita_hero.diet_plans
     WHERE kid_id = ${kidId} AND status = 'ACTIVE'
       AND (COALESCE(ends_on, '') = '' OR ends_on >= ${today})
     ORDER BY created_at DESC LIMIT 1
   `;
-  return { plan: rows.length ? mapPlan(rows[0]) : null };
+  let rows = await active();
+  const own = rows.length > 0 && !(rows[0].template_key as string);
+  if (!own && schoolId) {
+    // No plan of the child's own: the pre-camp plan for the group their
+    // released results put them in, from a dietician at their school.
+    const given = await givePrecampPlan(sql, kidId, schoolId, kid, rows[0]);
+    if (given) rows = await active();
+  }
+  const plan = rows.length ? mapPlan(rows[0]) : null;
+  return {
+    plan,
+    dietician: plan ? await dieticianContact(sql, schoolId, (rows[0].dietician_id as string) || "") : null,
+    allergyNote: plan ? ALLERGY_NOTE : "",
+  };
+}
+
+export const ALLERGY_NOTE =
+  "If your child has a milk or dairy intolerance, or any food allergy, please phone the dietician " +
+  "before following this plan. They will guide you on what to change.";
+
+/** The dietician a family phones: the plan's own, else one at the school. */
+async function dieticianContact(sql: Sql, schoolId: string, dieticianId: string) {
+  const rows = await sql`
+    SELECT d.name, d.phone FROM vita_hero.dieticians d
+    WHERE d.active AND (d.id = ${dieticianId} OR EXISTS (
+      SELECT 1 FROM vita_hero.dietician_schools ds
+      WHERE ds.dietician_id = d.id AND ds.school_id = ${schoolId} AND ds.active))
+    ORDER BY (d.id = ${dieticianId}) DESC, d.name LIMIT 1
+  `;
+  return rows.length ? { name: rows[0].name as string, phone: rows[0].phone as string } : null;
+}
+
+/**
+ * Give a child the pre-camp plan their released results call for, as a plan
+ * row of their own so the meal log and the dietician's list see it like any
+ * other. A plan given this way is replaced when the results or the pre-camp
+ * plan change; a plan the dietician wrote for the child never is.
+ */
+async function givePrecampPlan(
+  sql: Sql, kidId: string, schoolId: string, kid: Record<string, unknown>,
+  current: Record<string, unknown> | undefined,
+): Promise<boolean> {
+  // Released results only: a parent sees no group their results do not yet show.
+  const found = await sql`
+    SELECT DISTINCT ON (f.check_type) f.check_type AS c, f.flag AS fl, f.detail AS d
+    FROM vita_hero.camp_findings f
+    JOIN vita_hero.camp_participants cp ON cp.camp_id = f.camp_id AND cp.kid_id = f.kid_id
+    JOIN vita_hero.school_camps sc ON sc.id = f.camp_id
+    WHERE f.kid_id = ${kidId} AND cp.status = 'RELEASED'
+      AND f.check_type = ANY(${["Height & weight", "Haemoglobin", "Dental"]}::text[]) AND f.flag <> 'NOT_MEASURED'
+    ORDER BY f.check_type, sc.date DESC, f.id DESC
+  `;
+  if (found.length === 0) return false;
+  const latest = found.map((r) => ({
+    c: r.c as string, fl: r.fl as string,
+    d: (typeof r.d === "string" ? JSON.parse(r.d) : r.d) as Record<string, unknown> | null,
+  }));
+  const { key: cohort, teeth } = classify(latest, num(kid.age), String(kid.gender || ""), dobText(kid.date_of_birth));
+  const key = templateKeyOf(cohort);
+  const t = await sql`
+    SELECT t.*, d.name AS dietician_name FROM vita_hero.diet_plan_templates t
+    JOIN vita_hero.dieticians d ON d.id = t.dietician_id AND d.active
+    JOIN vita_hero.dietician_schools ds
+      ON ds.dietician_id = t.dietician_id AND ds.school_id = ${schoolId} AND ds.active
+    WHERE t.cohort_key = ${key}
+    ORDER BY t.updated_at DESC LIMIT 1
+  `;
+  if (t.length === 0) return false;
+  const tpl = t[0];
+  // Already on this plan, at this version: nothing to do.
+  if (current && current.template_key === cohort && current.dietician_id === tpl.dietician_id
+    && new Date(current.created_at as string | Date) >= new Date(tpl.updated_at as string | Date)) return false;
+  const m = mapTemplate(tpl);
+  const guidance = teeth && !/tooth decay/i.test(m.guidance) ? `${m.guidance}\n${TOOTH_LINE}` : m.guidance;
+  const id = `dp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  await sql`
+    UPDATE vita_hero.diet_plans SET status = 'ENDED', updated_at = NOW()
+    WHERE kid_id = ${kidId} AND status = 'ACTIVE' AND COALESCE(template_key, '') <> ''
+  `;
+  await sql`
+    INSERT INTO vita_hero.diet_plans
+      (id, kid_id, school_id, dietician_id, author_profile_id, author_name,
+       title, focus, guidance, targets, status, template_key)
+    VALUES (${id}, ${kidId}, ${schoolId}, ${tpl.dietician_id as string}, '', ${tpl.dietician_name as string},
+            ${m.title}, ${m.focus}, ${guidance}, ${JSON.stringify(m.targets)}::jsonb, 'ACTIVE', ${cohort})
+  `;
+  return true;
 }

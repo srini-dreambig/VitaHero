@@ -23,6 +23,20 @@ struct DietPlanView: View {
                     }
                     if !plan.guidance.isEmpty { Text(plan.guidance).font(.subheadline) }
                 }
+                // A plan written for a group cannot know this child's milk
+                // intolerance or allergy, so the family is asked to phone first.
+                Section {
+                    Text(L("diet_allergy_note")).font(.subheadline)
+                    if !plan.dieticianPhone.isEmpty,
+                       let url = URL(string: "tel:" + plan.dieticianPhone.filter { $0.isNumber || $0 == "+" }) {
+                        Link(destination: url) {
+                            Label(L("diet_call_dietician", plan.dieticianName.isEmpty ? plan.dieticianPhone : plan.dieticianName)
+                                  + " · " + plan.dieticianPhone, systemImage: "phone.fill")
+                                .font(.subheadline.weight(.semibold))
+                        }
+                    }
+                }
+                .listRowBackground(Brand.orange.opacity(0.10))
                 Section(header: Text(L("todays_plan")), footer: Text(L("log_all_meals_hint"))) {
                     ForEach(store.planItems(kidId: kid.id)) { item in
                         Button {

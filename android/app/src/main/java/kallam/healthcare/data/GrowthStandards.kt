@@ -134,14 +134,40 @@ object GrowthStandards {
         }
     }
 
+    /**
+     * The percentiles on the "Current assessment" card.
+     *
+     * These used to come from estimatePercentile(), a whole-year median with a
+     * fixed spread, on the same screen as the clinical charts read from the
+     * real tables, so a child could be 48th on the card and 35th on the chart
+     * below it. The card now reads what the charts open on, IAP 2015, from 5 to
+     * 18; WHO 2007 where IAP has no line; the old estimate only where neither does.
+     */
     fun assess(kid: Kid): GrowthAssessment {
-        val hPct = estimatePercentile(kid.heightCm, kid.age, kid.gender, Metric.HEIGHT)
-        val wPct = estimatePercentile(kid.weightKg, kid.age, kid.gender, Metric.WEIGHT)
+        val months = WhoBmi.ageInMonths(null, kid.age)
+        // Sex not recorded: the lower of the two readings, as estimatePercentile does.
+        val sexes = referenceSex(kid.gender)?.let { listOf(it) } ?: listOf("M", "F")
+        fun iap(m: GrowthRefs.Measure, v: Float): Double? = months?.let { mo ->
+            sexes.mapNotNull { GrowthRefs.iapReading(m, it, mo, v.toDouble())?.percentile }.minOrNull()
+        }
+        val who = months?.let { mo ->
+            sexes.mapNotNull { WhoBmi.reading(kid.heightCm.toDouble(), kid.weightKg.toDouble(), it, mo) }
+        }.orEmpty().filter { !it.outsideRange }
+
+        val sources = mutableSetOf<String>()
+        fun pick(iap: Double?, who: Double?, metric: Metric, value: Float): Int = when {
+            iap != null -> { sources += "IAP 2015"; iap.toInt().coerceIn(1, 99) }
+            who != null -> { sources += "WHO 2007"; who.toInt().coerceIn(1, 99) }
+            else -> { sources += "WHO/IAP 2007"; estimatePercentile(value, kid.age, kid.gender, metric) }
+        }
+        val hPct = pick(iap(GrowthRefs.Measure.HT, kid.heightCm), who.minOfOrNull { it.heightPercentile }, Metric.HEIGHT, kid.heightCm)
+        val wPct = pick(iap(GrowthRefs.Measure.WT, kid.weightKg), who.mapNotNull { it.weightPercentile }.minOrNull(), Metric.WEIGHT, kid.weightKg)
         return GrowthAssessment(
             heightPercentile = hPct,
             weightPercentile = wPct,
             heightStatus = statusLabel(hPct, Metric.HEIGHT),
             weightStatus = statusLabel(wPct, Metric.WEIGHT),
+            chartSource = sources.joinToString(" / "),
         )
     }
 

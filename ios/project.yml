@@ -12,7 +12,7 @@ settings:
     ENABLE_BITCODE: NO
     # CI passes CURRENT_PROJECT_VERSION=<run number>, so every TestFlight
     # upload carries a new build number.
-    MARKETING_VERSION: "1.1.9"
+    MARKETING_VERSION: "1.1.10"
     CURRENT_PROJECT_VERSION: "1"
 
 packages:
@@ -60,6 +60,10 @@ targets:
       - path: VitaHeroTests
       - path: VitaHero/Clinician/RequiredChecks.swift
       - path: VitaHero/Clinician/ScreeningRecord.swift
+      - path: VitaHero/Models/WhoBmi.swift
+      - path: VitaHero/Models/WhoTables.swift
+      - path: VitaHero/Models/GrowthRefs.swift
+      - path: VitaHero/Models/GrowthRefTables.swift
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.vitahero.health.tests

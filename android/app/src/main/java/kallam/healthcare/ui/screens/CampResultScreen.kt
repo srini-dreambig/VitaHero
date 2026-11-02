@@ -41,7 +41,10 @@ import kallam.healthcare.data.FindingPhotoDto
 import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.HealthFlag
 import kallam.healthcare.data.ReleasedFindingDto
+import kallam.healthcare.data.ResultChildDto
 import kallam.healthcare.data.S
+import kallam.healthcare.data.WhoBmi
+import kallam.healthcare.ui.components.GrowthChartsPanel
 import kallam.healthcare.ui.components.FlagChip
 import kallam.healthcare.ui.components.HeroCard
 import kallam.healthcare.ui.components.IconBubble
@@ -209,7 +212,7 @@ fun CampResultScreen(
         }
 
         items(r.findings, key = { it.checkType }) { f ->
-            FindingCard(f)
+            FindingCard(f, r.child)
             Spacer(Modifier.height(10.dp))
         }
 
@@ -294,7 +297,8 @@ fun CampResultScreen(
 }
 
 @Composable
-private fun FindingCard(f: ReleasedFindingDto) {
+private fun FindingCard(f: ReleasedFindingDto, child: ResultChildDto?) {
+    val sheet = f.sheet
     HeroCard(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
             Row(
@@ -302,8 +306,42 @@ private fun FindingCard(f: ReleasedFindingDto) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(f.checkType, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(
+                    sheet?.title?.ifBlank { null } ?: f.checkType,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
                 FlagChip(flagOf(f.flag))
+            }
+            if (sheet != null && sheet.rows.isNotEmpty()) {
+                // The assessment sheet, a row per column, as the doctor filled it.
+                Spacer(Modifier.height(8.dp))
+                sheet.rows.forEach { row ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                        Text(
+                            row.label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(0.42f),
+                        )
+                        Text(
+                            row.value,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(0.58f),
+                        )
+                    }
+                }
+                // The growth charts, IAP and WHO, with the child on them.
+                val g = sheet.growth
+                val who = if (g != null && child != null) {
+                    WhoBmi.forChild(g.heightCm, g.weightKg, child.gender, child.dob, child.age)
+                } else null
+                if (who != null) {
+                    Spacer(Modifier.height(10.dp))
+                    GrowthChartsPanel(who, g?.muacCm, Modifier.fillMaxWidth())
+                }
             }
             if (f.summary.isNotBlank()) {
                 Spacer(Modifier.height(6.dp))

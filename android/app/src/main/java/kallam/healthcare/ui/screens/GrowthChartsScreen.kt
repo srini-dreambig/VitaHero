@@ -38,6 +38,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.GrowthAssessment
+import kallam.healthcare.data.WhoBmi
+import kallam.healthcare.ui.components.GrowthChartsPanel
 import kallam.healthcare.data.GrowthStandards
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.S
@@ -133,6 +135,17 @@ fun GrowthChartsScreen(
                         Spacer(Modifier.height(8.dp))
                         Text("${t(S.referenceStandard)}: ${a.chartSource}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
+                }
+                Spacer(Modifier.height(16.dp))
+            }
+        }
+
+        // IAP 2015 and WHO 2007 growth charts, boys' or girls'. Only whole years are
+        // known here, read as the middle of that year.
+        WhoBmi.forChild(kid.heightCm.toDouble(), kid.weightKg.toDouble(), kid.gender, null, kid.age)?.let { who ->
+            item {
+                HeroCard(Modifier.fillMaxWidth()) {
+                    GrowthChartsPanel(who, null, Modifier.fillMaxWidth())
                 }
                 Spacer(Modifier.height(16.dp))
             }

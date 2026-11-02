@@ -21,6 +21,7 @@ import { readFileSync } from "node:fs";
 import {
   DESIGNED_CHECKS, PLANNED_CHECKS, summariseForApp, specialtyOptions, screeningChecksFor,
 } from "./clinical";
+import { assessmentSheet } from "./parent-sheet";
 
 const APP = "../android/app/src/main/java/kallam/healthcare";
 const read = (f: string) => readFileSync(`${APP}/${f}`, "utf8");
@@ -181,12 +182,37 @@ function consoleFormKeys(checkType: string): string[] {
   const block = rest.slice(0, ends.length ? Math.min(...ends) : rest.length);
   const keys = new Set<string>();
   for (const m of block.matchAll(/bind\("(\w+)"/g)) keys.add(m[1]);
+  // The field helpers (a choice, a text box, a many-choice) take the key first.
+  for (const m of block.matchAll(/\b(?:sel|txt|many)\("(\w+)"/g)) keys.add(m[1]);
+  // A prescription row: rx("presentOd", PRESENT) binds presentOdSph, ...Cyl and
+  // so on, one per column of the list it is given.
+  const cols: Record<string, string[]> = {};
+  for (const m of block.matchAll(/var (\w+) = (\[\[.*?);\n/g)) {
+    const own = [...m[2].matchAll(/\["(\w+)", "/g)].map((x) => x[1]);
+    const from = m[2].match(/\.concat\((\w+)\)/)?.[1];
+    cols[m[1]] = own.concat(from ? cols[from] || [] : []);
+  }
+  for (const m of block.matchAll(/\brx\("(\w+)", (\w+)\)/g)) {
+    for (const c of cols[m[2]] || []) keys.add(m[1] + c);
+  }
   // Checkboxes assign directly rather than through bind().
   for (const m of block.matchAll(/\bd\.(\w+) = e\.target\.checked/g)) keys.add(m[1]);
   // The clinician's free-text note, which is stored as screener_note and is
   // deliberately not an input to any rule.
   keys.delete("__note");
   return [...keys];
+}
+
+/**
+ * Of these keys, the ones the parent's assessment sheet shows. A field the
+ * doctor records is kept if a rule reads it or the family is shown it; a
+ * prescription or a complaint flags nothing, but it is on the sheet.
+ */
+function sheetKeys(checkType: string, keys: string[]): string[] {
+  const child = { ageYears: 10, gender: "M", dob: "" };
+  const blank = JSON.stringify(assessmentSheet(checkType, {}, child));
+  return keys.filter((k) =>
+    JSON.stringify(assessmentSheet(checkType, { [k]: "7" }, child)) !== blank);
 }
 
 /** The detail keys the rule for one check actually reads. */
@@ -212,10 +238,12 @@ describe("the console's form writes what the clinical rules read", () => {
       // match would otherwise hide the fourth: the finding is not
       // NOT_MEASURED, so nothing looks wrong, and the clinician's fourth
       // measurement is silently dropped on the way to the parent.
-      const orphaned = form.filter((k) => !rule.includes(k));
+      const shown = sheetKeys(check, form);
+      const orphaned = form.filter((k) => !rule.includes(k) && !shown.includes(k));
       expect(
         orphaned,
-        `${check}: the form writes ${orphaned.join(", ")}, which no clinical rule reads — ` +
+        `${check}: the form writes ${orphaned.join(", ")}, which no clinical rule reads ` +
+          `and the parent's sheet does not show — ` +
           `a clinician fills it in and it is thrown away. The rule reads: ${rule.join(", ")}`
       ).toEqual([]);
     });
@@ -276,10 +304,12 @@ describe("the app's clinician form writes what the clinical rules read", () => {
       const rule = clinicalRuleKeys(check);
       expect(app.length, `${check} has no fields in the app's form`).toBeGreaterThan(0);
 
-      const orphaned = app.filter((k) => !rule.includes(k));
+      const shown = sheetKeys(check, app);
+      const orphaned = app.filter((k) => !rule.includes(k) && !shown.includes(k));
       expect(
         orphaned,
-        `${check}: the app writes ${orphaned.join(", ")}, which no clinical rule reads — ` +
+        `${check}: the app writes ${orphaned.join(", ")}, which no clinical rule reads ` +
+          `and the parent's sheet does not show — ` +
           `a doctor fills it in at the camp and it is thrown away. The rule reads: ${rule.join(", ")}`
       ).toEqual([]);
     });

@@ -71,6 +71,16 @@ struct KidDetailView: View {
                 flagRow(L("nutrition_tab_label"), kid.nutrition)
             }
 
+            // IAP 2015 and WHO 2007 height, weight and BMI charts, boys' or girls' curves. Only whole years
+            // are known here, read as the middle of that year.
+            if let who = WhoBmi.forChild(heightCm: kid.heightCm, weightKg: kid.weightKg,
+                                         gender: kid.gender, dob: nil, ageYears: kid.age) {
+                Section {
+                    GrowthChartsPanel(reading: who)
+                        .listRowInsets(EdgeInsets(top: 8, leading: 8, bottom: 8, trailing: 8))
+                }
+            }
+
             Section(L("growth_tab_label")) {
                 let points = store.growth[kid.id] ?? []
                 if points.isEmpty {

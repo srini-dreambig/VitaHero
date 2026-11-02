@@ -847,7 +847,7 @@ export const PORTAL_HTML = `<!doctype html>
       // which row's school picker is open. Separate from the doctors above
       // because a dietician has no specialty and no hospital, and putting
       // them in that table would put them in a parent's referral list.
-      dieticians: null, dieForm: null, dieQuery: "",
+      dieticians: null, dieForm: null, dieQuery: "", diePlans: null, diePlanForm: null,
       // D3 — this month's hero: the shortlist, and the story being written.
       hero: null, heroForm: null,
       // The doctors table has its own filter and search: a directory of any
@@ -1019,7 +1019,17 @@ export const PORTAL_HTML = `<!doctype html>
     return (REQUIRED[ct] || []).filter(function (r) { return blankVal(det[r[0]]); })
       .map(function (r) { return r[1]; });
   }
-  var ACUITY = ["6/6","6/9","6/12","6/18","6/24","6/36","6/60","<6/60"];
+  // The apps' option lists, word for word, so a value picked here reads the
+  // same on a phone and in the server's flag rules.
+  var ACUITY = ["6/6","6/9","6/12","6/18","6/24","6/36","6/60","3/60","2/60","1/60","<6/60",
+    "CF @ 1/2 meter","CF CF (Close to Face)","HM+ (Hand Movements)","PL + PR Accurate","PL + PR Inaccurate","NLP (No Light Perception)"];
+  var VISION_TEST_CONDITION = ["Unaided","Aided (With Present Glasses)","Pinhole (PH)"];
+  var COLOR_VISION = ["17/17 (Normal Pass)","15-16/17 (Borderline)","<15/17 (Defective Red-Green)","Total Color Blindness","Ishihara Partial Deficit","Uncooperative"];
+  var ORAL_HYGIENE_INDEX = ["Good (Clean)","Fair (Mild Plaque)","Poor (Heavy Plaque / Calculus)","Stains / Calculus Noted"];
+  var DENTITION = ["Primary","Mixed","Permanent"];
+  var FLUOROSIS_STAGE = ["None","Mild (White Flecks)","Moderate (Browning)","Severe (Pitting)"];
+  var DENTAL_SYMPTOMS = ["Reports Toothache / Pain","Hot / Cold Sensitivity","Chipped / Fractured Tooth","Food Lodging / Impaction","Loose / Mobile Tooth","Stains / Tartar / Calculus Noted"];
+  var DENTAL_TREATMENTS = ["Prophylactic Cleaning & Scaling","Fluoride Varnish Application","Pit & Fissure Sealant","Restorative Dental Filling","Pulpectomy / Root Treatment","Tooth Extraction","Orthodontic Referral","Urgent Pediatric Dental Referral"];
   var CADENCE = [["ANNUAL","Once a year"],["BIANNUAL","Twice a year"],["QUARTERLY","Every quarter"],["ADHOC","As arranged"]];
   /** How often camps run at this school, in the words the form used to set it. */
   function cadenceLabel(code) {
@@ -4855,80 +4865,100 @@ export const PORTAL_HTML = `<!doctype html>
         text, el("span", { class: "req", title: "Required" }, " *"));
     }
     function body() {
+      // A one-choice field, a free-text field and a many-choice field, with
+      // the same options and keys the apps use, so a record reads the same
+      // whichever screen wrote it.
+      function sel(k, text, opts) {
+        return el("div", { class: "fld" }, rl(k, text),
+          el("select", { onchange: bind(k) }, el("option", { value: "" }, "\u2014"),
+            opts.map(function (o) { return el("option", { value: o, selected: d[k] === o }, o); })));
+      }
+      function txt(k, text, ph) {
+        return el("div", { class: "fld" }, rl(k, text),
+          el("input", { type: "text", placeholder: ph || "", value: d[k] || "", oninput: bind(k) }));
+      }
+      function many(k, opts, after) {
+        var on = String(d[k] || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+        return el("div", { class: "row", style: "gap:8px;flex-wrap:wrap" },
+          opts.map(function (o) {
+            var picked = on.indexOf(o) >= 0;
+            return el("label", { class: "chip" + (picked ? " on" : "") },
+              el("input", { type: "checkbox", checked: picked, onchange: function (e) {
+                var next = on.filter(function (x) { return x !== o; });
+                if (e.target.checked) next.push(o);
+                d[k] = next.join(",");
+                if (after) after(next);
+                render();
+              } }), o);
+          }));
+      }
       if (ct === "Height & weight") {
-        return el("div", { class: "g2" },
-          el("div", { class: "fld" }, rl("heightCm", "Height (cm)"),
-            el("input", { type: "number", step: "0.1", value: d.heightCm || "", oninput: bind("heightCm") })),
-          el("div", { class: "fld" }, rl("weightKg", "Weight (kg)"),
-            el("input", { type: "number", step: "0.1", value: d.weightKg || "", oninput: bind("weightKg") })));
+        // Physical growth assessment: height, weight, mid-arm circumference
+        // and BMI. The nutritional status is worked out from the WHO tables.
+        var h = Number(d.heightCm), w = Number(d.weightKg);
+        var bmi = h > 0 && w > 0 ? Math.round(w / Math.pow(h / 100, 2) * 10) / 10 : null;
+        return el("div", null,
+          el("div", { class: "g3" },
+            el("div", { class: "fld" }, rl("heightCm", "Height (cm)"),
+              el("input", { type: "number", step: "0.1", value: d.heightCm || "", onchange: function (e) { d.heightCm = e.target.value; render(); } })),
+            el("div", { class: "fld" }, rl("weightKg", "Weight (kg)"),
+              el("input", { type: "number", step: "0.1", value: d.weightKg || "", onchange: function (e) { d.weightKg = e.target.value; render(); } })),
+            el("div", { class: "fld" }, rl("muacCm", "Mid-arm circ. (cm)"),
+              el("input", { type: "number", step: "0.1", value: d.muacCm || "", oninput: bind("muacCm") }))),
+          el("p", { class: "muted", style: "margin-top:6px" },
+            bmi === null ? "BMI shows once height and weight are in."
+              : "BMI " + bmi + " kg/m\u00b2. The WHO BMI-for-age reading is made when the record is saved."));
       }
       if (ct === "Vision") {
+        var rx = function (prefix, cols) {
+          return el("div", { class: "row", style: "gap:6px" },
+            cols.map(function (c) {
+              var k = prefix + c[0];
+              return el("div", { class: "fld", style: "flex:1;min-width:0" }, el("label", null, c[1]),
+                el("input", { type: "text", placeholder: c[2], value: d[k] || "", oninput: bind(k) }));
+            }));
+        };
+        var PRESENT = [["Sph", "Sph", "-1.50"], ["Cyl", "Cyl", "-0.50"], ["Axi", "Axi", "180"], ["Cva", "CVA", "6/6"]];
+        var NEWRX = [["Uva", "UVA", "6/18"]].concat(PRESENT);
         return el("div", null,
-          el("h4", { style: "margin-bottom:6px" }, "Visual Acuity (Snellen)"),
-          el("div", { class: "g2" },
-            el("div", { class: "fld" }, rl("leftAcuity", "Left eye"),
-              el("select", { onchange: bind("leftAcuity") }, el("option", { value: "" }, "\u2014"),
-                ACUITY.map(function (a) { return el("option", { value: a, selected: d.leftAcuity === a }, a); }))),
-            el("div", { class: "fld" }, rl("rightAcuity", "Right eye"),
-              el("select", { onchange: bind("rightAcuity") }, el("option", { value: "" }, "\u2014"),
-                ACUITY.map(function (a) { return el("option", { value: a, selected: d.rightAcuity === a }, a); })))),
-          el("h4", { style: "margin:10px 0 6px" }, "Eye Health & Alignment"),
-          el("div", { class: "g3" },
-            el("div", { class: "fld" }, el("label", null, "Glasses Status"),
-              el("select", { onchange: bind("glassesWorn") }, el("option", { value: "" }, "\u2014"),
-                ["none","prescribed","not worn","broken"].map(function (g) {
-                  return el("option", { value: g, selected: d.glassesWorn === g }, g.charAt(0).toUpperCase() + g.slice(1)); }))),
-            el("div", { class: "fld" }, el("label", null, "Color Vision"),
-              el("select", { onchange: bind("colorVision") }, el("option", { value: "" }, "\u2014"),
-                ["normal","red-green deficit","uncooperative"].map(function (c) {
-                  return el("option", { value: c, selected: d.colorVision === c }, c.charAt(0).toUpperCase() + c.slice(1)); }))),
-            el("div", { class: "fld" }, el("label", null, "External Exam"),
-              el("select", { onchange: bind("externalExam") }, el("option", { value: "" }, "\u2014"),
-                ["normal","conjunctivitis","discharge","ptosis"].map(function (e) {
-                  return el("option", { value: e, selected: d.externalExam === e }, e.charAt(0).toUpperCase() + e.slice(1)); })))),
-          el("label", { class: "chip" + (d.squint ? " on" : ""), style: "margin-top:8px" },
-            el("input", { type: "checkbox", id: "vision-squint", checked: !!d.squint, onchange: function (e) { d.squint = e.target.checked; render(); } }), "Strabismus / Squint noted"));
+          el("h4", { style: "margin-bottom:6px" }, "Visual acuity (Snellen, distance)"),
+          el("div", { class: "g2" }, sel("rightAcuity", "Right eye (OD)", ACUITY), sel("leftAcuity", "Left eye (OS)", ACUITY)),
+          sel("testingCondition", "Testing condition", VISION_TEST_CONDITION),
+          el("h4", { style: "margin:10px 0 6px" }, "Present glasses prescription (only if the child already wears glasses)"),
+          el("div", { class: "muted" }, "Right eye (OD)"), rx("presentOd", PRESENT),
+          el("div", { class: "muted" }, "Left eye (OS)"), rx("presentOs", PRESENT),
+          el("h4", { style: "margin:10px 0 6px" }, "New glasses prescription"),
+          el("div", { class: "muted" }, "Right eye (OD)"), rx("newOd", NEWRX),
+          el("div", { class: "muted" }, "Left eye (OS)"), rx("newOs", NEWRX),
+          el("h4", { style: "margin:10px 0 6px" }, "Colour vision & other findings"),
+          sel("colorVision", "Colour vision (Ishihara /17)", COLOR_VISION),
+          txt("otherComplaints", "Any other complaints, if present", "e.g. headache after reading, watering"),
+          txt("otherAbnormalities", "Any other abnormalities, if present", "e.g. squint, drooping lid"));
       }
       if (ct === "Dental") {
         return el("div", null,
-          el("h4", { style: "margin-bottom:6px" }, "Tooth Index (dmft/DMFT)"),
+          sel("hygiene", "Oral hygiene", ORAL_HYGIENE_INDEX),
+          el("h4", { style: "margin:10px 0 6px" }, "Tooth index (dmft / DMFT)"),
+          sel("dentition", "Type of dentition", DENTITION),
           el("div", { class: "g3" },
-            el("div", { class: "fld" }, rl("cariesCount", "Carious (Decayed)"),
+            el("div", { class: "fld" }, rl("cariesCount", "Decayed"),
               el("input", { type: "number", min: "0", value: d.cariesCount === undefined ? "" : d.cariesCount, oninput: bind("cariesCount") })),
             el("div", { class: "fld" }, el("label", null, "Missing"),
               el("input", { type: "number", min: "0", value: d.missingCount === undefined ? "" : d.missingCount, oninput: bind("missingCount") })),
             el("div", { class: "fld" }, el("label", null, "Filled"),
               el("input", { type: "number", min: "0", value: d.filledCount === undefined ? "" : d.filledCount, oninput: bind("filledCount") }))),
-          el("h4", { style: "margin:10px 0 6px" }, "Gums & Oral Hygiene"),
-          el("div", { class: "g2" },
-            el("div", { class: "fld" }, rl("gums", "Gums Condition"),
-              el("select", { onchange: bind("gums") }, el("option", { value: "" }, "\u2014"),
-                ["healthy","bleeding","swollen","recession"].map(function (g) {
-                  return el("option", { value: g, selected: d.gums === g }, g.charAt(0).toUpperCase() + g.slice(1)); }))),
-            el("div", { class: "fld" }, rl("hygiene", "Oral Hygiene Index"),
-              el("select", { onchange: bind("hygiene") }, el("option", { value: "" }, "\u2014"),
-                ["good","fair","poor"].map(function (h) {
-                  return el("option", { value: h, selected: d.hygiene === h }, h.charAt(0).toUpperCase() + h.slice(1)); })))),
-          el("label", { class: "chip" + (d.stainsTartar ? " on" : "") },
-            el("input", { type: "checkbox", id: "dental-stains", checked: !!d.stainsTartar, onchange: function (e) { d.stainsTartar = e.target.checked; render(); } }), "Stains / Calculus noted"),
-          el("h4", { style: "margin:10px 0 6px" }, "Enamel & Alignment"),
-          el("div", { class: "g2" },
-            el("div", { class: "fld" }, el("label", null, "Fluorosis"),
-              el("select", { onchange: bind("fluorosis") }, el("option", { value: "" }, "\u2014"),
-                ["none","mild","moderate","severe"].map(function (f) {
-                  return el("option", { value: f, selected: d.fluorosis === f }, f.charAt(0).toUpperCase() + f.slice(1)); }))),
-            el("div", { class: "fld" }, el("label", null, "Occlusion / Alignment"),
-              el("select", { onchange: bind("malocclusion") }, el("option", { value: "" }, "\u2014"),
-                ["normal","crowding","crossbite","overbite"].map(function (m) {
-                  return el("option", { value: m, selected: d.malocclusion === m }, m.charAt(0).toUpperCase() + m.slice(1)); })))),
-          el("h4", { style: "margin:10px 0 6px" }, "Symptoms & Trauma"),
-          el("div", { class: "row", style: "gap:10px;flex-wrap:wrap" },
-            el("label", { class: "chip" + (d.pain ? " on" : "") },
-              el("input", { type: "checkbox", id: "dental-pain", checked: !!d.pain, onchange: function (e) { d.pain = e.target.checked; render(); } }), "Reports Pain"),
-            el("label", { class: "chip" + (d.sensitivity ? " on" : "") },
-              el("input", { type: "checkbox", id: "dental-sensitivity", checked: !!d.sensitivity, onchange: function (e) { d.sensitivity = e.target.checked; render(); } }), "Sensitivity"),
-            el("label", { class: "chip" + (d.trauma ? " on" : "") },
-              el("input", { type: "checkbox", id: "dental-trauma", checked: !!d.trauma, onchange: function (e) { d.trauma = e.target.checked; render(); } }), "Chipped / Fractured Tooth")));
+          sel("fluorosis", "Dental fluorosis", FLUOROSIS_STAGE),
+          el("h4", { style: "margin:10px 0 6px" }, "Any complaints, if present"),
+          // The complaints also set the pain / sensitivity / trauma / stains
+          // flags the server reads, as the apps do.
+          many("dentalSymptoms", DENTAL_SYMPTOMS, function (set) {
+            var has = function (w) { return set.some(function (x) { return x.toLowerCase().indexOf(w) >= 0; }); };
+            d.pain = has("toothache"); d.sensitivity = has("sensitivity");
+            d.trauma = has("chipped"); d.stainsTartar = has("stains");
+          }),
+          txt("abnormalFindings", "Any other abnormalities, if present", "e.g. deep caries 85, retained 51"),
+          el("h4", { style: "margin:10px 0 6px" }, "Recommended dental intervention"),
+          many("treatmentNeeded", DENTAL_TREATMENTS));
       }
       if (ct === "ENT") {
         return el("div", null,
@@ -5138,9 +5168,18 @@ export const PORTAL_HTML = `<!doctype html>
                 f.signedBy ? el("span", { class: "pill ok" }, "Signed by " + f.signedBy) : null,
                 el("span", { class: "muted", style: "font-size:12px" }, f.screenerName || "")),
               el("div", { class: "chk-b" },
-                el("div", { class: "row", style: "margin-bottom:8px" },
-                  el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Measured"),
-                  el("b", { style: "font-size:12.5px" }, f.rationale || "\\u2014")),
+                // Growth, vision and dental: the assessment sheet's own
+                // columns, the same rows the guardian reads.
+                f.sheet && f.sheet.rows && f.sheet.rows.length
+                  ? el("table", { style: "margin-bottom:8px;font-size:12.5px" },
+                      el("tbody", null, f.sheet.rows.map(function (r) {
+                        return el("tr", null,
+                          el("td", { class: "muted", style: "padding:2px 14px 2px 0;vertical-align:top" }, r.label),
+                          el("td", { style: "padding:2px 0" }, el("b", null, r.value)));
+                      })))
+                  : el("div", { class: "row", style: "margin-bottom:8px" },
+                      el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Measured"),
+                      el("b", { style: "font-size:12.5px" }, f.rationale || "\u2014")),
                 f.screenerNote ? el("div", { class: "row", style: "margin-bottom:8px" },
                   el("span", { class: "muted", style: "font-size:12.5px;min-width:74px" }, "Note"),
                   el("span", { style: "font-size:12.5px" }, f.screenerNote)) : null,
@@ -5754,6 +5793,7 @@ export const PORTAL_HTML = `<!doctype html>
     run(api("/api/admin/dieticians" + (S.dieQuery ? "?q=" + encodeURIComponent(S.dieQuery) : "")),
       function (d) {
         S.dieticians = d; S.view = "dieticians"; S.dieForm = null;
+        S.diePlans = null; S.diePlanForm = null;
         // The school picker needs the school list; a directory screen with no
         // schools to assign is a screen with a dead dropdown on it.
         if (S.schools && S.schools.length) { render(); return; }
@@ -5764,7 +5804,95 @@ export const PORTAL_HTML = `<!doctype html>
       });
   }
 
+  // One dietician's twelve pre-camp plans: one for each growth group, with
+  // and without anaemia. The dietician writes them in the app; operations can
+  // read and correct them here. They still go out under the dietician's name.
+  function openDiePlans(d) {
+    run(api("/api/admin/dieticians/" + encodeURIComponent(d.id) + "/templates"), function (r) {
+      S.diePlans = r; S.diePlanForm = null; S.view = "dieticians"; render();
+    });
+  }
+
+  function viewDiePlans() {
+    var p = S.diePlans, f = S.diePlanForm;
+    var list = p.templates || [];
+
+    function edit(t) {
+      var targets = (t.targets || []).map(function (x) { return { label: x.label, value: x.value }; });
+      set({ diePlanForm: { key: t.key, label: t.label, saved: t.saved,
+        title: t.title || "", guidance: t.guidance || "", targets: targets } });
+    }
+    function save() {
+      var body = { key: f.key, title: f.title, guidance: f.guidance,
+        targets: f.targets.filter(function (x) { return (x.label || "").trim() !== ""; }) };
+      run(api("/api/admin/dieticians/" + encodeURIComponent(p.dietician.id) + "/templates",
+        { method: "POST", body: body }), function (r) {
+        S.diePlans = r; S.diePlanForm = null; S.notice = f.label + " saved."; render();
+      });
+    }
+    var bind = function (k) { return function (e) { S.diePlanForm[k] = e.target.value; }; };
+    var bindT = function (i, k) { return function (e) { S.diePlanForm.targets[i][k] = e.target.value; }; };
+
+    return el("div", null,
+      el("div", { class: "tbar" },
+        el("button", { onclick: function () { set({ diePlans: null, diePlanForm: null }); } },
+          "\u2190 All dieticians"),
+        el("div", { style: "flex:1" }),
+        el("span", { class: "cnt" }, p.ready + " of " + list.length + " written")),
+      el("div", { class: "msg info" },
+        el("b", null, p.dietician.name), " sends one of these plans to every family in a growth group "
+        + "before a camp. A plan not yet written is shown as the starting draft the app offers \u2014 "
+        + "nothing goes to a family until it is saved. A plan saved here goes out under "
+        + p.dietician.name + "\u2019s name, the same as one they write in the app."),
+
+      f ? el("div", { class: "card", style: "margin-bottom:12px" }, el("div", { class: "card-b" },
+        el("h3", null, f.label),
+        el("div", { class: "fld" }, el("label", null, "Title"),
+          el("input", { value: f.title, maxlength: 120, oninput: bind("title") })),
+        el("div", { class: "fld" }, reqLabel("What the family should do"),
+          el("textarea", { rows: 8, oninput: bind("guidance") }, f.guidance)),
+        el("div", { class: "fld" }, el("label", null, "Daily targets (up to 8)"),
+          f.targets.length === 0
+            ? el("p", { class: "muted", style: "font-size:12.5px" }, "No targets.")
+            : null,
+          f.targets.map(function (t, i) {
+            return el("div", { class: "row", style: "gap:6px;margin-bottom:6px" },
+              el("input", { value: t.label, maxlength: 80, placeholder: "e.g. Protein",
+                style: "flex:1", oninput: bindT(i, "label") }),
+              el("input", { value: t.value, maxlength: 80, placeholder: "e.g. 2 servings of dal",
+                style: "flex:1", oninput: bindT(i, "value") }),
+              el("button", { class: "sm", title: "Remove", onclick: function () {
+                S.diePlanForm.targets.splice(i, 1); render();
+              } }, "\u00d7"));
+          }),
+          f.targets.length < 8
+            ? el("button", { class: "sm", onclick: function () {
+                S.diePlanForm.targets.push({ label: "", value: "" }); render();
+              } }, icon("plus", 12), " Add a target")
+            : null),
+        el("div", { class: "row", style: "margin-top:10px" },
+          el("button", { class: "pri", disabled: S.busy, onclick: save }, "Save"),
+          el("button", { onclick: function () { set({ diePlanForm: null }); } }, "Cancel")))) : null,
+
+      el("div", { class: "tw" }, el("table", null,
+        el("thead", null, el("tr", null,
+          el("th", null, "Group"), el("th", null, "Plan"), el("th", null, "Status"),
+          el("th", null, "Updated"), el("th", null, ""))),
+        el("tbody", null, list.map(function (t) {
+          return el("tr", null,
+            el("td", null, el("b", null, t.label)),
+            el("td", null, t.title || el("span", { class: "muted" }, "\u2014")),
+            el("td", null, t.saved
+              ? el("span", { class: "pill ok" }, "Written")
+              : el("span", { class: "pill mute" }, "Draft")),
+            el("td", null, t.updatedAt ? fmtDate(t.updatedAt) : el("span", { class: "muted" }, "\u2014")),
+            el("td", null, el("button", { class: "sm", onclick: function () { edit(t); } },
+              t.saved ? "Edit" : "Write")));
+        })))));
+  }
+
   function viewDieticians() {
+    if (S.diePlans) return viewDiePlans();
     if (!S.dieticians) return el("div", { class: "card" }, el("div", { class: "empty" }, "Loading\u2026"));
     var rows = S.dieticians.dieticians || [];
 
@@ -5880,6 +6008,7 @@ export const PORTAL_HTML = `<!doctype html>
                     set({ dieForm: { id: d.id, name: d.name, phone: d.phone,
                       qualification: d.qualification, city: d.city, active: d.active } });
                   } }, "Edit"),
+                  el("button", { class: "sm", onclick: function () { openDiePlans(d); } }, "Diet plans"),
                   d.active
                     ? el("button", { class: "sm dang", onclick: function () { retire(d); } }, "Retire")
                     : el("button", { class: "sm", onclick: function () { restore(d); } }, "Restore"))));
@@ -6691,8 +6820,13 @@ export const PORTAL_HTML = `<!doctype html>
       info.count = S.hospitals ? len(S.hospitals.hospitals) : null;
       info.desc = "The hospitals and doctors families are referred to.";
     } else if (v === "dieticians") {
-      info.count = S.dieticians ? len(S.dieticians.dieticians) : null;
-      info.desc = "Dietitians follow up growth and haemoglobin. Assign each one to their schools.";
+      if (S.diePlans) {
+        info.count = null;
+        info.desc = "The twelve plans this dietician sends to families before a camp.";
+      } else {
+        info.count = S.dieticians ? len(S.dieticians.dieticians) : null;
+        info.desc = "Dietitians follow up growth and haemoglobin. Assign each one to their schools.";
+      }
     } else if (v === "mycamps") {
       info.count = len(S.myCamps);
       info.desc = "The camps you are assigned to.";
@@ -6728,7 +6862,7 @@ export const PORTAL_HTML = `<!doctype html>
     if (S.view === "library") return "Reading for families";
     if (S.view === "parents") return "Parents";
     if (S.view === "hospitals") return "Hospitals & doctors";
-    if (S.view === "dieticians") return "Dieticians";
+    if (S.view === "dieticians") return S.diePlans ? "Diet plans \u2014 " + S.diePlans.dietician.name : "Dieticians";
     if (S.view === "oversight") return "Oversight";
     return "VitaHero";
   }

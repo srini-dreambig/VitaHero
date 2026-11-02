@@ -206,6 +206,46 @@ class DieticianViewModel(
         }
     }
 
+    private val _templates = MutableStateFlow<DietTemplatesDto?>(null)
+    val templates: StateFlow<DietTemplatesDto?> = _templates.asStateFlow()
+
+    /** The key of the pre-camp plan just saved, for the screen to say so. */
+    private val _templateSaved = MutableStateFlow("")
+    val templateSaved: StateFlow<String> = _templateSaved.asStateFlow()
+
+    fun loadTemplates() {
+        viewModelScope.launch {
+            _busy.value = true
+            val r = repo.templates()
+            _busy.value = false
+            if (r == null) {
+                _message.value = "The pre-camp plans could not be loaded. Check the connection and try again."
+                return@launch
+            }
+            _templates.value = r
+        }
+    }
+
+    fun clearTemplateSaved() {
+        _templateSaved.value = ""
+    }
+
+    fun saveTemplate(key: String, title: String, guidance: String, targets: List<DietTargetDto>) {
+        viewModelScope.launch {
+            _busy.value = true
+            _message.value = ""
+            val r = repo.saveTemplate(DietTemplateBody(key, title, guidance, targets))
+            _busy.value = false
+            r.fold(
+                onSuccess = {
+                    _templates.value = it
+                    _templateSaved.value = key
+                },
+                onFailure = { e -> _message.value = e.message ?: "The plan was not saved." },
+            )
+        }
+    }
+
     fun loadCohorts(schoolId: String, grade: String = "") {
         viewModelScope.launch {
             _busy.value = true

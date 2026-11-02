@@ -29,6 +29,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Lightbulb
+import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.TipsAndUpdates
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +39,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -47,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextDecoration
@@ -251,6 +254,41 @@ private fun DietPlanCard(plan: DietPlanDto) {
                         fontWeight = FontWeight.SemiBold,
                         color = HeroBlue,
                     )
+                }
+            }
+            // A plan written for a group cannot know about this child's milk
+            // intolerance or allergy, so the family is asked to phone first.
+            Spacer(Modifier.height(12.dp))
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(HeroOrange.copy(alpha = 0.10f))
+                    .padding(12.dp)
+            ) {
+                Column {
+                    Text(t(S.dietAllergyNote), style = MaterialTheme.typography.bodySmall)
+                    if (plan.dieticianPhone.isNotBlank()) {
+                        val context = LocalContext.current
+                        val phone = plan.dieticianPhone
+                        TextButton(onClick = {
+                            runCatching {
+                                context.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_DIAL,
+                                        android.net.Uri.parse("tel:" + phone.filter { it.isDigit() || it == '+' }),
+                                    )
+                                )
+                            }
+                        }) {
+                            Icon(Icons.Outlined.Phone, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                tf(S.dietCallDietician, plan.dieticianName.ifBlank { phone }) + " · " + phone,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
+                    }
                 }
             }
         }

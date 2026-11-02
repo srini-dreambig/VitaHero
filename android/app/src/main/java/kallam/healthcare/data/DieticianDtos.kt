@@ -97,6 +97,9 @@ data class DietPlanDto(
     val status: String = "ACTIVE",
     val authorName: String = "",
     val createdAt: String = "",
+    /** Parent's view only: who to phone about an allergy. Not on the wire: the repository fills it in. */
+    @kotlinx.serialization.Transient val dieticianName: String = "",
+    @kotlinx.serialization.Transient val dieticianPhone: String = "",
 )
 
 /** The server's first draft of a plan, from what was actually found. */
@@ -143,9 +146,16 @@ data class DietPlanBody(
 @Serializable
 data class DietPlanSavedDto(val plan: DietPlanDto? = null)
 
-/** What a guardian is shown: the one plan that is running, or none. */
+/** What a guardian is shown: the one plan that is running, or none, and who to phone about it. */
 @Serializable
-data class GuardianDietPlanDto(val plan: DietPlanDto? = null)
+data class GuardianDietPlanDto(
+    val plan: DietPlanDto? = null,
+    val dietician: DieticianContactDto? = null,
+    val allergyNote: String = "",
+)
+
+@Serializable
+data class DieticianContactDto(val name: String = "", val phone: String = "")
 
 // ─── The reading library ────────────────────────────────────
 
@@ -254,6 +264,34 @@ data class CohortDraftDto(
     val guidance: String = "",
     val targets: List<DietTargetDto> = emptyList(),
     val source: String = "RULES",
+)
+
+/** One of the twelve plans written before a camp, one per group. */
+@Serializable
+data class DietTemplateDto(
+    val key: String = "",
+    val label: String = "",
+    val focus: String = "GENERAL",
+    /** False while it is still the starter draft. */
+    val saved: Boolean = false,
+    val title: String = "",
+    val guidance: String = "",
+    val targets: List<DietTargetDto> = emptyList(),
+    val updatedAt: String = "",
+)
+
+@Serializable
+data class DietTemplatesDto(
+    val templates: List<DietTemplateDto> = emptyList(),
+    val ready: Int = 0,
+)
+
+@Serializable
+data class DietTemplateBody(
+    val key: String,
+    val title: String = "",
+    val guidance: String = "",
+    val targets: List<DietTargetDto> = emptyList(),
 )
 
 @Serializable

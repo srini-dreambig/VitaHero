@@ -21,6 +21,7 @@ import {
   tidyName,
 } from "./common";
 import { SmsSender, sendToMany } from "./messaging";
+import { assessmentSheet, dobText, type SheetChild } from "./parent-sheet";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { openReferralsForCamp } from "./referrals";
 import { logRecordAccess } from "./oversight";
@@ -1194,7 +1195,7 @@ export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, k
       section: (p.section as string) || "",
       gender: (p.gender as string) || "",
       age: (p.age as number) ?? null,
-      dob: (p.date_of_birth as string) || "",
+      dob: dobText(p.date_of_birth),
       studentRef: (p.student_ref as string) || "",
       guardianName: (p.guardian_name as string) || "",
       previousHeightCm: (p.prev_height as number) || null,
@@ -1312,6 +1313,7 @@ function evaluateChild(
   const ctx = {
     ageYears: Number(participant.age) || 0,
     gender: String(participant.gender || ""),
+    dob: dobText(participant.date_of_birth),
   };
 
   // The app's form has a history and lab card that is not a check of its own:
@@ -1820,7 +1822,7 @@ export async function campPack(sql: Sql, actor: Actor, campId: string) {
         section: (p.section as string) || "",
         gender: (p.gender as string) || "",
         age: (p.age as number) ?? null,
-        dob: (p.date_of_birth as string) || "",
+        dob: dobText(p.date_of_birth),
         studentRef: (p.student_ref as string) || "",
         guardianName: (p.guardian_name as string) || "",
         consentStatus: (p.consent_status as string) || "PENDING",
@@ -2109,11 +2111,18 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
   for (const so of signoffs) for (const c of so.checks) signerOf.set(c, so.signerName || "A clinician");
   const mySignoff = signoffs.find((so) => so.profileId === actor.profileId && so.checks.length > 0) || null;
 
+  // The child as the assessment sheets read them, as the guardian sees them.
+  const sheetChild: SheetChild = {
+    ageYears: p.age === null || p.age === undefined ? null : Number(p.age),
+    gender: (p.gender as string) || "",
+    dob: dobText(p.date_of_birth),
+  };
   const findings = fRows
     .filter((f) => !access.checkScope || access.checkScope.includes(f.check_type as string))
     .map((f) => ({
     checkType: f.check_type as string,
     detail: (f.detail as Record<string, unknown>) || {},
+    sheet: assessmentSheet(f.check_type as string, f.detail, sheetChild) ?? undefined,
     flag: f.flag as Flag,
     autoFlag: f.auto_flag as Flag,
     rationale: (f.rationale as string) || "",
@@ -2825,7 +2834,8 @@ export async function guardianCampResult(
   kidId: string
 ) {
   const pRows = await sql`
-    SELECT p.*, k.name, sc.title, sc.date, sc.status AS camp_status, sc.checks AS camp_checks,
+    SELECT p.*, k.name, k.gender, k.age, k.date_of_birth,
+           sc.title, sc.date, sc.status AS camp_status, sc.checks AS camp_checks,
            s.name AS school_name
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
@@ -2836,6 +2846,23 @@ export async function guardianCampResult(
   `;
   if (pRows.length === 0) throw new ApiError(404, "No result for that child at that camp", "NOT_FOUND");
   const p = pRows[0];
+  // The child as the sheets and the WHO chart read them.
+  const child: SheetChild = {
+    ageYears: p.age === null || p.age === undefined ? null : Number(p.age),
+    gender: (p.gender as string) || "",
+    dob: dobText(p.date_of_birth),
+  };
+  const finding = (f: Record<string, unknown>) => ({
+    checkType: f.check_type as string,
+    flag: f.flag as string,
+    summary: (f.value_text as string) || "",
+    // The reviewing doctor's own words win over the rule's, which they read
+    // and may have overruled.
+    note: String(f.review_note || "").trim() || (f.rationale as string) || "",
+    // The paper sheet's columns for growth, vision and dental; absent for the rest.
+    sheet: assessmentSheet(f.check_type as string, f.detail, child) ?? undefined,
+  });
+  const childInfo = { gender: child.gender, dob: child.dob, age: child.ageYears };
   // Measured, or declared not done with a reason (false). The same rule as
   // recordedChecks, but with the difference kept for the guardian.
   const rec = await sql`
@@ -2867,7 +2894,7 @@ export async function guardianCampResult(
     // to come are listed in progress as PENDING.
     if (progress.done > 0) {
       const fRows = await sql`
-        SELECT check_type, flag, rationale, review_note, value_text FROM vita_hero.camp_findings
+        SELECT check_type, flag, rationale, review_note, value_text, detail FROM vita_hero.camp_findings
         WHERE camp_id = ${campId} AND kid_id = ${kidId}
           AND (flag <> 'NOT_MEASURED' OR COALESCE(screener_note, '') <> '')
         ORDER BY check_type
@@ -2889,12 +2916,8 @@ export async function guardianCampResult(
         message: pending.length > 0
           ? `Results so far. Still to be done: ${pending.join(", ")}.`
           : "Every check is done. The doctor may add a note when they review the results.",
-        findings: fRows.map((f) => ({
-          checkType: f.check_type as string,
-          flag: f.flag as string,
-          summary: (f.value_text as string) || "",
-          note: String(f.review_note || "").trim() || (f.rationale as string) || "",
-        })),
+        child: childInfo,
+        findings: fRows.map(finding),
       };
     }
     const message = progress.stage === "WITH_DOCTOR"
@@ -2907,7 +2930,7 @@ export async function guardianCampResult(
     return { status: "PENDING", progress, message };
   }
   const fRows = await sql`
-    SELECT check_type, flag, rationale, review_note, value_text FROM vita_hero.camp_findings
+    SELECT check_type, flag, rationale, review_note, value_text, detail FROM vita_hero.camp_findings
     WHERE camp_id = ${campId} AND kid_id = ${kidId} ORDER BY check_type
   `;
   return {
@@ -2921,14 +2944,8 @@ export async function guardianCampResult(
     date: (p.date as string) || "",
     urgency: (p.urgency as string) || "NONE",
     recommendation: (p.recommendation as string) || "",
-    findings: fRows.map((f) => ({
-      checkType: f.check_type as string,
-      flag: f.flag as string,
-      summary: (f.value_text as string) || "",
-      // The reviewing doctor's own words win over the rule's, which they read
-      // and may have overruled.
-      note: String(f.review_note || "").trim() || (f.rationale as string) || "",
-    })),
+    child: childInfo,
+    findings: fRows.map(finding),
   };
 }
 

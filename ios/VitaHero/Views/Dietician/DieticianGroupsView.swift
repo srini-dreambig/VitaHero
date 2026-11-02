@@ -19,7 +19,7 @@ struct DieticianGroupsView: View {
     var body: some View {
         List {
             Section {
-                Text([school.name, grade.isEmpty ? "All classes" : "Class \(grade)"]
+                Text([school.name, grade.isEmpty ? "All classes" : classTitle(grade)]
                     .filter { !$0.isEmpty }.joined(separator: " · "))
                     .font(.subheadline).foregroundColor(.secondary)
                 if let error = dietician.cohortsError {
@@ -32,10 +32,30 @@ struct DieticianGroupsView: View {
                         HStack(spacing: 6) {
                             DieticianChip(title: "All classes", selected: grade.isEmpty) { grade = "" }
                             ForEach(grades, id: \.self) { g in
-                                DieticianChip(title: "Class \(g)", selected: grade == g) { grade = g }
+                                DieticianChip(title: classTitle(g), selected: grade == g) { grade = g }
                             }
                         }
                     }
+                }
+            }
+
+            // The twelve plans written before the camp. Shown even when no
+            // checks are in yet: that is when they are meant to be written.
+            Section {
+                NavigationLink(value: DieticianRoute.precampPlans) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "doc.text.fill").foregroundColor(Brand.orange)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Pre-camp diet plans").font(.body.weight(.semibold))
+                            Text("One plan per group. Families get their child's plan when the results are released.")
+                                .font(.caption).foregroundColor(.secondary)
+                        }
+                        Spacer()
+                        if let t = dietician.templates {
+                            Text("\(t.ready) of \(t.templates.count)").font(.subheadline.bold())
+                        }
+                    }
+                    .padding(.vertical, 2)
                 }
             }
 
@@ -73,6 +93,7 @@ struct DieticianGroupsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .refreshable { await dietician.loadCohorts(school.id, grade: grade) }
         .task(id: grade) { await dietician.loadCohorts(school.id, grade: grade) }
+        .task { await dietician.loadTemplates() }
     }
 
     private func row(_ cohort: DieticianCohort) -> some View {
@@ -168,7 +189,7 @@ struct DieticianCohortView: View {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(live.label).font(.title2.bold())
-                    Text([school.name, grade.isEmpty ? "All classes" : "Class \(grade)"].joined(separator: " · "))
+                    Text([school.name, grade.isEmpty ? "All classes" : classTitle(grade)].joined(separator: " · "))
                         .font(.subheadline).foregroundColor(.secondary)
                     Text(cohortSummaryLine(live)).font(.footnote).foregroundColor(.secondary)
                 }
@@ -204,8 +225,8 @@ struct DieticianCohortView: View {
             HStack {
                 Text("The plan").font(.headline)
                 Spacer()
-                Pill(text: source == "AI" ? "Drafted by AI" : "Starter draft",
-                     color: source == "AI" ? Brand.orange : .secondary)
+                Pill(text: source == "AI" ? "Drafted by AI" : source == "TEMPLATE" ? "Your pre-camp plan" : "Starter draft",
+                     color: source == "AI" || source == "TEMPLATE" ? Brand.orange : .secondary)
             }
             Text("A starting point. Change anything before you send it.")
                 .font(.footnote).foregroundColor(.secondary)
@@ -344,4 +365,169 @@ struct DieticianCohortView: View {
             message = clinicianMessage(error, fallback: "The plan was not saved.")
         }
     }
+}
+
+/// The twelve pre-camp plans: each growth group, with and without low
+/// haemoglobin. Written before the camp; each family gets the one for their
+/// child's group as soon as the results are released.
+struct DieticianTemplatesView: View {
+    @EnvironmentObject private var dietician: DieticianStore
+
+    var body: some View {
+        List {
+            Section {
+                Text("Write these before the camp. When a child's results are released, the family gets "
+                     + "the plan for the child's group, with your number to phone about a milk intolerance "
+                     + "or a food allergy.")
+                    .font(.footnote).foregroundColor(.secondary)
+                if let error = dietician.templatesError {
+                    Banner(text: error, color: Brand.red)
+                }
+            }
+            if let t = dietician.templates, !t.templates.isEmpty {
+                Section {
+                    ForEach(t.templates) { template in
+                        NavigationLink(value: DieticianRoute.precampPlan(key: template.key)) {
+                            HStack(spacing: 12) {
+                                Image(systemName: template.saved ? "checkmark.circle.fill" : "doc.text")
+                                    .foregroundColor(template.saved ? Brand.green : Brand.blue)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(template.label).font(.body.weight(.semibold))
+                                    Text(template.title).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                                }
+                                Spacer()
+                                Pill(text: template.saved ? "Written" : "Starter draft",
+                                     color: template.saved ? Brand.green : .secondary)
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    }
+                } header: {
+                    Text("\(t.ready) of \(t.templates.count) written").textCase(nil)
+                }
+            } else {
+                EmptyState(icon: "hourglass", title: dietician.templatesLoading ? "Loading…" : "Nothing to show")
+                    .listRowBackground(Color.clear)
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle("Pre-camp diet plans")
+        .navigationBarTitleDisplayMode(.inline)
+        .refreshable { await dietician.loadTemplates() }
+        .task { await dietician.loadTemplates() }
+    }
+}
+
+/// One pre-camp plan, to write or rewrite.
+struct DieticianTemplateView: View {
+    let key: String
+
+    @EnvironmentObject private var dietician: DieticianStore
+
+    @State private var loadedKey = ""
+    @State private var title = ""
+    @State private var guidance = ""
+    @State private var targets: [DietTarget] = []
+    @State private var busy = false
+    @State private var message = ""
+    @State private var saved = false
+
+    private var template: DietTemplate? {
+        dietician.templates?.templates.first { $0.key == key }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                if let template {
+                    Text(template.label).font(.title2.bold())
+                    if saved {
+                        Banner(text: "Saved. Families in this group get it when their child's results are released.",
+                               color: Brand.green)
+                    }
+                    if !message.isEmpty { Banner(text: message, color: Brand.red) }
+                    Card {
+                        Text(template.saved ? "Your plan for this group"
+                             : "A starter draft. Change anything before you save it.")
+                            .font(.footnote).foregroundColor(.secondary)
+                        TextFieldRow(label: "Title", value: $title)
+                        DieticianTextArea(label: "What the family should do", text: $guidance, minHeight: 160)
+                        Text("Targets").font(.subheadline.weight(.semibold))
+                        ForEach(targets.indices, id: \.self) { i in
+                            HStack(alignment: .bottom, spacing: 6) {
+                                TextFieldRow(label: "Such as", value: targetBinding(i, \.label))
+                                TextFieldRow(label: "How much", value: targetBinding(i, \.value))
+                                Button("Remove") { if i < targets.count { targets.remove(at: i) } }
+                                    .font(.footnote)
+                                    .buttonStyle(.borderless)
+                                    .frame(minHeight: 44)
+                            }
+                        }
+                        if targets.count < 8 {
+                            Button("Add a target") { targets.append(DietTarget(label: "", value: "")) }
+                                .font(.footnote.weight(.semibold))
+                                .buttonStyle(.borderless)
+                        }
+                    }
+                    PrimaryButton(title: busy ? "Saving…" : "Save this group's plan", busy: busy,
+                                  enabled: !busy && guidance.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10) {
+                        Task { await save() }
+                    }
+                    Text("Families are asked to phone you before following it if their child has a milk "
+                         + "intolerance or a food allergy.")
+                        .font(.footnote).foregroundColor(.secondary)
+                } else {
+                    EmptyState(icon: "hourglass", title: "Loading…")
+                }
+            }
+            .padding(16)
+        }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle(template?.label ?? "Pre-camp plan")
+        .navigationBarTitleDisplayMode(.inline)
+        .scrollDismissesKeyboard(.interactively)
+        .task {
+            if dietician.templates == nil { await dietician.loadTemplates() }
+            fill()
+        }
+    }
+
+    /// Load the fields once, so a re-read of the list does not wipe what is being typed.
+    private func fill() {
+        guard loadedKey != key, let template else { return }
+        loadedKey = key
+        title = template.title
+        guidance = template.guidance
+        targets = template.targets
+    }
+
+    private func targetBinding(_ index: Int, _ field: WritableKeyPath<DietTarget, String>) -> Binding<String> {
+        Binding(
+            get: { index < targets.count ? targets[index][keyPath: field] : "" },
+            set: { if index < targets.count { targets[index][keyPath: field] = $0 } }
+        )
+    }
+
+    private func save() async {
+        busy = true
+        defer { busy = false }
+        message = ""
+        saved = false
+        let result = await dietician.saveTemplate(
+            key: key,
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines),
+            guidance: guidance.trimmingCharacters(in: .whitespacesAndNewlines),
+            targets: targets.filter { !$0.label.trimmingCharacters(in: .whitespaces).isEmpty })
+        switch result {
+        case .success: saved = true
+        case .failure(let error): message = clinicianMessage(error, fallback: "The plan was not saved.")
+        }
+    }
+}
+
+/// "Class 5 B" for a chip or a subtitle. Some schools record the grade as
+/// "Class 5" already, which used to come out as "Class Class 5".
+func classTitle(_ label: String) -> String {
+    let t = label.trimmingCharacters(in: .whitespaces)
+    return t.lowercased().hasPrefix("class") ? t : "Class \(t)"
 }

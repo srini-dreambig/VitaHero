@@ -95,6 +95,13 @@ data class CampChildDto(
 }
 
 /**
+ * "Class 5 B" for a pill or a subtitle. Some schools record the grade as
+ * "Class 5" already, which used to come out as "Class Class 5".
+ */
+fun classTitle(label: String): String =
+    label.trim().let { if (it.startsWith("class", ignoreCase = true)) it else "Class $it" }
+
+/**
  * What this person may do on this camp, decided by the server.
  *
  * A screener screens; a physician screens and signs off. The app could infer
@@ -123,6 +130,7 @@ data class ScreeningChildDto(
     val section: String = "",
     val gender: String = "",
     val age: Int? = null,
+    val dob: String = "",
     val studentRef: String = "",
     val previousHeightCm: Double? = null,
     val previousWeightKg: Double? = null,

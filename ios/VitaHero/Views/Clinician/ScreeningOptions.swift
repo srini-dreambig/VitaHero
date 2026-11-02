@@ -162,7 +162,7 @@ enum ScreeningOptions {
     // server reads (NUTRITION_BANDS in clinical.ts). Left empty, the server
     // suggests one from height and weight; the dietician groups children by it.
     static let NUTRITIONAL_STATUS = [
-    "Normal", "Underweight", "Severely underweight", "Stunted", "Overweight", "Obese"
+    "Normal", "Wasted", "Severely wasted", "Stunted", "Overweight", "Obese"
     ]
 
     // Type of dentition, as the oral & dental sheet has it. It decides whether

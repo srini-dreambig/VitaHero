@@ -42,8 +42,10 @@ android {
         // sign-off). 1.1.8 is one above that: parents follow each check of a
         // school camp live, and the Health Connect reading is gone. 1.1.9:
         // each doctor's checks are their own, and dietitians plan by group.
-        versionCode = 1789668243
-        versionName = "1.1.9"
+        // 1.1.10: IAP 2015 and WHO 2007 growth charts, the paper sheets, and
+        // the admin writes the dietitians' twelve group plans.
+        versionCode = 1789668244
+        versionName = "1.1.10"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //

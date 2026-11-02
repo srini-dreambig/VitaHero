@@ -196,6 +196,40 @@ class DieticianRepository {
         }
     }
 
+    /** The twelve pre-camp plans, written or still starter drafts. */
+    suspend fun templates(): DietTemplatesDto? = io {
+        if (!configured) return@io null
+        try {
+            val resp = http.get("$base/api/dietician/templates") {
+                headers().forEach { (k, v) -> header(k, v) }
+            }
+            if (resp.observed()) resp.body<DietTemplatesDto>() else null
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            null
+        }
+    }
+
+    /** Write or rewrite one pre-camp plan. Answers with all twelve. */
+    suspend fun saveTemplate(body: DietTemplateBody): Result<DietTemplatesDto> = io {
+        if (!configured) return@io Result.failure(IllegalStateException("No backend configured"))
+        try {
+            val resp = http.post("$base/api/dietician/templates") {
+                headers().forEach { (k, v) -> header(k, v) }
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            if (!resp.observed()) {
+                val err = try { resp.body<ErrorBody>() } catch (_: Exception) { null }
+                return@io Result.failure(Exception(err?.error ?: "The plan was not saved"))
+            }
+            Result.success(resp.body<DietTemplatesDto>())
+        } catch (e: Exception) {
+            noteTransportFailure(e)
+            Result.failure(e)
+        }
+    }
+
     /** One plan to every child ticked. All of them or none: the server checks each is at one of these schools. */
     suspend fun saveCohortPlan(body: CohortPlanBody): Result<Int> = io {
         if (!configured) return@io Result.failure(IllegalStateException("No backend configured"))

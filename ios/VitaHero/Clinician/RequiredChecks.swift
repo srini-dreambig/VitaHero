@@ -20,7 +20,7 @@ enum RequiredChecks {
     static let requiredFields: [String: [(key: String, label: String)]] = [
         "Height & weight": [("heightCm", "Height"), ("weightKg", "Weight")],
         "Vision": [("rightAcuity", "Right eye"), ("leftAcuity", "Left eye")],
-        "Dental": [("cariesCount", "Carious count"), ("gums", "Gums"), ("hygiene", "Oral hygiene")],
+        "Dental": [("cariesCount", "Carious count"), ("hygiene", "Oral hygiene")],
         "Haemoglobin": [("hb", "Haemoglobin")],
         "ENT": [("rightHearing", "Right ear"), ("leftHearing", "Left ear")],
         "Skin": [("skinCondition", "Primary skin finding")],
@@ -32,7 +32,7 @@ enum RequiredChecks {
     static let serverRequiredFields: [String: [(key: String, label: String)]] = [
         "Height & weight": [("heightCm", "Height (cm)"), ("weightKg", "Weight (kg)")],
         "Vision": [("rightAcuity", "Right eye acuity"), ("leftAcuity", "Left eye acuity")],
-        "Dental": [("cariesCount", "Carious (decayed) teeth"), ("gums", "Gums condition"), ("hygiene", "Oral hygiene")],
+        "Dental": [("cariesCount", "Carious (decayed) teeth"), ("hygiene", "Oral hygiene")],
         "Haemoglobin": [("hb", "Haemoglobin (g/dL)")],
         "ENT": [("rightHearing", "Right ear hearing"), ("leftHearing", "Left ear hearing")],
         "Skin": [("skinCondition", "Skin condition")],

@@ -272,6 +272,8 @@ struct CampResult: Decodable {
         let flag: String
         let summary: String
         let note: String
+        /// The paper sheet's columns, for growth, vision and dental. nil otherwise.
+        let sheet: Sheet?
         var id: String { checkType + summary }
 
         init(from decoder: Decoder) throws {
@@ -280,6 +282,62 @@ struct CampResult: Decodable {
             flag = c.str("flag")
             summary = c.str("summary")
             note = c.str("note")
+            sheet = c.obj("sheet")
+        }
+    }
+
+    /// One assessment sheet: a row per column, in the sheet's own words.
+    struct Sheet: Decodable {
+        struct Row: Decodable, Identifiable {
+            let label: String
+            let value: String
+            var id: String { label }
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: AnyKey.self)
+                label = c.str("label")
+                value = c.str("value")
+            }
+        }
+
+        /// Physical growth only: the numbers the growth charts are drawn from.
+        struct Growth: Decodable {
+            let heightCm: Double
+            let weightKg: Double
+            /// Mid-arm circumference, when one was recorded.
+            let muacCm: Double?
+
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: AnyKey.self)
+                heightCm = c.num("heightCm") ?? 0
+                weightKg = c.num("weightKg") ?? 0
+                muacCm = c.num("muacCm")
+            }
+        }
+
+        let title: String
+        let rows: [Row]
+        let growth: Growth?
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: AnyKey.self)
+            title = c.str("title")
+            rows = c.list("rows")
+            growth = c.obj("growth")
+        }
+    }
+
+    /// The child as the WHO chart reads them.
+    struct Child: Decodable {
+        let gender: String
+        let dob: String
+        let age: Int?
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: AnyKey.self)
+            gender = c.str("gender")
+            dob = c.str("dob")
+            age = c.num("age").map { Int($0.rounded()) }
         }
     }
 
@@ -297,6 +355,8 @@ struct CampResult: Decodable {
     /// the ones recorded so far; `pendingChecks` names the rest.
     let partial: Bool
     let pendingChecks: [String]
+    /// For the WHO chart on the growth sheet. nil from servers that predate it.
+    let child: Child?
 
     struct Progress: Decodable {
         struct Check: Decodable, Identifiable {
@@ -353,6 +413,7 @@ struct CampResult: Decodable {
         progress = c.obj("progress")
         partial = c.bool("partial")
         pendingChecks = c.strs("pendingChecks")
+        child = c.obj("child")
     }
 }
 
@@ -467,6 +528,9 @@ struct DietPlan: Decodable, Identifiable {
     let guidance: String
     let targets: [Target]
     let authorName: String
+    /// Parent's view only: who to phone about an allergy. Set from the response.
+    var dieticianName = ""
+    var dieticianPhone = ""
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -483,9 +547,26 @@ struct DietPlan: Decodable, Identifiable {
 }
 
 struct DietPlanResponse: Decodable {
+    struct Contact: Decodable {
+        let name: String
+        let phone: String
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: AnyKey.self)
+            name = c.str("name")
+            phone = c.str("phone")
+        }
+    }
+
+    /// The plan, carrying the dietician to phone about it.
     let plan: DietPlan?
+
     init(from decoder: Decoder) throws {
-        plan = try decoder.container(keyedBy: AnyKey.self).obj("plan")
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        var plan: DietPlan? = c.obj("plan")
+        let contact: Contact? = c.obj("dietician")
+        plan?.dieticianName = contact?.name ?? ""
+        plan?.dieticianPhone = contact?.phone ?? ""
+        self.plan = plan
     }
 }
 
@@ -951,6 +1032,8 @@ struct ScreeningChild: Decodable {
     let section: String
     let gender: String
     let age: Int?
+    /// As the school recorded it; WhoBmi.parseDob reads the usual forms.
+    let dob: String
     let studentRef: String
     let previousHeightCm: Double?
     let previousWeightKg: Double?
@@ -963,6 +1046,7 @@ struct ScreeningChild: Decodable {
         section = c.str("section")
         gender = c.str("gender")
         age = c.num("age").map { Int($0.rounded()) }
+        dob = c.str("dob")
         studentRef = c.str("studentRef")
         previousHeightCm = c.num("previousHeightCm")
         previousWeightKg = c.num("previousWeightKg")

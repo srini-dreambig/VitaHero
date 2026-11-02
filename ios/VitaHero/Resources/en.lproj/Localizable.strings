@@ -276,6 +276,8 @@
 "didnt_get_code" = "Didn't get the code?";
 "diet_plan" = "Diet plan";
 "diet_plan_from" = "Written by %@";
+"diet_allergy_note" = "If your child has a milk or dairy intolerance, or any food allergy, please phone the dietician before following this plan. They will guide you on what to change.";
+"diet_call_dietician" = "Call %@";
 "diet_plan_title" = "Your dietician's plan";
 "diet_status" = "Diet status";
 "diet_subtitle" = "Personalised by our dietician";

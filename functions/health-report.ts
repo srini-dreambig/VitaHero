@@ -14,6 +14,7 @@ import { Sql } from "./common";
 import { Actor, ApiError } from "./schools";
 import { assertCampAccess } from "./camps";
 import { logRecordAccess } from "./oversight";
+import { assessmentSheet, dobText } from "./parent-sheet";
 
 function esc(v: unknown): string {
   return String(v ?? "")
@@ -80,7 +81,7 @@ export async function campHealthReport(
 
   const kids = await sql`
     SELECT p.kid_id, p.urgency, p.recommendation, p.reviewed_at,
-           k.name, k.grade, k.section, k.age, k.gender, k.student_ref,
+           k.name, k.grade, k.section, k.age, k.gender, k.date_of_birth, k.student_ref,
            COALESCE((SELECT string_agg(sp.name, ', ' ORDER BY so.signed_at)
                       FROM vita_hero.camp_signoffs so
                       JOIN vita_hero.profiles sp ON sp.id = so.signed_by
@@ -95,7 +96,7 @@ export async function campHealthReport(
     ORDER BY k.grade, k.section, k.name
   `;
   const findings = kids.length === 0 ? [] : await sql`
-    SELECT kid_id, check_type, flag, value_text, rationale, review_note
+    SELECT kid_id, check_type, flag, value_text, rationale, review_note, detail
     FROM vita_hero.camp_findings
     WHERE camp_id = ${campId} AND kid_id = ANY(${kids.map((k) => k.kid_id as string)})
     ORDER BY check_type
@@ -142,9 +143,18 @@ function page(
     const flag = String(f.flag || "NOT_MEASURED");
     // The reviewing doctor's words win over the rule's, as they do in the app.
     const note = String(f.review_note || "").trim() || String(f.rationale || "");
+    // Growth, vision and dental print the assessment sheet's own columns.
+    const sheet = assessmentSheet(String(f.check_type), f.detail, {
+      ageYears: k.age === null || k.age === undefined ? null : Number(k.age),
+      gender: String(k.gender || ""),
+      dob: dobText(k.date_of_birth),
+    });
+    const result = sheet && sheet.rows.length
+      ? sheet.rows.map((r) => `${esc(r.label)}: <b>${esc(r.value)}</b>`).join("<br>")
+      : esc(f.value_text);
     return `<tr>
-      <td>${esc(f.check_type)}</td>
-      <td>${esc(f.value_text)}</td>
+      <td>${esc(sheet?.title || f.check_type)}</td>
+      <td>${result}</td>
       <td class="flag ${esc(flag)}">${esc(FLAG_LABEL[flag] || flag)}</td>
       <td>${esc(note)}</td>
     </tr>`;

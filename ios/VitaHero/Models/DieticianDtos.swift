@@ -419,6 +419,48 @@ struct CohortDraft: Decodable, Hashable {
     }
 }
 
+/// One of the twelve plans written before a camp, one per group. Families get
+/// the one for their child's group once the results are released.
+struct DietTemplate: Decodable, Identifiable, Hashable {
+    let key: String
+    let label: String
+    let focus: String
+    /// False while it is still the starter draft.
+    let saved: Bool
+    let title: String
+    let guidance: String
+    let targets: [DietTarget]
+    let updatedAt: String
+    var id: String { key }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        key = c.str("key")
+        label = c.str("label")
+        focus = c.str("focus", "GENERAL")
+        saved = c.bool("saved")
+        title = c.str("title")
+        guidance = c.str("guidance")
+        targets = c.list("targets")
+        updatedAt = c.str("updatedAt")
+    }
+}
+
+struct DietTemplates: Decodable {
+    let templates: [DietTemplate]
+    let ready: Int
+
+    init() {
+        templates = []; ready = 0
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        templates = c.list("templates")
+        ready = c.int("ready")
+    }
+}
+
 struct CohortDraftResponse: Decodable {
     let draft: CohortDraft
     init(from decoder: Decoder) throws {

@@ -100,7 +100,28 @@ data class ReleasedFindingDto(
     val summary: String = "",
     /** Why that flag, written for a parent rather than a clinician. */
     val note: String = "",
+    /** The paper sheet's columns, for growth, vision and dental. Absent otherwise. */
+    val sheet: AssessmentSheetDto? = null,
 )
+
+/** One assessment sheet: a row per column, in the sheet's own words. */
+@Serializable
+data class AssessmentSheetDto(
+    val title: String = "",
+    val rows: List<SheetRowDto> = emptyList(),
+    /** Physical growth only: the numbers the WHO chart is drawn from. */
+    val growth: SheetGrowthDto? = null,
+)
+
+@Serializable
+data class SheetRowDto(val label: String = "", val value: String = "")
+
+@Serializable
+data class SheetGrowthDto(val heightCm: Double = 0.0, val weightKg: Double = 0.0, val muacCm: Double? = null)
+
+/** The child as the WHO chart reads them. */
+@Serializable
+data class ResultChildDto(val gender: String = "", val dob: String = "", val age: Int? = null)
 
 @Serializable
 data class CampResultDto(
@@ -126,6 +147,8 @@ data class CampResultDto(
      */
     val partial: Boolean = false,
     val pendingChecks: List<String> = emptyList(),
+    /** For the WHO chart on the growth sheet. Absent from servers that predate it. */
+    val child: ResultChildDto? = null,
 )
 
 /**

@@ -56,6 +56,23 @@ extension APIClient {
         return reply.draft
     }
 
+    /// The twelve pre-camp plans, written or still starter drafts.
+    func dieticianTemplates() async throws -> DietTemplates {
+        try await get("/api/dietician/templates")
+    }
+
+    /// Write or rewrite one pre-camp plan. The server sets its focus from the
+    /// group. Answers with all twelve.
+    func saveDieticianTemplate(key: String, title: String, guidance: String,
+                               targets: [DietTarget]) async throws -> DietTemplates {
+        try await post("/api/dietician/templates", json: [
+            "key": key,
+            "title": title,
+            "guidance": guidance,
+            "targets": targets.map(\.body),
+        ])
+    }
+
     /// One plan to every child ticked. All of them or none: the server checks
     /// each is at one of this person's schools. Returns how many it went to.
     func saveCohortPlan(kidIds: [String], title: String, focus: String, guidance: String,

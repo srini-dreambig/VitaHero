@@ -175,33 +175,41 @@ struct ClinicianScreeningView: View {
         }
     }
 
+    // Physical growth assessment, as the sheet has it: height, weight,
+    // mid-arm circumference and BMI. The nutritional status is the WHO
+    // reading, worked out on the server from the same numbers.
     private func heightWeight(_ c: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             pair(number("Height (cm) *", c, "heightCm"), number("Weight (kg) *", c, "weightKg"))
-            number("MUAC (cm)", c, "muacCm")
-            choice("Nutritional status", O.NUTRITIONAL_STATUS, c, "nutritionalStatus")
-            Text("Leave it empty and it is worked out from height and weight.")
-                .font(.footnote).foregroundColor(.secondary)
-            text("General advice", c, "generalAdvice", "e.g. more protein, play outdoors daily")
+            number("Mid-arm circ. (cm)", c, "muacCm")
+            // Every growth chart, live as the numbers are typed: IAP 2015 and
+            // WHO 2007 height, weight and BMI, and MUAC-for-age. The status is
+            // the same WHO reading the server makes when the record is saved.
+            if let child = form?.child {
+                if let who = WhoBmi.forChild(
+                    heightCm: Double(values[c]?["heightCm"] ?? "") ?? 0,
+                    weightKg: Double(values[c]?["weightKg"] ?? "") ?? 0,
+                    gender: child.gender, dob: child.dob, ageYears: child.age) {
+                    GrowthChartsPanel(reading: who, muacCm: Double(values[c]?["muacCm"] ?? ""))
+                } else if child.age == nil && child.dob.isEmpty {
+                    Text("No age or date of birth on record, so the growth charts cannot be read.")
+                        .font(.footnote).foregroundColor(.secondary)
+                }
+            }
         }
     }
 
     private func vision(_ c: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
-                FormSectionHeader(title: "Visual Acuity (Distant & Near) - Image 3",
-                                  subtitle: "Snellen distance & near reading metrics per eye")
-                pair(choice("Distance OD (Right) *", O.ACUITY, c, "rightAcuity"),
-                     choice("Distance OS (Left) *", O.ACUITY, c, "leftAcuity"))
-                pair(choice("Near OD (Right)", O.NEAR_VISION, c, "rightNearVision"),
-                     choice("Near OS (Left)", O.NEAR_VISION, c, "leftNearVision"))
-                choice("Testing Condition", O.VISION_TEST_CONDITION, c, "testingCondition")
-                FormSectionHeader(title: "External Anterior Symptoms / Signs (Image 3)")
-                multi("Select External Signs (Ptosis, Swelling, Watering...)", O.EXTERNAL_SIGNS, c, "externalSigns")
-                choice("External Eye Exam", O.EXTERNAL_EXAM, c, "externalExam")
+                FormSectionHeader(title: "Visual acuity", subtitle: "Snellen, distance, each eye")
+                pair(choice("Right eye (OD) *", O.ACUITY, c, "rightAcuity"),
+                     choice("Left eye (OS) *", O.ACUITY, c, "leftAcuity"))
+                choice("Testing condition", O.VISION_TEST_CONDITION, c, "testingCondition")
             }
             Group {
-                FormSectionHeader(title: "Present Glasses Prescription (Image 5)")
+                FormSectionHeader(title: "Present glasses prescription",
+                                  subtitle: "Only if the child already wears glasses")
                 HStack(spacing: 6) {
                     text("OD Sph", c, "presentOdSph", "-1.50"); text("OD Cyl", c, "presentOdCyl", "-0.50")
                     text("OD Axi", c, "presentOdAxi", "180"); text("OD CVA", c, "presentOdCva", "6/6")
@@ -210,7 +218,7 @@ struct ClinicianScreeningView: View {
                     text("OS Sph", c, "presentOsSph", "-1.75"); text("OS Cyl", c, "presentOsCyl", "-0.50")
                     text("OS Axi", c, "presentOsAxi", "175"); text("OS CVA", c, "presentOsCva", "6/6")
                 }
-                FormSectionHeader(title: "New Glasses Prescription (Image 5)")
+                FormSectionHeader(title: "New glasses prescription")
                 HStack(spacing: 6) {
                     text("OD UVA", c, "newOdUva", "6/18"); text("OD Sph", c, "newOdSph", "-2.00")
                     text("OD Cyl", c, "newOdCyl", "-0.75"); text("OD Axi", c, "newOdAxi", "180")
@@ -223,61 +231,9 @@ struct ClinicianScreeningView: View {
                 }
             }
             Group {
-                FormSectionHeader(title: "Tonometry & Dilatation (Image 5)")
-                pair(number("NCT IOP RE (mmHg)", c, "rightNctIop"), number("NCT IOP LE (mmHg)", c, "leftNctIop"))
-                pair(choice("Dominant Eye", O.DOMINANT_EYE, c, "dominantEye"),
-                     choice("Dilatation Status", O.DILATATION_STATUS, c, "dilatation"))
-                text("Dilatation Time", c, "dilatationTime", "e.g. 10:30 AM")
-            }
-            Group {
-                FormSectionHeader(title: "Anterior Segment Examination (Image 4)",
-                                  subtitle: "Lashes, Lids, Conjunctiva, Sclera, Cornea, AC, Iris, Pupil & Lens")
-                pair(choice("Eyelashes (OD)", O.EYE_LASHES, c, "rightLashes"),
-                     choice("Eyelashes (OS)", O.EYE_LASHES, c, "leftLashes"))
-                pair(choice("Eyelid (OD)", O.EYE_LIDS, c, "rightLid"), choice("Eyelid (OS)", O.EYE_LIDS, c, "leftLid"))
-                pair(choice("Conjunctiva (OD)", O.CONJUNCTIVA, c, "rightConjunctiva"),
-                     choice("Conjunctiva (OS)", O.CONJUNCTIVA, c, "leftConjunctiva"))
-                pair(choice("Sclera (OD)", O.SCLERA, c, "rightSclera"), choice("Sclera (OS)", O.SCLERA, c, "leftSclera"))
-                pair(choice("Cornea (OD)", O.CORNEA, c, "rightCornea"), choice("Cornea (OS)", O.CORNEA, c, "leftCornea"))
-                pair(choice("Anterior Chamber (OD)", O.ANTERIOR_CHAMBER, c, "rightAc"),
-                     choice("Anterior Chamber (OS)", O.ANTERIOR_CHAMBER, c, "leftAc"))
-                pair(choice("Iris (OD)", O.IRIS, c, "rightIris"), choice("Iris (OS)", O.IRIS, c, "leftIris"))
-                pair(choice("Pupil Size", O.PUPIL_SIZE, c, "pupilSize"),
-                     choice("Light Reaction", O.PUPIL_LIGHT_REACTION, c, "pupilReaction"))
-                pair(choice("Crystalline Lens (OD)", O.EYE_LENS, c, "rightLens"),
-                     choice("Crystalline Lens (OS)", O.EYE_LENS, c, "leftLens"))
-            }
-            Group {
-                FormSectionHeader(title: "Posterior Segment / Fundus Examination (Image 4)",
-                                  subtitle: "Vitreous, Optic Disc, Macula, Retina & Blood Vessels")
-                pair(choice("Optic Disc (OD)", O.OPTIC_DISC, c, "rightOpticDisc"),
-                     choice("Optic Disc (OS)", O.OPTIC_DISC, c, "leftOpticDisc"))
-                pair(choice("Macula & Fovea (OD)", O.MACULA, c, "rightMacula"),
-                     choice("Macula & Fovea (OS)", O.MACULA, c, "leftMacula"))
-                pair(choice("Background Retina (OD)", O.RETINA, c, "rightRetina"),
-                     choice("Background Retina (OS)", O.RETINA, c, "leftRetina"))
-                pair(choice("Blood Vessels (OD)", O.BLOOD_VESSELS, c, "rightVessels"),
-                     choice("Blood Vessels (OS)", O.BLOOD_VESSELS, c, "leftVessels"))
-            }
-            Group {
-                FormSectionHeader(title: "Motility, Alignment, Gonioscopy & Color Vision")
-                choice("Ocular Motility (9 Gazes)", O.OCULAR_MOTILITY, c, "ocularMotility")
-                choice("Ocular Alignment / Squint", O.SQUINT_ALIGNMENT, c, "squintAlignment")
-                choice("Color Vision (Ishihara /17)", O.COLOR_VISION, c, "colorVision")
-                choice("Gonioscopy Angle", O.GONIOSCOPY, c, "gonioscopy")
-                choice("Glasses Status", O.GLASSES_STATUS, c, "glassesWorn")
-                toggle("Strabismus / Squint Noted", c, "squint")
-            }
-            Group {
-                FormSectionHeader(title: "Ocular Diagnostic Investigations (Image 1)")
-                multi("Order Ocular Tests (Keratometry, A-Scan, OCT, FFA...)", O.OCULAR_INVESTIGATIONS, c, "ocularInvestigations")
-                FormSectionHeader(title: "Recommended Vision Interventions (Images 3, 4)")
-                multi("Select Vision Interventions", O.VISION_TREATMENTS, c, "treatmentsRecommended")
-                FormSectionHeader(title: "Diagnosis & Plan of Care (Image 4)")
-                text("Provisional Diagnosis", c, "provisionalDiagnosis", "e.g. Myopic Astigmatism OD/OS")
-                text("Plan of Care", c, "planOfCare", "Corrective glasses, repeat exam in 6 months...")
-                text("Final Diagnosis", c, "finalDiagnosis", "e.g. Simple Myopia OD -2.00, OS -2.25")
-                text("General advice", c, "generalAdvice", "e.g. limit screen time, sit near the board")
+                choice("Colour vision (Ishihara /17)", O.COLOR_VISION, c, "colorVision")
+                text("Any other complaints, if present", c, "otherComplaints", "e.g. headache after reading, watering")
+                text("Any other abnormalities, if present", c, "otherAbnormalities", "e.g. squint, drooping lid")
             }
         }
     }
@@ -285,35 +241,24 @@ struct ClinicianScreeningView: View {
     private func dental(_ c: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
+                choice("Oral hygiene *", O.ORAL_HYGIENE_INDEX, c, "hygiene")
+                FormSectionHeader(title: "Tooth index (dmft / DMFT)")
                 choice("Type of dentition", O.DENTITION, c, "dentition")
-                FormSectionHeader(title: "Tooth Index (dmft / DMFT)")
                 HStack(alignment: .top, spacing: 8) {
-                    number("Carious (Decayed) *", c, "cariesCount")
+                    number("Decayed *", c, "cariesCount")
                     number("Missing", c, "missingCount")
                     number("Filled", c, "filledCount")
                 }
-                FormSectionHeader(title: "Gums & Periodontium")
-                multi("Gums Condition (Healthy, Bleeding, Swollen, Recession...) *", O.GUMS_CONDITION, c, "gums")
-                choice("Oral Hygiene Index *", O.ORAL_HYGIENE_INDEX, c, "hygiene")
-                FormSectionHeader(title: "Enamel, Alignment & Occlusion")
-                choice("Dental Fluorosis", O.FLUOROSIS_STAGE, c, "fluorosis")
-                multi("Occlusion & Alignment (Normal, Crowding, Crossbite...)", O.OCCLUSION_ALIGNMENT, c, "malocclusion")
             }
             Group {
-                FormSectionHeader(title: "Symptoms, Trauma & Habits")
-                multi("Symptoms & Dental Trauma (Toothache, Sensitivity, Fractures...)", O.DENTAL_SYMPTOMS, c,
+                choice("Dental fluorosis", O.FLUOROSIS_STAGE, c, "fluorosis")
+                multi("Any complaints, if present (toothache, sensitivity, chipped tooth...)", O.DENTAL_SYMPTOMS, c,
                       "dentalSymptoms",
                       flags: [("pain", "Toothache"), ("sensitivity", "Sensitivity"),
                               ("trauma", "Chipped"), ("stainsTartar", "Stains")])
-                multi("Oral Habits (Thumb sucking, mouth breathing...)", O.DENTAL_HABITS, c, "dentalHabits")
-                FormSectionHeader(title: "Recommended Dental Treatment")
-                multi("Select Dental Treatments", O.DENTAL_TREATMENTS, c, "treatmentNeeded")
-            }
-            Group {
-                FormSectionHeader(title: "Findings, Plan & Advice")
-                text("Abnormal findings", c, "abnormalFindings", "e.g. deep caries 85, retained 51")
-                text("Treatment plan", c, "treatmentPlan", "e.g. restoration 85, extraction 51")
-                text("General advice", c, "generalAdvice", "e.g. brush twice daily, fewer sweets")
+                text("Any other abnormalities, if present", c, "abnormalFindings", "e.g. deep caries 85, retained 51")
+                FormSectionHeader(title: "Recommended dental intervention")
+                multi("Select dental interventions", O.DENTAL_TREATMENTS, c, "treatmentNeeded")
             }
         }
     }

@@ -108,6 +108,10 @@ import {
   saveDietPlan,
   dieticianCohorts,
   dieticianCohortDraft,
+  dieticianTemplates,
+  adminDieticianTemplates,
+  adminSaveDieticianTemplate,
+  saveDieticianTemplate,
   saveCohortPlan,
   setDieticianSchool,
   upsertDietician,
@@ -2573,6 +2577,14 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (path.startsWith("/api/admin/dieticians/")) {
             const rest = path.slice("/api/admin/dieticians/".length).split("/").map(decodeURIComponent);
             const dieticianId = rest[0] || "";
+            // The dietician's twelve pre-camp plans, read and corrected by operations.
+            if (rest[1] === "templates" && !rest[2]) {
+              if (method === "GET") return json(await adminDieticianTemplates(sql, actor, dieticianId));
+              if (method === "POST" || method === "PUT") {
+                return json(await adminSaveDieticianTemplate(sql, actor, dieticianId, await readBody()));
+              }
+              return json({ error: "Method not allowed" }, 405);
+            }
             if (rest[1] === "schools" && method === "POST") {
               const b = await readBody();
               return json(await setDieticianSchool(
@@ -3798,6 +3810,14 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
               ? (system: string, user: string) => callToolkitChat(env, system, user, 700)
               : null;
             return json(await dieticianCohortDraft(sql, me, body, ask));
+          }
+          // The twelve pre-camp plans, one per group, written before a camp.
+          if (path === "/api/dietician/templates" && request.method === "GET") {
+            return json(await dieticianTemplates(sql, me));
+          }
+          if (path === "/api/dietician/templates" && request.method === "POST") {
+            const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+            return json(await saveDieticianTemplate(sql, me, body));
           }
           if (path === "/api/dietician/cohort-plan" && request.method === "POST") {
             const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;

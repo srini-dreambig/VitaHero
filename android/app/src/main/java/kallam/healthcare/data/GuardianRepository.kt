@@ -140,8 +140,15 @@ class GuardianRepository {
      * and here that is the right conflation: neither is something to put on a
      * parent's screen, and the screen simply does not draw the card.
      */
-    suspend fun dietPlan(kidId: String): DietPlanDto? =
-        getOr("/api/me/diet-plan", GuardianDietPlanDto(), mapOf("kid_id" to kidId)).plan
+    suspend fun dietPlan(kidId: String): DietPlanDto? {
+        val r = getOr("/api/me/diet-plan", GuardianDietPlanDto(), mapOf("kid_id" to kidId))
+        // The dietician to phone travels on the plan, so the screens that
+        // already carry a plan carry the number with it.
+        return r.plan?.copy(
+            dieticianName = r.dietician?.name.orEmpty(),
+            dieticianPhone = r.dietician?.phone.orEmpty(),
+        )
+    }
 
     // ─── VitaHero of the month ──────────────────────────────
 

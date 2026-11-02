@@ -12,6 +12,9 @@
 export type Flag = "GOOD" | "WATCH" | "ALERT" | "NOT_MEASURED";
 export type Urgency = "NONE" | "ROUTINE" | "SOON" | "URGENT";
 
+import { ageInMonths, bmiForAge, nutritionStatus, type BmiForAge } from "./who2007";
+import { iapReadings, MUAC_MIN_MONTHS, muacReading } from "./growthrefs";
+
 /**
  * Check types a camp can offer. The portal and the API agree on these strings.
  *
@@ -287,6 +290,8 @@ export interface FindingInput {
 export interface FindingContext {
   ageYears: number;
   gender: string;
+  /** Date of birth as recorded, for age in months. Whole years are the fallback. */
+  dob?: string;
 }
 
 export interface Proposal {
@@ -335,38 +340,84 @@ export function acuityRank(v: string): number {
 
 /**
  * Nutritional status from height and weight, in the words the paper sheet
- * uses. A suggestion: the doctor's own choice is recorded over it. Read from
- * the same percentiles the growth flag uses, so the two never disagree.
+ * uses: the WHO 2007 BMI-for-age and height-for-age reading for this child's
+ * sex and age in months (see who2007.ts). A suggestion: the doctor's own
+ * choice is recorded over it. "" when there is no age to read it against.
  */
 export const NUTRITION_BANDS = [
-  "Severely underweight", "Underweight", "Stunted", "Normal", "Overweight", "Obese",
+  "Severely wasted", "Wasted", "Stunted", "Normal", "Overweight", "Obese",
 ] as const;
-export function nutritionBand(heightCm: number, weightKg: number, ageYears: number | null, gender: string): string {
-  const age = ageYears ?? 8;
-  const hPct = estimatePercentile(heightCm, age, gender, "HEIGHT");
-  const wPct = estimatePercentile(weightKg, age, gender, "WEIGHT");
-  if (wPct < 3) return "Severely underweight";
-  if (wPct < 15) return "Underweight";
-  if (hPct < 3) return "Stunted";
-  if (wPct >= 97) return "Obese";
-  if (wPct > 90) return "Overweight";
-  return "Normal";
+export function nutritionBand(
+  heightCm: number, weightKg: number, ageYears: number | null, gender: string, dob = ""
+): string {
+  const r = whoReading(heightCm, weightKg, ageYears, gender, dob);
+  return r ? nutritionStatus(r) : "";
 }
+
+const BAND_SEVERITY: Record<string, number> = {
+  Normal: 0, Overweight: 1, Stunted: 1, Wasted: 1, Obese: 2, "Severely wasted": 2,
+};
+
+/**
+ * The WHO reading for this child, or null without an age. With no sex on the
+ * record both references are read and the more worrying one is kept, so a
+ * missing field can only make a child look like they need a second look.
+ */
+export function whoReading(
+  heightCm: number, weightKg: number, ageYears: number | null, gender: string, dob = ""
+): (BmiForAge & { sexUnknown: boolean }) | null {
+  const months = ageInMonths(dob, ageYears);
+  if (months === null) return null;
+  const sex = referenceSex(gender);
+  if (sex) {
+    const r = bmiForAge(heightCm, weightKg, sex, months);
+    return r && { ...r, sexUnknown: false };
+  }
+  const m = bmiForAge(heightCm, weightKg, "M", months);
+  const f = bmiForAge(heightCm, weightKg, "F", months);
+  if (!m || !f) return null;
+  const sm = BAND_SEVERITY[nutritionStatus(m)], sf = BAND_SEVERITY[nutritionStatus(f)];
+  const pick = sm !== sf ? (sm > sf ? m : f) : Math.abs(m.bmiZ) >= Math.abs(f.bmiZ) ? m : f;
+  return { ...pick, sexUnknown: true };
+}
+
+/** 11th, 22nd, 53rd; 0.4th and 99.6th at the ends, where a whole number would say 0 or 100. */
+export const ord = (n: number) => {
+  if (n < 1 || n > 99) return `${n}th`;
+  const r = Math.round(n);
+  const t = r % 100, u = r % 10;
+  return `${r}${t >= 11 && t <= 13 ? "th" : u === 1 ? "st" : u === 2 ? "nd" : u === 3 ? "rd" : "th"}`;
+};
 
 /**
  * MUAC against the usual screening cut-offs. Under five, the WHO's 11.5 cm
- * (severe) and 12.5 cm (moderate). For school-age children there is no single
- * agreed cut-off, so a low arm is a watch, never an alert on its own.
+ * (severe) and 12.5 cm (moderate). From five, the Mramba 2017 MUAC-for-age
+ * reference (growthrefs.ts), on the same cut-offs as BMI: below -3 SD severe,
+ * below -2 SD low. With no sex recorded the lower of the two z-scores is kept.
+ * Without an age a school-age child is assumed, read against the old fixed
+ * 13.5 cm line, and only ever a watch.
  */
-export function muacBand(cm: number, ageYears: number | null): { flag: Flag; note: string } {
-  const age = ageYears ?? 8;
-  if (age < 5) {
-    if (cm < 11.5) return { flag: "ALERT", note: "severe acute malnutrition range" };
-    if (cm < 12.5) return { flag: "WATCH", note: "moderate malnutrition range" };
-    return { flag: "GOOD", note: "" };
+export function muacBand(
+  cm: number, ageYears: number | null, gender = "", dob = ""
+): { flag: Flag; note: string; z: number | null; percentile: number | null } {
+  const none = { z: null, percentile: null };
+  const months = ageInMonths(dob, ageYears);
+  if (months !== null && months < MUAC_MIN_MONTHS) {
+    if (cm < 11.5) return { flag: "ALERT", note: "severe acute malnutrition range", ...none };
+    if (cm < 12.5) return { flag: "WATCH", note: "moderate malnutrition range", ...none };
+    return { flag: "GOOD", note: "", ...none };
   }
-  const low = age < 10 ? 13.5 : 16;
-  return cm < low ? { flag: "WATCH", note: "low for age" } : { flag: "GOOD", note: "" };
+  if (months === null) {
+    return cm < 13.5 ? { flag: "WATCH", note: "low for age", ...none } : { flag: "GOOD", note: "", ...none };
+  }
+  const sex = referenceSex(gender);
+  const readings = (sex ? [sex] : (["M", "F"] as const)).map((x) => muacReading(x, months, cm));
+  const r = readings.reduce((a, b) => (a && b && b.z < a.z ? b : a));
+  if (!r) return { flag: "GOOD", note: "", ...none };
+  const at = { z: r.z, percentile: r.percentile };
+  if (r.z < -3) return { flag: "ALERT", note: "severely low for age, below -3 SD", ...at };
+  if (r.z < -2) return { flag: "WATCH", note: "low for age, below -2 SD", ...at };
+  return { flag: "GOOD", note: "", ...at };
 }
 
 /** dmft (milk teeth) or DMFT (permanent), or "" when nothing was counted. */
@@ -389,41 +440,65 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       if (h === null || w === null) {
         return notMeasured("Height and weight not recorded");
       }
-      const hPct = estimatePercentile(h, ctx.ageYears, ctx.gender, "HEIGHT");
-      const wPct = estimatePercentile(w, ctx.ageYears, ctx.gender, "WEIGHT");
       const b = bmi(h, w);
+      const who = whoReading(h, w, ctx.ageYears, ctx.gender, ctx.dob || "");
       let flag: Flag = "GOOD";
-      let why = `Height ${hPct}th percentile, weight ${wPct}th, BMI ${b}`;
-      if (referenceSex(ctx.gender) === null) {
-        // The physician reviewing this needs to know the percentile is the
-        // cautious one of two, not a reading against this child's own chart.
-        why += " (sex not recorded — measured against the lower of the two references)";
-      }
-      if (hPct < 3 || wPct < 3) {
-        flag = "ALERT";
-        why += " — below the 3rd percentile";
-      } else if (wPct >= 97) {
-        flag = "ALERT";
-        why += " — at or above the 97th percentile for weight";
-      } else if (hPct < 15 || wPct < 15 || wPct > 90) {
+      let why = `BMI ${b} kg/m²`;
+      if (!who) {
+        // Without an age there is no curve to read a child's BMI against.
         flag = "WATCH";
-        why += " — outside the 15th-90th band";
+        why += " — age not recorded, so BMI-for-age could not be read";
       } else {
-        why += " — within the normal band";
+        const sign = (z: number) => (z > 0 ? `+${z.toFixed(2)}` : z.toFixed(2));
+        why += `, BMI-for-age z ${sign(who.bmiZ)} (${ord(who.bmiPercentile)} percentile)` +
+          `, height-for-age z ${sign(who.heightZ)} (${ord(who.heightPercentile)} percentile)` +
+          // Weight-for-age ends at 10 years; past that BMI-for-age is the measure.
+          (who.weightZ === null || who.weightPercentile === null ? ""
+            : `, weight-for-age z ${sign(who.weightZ)} (${ord(who.weightPercentile)} percentile)`) +
+          `, WHO 2007 ${who.sex === "M" ? "boys" : "girls"}`;
+        if (who.sexUnknown) {
+          // The physician reviewing this needs to know this is the cautious
+          // one of two, not a reading against this child's own chart.
+          why += " (sex not recorded — the more concerning of the two references)";
+        }
+        if (who.outsideRange) why += " (outside 5-19 years — read at the nearest end of the reference)";
+        if (who.bmiZ < -3 || who.bmiZ > 3 || who.heightZ < -3) {
+          flag = "ALERT";
+          why += who.bmiZ < -3 ? " — severely wasted (below -3 SD)"
+            : who.bmiZ > 3 ? " — obese (above +3 SD)" : " — severe stunting (below -3 SD)";
+        } else if (who.bmiZ < -2 || who.bmiZ > 2 || who.heightZ < -2) {
+          flag = "WATCH";
+          why += who.bmiZ < -2 ? " — wasted (below -2 SD)"
+            : who.bmiZ > 2 ? " — overweight (above +2 SD)" : " — stunting (below -2 SD)";
+        } else {
+          why += " — within the normal range (-2 to +2 SD)";
+        }
+        // The IAP 2015 Indian charts, read beside the WHO's (5 to 18 years).
+        const iap = iapReadings(h, w, who.sex, who.ageMonths);
+        const iapText = [
+          iap.height && `height ${iap.height.band}`,
+          iap.weight && `weight ${iap.weight.band}`,
+          iap.bmi && `BMI ${iap.bmi.band}`,
+        ].filter(Boolean).join(", ");
+        if (iapText) why += `; IAP 2015 centiles: ${iapText}`;
       }
       // Mid-upper arm circumference, as the paper sheet records it.
       const muac = num(d.muacCm);
       if (muac !== null) {
-        const m = muacBand(muac, ctx.ageYears);
-        why += `, MUAC ${muac} cm${m.note ? ` (${m.note})` : ""}`;
+        const m = muacBand(muac, ctx.ageYears, ctx.gender, ctx.dob || "");
+        why += `, MUAC ${muac} cm`;
+        if (m.z !== null && m.percentile !== null) {
+          why += `, MUAC-for-age z ${m.z > 0 ? "+" : ""}${m.z.toFixed(2)} (${ord(m.percentile)} percentile, Mramba 2017)`;
+        }
+        if (m.note) why += ` — ${m.note}`;
         if (m.flag === "ALERT") flag = "ALERT";
         else if (m.flag === "WATCH" && flag === "GOOD") flag = "WATCH";
       }
       // The doctor's nutritional status wins over the suggestion.
       const status = String(d.nutritionalStatus || "").trim() ||
-        nutritionBand(h, w, ctx.ageYears, ctx.gender);
+        (who ? nutritionStatus(who) : "Not classified");
       why += `, nutritional status: ${status}`;
-      if (status !== "Normal" && flag === "GOOD") flag = "WATCH";
+      if (status !== "Normal" && status !== "Not classified" && flag === "GOOD") flag = "WATCH";
       const advice = String(d.generalAdvice || "").trim();
       if (advice) why += `, advice: ${advice}`;
       return {
@@ -578,6 +653,18 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
 
       if (treatmentsRecommended.length > 0) {
         why += `, rec: ${treatmentsRecommended.join(", ")}`;
+      }
+      // The sheet's last two columns, free text: anything the child or the
+      // doctor raised that the other columns do not hold.
+      const otherComplaints = String(d.otherComplaints || "").trim();
+      if (otherComplaints && otherComplaints.toLowerCase() !== "none") {
+        why += `, complaints: ${otherComplaints}`;
+        if (flag === "GOOD") flag = "WATCH";
+      }
+      const otherAbnormalities = String(d.otherAbnormalities || "").trim();
+      if (otherAbnormalities && otherAbnormalities.toLowerCase() !== "none") {
+        why += `, other abnormalities: ${otherAbnormalities}`;
+        if (flag === "GOOD") flag = "WATCH";
       }
       const visionAdvice = String(d.generalAdvice || "").trim();
       if (visionAdvice) why += `, advice: ${visionAdvice}`;
@@ -981,7 +1068,7 @@ function notMeasured(why: string): Proposal {
 export const REQUIRED_FIELDS: Record<CheckType, ReadonlyArray<readonly [string, string]>> = {
   "Height & weight": [["heightCm", "Height (cm)"], ["weightKg", "Weight (kg)"]],
   Vision: [["rightAcuity", "Right eye acuity"], ["leftAcuity", "Left eye acuity"]],
-  Dental: [["cariesCount", "Carious (decayed) teeth"], ["gums", "Gums condition"], ["hygiene", "Oral hygiene"]],
+  Dental: [["cariesCount", "Carious (decayed) teeth"], ["hygiene", "Oral hygiene"]],
   Haemoglobin: [["hb", "Haemoglobin (g/dL)"]],
   ENT: [["rightHearing", "Right ear hearing"], ["leftHearing", "Left ear hearing"]],
   Skin: [["skinCondition", "Skin condition"]],

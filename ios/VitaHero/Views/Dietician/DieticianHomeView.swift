@@ -7,6 +7,8 @@ enum DieticianRoute: Hashable {
     case groups(DieticianSchool)
     case cohort(school: DieticianSchool, grade: String, cohort: DieticianCohort)
     case articles
+    case precampPlans
+    case precampPlan(key: String)
 }
 
 /// What a dietician opens to: their schools, then a school's children, one
@@ -25,6 +27,8 @@ struct DieticianHomeView: View {
                     case .cohort(let school, let grade, let cohort):
                         DieticianCohortView(school: school, grade: grade, cohort: cohort)
                     case .articles: DieticianArticlesView()
+                    case .precampPlans: DieticianTemplatesView()
+                    case .precampPlan(let key): DieticianTemplateView(key: key)
                     }
                 }
         }

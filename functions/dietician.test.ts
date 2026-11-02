@@ -401,6 +401,7 @@ suite("what a dietician can reach", () => {
       const at = src.indexOf(`data class ${name}(`);
       if (at < 0) throw new Error(`${name} is gone from DieticianDtos.kt`);
       const body = src.slice(at, src.indexOf("\n)", at));
+      // A @Transient field is never read off the wire, so the server need not send it.
       return (body.match(/^\s*val\s+(\w+)\s*:/gm) || [])
         .map((x) => x.replace(/^\s*val\s+/, "").replace(/\s*:$/, ""));
     };

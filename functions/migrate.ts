@@ -28,6 +28,9 @@ import { Sql } from "./common";
  * shape. SCHEMA_DDL_FINGERPRINT below is what actually enforces that, and it
  * is checked in migrate.test.ts.
  */
+// 17 — adds vita_hero.diet_plan_templates and diet_plans.template_key: the
+//     twelve plans a dietician writes before a camp, one per group, and which
+//     of them a family's plan was given from, so a rewrite replaces it.
 // 16 — camp_staff gains `specialty`: what this person checks at this camp.
 //     A doctor assigned without a directory specialty owned every check, so
 //     the first one to save marked the child done for everyone.
@@ -80,7 +83,7 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 /**
  * A fingerprint of every DDL statement in this worker.
@@ -101,7 +104,7 @@ export const SCHEMA_VERSION = 16;
  * means updating both lines, together, which is the point: the second line is
  * what makes you look at the first.
  */
-export const SCHEMA_DDL_FINGERPRINT = "7231e7f1bf7be6fa";
+export const SCHEMA_DDL_FINGERPRINT = "890fcd52ea66b499";
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

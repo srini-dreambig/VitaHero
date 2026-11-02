@@ -273,9 +273,13 @@ struct CampResultView: View {
                     let flag = HealthFlag(server: finding.flag)
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text(finding.checkType.capitalized).font(.headline)
+                            Text(finding.sheet.map { $0.title.isEmpty ? finding.checkType : $0.title }
+                                 ?? finding.checkType.capitalized).font(.headline)
                             Spacer()
                             Pill(text: flag.label, color: flag.color)
+                        }
+                        if let sheet = finding.sheet, !sheet.rows.isEmpty {
+                            sheetRows(sheet, child: result.child)
                         }
                         if !finding.summary.isEmpty { Text(finding.summary).font(.subheadline) }
                         if !finding.note.isEmpty { Text(finding.note).font(.caption).foregroundColor(.secondary) }
@@ -287,6 +291,28 @@ struct CampResultView: View {
         if !result.recommendation.isEmpty {
             Section(L("doctor_says")) { Text(result.recommendation) }
         }
+    }
+
+    /// The assessment sheet, a row per column as the doctor filled it, and on
+    /// the growth sheet the WHO chart with the child on it.
+    @ViewBuilder
+    private func sheetRows(_ sheet: CampResult.Sheet, child: CampResult.Child?) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(sheet.rows) { row in
+                HStack(alignment: .top) {
+                    Text(row.label).font(.caption).foregroundColor(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(row.value).font(.caption.weight(.medium))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+            if let g = sheet.growth, let child,
+               let who = WhoBmi.forChild(heightCm: g.heightCm, weightKg: g.weightKg,
+                                         gender: child.gender, dob: child.dob, ageYears: child.age) {
+                GrowthChartsPanel(reading: who, muacCm: g.muacCm).padding(.top, 4)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private func pendingTitle(_ p: CampResult.Progress?) -> String {

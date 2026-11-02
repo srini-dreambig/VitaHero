@@ -24,6 +24,10 @@ final class DieticianStore: ObservableObject {
     @Published private(set) var cohortsLoading = false
     @Published private(set) var cohortsError: String?
 
+    @Published private(set) var templates: DietTemplates?
+    @Published private(set) var templatesLoading = false
+    @Published private(set) var templatesError: String?
+
     @Published private(set) var articles: [LibraryArticle] = []
     @Published private(set) var articlesLoading = false
     @Published private(set) var articlesError: String?
@@ -35,6 +39,7 @@ final class DieticianStore: ObservableObject {
         schools = []; schoolsError = nil
         children = []; childrenSchoolId = nil; childrenError = nil
         cohorts = nil; cohortsSchoolId = nil; cohortsError = nil
+        templates = nil; templatesError = nil
         articles = []; articlesError = nil
     }
 
@@ -129,6 +134,35 @@ final class DieticianStore: ObservableObject {
             await loadCohorts(schoolId, grade: grade)
             if childrenSchoolId == schoolId { await loadChildren(schoolId) }
             return .success(saved)
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    // MARK: Pre-camp plans
+
+    func loadTemplates() async {
+        templatesLoading = true
+        defer { templatesLoading = false }
+        do {
+            templates = try await api.dieticianTemplates()
+            templatesError = nil
+        } catch is CancellationError {
+        } catch APIError.unauthorized {
+        } catch {
+            templatesError = clinicianMessage(error,
+                fallback: "The pre-camp plans could not be loaded. Check the connection and try again.")
+        }
+    }
+
+    /// Save one, then re-read the groups if open: their drafts start from these.
+    func saveTemplate(key: String, title: String, guidance: String,
+                      targets: [DietTarget]) async -> Result<Void, Error> {
+        do {
+            templates = try await api.saveDieticianTemplate(key: key, title: title, guidance: guidance,
+                                                            targets: targets)
+            if let schoolId = cohortsSchoolId { await loadCohorts(schoolId, grade: "") }
+            return .success(())
         } catch {
             return .failure(error)
         }

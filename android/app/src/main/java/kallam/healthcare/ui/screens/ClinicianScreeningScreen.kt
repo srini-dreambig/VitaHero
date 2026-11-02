@@ -40,6 +40,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.ClinicianViewModel
+import kallam.healthcare.data.ScreeningChildDto
+import kallam.healthcare.data.WhoBmi
+import kallam.healthcare.ui.components.GrowthChartsPanel
 import kallam.healthcare.ui.components.HeroCard
 import kallam.healthcare.ui.components.HeroSingleSelectDropdown
 import kallam.healthcare.ui.components.HeroMultiSelectDropdown
@@ -80,9 +83,6 @@ private val ACUITY = listOf(
 )
 
 // Near Vision Scale (Image 3)
-private val NEAR_VISION = listOf(
-    "N6 (Normal)", "N8", "N10", "N12", "N18", "N24", "N36"
-)
 
 // Testing Condition (Image 3)
 private val VISION_TEST_CONDITION = listOf(
@@ -90,75 +90,19 @@ private val VISION_TEST_CONDITION = listOf(
 )
 
 // The console's external eye exam, one finding; the rule reads it as externalExam.
-private val EXTERNAL_EXAM = listOf("Normal", "Conjunctivitis", "Discharge", "Ptosis")
 
 // External Anterior Symptoms / Signs (Image 3)
-private val EXTERNAL_SIGNS = listOf(
-    "Ptosis (Lid Droop)",
-    "Swelling / Edema",
-    "Redness / Congestion",
-    "Watering / Epiphora",
-    "Purulent Discharge",
-    "Mucoid Discharge",
-    "Foreign Body Sensation"
-)
 
 // Anterior Segment Examination (Image 4)
-private val EYE_LASHES = listOf("Normal", "Distichiasis (Double Row)", "Trichiasis (Inward Growth)", "Madarosis (Lash Loss)", "Other Abnormality")
-private val EYE_LIDS = listOf("Normal", "Ptosis (Drooping)", "Entropion (Inward Turning)", "Ectropion (Outward Turning)", "Blepharitis / Stye", "Chalazion", "Other Abnormality")
-private val CONJUNCTIVA = listOf("Normal", "Congestion / Redness", "Dryness", "Itching / Allergic", "Purulent Discharge", "Mucoid Discharge", "Bitot's Spots", "Other Abnormality")
-private val SCLERA = listOf("Normal", "Jaundice / Icterus", "Scleral Congestion", "Episcleritis", "Other Abnormality")
-private val CORNEA = listOf("Normal / Clear", "Congestion / Opacity", "Foreign Body / Abrasion", "Corneal Ulcer", "Keratoconus", "Other Abnormality")
-private val ANTERIOR_CHAMBER = listOf("Normal / Quiet", "Shallow AC", "Deep AC", "Cells / Flare (+)", "Hyphema", "Hypopyon")
-private val IRIS = listOf("Normal", "Coloboma", "Heterochromia", "Synechiae", "Atrophy", "Other Abnormality")
-private val PUPIL_SIZE = listOf("Normal (3-5mm)", "Dilated (Mydriasis)", "Constricted (Miosis)", "Anisocoria (Unequal)")
-private val PUPIL_LIGHT_REACTION = listOf("Normal / Brisk", "Sluggish", "Non-Reactive to Light", "Afferent Pupillary Defect (RAPD)")
-private val EYE_LENS = listOf("Normal / Clear", "Congenital Cataract", "Cataractous Opacity", "Subluxation / Dislocated", "Aphakia", "Pseudophakia (IOL)")
 
 // Posterior Segment / Fundus Examination (Image 4)
-private val VITREOUS = listOf("Normal / Clear", "Vitreous Floaters", "Vitreous Hemorrhage", "Asteroid Hyalosis")
-private val OPTIC_DISC = listOf("Normal Pink (C:D 0.3)", "Pale / Optic Atrophy", "Papilledema / Swollen", "Cupping (C:D > 0.5)")
-private val MACULA = listOf("Normal Foveal Reflex", "Dull Reflex", "Macular Edema", "Macular Scar", "Cherry-Red Spot")
-private val RETINA = listOf("Normal Background", "Retinal Hemorrhages", "Hard Exudates", "ROP Retinopathy Signs", "Retinitis Pigmentosa", "Retinal Detachment / Tear")
-private val BLOOD_VESSELS = listOf("Normal (A:V 2:3)", "Tortuous / Dilated", "Attenuated / Narrow", "Neovascularization")
 
 // Alignment, Motility, Tonometry & Color Vision (Images 3, 4, 5)
-private val OCULAR_MOTILITY = listOf("Full in all 9 Gazes", "Restricted Elevation", "Restricted Depression", "Restricted Abduction", "Restricted Adduction", "Nystagmus")
-private val SQUINT_ALIGNMENT = listOf("Normal (Orthophoria)", "Esotropia (Crossed-In)", "Exotropia (Turned-Out)", "Alternating Squint", "Hypertropia", "Hypotropia", "Phoria / Latent Squint")
 private val COLOR_VISION = listOf("17/17 (Normal Pass)", "15-16/17 (Borderline)", "<15/17 (Defective Red-Green)", "Total Color Blindness", "Ishihara Partial Deficit", "Uncooperative")
-private val GONIOSCOPY = listOf("Grade 4 (Open Angle)", "Grade 3 Open", "Grade 2 Narrow", "Grade 1 Narrow", "Closed Angle")
-private val DOMINANT_EYE = listOf("Right Eye (RE)", "Left Eye (LE)")
-private val DILATATION_STATUS = listOf("No (Undilated)", "Yes - Tropicamide + Phenylephrine", "Yes - Cyclopentolate 1%", "Yes - Homatropine 2%", "Yes - Atropine 1%")
-private val GLASSES_STATUS = listOf("None (Emmetropic)", "Wearing Prescribed Glasses (<1 yr)", "Wearing Glasses (1-2 yrs)", "Wearing Glasses (>2 yrs)", "Glasses Broken / Outdated", "Refraction Needed")
 
 // Vision Interventions & Treatments (Images 3, 4)
-private val VISION_TREATMENTS = listOf(
-    "Rx Prescribed (Eye Drops / Medications)",
-    "Glasses Prescribed (Spectacle Correction)",
-    "Refraction Needed / Schedule Formal Exam",
-    "Pediatric Ophthalmologist Referral",
-    "Amblyopia Patching Therapy",
-    "Lubricating / Artificial Tear Drops",
-    "Anti-Allergic Eye Drops",
-    "Antibiotic Eye Drops",
-    "Vision Hygiene & Screen Time Guidance"
-)
 
 // Image 1: Ocular Investigations
-private val OCULAR_INVESTIGATIONS = listOf(
-    "Keratometry",
-    "A - Scan",
-    "ORA WaveTech",
-    "Orbscan",
-    "Aberrometry",
-    "Specular Microscopy",
-    "Ant. OCT (Anterior Segment OCT)",
-    "Post. OCT (Posterior / Macular OCT)",
-    "B - Scan (Ultrasound)",
-    "FFA (Fundus Fluorescein Angiography)",
-    "HVF (Humphrey Visual Field)",
-    "CCT (Central Corneal Thickness)"
-)
 
 // Image 1: General & Blood Investigations
 private val GENERAL_INVESTIGATIONS = listOf(
@@ -244,19 +188,14 @@ private val CURRENT_TREATMENTS = listOf(
 // Nutritional status, in the words the physical exam sheet uses and the
 // server reads (NUTRITION_BANDS in clinical.ts). Left empty, the server
 // suggests one from height and weight; the dietician groups children by it.
-private val NUTRITIONAL_STATUS = listOf(
-    "Normal", "Underweight", "Severely underweight", "Stunted", "Overweight", "Obese",
-)
 
 // Type of dentition, as the oral & dental sheet has it. It decides whether
 // the tooth index is read as dmft (milk teeth) or DMFT (permanent).
 private val DENTITION = listOf("Primary", "Mixed", "Permanent")
 
 // Dental Specialist Clinical Options
-private val GUMS_CONDITION = listOf("Healthy", "Gingivitis / Redness", "Bleeding Gums", "Swollen / Abscess", "Gingival Recession")
 private val ORAL_HYGIENE_INDEX = listOf("Good (Clean)", "Fair (Mild Plaque)", "Poor (Heavy Plaque / Calculus)", "Stains / Calculus Noted")
 private val FLUOROSIS_STAGE = listOf("None", "Mild (White Flecks)", "Moderate (Browning)", "Severe (Pitting)")
-private val OCCLUSION_ALIGNMENT = listOf("Normal Class I", "Class II Overbite", "Class III Underbite", "Crowding", "Crossbite", "Open Bite", "Spacing")
 private val DENTAL_SYMPTOMS = listOf(
     "Reports Toothache / Pain",
     "Hot / Cold Sensitivity",
@@ -265,7 +204,6 @@ private val DENTAL_SYMPTOMS = listOf(
     "Loose / Mobile Tooth",
     "Stains / Tartar / Calculus Noted"
 )
-private val DENTAL_HABITS = listOf("None", "Thumb Sucking", "Tongue Thrusting", "Mouth Breathing", "Bruxism (Teeth Grinding)")
 private val DENTAL_TREATMENTS = listOf(
     "Prophylactic Cleaning & Scaling",
     "Fluoride Varnish Application",
@@ -343,7 +281,7 @@ private val HB_TREATMENTS = listOf(
 private val REQUIRED_FIELDS: Map<String, List<Pair<String, String>>> = mapOf(
     "Height & weight" to listOf("heightCm" to "Height", "weightKg" to "Weight"),
     "Vision" to listOf("rightAcuity" to "Right eye", "leftAcuity" to "Left eye"),
-    "Dental" to listOf("cariesCount" to "Carious count", "gums" to "Gums", "hygiene" to "Oral hygiene"),
+    "Dental" to listOf("cariesCount" to "Carious count", "hygiene" to "Oral hygiene"),
     "Haemoglobin" to listOf("hb" to "Haemoglobin"),
     "ENT" to listOf("rightHearing" to "Right ear", "leftHearing" to "Left ear"),
     "Skin" to listOf("skinCondition" to "Primary skin finding"),
@@ -594,7 +532,7 @@ fun ClinicianScreeningScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
-                                CheckFields(check, fields(check))
+                                CheckFields(check, fields(check), f.child)
                             }
                         }
                     }
@@ -684,41 +622,45 @@ fun ClinicianScreeningScreen(
  * World-Class Clinical Examination Form Renderer for all Specialties.
  */
 @Composable
-private fun CheckFields(check: String, fields: MutableMap<String, String>) {
+private fun CheckFields(check: String, fields: MutableMap<String, String>, child: ScreeningChildDto) {
     when (check) {
+        // Physical growth assessment, as the sheet has it: height, weight,
+        // mid-arm circumference and BMI. The nutritional status is the WHO
+        // reading, worked out on the server from the same numbers.
         "Height & weight" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 NumberField("Height (cm) *", fields, "heightCm", Modifier.weight(1f))
                 NumberField("Weight (kg) *", fields, "weightKg", Modifier.weight(1f))
-                NumberField("MUAC (cm)", fields, "muacCm", Modifier.weight(1f))
+                NumberField("Mid-arm circ. (cm)", fields, "muacCm", Modifier.weight(1f))
             }
-            ChoiceField("Nutritional status", NUTRITIONAL_STATUS, fields, "nutritionalStatus", Modifier.fillMaxWidth())
-            Text(
-                "Leave it empty and it is worked out from height and weight.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            // Every growth chart, live as the numbers are typed: IAP 2015 and
+            // WHO 2007 height, weight and BMI, and MUAC-for-age. The status is
+            // the same reading the server makes when the record is saved.
+            val who = WhoBmi.forChild(
+                fields["heightCm"]?.toDoubleOrNull() ?: 0.0,
+                fields["weightKg"]?.toDoubleOrNull() ?: 0.0,
+                child.gender, child.dob, child.age,
             )
-            SimpleTextField("General advice", fields, "generalAdvice", Modifier.fillMaxWidth(), placeholder = "e.g. more protein, play outdoors daily")
+            if (who != null) {
+                GrowthChartsPanel(who, fields["muacCm"]?.toDoubleOrNull(), Modifier.fillMaxWidth())
+            } else if (child.age == null && child.dob.isBlank()) {
+                Text(
+                    "No age or date of birth on record, so the growth charts cannot be read.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            HeroFormSectionHeader("Visual Acuity (Distant & Near) - Image 3", subtitle = "Snellen distance & near reading metrics per eye")
+            HeroFormSectionHeader("Visual acuity", subtitle = "Snellen, distance, each eye")
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Distance OD (Right) *", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
-                ChoiceField("Distance OS (Left) *", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
+                ChoiceField("Right eye (OD) *", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
+                ChoiceField("Left eye (OS) *", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Near OD (Right)", NEAR_VISION, fields, "rightNearVision", Modifier.weight(1f))
-                ChoiceField("Near OS (Left)", NEAR_VISION, fields, "leftNearVision", Modifier.weight(1f))
-            }
-            ChoiceField("Testing Condition", VISION_TEST_CONDITION, fields, "testingCondition", Modifier.fillMaxWidth())
+            ChoiceField("Testing condition", VISION_TEST_CONDITION, fields, "testingCondition", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("External Anterior Symptoms / Signs (Image 3)")
-            MultiChoiceField(EXTERNAL_SIGNS, fields, "externalSigns", label = "Select External Signs (Ptosis, Swelling, Watering...)")
-            ChoiceField("External Eye Exam", EXTERNAL_EXAM, fields, "externalExam", Modifier.fillMaxWidth())
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Present Glasses Prescription (Image 5)")
+            HeroFormSectionHeader("Present glasses prescription", subtitle = "Only if the child already wears glasses")
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SimpleTextField("OD Sph", fields, "presentOdSph", Modifier.weight(1f), placeholder = "-1.50")
                 SimpleTextField("OD Cyl", fields, "presentOdCyl", Modifier.weight(1f), placeholder = "-0.50")
@@ -733,7 +675,7 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             }
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("New Glasses Prescription (Image 5)")
+            HeroFormSectionHeader("New glasses prescription")
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 SimpleTextField("OD UVA", fields, "newOdUva", Modifier.weight(1f), placeholder = "6/18")
                 SimpleTextField("OD Sph", fields, "newOdSph", Modifier.weight(1f), placeholder = "-2.00")
@@ -750,125 +692,29 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
             }
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Tonometry & Dilatation (Image 5)")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                NumberField("NCT IOP RE (mmHg)", fields, "rightNctIop", Modifier.weight(1f))
-                NumberField("NCT IOP LE (mmHg)", fields, "leftNctIop", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Dominant Eye", DOMINANT_EYE, fields, "dominantEye", Modifier.weight(1f))
-                ChoiceField("Dilatation Status", DILATATION_STATUS, fields, "dilatation", Modifier.weight(1f))
-            }
-            SimpleTextField("Dilatation Time", fields, "dilatationTime", Modifier.fillMaxWidth(), placeholder = "e.g. 10:30 AM")
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Anterior Segment Examination (Image 4)", subtitle = "Lashes, Lids, Conjunctiva, Sclera, Cornea, AC, Iris, Pupil & Lens")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Eyelashes (OD)", EYE_LASHES, fields, "rightLashes", Modifier.weight(1f))
-                ChoiceField("Eyelashes (OS)", EYE_LASHES, fields, "leftLashes", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Eyelid (OD)", EYE_LIDS, fields, "rightLid", Modifier.weight(1f))
-                ChoiceField("Eyelid (OS)", EYE_LIDS, fields, "leftLid", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Conjunctiva (OD)", CONJUNCTIVA, fields, "rightConjunctiva", Modifier.weight(1f))
-                ChoiceField("Conjunctiva (OS)", CONJUNCTIVA, fields, "leftConjunctiva", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Sclera (OD)", SCLERA, fields, "rightSclera", Modifier.weight(1f))
-                ChoiceField("Sclera (OS)", SCLERA, fields, "leftSclera", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Cornea (OD)", CORNEA, fields, "rightCornea", Modifier.weight(1f))
-                ChoiceField("Cornea (OS)", CORNEA, fields, "leftCornea", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Anterior Chamber (OD)", ANTERIOR_CHAMBER, fields, "rightAc", Modifier.weight(1f))
-                ChoiceField("Anterior Chamber (OS)", ANTERIOR_CHAMBER, fields, "leftAc", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Iris (OD)", IRIS, fields, "rightIris", Modifier.weight(1f))
-                ChoiceField("Iris (OS)", IRIS, fields, "leftIris", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Pupil Size", PUPIL_SIZE, fields, "pupilSize", Modifier.weight(1f))
-                ChoiceField("Light Reaction", PUPIL_LIGHT_REACTION, fields, "pupilReaction", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Crystalline Lens (OD)", EYE_LENS, fields, "rightLens", Modifier.weight(1f))
-                ChoiceField("Crystalline Lens (OS)", EYE_LENS, fields, "leftLens", Modifier.weight(1f))
-            }
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Posterior Segment / Fundus Examination (Image 4)", subtitle = "Vitreous, Optic Disc, Macula, Retina & Blood Vessels")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Optic Disc (OD)", OPTIC_DISC, fields, "rightOpticDisc", Modifier.weight(1f))
-                ChoiceField("Optic Disc (OS)", OPTIC_DISC, fields, "leftOpticDisc", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Macula & Fovea (OD)", MACULA, fields, "rightMacula", Modifier.weight(1f))
-                ChoiceField("Macula & Fovea (OS)", MACULA, fields, "leftMacula", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Background Retina (OD)", RETINA, fields, "rightRetina", Modifier.weight(1f))
-                ChoiceField("Background Retina (OS)", RETINA, fields, "leftRetina", Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ChoiceField("Blood Vessels (OD)", BLOOD_VESSELS, fields, "rightVessels", Modifier.weight(1f))
-                ChoiceField("Blood Vessels (OS)", BLOOD_VESSELS, fields, "leftVessels", Modifier.weight(1f))
-            }
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Motility, Alignment, Gonioscopy & Color Vision")
-            ChoiceField("Ocular Motility (9 Gazes)", OCULAR_MOTILITY, fields, "ocularMotility", Modifier.fillMaxWidth())
-            ChoiceField("Ocular Alignment / Squint", SQUINT_ALIGNMENT, fields, "squintAlignment", Modifier.fillMaxWidth())
-            ChoiceField("Color Vision (Ishihara /17)", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
-            ChoiceField("Gonioscopy Angle", GONIOSCOPY, fields, "gonioscopy", Modifier.fillMaxWidth())
-            ChoiceField("Glasses Status", GLASSES_STATUS, fields, "glassesWorn", Modifier.fillMaxWidth())
-            ToggleField("Strabismus / Squint Noted", fields, "squint")
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Ocular Diagnostic Investigations (Image 1)")
-            MultiChoiceField(OCULAR_INVESTIGATIONS, fields, "ocularInvestigations", label = "Order Ocular Tests (Keratometry, A-Scan, OCT, FFA...)")
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Recommended Vision Interventions (Images 3, 4)")
-            MultiChoiceField(VISION_TREATMENTS, fields, "treatmentsRecommended", label = "Select Vision Interventions")
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Diagnosis & Plan of Care (Image 4)")
-            SimpleTextField("Provisional Diagnosis", fields, "provisionalDiagnosis", Modifier.fillMaxWidth(), placeholder = "e.g. Myopic Astigmatism OD/OS")
-            SimpleTextField("Plan of Care", fields, "planOfCare", Modifier.fillMaxWidth(), placeholder = "Corrective glasses, repeat exam in 6 months...")
-            SimpleTextField("Final Diagnosis", fields, "finalDiagnosis", Modifier.fillMaxWidth(), placeholder = "e.g. Simple Myopia OD -2.00, OS -2.25")
-            SimpleTextField("General advice", fields, "generalAdvice", Modifier.fillMaxWidth(), placeholder = "e.g. limit screen time, sit near the board")
+            ChoiceField("Colour vision (Ishihara /17)", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
+            SimpleTextField("Any other complaints, if present", fields, "otherComplaints", Modifier.fillMaxWidth(), placeholder = "e.g. headache after reading, watering")
+            SimpleTextField("Any other abnormalities, if present", fields, "otherAbnormalities", Modifier.fillMaxWidth(), placeholder = "e.g. squint, drooping lid")
         }
         "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            HeroFormSectionHeader("Tooth Index (dmft / DMFT)")
+            ChoiceField("Oral hygiene *", ORAL_HYGIENE_INDEX, fields, "hygiene", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(2.dp))
+            HeroFormSectionHeader("Tooth index (dmft / DMFT)")
             ChoiceField("Type of dentition", DENTITION, fields, "dentition", Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                NumberField("Carious (Decayed) *", fields, "cariesCount", Modifier.weight(1f))
+                NumberField("Decayed *", fields, "cariesCount", Modifier.weight(1f))
                 NumberField("Missing", fields, "missingCount", Modifier.weight(1f))
                 NumberField("Filled", fields, "filledCount", Modifier.weight(1f))
             }
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Gums & Periodontium")
-            MultiChoiceField(GUMS_CONDITION, fields, "gums", label = "* Gums Condition (Healthy, Bleeding, Swollen, Recession...)")
-            ChoiceField("Oral Hygiene Index *", ORAL_HYGIENE_INDEX, fields, "hygiene", Modifier.fillMaxWidth())
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Enamel, Alignment & Occlusion")
-            ChoiceField("Dental Fluorosis", FLUOROSIS_STAGE, fields, "fluorosis", Modifier.fillMaxWidth())
-            MultiChoiceField(OCCLUSION_ALIGNMENT, fields, "malocclusion", label = "Occlusion & Alignment (Normal, Crowding, Crossbite...)")
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Symptoms, Trauma & Habits")
+            ChoiceField("Dental fluorosis", FLUOROSIS_STAGE, fields, "fluorosis", Modifier.fillMaxWidth())
             MultiChoiceField(
                 options = DENTAL_SYMPTOMS,
                 fields = fields,
                 key = "dentalSymptoms",
-                label = "Symptoms & Dental Trauma (Toothache, Sensitivity, Fractures...)",
+                label = "Any complaints, if present (toothache, sensitivity, chipped tooth...)",
                 onCustomSelect = { set ->
                     fields["dentalSymptoms"] = set.joinToString(",")
                     fields["pain"] = if (set.any { it.contains("Toothache", ignoreCase = true) }) "true" else "false"
@@ -877,17 +723,11 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>) {
                     fields["stainsTartar"] = if (set.any { it.contains("Stains", ignoreCase = true) }) "true" else "false"
                 }
             )
-            MultiChoiceField(DENTAL_HABITS, fields, "dentalHabits", label = "Oral Habits (Thumb sucking, mouth breathing...)")
+            SimpleTextField("Any other abnormalities, if present", fields, "abnormalFindings", Modifier.fillMaxWidth(), placeholder = "e.g. deep caries 85, retained 51")
 
             Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Recommended Dental Treatment")
-            MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded", label = "Select Dental Treatments")
-
-            Spacer(Modifier.height(2.dp))
-            HeroFormSectionHeader("Findings, Plan & Advice")
-            SimpleTextField("Abnormal findings", fields, "abnormalFindings", Modifier.fillMaxWidth(), placeholder = "e.g. deep caries 85, retained 51")
-            SimpleTextField("Treatment plan", fields, "treatmentPlan", Modifier.fillMaxWidth(), placeholder = "e.g. restoration 85, extraction 51")
-            SimpleTextField("General advice", fields, "generalAdvice", Modifier.fillMaxWidth(), placeholder = "e.g. brush twice daily, fewer sweets")
+            HeroFormSectionHeader("Recommended dental intervention")
+            MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded", label = "Select dental interventions")
         }
         "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             HeroFormSectionHeader("Hearing Acuity Screening")
