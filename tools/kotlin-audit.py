@@ -754,7 +754,9 @@ if not fmt_problems:
 KOTLIN_BUILTINS = {
     "String", "Int", "Boolean", "Unit", "List", "Map", "MutableMap", "MutableList",
     "MutableSet", "Set", "Double", "Float", "Long", "Short", "Byte", "Char",
-    "Any", "Nothing", "Number", "Array", "Exception", "Result", "Pair", "Triple",
+    "Any", "Nothing", "Number", "Array", "IntArray", "LongArray", "FloatArray",
+    "DoubleArray", "BooleanArray", "ByteArray", "CharArray", "ShortArray",
+    "Exception", "Result", "Pair", "Triple",
     "Throwable", "Comparable", "Iterable", "Sequence", "Regex", "StringBuilder",
     "Math", "System", "Runtime", "Thread", "Error", "RuntimeException",
     "IllegalArgumentException", "IllegalStateException", "IndexOutOfBoundsException",
