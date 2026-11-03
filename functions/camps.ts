@@ -2988,6 +2988,37 @@ export function guardianProgress(
   return { stage, done, total: asked.length, checks };
 }
 
+/**
+ * The newest growth, vision and dental sheets a guardian may read for one
+ * child, whichever camp each came from.
+ *
+ * The child's own screen used to show only the flag and a stock sentence
+ * ("some plaque was noted") whatever the doctor wrote. It now shows what was
+ * tested. Each camp is read through guardianCampResult, so a check the
+ * parent cannot yet see there is not shown here either.
+ */
+export async function guardianLatestSheets(sql: Sql, profileId: string, kidId: string) {
+  const camps = await sql`
+    SELECT p.camp_id FROM vita_hero.camp_participants p
+    JOIN vita_hero.school_camps sc ON sc.id = p.camp_id
+    WHERE p.kid_id = ${kidId} AND p.profile_id = ${profileId}
+    ORDER BY sc.date DESC NULLS LAST, p.camp_id DESC
+    LIMIT 6
+  `;
+  const wanted = ["Height & weight", "Vision", "Dental"];
+  const found = new Map<string, Record<string, unknown>>();
+  for (const c of camps) {
+    const r = await guardianCampResult(sql, profileId, c.camp_id as string, kidId);
+    if (!("findings" in r) || !r.findings) continue;
+    for (const f of r.findings) {
+      if (!wanted.includes(f.checkType) || found.has(f.checkType) || !f.sheet) continue;
+      found.set(f.checkType, { ...f, campTitle: r.campTitle || "", date: r.date || "" });
+    }
+    if (found.size === wanted.length) break;
+  }
+  return { findings: wanted.filter((w) => found.has(w)).map((w) => found.get(w)!) };
+}
+
 /** A released result, in the detail the app's results screen wants. */
 export async function guardianCampResult(
   sql: Sql,

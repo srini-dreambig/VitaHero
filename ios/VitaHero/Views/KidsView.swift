@@ -96,6 +96,30 @@ struct KidDetailView: View {
                 }
             }
 
+            // Every value screened at the camp, not only the conclusion.
+            ForEach(sheets) { finding in
+                Section(header: Text(finding.sheet?.title ?? finding.checkType),
+                        footer: Text([finding.campTitle, finding.date].filter { !$0.isEmpty }.joined(separator: " · "))) {
+                    HStack {
+                        Text(finding.checkType)
+                        Spacer()
+                        let flag = HealthFlag(server: finding.flag)
+                        Pill(text: flag.label, color: flag.color)
+                    }
+                    ForEach(finding.sheet?.rows ?? []) { row in
+                        HStack(alignment: .top) {
+                            Text(row.label).font(.vh(.caption)).foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text(row.value).font(.vh(.caption, .medium))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                    if !finding.note.isEmpty {
+                        Text(finding.note).font(.vh(.caption)).foregroundColor(.secondary)
+                    }
+                }
+            }
+
             Section {
                 NavigationLink { SymptomsView(kidId: kid.id) } label: {
                     Label(L("symptoms_title"), systemImage: "thermometer.medium")
@@ -123,6 +147,14 @@ struct KidDetailView: View {
             Text(title)
             Spacer()
             Text(value).foregroundColor(.secondary)
+        }
+    }
+
+    /// The latest vision and dental sheets that have rows to show.
+    private var sheets: [CampResult.Finding] {
+        let all = store.latestSheets[kid.id] ?? []
+        return ["Vision", "Dental"].compactMap { type in
+            all.first { $0.checkType == type && !($0.sheet?.rows.isEmpty ?? true) }
         }
     }
 

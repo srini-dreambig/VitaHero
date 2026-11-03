@@ -44,6 +44,10 @@ class GuardianViewModel(
     private val _dietPlans = MutableStateFlow<Map<String, DietPlanDto>>(emptyMap())
     val dietPlans: StateFlow<Map<String, DietPlanDto>> = _dietPlans.asStateFlow()
 
+    // The latest released sheets per child, for the child screen's tabs.
+    private val _latestSheets = MutableStateFlow<Map<String, List<ReleasedFindingDto>>>(emptyMap())
+    val latestSheets: StateFlow<Map<String, List<ReleasedFindingDto>>> = _latestSheets.asStateFlow()
+
     // ── results ──
     private val _result = MutableStateFlow<CampResultDto?>(null)
     val result: StateFlow<CampResultDto?> = _result.asStateFlow()
@@ -295,6 +299,13 @@ class GuardianViewModel(
             // into it: there is nothing to draw either way, and this keeps a
             // plan on screen through a failed refresh.
             if (plan != null) _dietPlans.update { it + (kidId to plan) }
+        }
+
+    fun loadLatestSheets(kidId: String, force: Boolean = false) =
+        once("sheets:$kidId", force) {
+            val sheets = repo.latestSheets(kidId)
+            // Empty is "could not ask" as much as "nothing released"; keep what is shown.
+            if (sheets.isNotEmpty()) _latestSheets.update { it + (kidId to sheets) }
         }
 
     // ─── Consent ────────────────────────────────────────────

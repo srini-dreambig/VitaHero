@@ -73,6 +73,7 @@ import {
   releaseCamp,
   pendingConsents,
   guardianCampResult,
+  guardianLatestSheets,
   adminOverview,
   addStaffMember,
   listStaff,
@@ -3970,6 +3971,16 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
               profileId: session.profileId,
             }
           ));
+        } catch (e) {
+          if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
+          return serverError(e, "api");
+        }
+      }
+
+      if (path === "/api/camps/latest-sheets" && request.method === "GET") {
+        if (!session) return json({ error: "Unauthorized" }, 401);
+        try {
+          return json(await guardianLatestSheets(sql, session.profileId, url.searchParams.get("kid_id") || ""));
         } catch (e) {
           if (e instanceof ApiError) return json({ error: e.message, code: e.code }, e.status);
           return serverError(e, "api");

@@ -131,6 +131,10 @@ class GuardianRepository {
     suspend fun campResult(campId: String, kidId: String): CampResultDto =
         getOr("/api/camps/result", CampResultDto(), mapOf("camp_id" to campId, "kid_id" to kidId))
 
+    /** Every value screened at the child's latest released camp, per check. Empty on failure. */
+    suspend fun latestSheets(kidId: String): List<ReleasedFindingDto> =
+        getOr("/api/camps/latest-sheets", LatestSheetsDto(), mapOf("kid_id" to kidId)).findings
+
     // ─── The diet plan ──────────────────────────────────────
 
     /**

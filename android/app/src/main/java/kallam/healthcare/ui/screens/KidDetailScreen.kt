@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -50,6 +51,7 @@ import kallam.healthcare.data.GrowthAssessment
 import kallam.healthcare.data.GrowthPoint
 import kallam.healthcare.data.HealthFlag
 import kallam.healthcare.data.Kid
+import kallam.healthcare.data.ReleasedFindingDto
 import kallam.healthcare.data.heightText
 import kallam.healthcare.data.weightText
 import kallam.healthcare.data.S
@@ -82,6 +84,8 @@ fun KidDetailScreen(
     onLogSymptom: () -> Unit = {},
     onOpenGrowthCharts: () -> Unit = {},
     growthAssessment: GrowthAssessment? = null,
+    /** The latest released sheets: every value screened, per check. */
+    sheets: List<ReleasedFindingDto> = emptyList(),
 ) {
     var tab by rememberSaveable { mutableStateOf(DetailTab.GROWTH) }
     var isGeneratingReport by remember { mutableStateOf(false) }
@@ -201,7 +205,7 @@ fun KidDetailScreen(
             when (tab) {
                 DetailTab.GROWTH -> GrowthTab(kid, growthAssessment, onOpenGrowthCharts)
                 DetailTab.DENTAL -> FlagTab(
-                    t(S.dentalTabLabel), kid.dental,
+                    t(S.dentalTabLabel), kid.dental, sheets.firstOrNull { it.checkType == "Dental" },
                     when (kid.dental) {
                         HealthFlag.NOT_MEASURED -> t(S.notMeasuredMsg)
                         HealthFlag.GOOD -> t(S.dentalGoodMsg)
@@ -209,7 +213,7 @@ fun KidDetailScreen(
                     }
                 )
                 DetailTab.EYE -> FlagTab(
-                    t(S.eyeTabLabel), kid.eyesight,
+                    t(S.eyeTabLabel), kid.eyesight, sheets.firstOrNull { it.checkType == "Vision" },
                     when (kid.eyesight) {
                         HealthFlag.NOT_MEASURED -> t(S.notMeasuredMsg)
                         HealthFlag.GOOD -> t(S.eyeGoodMsg)
@@ -350,19 +354,56 @@ private fun GrowthChart(points: List<GrowthPoint>, color: Color, weight: Boolean
 }
 
 @Composable
-private fun FlagTab(title: String, flag: HealthFlag, description: String) {
+private fun FlagTab(title: String, flag: HealthFlag, finding: ReleasedFindingDto?, description: String) {
+    val rows = finding?.sheet?.rows.orEmpty()
     Column(Modifier.padding(horizontal = AppSpacing.xl)) {
         AppCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
-                FlagChip(flag)
+                FlagChip(finding?.let { sheetFlag(it.flag) } ?: flag)
             }
             Spacer(Modifier.height(AppSpacing.md))
-            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (finding == null || rows.isEmpty()) {
+                Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                // Every value screened at the camp, as the doctor recorded it.
+                val where = listOf(finding.campTitle, finding.date).filter { it.isNotBlank() }.joinToString(" · ")
+                if (where.isNotBlank()) {
+                    Text(where, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(AppSpacing.sm))
+                }
+                rows.forEach { row ->
+                    Row(Modifier.fillMaxWidth().padding(vertical = AppSpacing.xxs)) {
+                        Text(
+                            row.label,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(0.42f),
+                        )
+                        Text(
+                            row.value,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.weight(0.58f),
+                        )
+                    }
+                }
+                if (finding.note.isNotBlank()) {
+                    Spacer(Modifier.height(AppSpacing.sm))
+                    Text(finding.note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
         }
         Spacer(Modifier.height(AppSpacing.md))
         InfoNote(t(S.disclaimerShort))
     }
+}
+
+private fun sheetFlag(raw: String): HealthFlag = when (raw.uppercase()) {
+    "GOOD" -> HealthFlag.GOOD
+    "WATCH" -> HealthFlag.WATCH
+    "ALERT" -> HealthFlag.ALERT
+    else -> HealthFlag.NOT_MEASURED
 }
 
 @Composable

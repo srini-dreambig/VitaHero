@@ -102,7 +102,14 @@ data class ReleasedFindingDto(
     val note: String = "",
     /** The paper sheet's columns, for growth, vision and dental. Absent otherwise. */
     val sheet: AssessmentSheetDto? = null,
+    /** Latest sheets only: the camp the values were taken at, and its date. */
+    val campTitle: String = "",
+    val date: String = "",
 )
+
+/** The child's latest released growth, vision and dental sheets, one each. */
+@Serializable
+data class LatestSheetsDto(val findings: List<ReleasedFindingDto> = emptyList())
 
 /** One assessment sheet: a row per column, in the sheet's own words. */
 @Serializable

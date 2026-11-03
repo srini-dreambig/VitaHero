@@ -45,8 +45,9 @@ android {
         // 1.1.10: IAP 2015 and WHO 2007 growth charts, the paper sheets, and
         // the admin writes the dietitians' twelve group plans. 1.1.11: the
         // clinician's growth, vision and dental forms trimmed to the sheets.
-        versionCode = 1789668245
-        versionName = "1.1.11"
+        // 1.1.12: the child screen shows every vision and dental value screened.
+        versionCode = 1789668246
+        versionName = "1.1.12"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //

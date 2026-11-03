@@ -26,6 +26,8 @@ final class AppStore: ObservableObject {
     @Published var badges: [String: [Badge]] = [:]
     @Published var dietPlans: [String: DietPlan] = [:]
     @Published var growth: [String: [GrowthPoint]] = [:]
+    /// Every value screened at the child's latest released camp, per check.
+    @Published var latestSheets: [String: [CampResult.Finding]] = [:]
     @Published var selectedKidId: String?
 
     @Published private(set) var loading = false
@@ -107,11 +109,13 @@ final class AppStore: ObservableObject {
         async let streakR = fetch { try await APIClient.shared.get("/api/streaks", query: q) as Streak? }
         async let badgesR = fetch { try await APIClient.shared.get("/api/badges", query: q) as BadgeList }
         async let growthR = fetch { try await APIClient.shared.getList("/api/growth-points", query: q) as [GrowthPoint] }
+        async let sheetsR = fetch { try await APIClient.shared.get("/api/camps/latest-sheets", query: q) as LatestSheets }
 
         _ = apply(await planR) { self.dietPlans[kidId] = $0.plan }
         _ = apply(await streakR) { self.streaks[kidId] = $0 }
         _ = apply(await badgesR) { self.badges[kidId] = $0.badges }
         _ = apply(await growthR) { self.growth[kidId] = $0 }
+        _ = apply(await sheetsR) { if !$0.findings.isEmpty { self.latestSheets[kidId] = $0.findings } }
     }
 
     func loadSharedKids(familyCode: String) async {

@@ -266,6 +266,16 @@ struct Camp: Decodable, Identifiable {
 
 /// What the doctors found for one child at one camp. Read only: results are
 /// written by the camp's clinicians, never by a parent.
+/// The child's latest released growth, vision and dental sheets, one each.
+struct LatestSheets: Decodable {
+    let findings: [CampResult.Finding]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        findings = c.list("findings")
+    }
+}
+
 struct CampResult: Decodable {
     struct Finding: Decodable, Identifiable {
         let checkType: String
@@ -274,6 +284,9 @@ struct CampResult: Decodable {
         let note: String
         /// The paper sheet's columns, for growth, vision and dental. nil otherwise.
         let sheet: Sheet?
+        /// Latest sheets only: the camp the values were taken at, and its date.
+        let campTitle: String
+        let date: String
         var id: String { checkType + summary }
 
         init(from decoder: Decoder) throws {
@@ -283,6 +296,8 @@ struct CampResult: Decodable {
             summary = c.str("summary")
             note = c.str("note")
             sheet = c.obj("sheet")
+            campTitle = c.str("campTitle")
+            date = c.str("date")
         }
     }
 

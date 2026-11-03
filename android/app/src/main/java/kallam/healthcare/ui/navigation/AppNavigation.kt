@@ -579,6 +579,8 @@ fun AppNavigation(
             arguments = listOf(navArgument("kidId") { type = NavType.StringType })
         ) { backStack ->
             val kid = kidsViewModel.kidById(backStack.arguments?.getString("kidId"))
+            val latestSheets by guardianViewModel.latestSheets.collectAsState()
+            LaunchedEffect(kid?.id) { kid?.id?.let { guardianViewModel.loadLatestSheets(it, force = true) } }
             if (kid != null) {
                 val badges = kidsViewModel.badgeProgressForKid(kid.id).badges
                 val reportLocale = LocalAppLocale.current
@@ -600,6 +602,7 @@ fun AppNavigation(
                     onLogSymptom = { navController.navigate("symptoms/${kid.id}") },
                     onOpenGrowthCharts = { navController.navigate("growth/${kid.id}") },
                     growthAssessment = kidsViewModel.growthAssessmentForKid(kid.id),
+                    sheets = latestSheets[kid.id].orEmpty(),
                 )
             } else {
                 // A route id with no matching child must never render a blank
