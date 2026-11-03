@@ -14,7 +14,7 @@ import { SCHEMA_STEPS } from "./index";
 import { migrate } from "./migrate";
 import { missingRequired } from "./clinical";
 import {
-  combineSignoffs, listParticipants, releaseCamp, reviewDetail, reviewParticipant, reviewQueue,
+  combineSignoffs, physicianDraft, listParticipants, releaseCamp, reviewDetail, reviewParticipant, reviewQueue,
   saveScreening, setAttendance,
 } from "./camps";
 
@@ -376,5 +376,22 @@ suite("a camp's checks are recorded in full", () => {
       .toBe("Vision: A\n\nDental: B");
     expect(combineSignoffs([{ checks: ["Vision", "Dental"], recommendation: "Only one" }], checks)).toBe("Only one");
     expect(combineSignoffs([{ checks: [], recommendation: "gone" }], checks)).toBe("");
+  });
+});
+
+describe("the physician's starting draft", () => {
+  test("a physician's draft covers the checks no specialist signed", () => {
+    const checks = ["Height & weight", "Vision", "Dental", "ENT"];
+    const signed = [{ checks: ["Vision"], recommendation: "Vision is normal." }, { checks: ["Dental"], recommendation: "Teeth are fine." }];
+    const findings = [
+      { checkType: "ENT", flag: "ALERT" as const, detail: {}, urgency: "SOON" as const },
+      { checkType: "Vision", flag: "GOOD" as const, detail: {}, urgency: "NONE" as const },
+    ];
+    const text = physicianDraft("Diya", signed, ["ENT"], findings, checks);
+    expect(text.startsWith("Vision: Vision is normal.\n\nDental: Teeth are fine.\n\nENT: ")).toBe(true);
+    expect(text).toContain("ear");
+    // Nothing unsigned: just what the specialists wrote. Nobody signed: the caller drafts it all.
+    expect(physicianDraft("Diya", signed, [], findings, checks)).toBe("Vision: Vision is normal.\n\nDental: Teeth are fine.");
+    expect(physicianDraft("Diya", [], ["ENT"], findings, checks)).toBe("");
   });
 });

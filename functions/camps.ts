@@ -2074,6 +2074,28 @@ export function combineSignoffs(
   return parts.map((r) => `${r.checks.join(", ")}: ${r.recommendation}`).join("\n\n");
 }
 
+/**
+ * Where a general physician starts: what the specialists signed, plus a draft
+ * for the checks nobody has signed yet — those are the physician's to cover,
+ * and leaving them out had a flagged ear read as if only vision and teeth
+ * were checked. Empty when no specialist has signed, so the caller drafts the
+ * whole check-up.
+ */
+export function physicianDraft(
+  name: string,
+  signoffs: Array<{ checks: string[]; recommendation: string }>,
+  unsigned: string[],
+  findings: Array<{ checkType: string; flag: Flag; detail: Record<string, unknown>; urgency: Urgency }>,
+  campChecks: string[]
+): string {
+  const signed = signoffs.filter((so) => so.checks.length > 0);
+  if (signed.length === 0) return "";
+  if (unsigned.length === 0) return combineSignoffs(signed, campChecks);
+  const rest = findings.filter((f) => unsigned.includes(f.checkType));
+  const draft = draftRecommendation(name, summariseForApp(rest), rest, unsigned.join(" and "));
+  return combineSignoffs([...signed, { checks: unsigned, recommendation: draft }], campChecks);
+}
+
 /** Everything a physician needs to decide on one child. */
 export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId: string) {
   const access = await assertCampAccess(sql, actor, campId);
@@ -2166,8 +2188,11 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
     summary.urgency = "SOON";
   }
   // A specialist starts from their own earlier words, or a draft about their
-  // own checks; a general physician from the child's whole message.
-  const existing = mySignoff?.recommendation || (access.checkScope ? "" : (p.recommendation as string) || "");
+  // own checks; a general physician from the child's whole message, with a
+  // draft for the checks no specialist has signed.
+  const existing = mySignoff?.recommendation || (access.checkScope ? "" :
+    physicianDraft(String(p.name), signoffs, consented.filter((c) => !signerOf.has(c)), findings, campChecks) ||
+    (p.recommendation as string) || "");
   const area = access.checkScope ? mine.join(" and ") : "";
 
   return {
