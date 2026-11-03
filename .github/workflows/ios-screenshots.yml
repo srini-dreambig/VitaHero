@@ -50,7 +50,17 @@ jobs:
       - name: Write Firebase config
         env:
           GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
-        run: echo -n "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 --decode -o ios/VitaHero/GoogleService-Info.plist
+        run: |
+          PLIST=ios/VitaHero/GoogleService-Info.plist
+          echo -n "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 --decode -o "$PLIST"
+          # Firebase phone auth throws on launch when Info.plist lacks its URL
+          # scheme, even with app verification off. Same rule as ios-publish.yml.
+          SCHEME=$(/usr/libexec/PlistBuddy -c "Print :REVERSED_CLIENT_ID" "$PLIST" 2>/dev/null || true)
+          if [ -z "$SCHEME" ]; then
+            APP_ID=$(/usr/libexec/PlistBuddy -c "Print :GOOGLE_APP_ID" "$PLIST")
+            SCHEME="app-$(echo "$APP_ID" | tr ':' '-')"
+          fi
+          /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $SCHEME" ios/VitaHero/Info.plist
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -120,6 +130,14 @@ jobs:
               SIMCTL_CHILD_VH_SHOT_TAB="$i" \
                 xcrun simctl launch "$udid" "$BUNDLE" > /dev/null
               if [ "$i" = 0 ]; then sleep 40; else sleep 15; fi
+              # A home-screen picture is worse than no picture: stop and say why.
+              if ! xcrun simctl spawn "$udid" launchctl list | grep -q "UIKitApplication:$BUNDLE"; then
+                echo "::error::VitaHero is not running on $name (tab $i). It crashed or quit."
+                ls -t ~/Library/Logs/DiagnosticReports/VitaHero* 2>/dev/null | head -1 | xargs -I{} head -60 {} || true
+                xcrun simctl spawn "$udid" log show --last 2m --style compact \
+                  --predicate 'process == "VitaHero"' 2>/dev/null | grep -v "VH_SHOT_" | tail -40 || true
+                exit 1
+              fi
               xcrun simctl io "$udid" screenshot "$OUT/$name/$((i + 1))-${tabs[$i]}.png"
             done
             xcrun simctl shutdown "$udid"
