@@ -478,7 +478,7 @@ export async function guardianNudges(sql: Sql, profileId: string) {
 
     // Otherwise nudge the flag that is actually amber, not a generic reminder.
     const flags: Array<[string, string, string]> = [
-      ["nutrition", k.nutrition as string, `${name}'s nutrition was flagged at the camp — logging meals for a week helps the next check.`],
+      ["nutrition", k.nutrition as string, `${name}'s nutrition was flagged at the camp — the dietitian's plan in the app says what to aim for each day.`],
       ["dental", k.dental as string, `${name}'s dental check was flagged — brushing twice a day is the single biggest thing.`],
       ["eyesight", k.eyesight as string, `${name}'s vision was flagged — watch for squinting or sitting close to screens.`],
     ];

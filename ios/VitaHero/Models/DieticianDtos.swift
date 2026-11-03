@@ -114,22 +114,6 @@ struct DieticianFinding: Decodable {
     }
 }
 
-/// One day of the food log, rolled up. Not every meal the child has eaten.
-struct FoodLogDay: Decodable {
-    let day: String
-    let items: Int
-    let eaten: Int
-    let kcal: Int
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: AnyKey.self)
-        day = c.str("day")
-        items = c.int("items")
-        eaten = c.int("eaten")
-        kcal = c.int("kcal")
-    }
-}
-
 /// One thing a plan aims for, "Iron-rich food" / "once a day".
 struct DietTarget: Decodable, Hashable {
     var label: String
@@ -227,7 +211,6 @@ struct DieticianChildProfile: Decodable {
 struct DieticianChildRecord: Decodable {
     let child: DieticianChildProfile?
     let findings: [DieticianFinding]
-    let foodLog: [FoodLogDay]
     let plans: [DieticianPlan]
     let draft: DietDraft
 
@@ -235,7 +218,6 @@ struct DieticianChildRecord: Decodable {
         let c = try decoder.container(keyedBy: AnyKey.self)
         child = c.obj("child")
         findings = c.list("findings")
-        foodLog = c.list("foodLog")
         plans = c.list("plans")
         draft = c.obj("draft") ?? DietDraft()
     }

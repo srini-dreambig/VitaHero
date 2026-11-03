@@ -5,13 +5,13 @@ import SwiftUI
 /// three together.
 ///
 /// Fills are the soft pastels: pink for the main action, yellow, olive and blue
-/// for cards, tags and stat tiles, all on a cream page. Text and icons never use
+/// for cards, tags and stat tiles, all on a white page. Text and icons never use
 /// a pastel; they use the deep shade of the same hue so they stay readable.
 enum Brand {
     // Fills
-    static let cream = Color(hex: 0xFFFCF5)
-    static let beige = Color(hex: 0xF8F3E7)
-    static let beigeDeep = Color(hex: 0xEFE8D7)
+    static let cream = Color(hex: 0xFFFFFF)
+    static let beige = Color(hex: 0xF6F6F7)
+    static let beigeDeep = Color(hex: 0xECECEE)
     static let pink = Color(hex: 0xFFB2DD)
     static let pinkLight = Color(hex: 0xFAE0E4)
     static let yellow = Color(hex: 0xF7D66E)

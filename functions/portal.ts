@@ -42,23 +42,23 @@ export const PORTAL_HTML = `<!doctype html>
     --blue-sf:#EAF0F9;      /* BlueLight */
     /* A light sidebar. The dark one shouted louder than the work beside it;
        the navigation is where you go, not what you look at. */
-    --nav:#FFFCF5;
-    --nav-2:#F8F3E7;
+    --nav:#FFFFFF;
+    --nav-2:#F6F6F7;
     --nav-tx:#5C5B57;
     --nav-ac:#B0457C;
     --ink:#2D2D2B;          /* Ink */
     --ink-2:#5C5B57;
     --ink-3:#8F8C84;
-    --bg:#FFFCF5;           /* Cream */
+    --bg:#FFFFFF;           /* Cream (white) */
     --card:#FFFFFF;
-    --sunk:#F8F3E7;         /* Beige */
-    --line:#EAE3D2;
-    --line-2:#F3EDDF;
+    --sunk:#F6F6F7;         /* Beige (neutral) */
+    --line:#E5E5E7;
+    --line-2:#F0F0F2;
     --ok:#55642A;    --ok-bg:#E1E6D1;      /* OliveDeep on OliveLight */
     --warn:#A86E12;  --warn-bg:#FEEFBF;    /* FlagWatch on YellowLight */
     --err:#C8372D;   --err-bg:#FAE0E4;     /* FlagAlert on PinkLight */
     --info:#3B5B94;  --info-bg:#EAF0F9;    /* BlueDeep on BlueLight */
-    --mute:#8F8C84;  --mute-bg:#F3EDDF;
+    --mute:#8F8C84;  --mute-bg:#F0F0F2;
     --purple:#55642A;
     /* Flatter than the app on purpose. A phone screen shows one card at a
        time and a drop shadow separates it from the wallpaper; a console shows
@@ -5737,7 +5737,7 @@ export const PORTAL_HTML = `<!doctype html>
         el("h3", null, "VitaHero for " + S.hero.month + " \u2014 " + f.name),
         el("div", { class: "fld" }, el("label", null, "What they did (one line)"),
           el("input", { value: f.achievement,
-            placeholder: "Logged every meal for three weeks",
+            placeholder: "Brushed twice a day all term",
             onchange: function (e) { f.achievement = e.target.value; } })),
         el("div", { class: "fld" }, el("label", null, "The story"),
           el("textarea", { rows: 5, value: f.story,
@@ -5924,7 +5924,7 @@ export const PORTAL_HTML = `<!doctype html>
     return el("div", null,
       el("div", { class: "msg info" },
         "A dietician works across a school rather than at one camp, so they are assigned to "
-        + "schools, not to camps. They see growth and the food log for children "
+        + "schools, not to camps. They see growth and haemoglobin for children "
         + "at their schools \u2014 not the dental, eye or illness record \u2014 and they write "
         + "the diet plan a family reads in the app."),
       el("div", { class: "tbar" },

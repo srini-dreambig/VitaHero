@@ -36,7 +36,7 @@ export type Surface = "app" | "console";
  * children and nothing else. Same door, different building behind it.
  *
  * A dietician is the same argument again. Their work is continuous rather than
- * camp-shaped — a plan runs for weeks and the food log fills in every day —
+ * camp-shaped — a plan runs for weeks and is checked at every camp —
  * and the console is no more use to them than it is to a dentist in a school
  * hall. They see the children at the schools they are assigned to, and of
  * those children only what bears on diet.

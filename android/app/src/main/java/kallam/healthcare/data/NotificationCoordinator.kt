@@ -28,8 +28,11 @@ object NotificationCoordinator {
                 )
             }
         }
+        // Meals are no longer logged, so the evening "mark today's meals"
+        // reminder is gone. Earlier builds set it; take it down here.
+        val alarmManager = app.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         ui.kids.forEach { kid ->
-            NotificationScheduler.scheduleDietReminder(app, kid.name, kid.id, locale)
+            cancelAlarm(app, alarmManager, NotificationScheduler.dietReminderId(kid.id))
         }
         SessionStore.setNeedsNotificationReschedule(app, false)
     }

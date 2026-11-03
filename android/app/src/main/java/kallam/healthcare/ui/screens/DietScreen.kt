@@ -3,7 +3,6 @@ package kallam.healthcare.ui.screens
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -20,14 +19,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.TipsAndUpdates
@@ -45,24 +41,18 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.AIDietContent
 import kallam.healthcare.data.AppLocale
 import kallam.healthcare.data.DietPlanDto
 import kallam.healthcare.data.LocalAppLocale
-import kallam.healthcare.data.MealItem
 import kallam.healthcare.data.S
 import kallam.healthcare.ui.components.AppCard
 import kallam.healthcare.ui.components.AppScreenHeader
-import kallam.healthcare.ui.components.AppSectionTitle
 import kallam.healthcare.ui.components.AppTextButton
-import kallam.healthcare.ui.components.ProgressRing
 import kallam.healthcare.ui.components.SecondaryButton
 import kallam.healthcare.ui.components.StatusBarSpacer
-import kallam.healthcare.ui.components.StatusPill
-import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf
 import kallam.healthcare.ui.theme.AppCorners
@@ -75,27 +65,13 @@ import kallam.healthcare.ui.theme.HeroYellow
 @Composable
 fun DietScreen(
     kidName: String,
-    kidId: String,
-    meals: List<MealItem>,
     aiContent: AIDietContent?,
     onBack: () -> Unit,
-    onToggleMeal: (String) -> Unit,
     onGenerateAI: () -> Unit,
-    onOpenFoodRecognition: () -> Unit = {},
     plan: DietPlanDto? = null,
 ) {
-    // With a dietician's plan, the day is the plan's targets. The generated
-    // menu is hidden, and photographed snacks stay visible as a log but do
-    // not count, because the server counts only plan items toward streaks and
-    // badges on a plan day. Without a plan, everything counts as before.
-    val hasPlan = plan?.targets?.isNotEmpty() == true
-    val shown = if (hasPlan) meals.filter { it.time == "Plan" || (it.time == "Snack" && it.eaten) } else meals
-    val counted = if (hasPlan) shown.filter { it.time == "Plan" } else shown
-    val eatenCount = counted.count { it.eaten }
-    val totalKcal = shown.filter { it.eaten }.sumOf { it.kcal }
-    val targetKcal = shown.sumOf { it.kcal }
-    val progress = if (counted.isEmpty()) 0f else eatenCount.toFloat() / counted.size
-
+    // What to feed the child: the dietician's plan, then the tips. Parents are
+    // not asked to log what was eaten; the plan is guidance, not a checklist.
     Column(
         Modifier
             .fillMaxWidth()
@@ -107,34 +83,6 @@ fun DietScreen(
             Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxxl)
         ) {
-            item {
-                // Today summary card
-                AppCard {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        ProgressRing(progress = progress, size = 72.dp, color = MaterialTheme.colorScheme.primary) {
-                            Text("$eatenCount/${counted.size}", style = MaterialTheme.typography.titleMedium)
-                        }
-                        Spacer(Modifier.width(AppSpacing.lg))
-                        Column {
-                            Text(t(S.todaysPlan), style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "$totalKcal / $targetKcal kcal",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(Modifier.height(AppSpacing.xs))
-                            Text(
-                                if (progress >= 1f) t(S.allMealsLogged)
-                                else t(S.logAllMealsHint),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(AppSpacing.md))
-            }
-
             // The dietician's plan, if a dietician has written one.
             //
             // Above the generated tips on purpose. One of these was written by
@@ -147,7 +95,6 @@ fun DietScreen(
                 }
             }
 
-            // AI Content section
             item {
                 if (aiContent != null && aiContent.isGenerating) {
                     GeneratingCard(kidName)
@@ -156,25 +103,6 @@ fun DietScreen(
                 } else {
                     AiPromptCard(onGenerate = onGenerateAI)
                 }
-                Spacer(Modifier.height(AppSpacing.xxl))
-                AppSectionTitle(t(S.todaysMeals))
-                Spacer(Modifier.height(AppSpacing.md))
-            }
-
-            // Food recognition button
-            item {
-                SecondaryButton(
-                    text = t(S.recognizeFood),
-                    onClick = onOpenFoodRecognition,
-                    modifier = Modifier.fillMaxWidth(),
-                    leadingIcon = Icons.Outlined.CameraAlt,
-                )
-                Spacer(Modifier.height(AppSpacing.md))
-            }
-
-            items(shown, key = { it.id }) { meal ->
-                MealCard(meal) { onToggleMeal(meal.id) }
-                Spacer(Modifier.height(AppSpacing.md))
             }
         }
     }
@@ -438,50 +366,6 @@ private fun AITipRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tint
     }
 }
 
-@Composable
-private fun MealCard(meal: MealItem, onToggle: () -> Unit) {
-    val scale by animateFloatAsState(if (meal.eaten) 1f else 0f, tween(300), label = "check")
-    AppCard(
-        onClick = onToggle,
-        background = if (meal.eaten) MaterialTheme.colorScheme.primary.copy(alpha = 0.07f) else MaterialTheme.colorScheme.surface
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    StatusPill(meal.time, Tone.Neutral)
-                    Spacer(Modifier.width(AppSpacing.sm))
-                    Text("${meal.kcal} kcal", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Spacer(Modifier.height(AppSpacing.sm))
-                Text(
-                    meal.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    textDecoration = if (meal.eaten) TextDecoration.LineThrough else null,
-                    color = if (meal.eaten) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(meal.detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Spacer(Modifier.width(AppSpacing.md))
-            Box(
-                Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(if (meal.eaten) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                if (scale > 0.1f) {
-                    Icon(Icons.Outlined.Check, contentDescription = "Eaten", tint = Color.White, modifier = Modifier.size(20.dp * scale))
-                }
-            }
-        }
-    }
-}
-
 @Preview(showBackground = true)
 @Composable
 private fun DietScreenPreview() {
@@ -489,8 +373,6 @@ private fun DietScreenPreview() {
         AppTheme {
             DietScreen(
                 kidName = "Preview",
-                kidId = "k1",
-                meals = emptyList(),
                 aiContent = AIDietContent(
                     greeting = "",
                     insight = "",
@@ -498,7 +380,6 @@ private fun DietScreenPreview() {
                     funFact = "Spinach is packed with iron and vitamins!"
                 ),
                 onBack = {},
-                onToggleMeal = {},
                 onGenerateAI = {}
             )
         }

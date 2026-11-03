@@ -69,15 +69,6 @@ data class DieticianFindingDto(
     val campTitle: String = "",
 )
 
-/** One day of the food log, rolled up. Not every meal the child has eaten. */
-@Serializable
-data class FoodLogDayDto(
-    val day: String = "",
-    val items: Int = 0,
-    val eaten: Int = 0,
-    val kcal: Int = 0,
-)
-
 @Serializable
 data class DietTargetDto(
     val label: String = "",
@@ -114,7 +105,6 @@ data class DietDraftDto(
 data class DieticianChildRecordDto(
     val child: DieticianChildProfileDto = DieticianChildProfileDto(),
     val findings: List<DieticianFindingDto> = emptyList(),
-    val foodLog: List<FoodLogDayDto> = emptyList(),
     val plans: List<DietPlanDto> = emptyList(),
     val draft: DietDraftDto = DietDraftDto(),
 )

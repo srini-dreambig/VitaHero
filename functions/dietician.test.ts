@@ -257,10 +257,9 @@ suite("what a dietician can reach", () => {
     expect(JSON.stringify(r)).not.toContain("6/18");
   });
 
-  test("and the food log, by day, rather than every meal ever eaten", async () => {
-    const r = await dieticianChild(sql, DIET, "k_mine");
-    expect(r.foodLog).toHaveLength(1);
-    expect(r.foodLog[0]).toEqual({ day: "2027-02-10", items: 3, eaten: 2, kcal: 650 });
+  test("and no food log: parents no longer log meals", async () => {
+    const r = await dieticianChild(sql, DIET, "k_mine") as unknown as Record<string, unknown>;
+    expect("foodLog" in r).toBe(false);
   });
 
   test("looking at a child's record is written down", async () => {
@@ -416,8 +415,6 @@ suite("what a dietician can reach", () => {
         record.child as Record<string, unknown>)).toEqual([]);
       expect(missing(fieldsOf("DieticianFindingDto"),
         (record.findings as Record<string, unknown>[])[0])).toEqual([]);
-      expect(missing(fieldsOf("FoodLogDayDto"),
-        (record.foodLog as Record<string, unknown>[])[0])).toEqual([]);
       expect(missing(fieldsOf("DietPlanDto"),
         (record.plans as Record<string, unknown>[])[0])).toEqual([]);
       expect(missing(fieldsOf("DietDraftDto"),

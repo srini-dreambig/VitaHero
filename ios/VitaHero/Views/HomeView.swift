@@ -140,47 +140,39 @@ struct FlagChip: View {
     }
 }
 
-/// The dietician's targets as today's checklist, with the streak beside it.
+/// The dietician's targets for the day. Guidance to read, not a checklist:
+/// parents are not asked to log what was eaten.
 struct TodaysPlanCard: View {
     let kid: Kid
     @EnvironmentObject private var store: AppStore
-    @EnvironmentObject private var auth: AuthManager
 
     var body: some View {
-        let items = store.planItems(kidId: kid.id)
         if let plan = store.dietPlans[kid.id] {
             Card {
-                HStack {
-                    Text(L("todays_plan")).font(.vh(.headline))
-                    Spacer()
-                    if let streak = store.streaks[kid.id], streak.current > 0 {
-                        Label(L("streak_days", String(streak.current)), systemImage: "flame.fill")
-                            .font(.vh(.caption, .semibold))
-                            .foregroundColor(Brand.orange)
-                    }
-                }
+                Text(L("todays_plan")).font(.vh(.headline))
                 Text(plan.title).font(.vh(.subheadline)).foregroundColor(.secondary)
-                ForEach(items) { item in
-                    Button {
-                        Task { await store.toggle(item, profile: auth.profile) }
-                    } label: {
-                        HStack(alignment: .top) {
-                            Image(systemName: item.eaten ? "checkmark.circle.fill" : "circle")
-                                .foregroundColor(item.eaten ? Brand.green : .secondary)
-                                .font(.vh(.title3))
-                            VStack(alignment: .leading) {
-                                Text(item.name).foregroundColor(.primary)
-                                if !item.detail.isEmpty {
-                                    Text(item.detail).font(.vh(.caption)).foregroundColor(.secondary)
-                                }
-                            }
-                            Spacer()
-                        }
-                    }
-                    .buttonStyle(.plain)
+                ForEach(Array(plan.targets.enumerated()), id: \.offset) { _, target in
+                    PlanTargetRow(label: target.label, value: target.value)
                 }
                 NavigationLink(L("view_diet_plan")) { DietPlanView(kid: kid) }
                     .font(.vh(.subheadline, .semibold))
+            }
+        }
+    }
+}
+
+/// One target from the plan: what, and how much.
+struct PlanTargetRow: View {
+    let label: String
+    let value: String
+
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(label).foregroundColor(.primary)
+            Spacer()
+            if !value.isEmpty {
+                Text(value).font(.vh(.subheadline, .semibold)).foregroundColor(Brand.blue)
+                    .multilineTextAlignment(.trailing)
             }
         }
     }

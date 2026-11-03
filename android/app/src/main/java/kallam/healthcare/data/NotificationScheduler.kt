@@ -53,7 +53,7 @@ object NotificationScheduler {
                 description = "Doctor appointment reminders"
             },
             NotificationChannel(CHANNEL_DIET, "Diet Reminders", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "Meal logging reminders"
+                description = "Diet plan updates"
             },
             NotificationChannel(CHANNEL_REWARD, "Rewards & Badges", NotificationManager.IMPORTANCE_LOW).apply {
                 description = "Badge and streak updates"
@@ -280,16 +280,9 @@ class NotificationReceiver : BroadcastReceiver() {
         // The id the alarm was scheduled with, so a reminder that is delivered
         // twice replaces itself in the shade rather than stacking.
         val notifId = intent.getIntExtra("notifId", System.currentTimeMillis().toInt())
+        // A meal-logging reminder set by an earlier build is not shown and not
+        // re-armed: meals are no longer logged.
+        if (channel == NotificationScheduler.CHANNEL_DIET) return
         NotificationScheduler.showImmediateNotification(context, channel, title, body, notifId)
-
-        // A daily reminder sets the next one as it goes off. Without this the
-        // only thing that ever re-armed it was the app being opened.
-        val kidId = intent.getStringExtra("dietKidId")
-        val kidName = intent.getStringExtra("dietKidName")
-        if (channel == NotificationScheduler.CHANNEL_DIET && !kidId.isNullOrBlank() && kidName != null) {
-            val code = intent.getStringExtra("localeCode")
-            val locale = AppLocale.entries.firstOrNull { it.code == code } ?: AppLocale.ENGLISH
-            NotificationScheduler.scheduleDietReminder(context, kidName, kidId, locale)
-        }
     }
 }

@@ -62,7 +62,7 @@ await p.waitForTimeout(600);
 let t = await p.$eval("#root", (n) => n.innerText);
 check("the directory lists dieticians", /Meera Rao/.test(t) && /Asha Kumar/.test(t));
 check("a retired one is marked as retired", /RETIRED/i.test(t));
-check("the screen says what a dietician may see", /growth, haemoglobin and the food log/i.test(t));
+check("the screen says what a dietician may see", /growth and haemoglobin for children/i.test(t));
 check("and says what they may not", /not the dental, eye or illness record/i.test(t));
 check("the school they are on is shown", /Silver Oaks/i.test(t));
 

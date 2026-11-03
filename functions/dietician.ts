@@ -8,7 +8,7 @@
 //
 // A doctor's work is camp-shaped: they turn up on a day, screen the children
 // in front of them, and their access ends with the camp. A dietician's work is
-// continuous. A plan runs for weeks; the food log fills in every day; the
+// continuous. A plan runs for weeks and is checked at every camp; the
 // child they are helping is the same child next month. So a dietician is
 // assigned to a *school*, not to a camp, and stays assigned until somebody
 // says otherwise.
@@ -18,7 +18,7 @@
 // clinical record, which would be a wider grant than a screening doctor gets
 // — a doctor sees their own specialty, at their own camp, for the day. So this
 // is the defensible middle: the things that bear on diet. Growth, haemoglobin,
-// the food log, the recommendation. Not the dental caries count, not the
+// the recommendation. Not the dental caries count, not the
 // photographs, not the illness history. Widening it later is a line in
 // DIETICIAN_CHECKS; narrowing it after a pilot has run is a conversation with
 // a school.
@@ -452,7 +452,7 @@ export async function dieticianChildren(
 /**
  * One child, as a dietician may see them.
  *
- * Growth and haemoglobin over time, the last week of the food log, and
+ * Growth and haemoglobin over time, and
  * whatever plan is running. The query filters by check type rather than the
  * screen hiding fields, because a field that never leaves the server cannot be
  * read out of the response.
@@ -482,18 +482,6 @@ export async function dieticianChild(sql: Sql, actor: Actor, kidId: string) {
     ORDER BY sc.date DESC
   `;
 
-  // The last seven days of the log, by day, so a pattern is visible without
-  // handing over every meal the child has ever eaten.
-  const log = await sql`
-    SELECT COALESCE(day,'') AS day,
-           COUNT(*)::int AS items,
-           COUNT(*) FILTER (WHERE eaten)::int AS eaten,
-           COALESCE(SUM(kcal) FILTER (WHERE eaten), 0)::int AS kcal
-    FROM vita_hero.meal_items
-    WHERE kid_id = ${kidId} AND COALESCE(day,'') <> ''
-    GROUP BY day ORDER BY day DESC LIMIT 7
-  `;
-
   const plans = await sql`
     SELECT * FROM vita_hero.diet_plans WHERE kid_id = ${kidId}
     ORDER BY created_at DESC LIMIT 10
@@ -519,12 +507,6 @@ export async function dieticianChild(sql: Sql, actor: Actor, kidId: string) {
       rationale: (f.rationale as string) || "",
       date: (f.date as string) || "",
       campTitle: (f.title as string) || "",
-    })),
-    foodLog: log.map((r) => ({
-      day: r.day as string,
-      items: (r.items as number) || 0,
-      eaten: (r.eaten as number) || 0,
-      kcal: (r.kcal as number) || 0,
     })),
     plans: plans.map(mapPlan),
     // What the screen writes into a new plan's form, so a dietician corrects a

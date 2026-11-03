@@ -3,8 +3,7 @@ import SwiftUI
 /// One child, and the plan they are given.
 ///
 /// Everything here is what the server was willing to send: growth and
-/// haemoglobin from released camps, the last week of the food log by day, and
-/// the plans written so far. The dental and eye findings never left the server.
+/// haemoglobin from released camps, and the plans written so far. The dental and eye findings never left the server.
 ///
 /// The plan form opens pre-filled from the server's draft, so a dietician at
 /// the end of a long day corrects a sentence rather than facing an empty box.
@@ -72,24 +71,6 @@ struct DieticianChildView: View {
             ForEach(Array(r.findings.enumerated()), id: \.offset) { _, finding in findingCard(finding) }
         }
 
-        // The food log
-        Text("The last week of meals").font(.vh(.headline)).padding(.top, 6)
-        if r.foodLog.isEmpty {
-            Text("This family has not logged any meals yet.").font(.vh(.footnote)).foregroundColor(.secondary)
-        } else {
-            Card {
-                ForEach(Array(r.foodLog.enumerated()), id: \.offset) { _, day in
-                    HStack {
-                        Text(day.day).font(.vh(.footnote))
-                        Spacer()
-                        Text("\(day.eaten) of \(day.items) logged").font(.vh(.footnote)).foregroundColor(.secondary)
-                        Text("\(day.kcal) kcal").font(.vh(.footnote, .semibold)).foregroundColor(Brand.blue)
-                            .padding(.leading, 8)
-                    }
-                }
-            }
-        }
-
         // The plan
         Text("The plan").font(.vh(.headline)).padding(.top, 6)
         if writing {
@@ -99,7 +80,7 @@ struct DieticianChildView: View {
         } else {
             Card {
                 Text("No plan yet").font(.vh(.subheadline, .semibold))
-                Text("What you write here is what the family reads in the app, against their own food log.")
+                Text("What you write here is what the family reads in the app.")
                     .font(.vh(.footnote)).foregroundColor(.secondary)
                 PrimaryButton(title: "Write a plan", enabled: !busy) { writing = true }
             }

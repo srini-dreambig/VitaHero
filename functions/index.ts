@@ -5317,26 +5317,7 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           });
         }
 
-        const kids = await sql`
-          SELECT k.name, COALESCE(s.current_streak, 0) AS streak
-          FROM vita_hero.kids k
-          LEFT JOIN vita_hero.streaks s ON s.kid_id = k.id
-          WHERE k.profile_id = ${session.profileId}
-        `;
-        for (const k of kids) {
-          if ((k.streak as number) >= 3) {
-            const id = `streak_${k.name}`;
-            items.push({
-              id,
-              title: "Streak milestone",
-              body: `${k.name} is on a ${k.streak}-day meal logging streak!`,
-              time: new Date().toISOString().split("T")[0],
-              type: "REWARD",
-              unread: !readIds.has(id),
-            });
-          }
-        }
-
+        // No meal-logging streak item: parents no longer log meals.
         return json(items);
       }
 

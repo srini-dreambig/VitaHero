@@ -6,13 +6,13 @@ import androidx.compose.ui.graphics.Color
 // and in the :root block of functions/portal.ts; change all three together.
 //
 // Fills are the soft pastels: pink for the main action, yellow, olive and blue
-// for cards, tags and stat tiles, all on a cream page. Text and icons never use
+// for cards, tags and stat tiles, all on a white page. Text and icons never use
 // a pastel; they use the deep shade of the same hue so they stay readable.
 
 // Fills
-val Cream = Color(0xFFFFFCF5)        // page background
-val Beige = Color(0xFFF8F3E7)        // cards
-val BeigeDeep = Color(0xFFEFE8D7)    // tracks, pressed cards, dividers on beige
+val Cream = Color(0xFFFFFFFF)        // page background: plain white
+val Beige = Color(0xFFF6F6F7)        // cards: a neutral grey, no cream tint
+val BeigeDeep = Color(0xFFECECEE)    // tracks, pressed cards, dividers on cards
 val Pink = Color(0xFFFFB2DD)         // primary button, selected chip
 val PinkLight = Color(0xFFFAE0E4)
 val Yellow = Color(0xFFF7D66E)
@@ -48,7 +48,7 @@ val HeroPurple = OliveDeep
 val Canvas = Cream
 val SurfaceWhite = Color(0xFFFFFFFF)
 val SurfaceMuted = BeigeDeep
-val HairLine = Color(0xFFE6DFCC)
+val HairLine = Color(0xFFE5E5E7)
 
 // Health status. Alert stays red: a clinical alert must never read as decoration.
 val FlagGood = OliveDeep

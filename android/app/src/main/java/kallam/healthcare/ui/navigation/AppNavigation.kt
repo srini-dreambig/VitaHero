@@ -580,8 +580,6 @@ fun AppNavigation(
         ) { backStack ->
             val kid = kidsViewModel.kidById(backStack.arguments?.getString("kidId"))
             if (kid != null) {
-                val meals = kidsViewModel.mealsForKid(kid.id)
-                val streak = kidsViewModel.streakForKid(kid.id)
                 val badges = kidsViewModel.badgeProgressForKid(kid.id).badges
                 val reportLocale = LocalAppLocale.current
                 KidDetailScreen(
@@ -589,7 +587,7 @@ fun AppNavigation(
                     onBack = { navController.popBackStack() },
                     onOpenDiet = { navController.navigate("diet/${kid.id}") },
                     onShareReport = { ctx ->
-                        val reportData = ReportData(kid, meals, streak, badges)
+                        val reportData = ReportData(kid, badges)
                         // Drawing a PDF page and writing it to disk is not main
                         // thread work; it used to be, and on a slower phone that
                         // is a visible freeze or an ANR. Only the share sheet
@@ -616,23 +614,14 @@ fun AppNavigation(
         ) { backStack ->
             val kidId = backStack.arguments?.getString("kidId").orEmpty()
             val kid = kidsViewModel.kidById(kidId)
-            val meals by kidsViewModel.meals.collectAsState()
             val aiContent by kidsViewModel.aiContent.collectAsState()
             LaunchedEffect(kidId) { guardianViewModel.loadDietPlan(kidId) }
-            val plan = dietPlans[kidId]
-            LaunchedEffect(kidId, plan?.id) { plan?.let { kidsViewModel.addPlanTargets(kidId, it) } }
             if (kid != null) {
                 DietScreen(
                     kidName = kid.name,
-                    kidId = kidId,
-                    meals = meals[kidId].orEmpty(),
                     aiContent = aiContent[kidId],
                     onBack = { navController.popBackStack() },
-                    onToggleMeal = { kidsViewModel.toggleMeal(kidId, it) },
                     onGenerateAI = { kidsViewModel.generateAIContent(kidId) },
-                    onOpenFoodRecognition = {
-                        navController.navigate("foodRecognition/$kidId/${kid.name}")
-                    },
                     plan = dietPlans[kidId],
                 )
             }

@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.DietTargetDto
 import kallam.healthcare.data.DieticianFindingDto
 import kallam.healthcare.data.DieticianViewModel
-import kallam.healthcare.data.FoodLogDayDto
 import kallam.healthcare.ui.components.AppCard
 import kallam.healthcare.ui.components.AppScreenHeader
 import kallam.healthcare.ui.components.AppSectionTitle
@@ -51,8 +50,7 @@ import kallam.healthcare.ui.theme.AppSpacing
  * One child, and the plan they are given.
  *
  * What is on this screen is everything the server was willing to send: growth
- * and haemoglobin from released camps, the last week of the food log rolled up
- * by day, and the plans written so far. The dental and eye findings are not
+ * and haemoglobin from released camps, and the plans written so far. The dental and eye findings are not
  * hidden here — they never left the server, so there is nothing on this device
  * to hide.
  *
@@ -147,20 +145,6 @@ fun DieticianChildScreen(
                 }
                 items(r.findings.size) { i -> FindingRow(r.findings[i]) }
 
-                // ── the food log ──
-                item {
-                    AppSectionTitle("The last week of meals", Modifier.padding(top = AppSpacing.md))
-                    if (r.foodLog.isEmpty()) {
-                        Spacer(Modifier.height(AppSpacing.sm))
-                        Text(
-                            "This family has not logged any meals yet.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                items(r.foodLog.size) { i -> FoodLogRow(r.foodLog[i]) }
-
                 // ── the plan ──
                 item {
                     AppSectionTitle("The plan", Modifier.padding(top = AppSpacing.md))
@@ -170,8 +154,7 @@ fun DieticianChildScreen(
                             Text("No plan yet", style = MaterialTheme.typography.titleMedium)
                             Spacer(Modifier.height(AppSpacing.xs))
                             Text(
-                                "What you write here is what the family reads in the app, "
-                                    + "against their own food log.",
+                                "What you write here is what the family reads in the app.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
@@ -400,30 +383,5 @@ private fun FindingRow(f: DieticianFindingDto) {
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun FoodLogRow(d: FoodLogDayDto) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = AppSpacing.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(d.day, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
-        Text(
-            "${d.eaten} of ${d.items} logged",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.width(AppSpacing.md))
-        // The day's total is the number scanned for, so it stays bold.
-        Text(
-            "${d.kcal} kcal",
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.secondary,
-        )
     }
 }

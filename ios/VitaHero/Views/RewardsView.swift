@@ -1,10 +1,9 @@
 import SwiftUI
 
-/// The dietician's plan for a child, and today's targets to tick.
+/// The dietician's plan for a child, and what it asks for each day.
 struct DietPlanView: View {
     let kid: Kid
     @EnvironmentObject private var store: AppStore
-    @EnvironmentObject private var auth: AuthManager
 
     var body: some View {
         List {
@@ -37,25 +36,11 @@ struct DietPlanView: View {
                     }
                 }
                 .listRowBackground(Brand.orange.opacity(0.10))
-                Section(header: Text(L("todays_plan")), footer: Text(L("log_all_meals_hint"))) {
-                    ForEach(store.planItems(kidId: kid.id)) { item in
-                        Button {
-                            Task { await store.toggle(item, profile: auth.profile) }
-                        } label: {
-                            HStack {
-                                Image(systemName: item.eaten ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(item.eaten ? Brand.green : .secondary).font(.vh(.title3))
-                                VStack(alignment: .leading) {
-                                    Text(item.name).foregroundColor(.primary)
-                                    if !item.detail.isEmpty {
-                                        Text(item.detail).font(.vh(.caption)).foregroundColor(.secondary)
-                                    }
-                                }
-                            }
-                        }
+                Section(header: Text(L("todays_plan"))) {
+                    ForEach(Array(plan.targets.enumerated()), id: \.offset) { _, target in
+                        PlanTargetRow(label: target.label, value: target.value)
                     }
                 }
-                StreakSection(kidId: kid.id)
             } else {
                 EmptyState(icon: "fork.knife", title: L("no_diet_plan"), subtitle: L("no_diet_plan_sub"))
             }

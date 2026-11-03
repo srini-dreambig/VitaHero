@@ -75,7 +75,7 @@ fun Illustration(scene: Scene, modifier: Modifier = Modifier) {
                     sparkle(at(0.22f, 0.72f), u * 0.14f, Ink)
                 }
                 Scene.Empty -> {
-                    blob(at(0.5f, 0.5f), u * 0.42f, Color(0xFFEFE8D7))
+                    blob(at(0.5f, 0.5f), u * 0.42f, Color(0xFFECECEE))
                     burst(at(0.5f, 0.5f), u * 0.18f, Yellow)
                     squiggle(at(0.5f, 0.82f), u * 0.26f, Olive, u * 0.025f)
                 }

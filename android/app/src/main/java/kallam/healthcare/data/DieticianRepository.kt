@@ -16,7 +16,7 @@ import kotlinx.coroutines.withContext
  * The same bargain the clinician side keeps: every rule lives on the server
  * and none of it is re-implemented here. /api/dietician/children returns the
  * children at schools this person is assigned to; /api/dietician/child returns
- * growth, haemoglobin and the food log and nothing else, because the query
+ * growth and haemoglobin and nothing else, because the query
  * filters rather than the screen hiding. A stale build cannot widen any of it.
  */
 class DieticianRepository {

@@ -14,8 +14,6 @@ import java.time.format.DateTimeFormatter
 
 data class ReportData(
     val kid: Kid,
-    val meals: List<MealItem>,
-    val streak: StreakInfo,
     val badges: List<Badge>,
     val generatedDate: String = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"))
 )
@@ -116,13 +114,16 @@ object PdfReportGenerator {
         }
         y += 100f
 
-        // Growth section
-        canvas.drawText("GROWTH TRACKING", MARGIN.toFloat(), y, subtitlePaint)
-        y += 24f
-        drawGrowthChart(canvas, MARGIN.toFloat(), y, CONTENT_WIDTH.toFloat(), 120f, k.growth, false, 0xFF10B981.toInt())
-        y += 130f
-        drawGrowthChart(canvas, MARGIN.toFloat(), y, CONTENT_WIDTH.toFloat(), 120f, k.growth, true, 0xFF2563EB.toInt())
-        y += 140f
+        // Growth section. A trend needs two measurements; with one, the section
+        // used to print its heading over 270pt of blank page.
+        if (k.growth.size >= 2) {
+            canvas.drawText("GROWTH TRACKING", MARGIN.toFloat(), y, subtitlePaint)
+            y += 24f
+            drawGrowthChart(canvas, MARGIN.toFloat(), y, CONTENT_WIDTH.toFloat(), 120f, k.growth, false, 0xFF10B981.toInt())
+            y += 130f
+            drawGrowthChart(canvas, MARGIN.toFloat(), y, CONTENT_WIDTH.toFloat(), 120f, k.growth, true, 0xFF2563EB.toInt())
+            y += 140f
+        }
 
         // Health flags
         canvas.drawText("HEALTH STATUS", MARGIN.toFloat(), y, subtitlePaint)
@@ -143,8 +144,7 @@ object PdfReportGenerator {
             y += 20f
         }
         if (flags.any { it.third == HealthFlag.WATCH || it.third == HealthFlag.ALERT }) {
-            canvas.drawText(tr(S.consultPaediatrician, locale), MARGIN + 4f, y, disclaimerPaint)
-            y += 20f
+            y = drawWrapped(canvas, tr(S.consultPaediatrician, locale), MARGIN + 4f, y, disclaimerPaint, 12f) + 22f
         }
         y += 10f
 
@@ -158,29 +158,21 @@ object PdfReportGenerator {
                 y += 18f
             }
         } else {
-            canvas.drawText("No badges earned yet. Keep tracking meals!", MARGIN + 4f, y, bodyPaint)
+            canvas.drawText("No badges earned yet.", MARGIN + 4f, y, bodyPaint)
             y += 18f
         }
         y += 10f
 
-        // Diet summary
-        canvas.drawText("DIET SUMMARY", MARGIN.toFloat(), y, subtitlePaint)
-        y += 24f
-        val eaten = data.meals.count { it.eaten }
-        val totalKcal = data.meals.filter { it.eaten }.sumOf { it.kcal }
-        canvas.drawText("Meals logged: $eaten / ${data.meals.size}", MARGIN + 4f, y, bodyPaint)
-        y += 18f
-        canvas.drawText("Calories consumed: $totalKcal kcal", MARGIN + 4f, y, bodyPaint)
-        y += 18f
-        canvas.drawText("Current streak: ${data.streak.currentStreak} days (Best: ${data.streak.bestStreak})", MARGIN + 4f, y, bodyPaint)
-        y += 30f
+        // No diet summary: parents no longer log meals, so there is nothing to total.
+        y += 20f
 
         // Disclaimer
         canvas.drawLine(MARGIN.toFloat(), y, PAGE_WIDTH - MARGIN.toFloat(), y, linePaint)
         y += 16f
-        canvas.drawText(
+        drawWrapped(
+            canvas,
             "Disclaimer: This report is for informational purposes only. Always consult a qualified doctor for medical diagnosis and treatment.",
-            MARGIN.toFloat(), y, disclaimerPaint
+            MARGIN.toFloat(), y, disclaimerPaint, 12f,
         )
 
         document.finishPage(page)
@@ -191,6 +183,25 @@ object PdfReportGenerator {
         FileOutputStream(file).use { document.writeTo(it) }
         document.close()
         return file
+    }
+
+    /** Draws [text] word-wrapped to the content width; returns the baseline of the last line. */
+    private fun drawWrapped(canvas: Canvas, text: String, x: Float, y: Float, paint: Paint, lineHeight: Float): Float {
+        val maxW = PAGE_WIDTH - MARGIN - x
+        var line = ""
+        var baseline = y
+        for (word in text.split(" ")) {
+            val next = if (line.isEmpty()) word else "$line $word"
+            if (line.isNotEmpty() && paint.measureText(next) > maxW) {
+                canvas.drawText(line, x, baseline, paint)
+                baseline += lineHeight
+                line = word
+            } else {
+                line = next
+            }
+        }
+        if (line.isNotEmpty()) canvas.drawText(line, x, baseline, paint)
+        return baseline
     }
 
     private fun drawGrowthChart(
