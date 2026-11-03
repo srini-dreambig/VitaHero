@@ -1,4 +1,4 @@
-// Vision and dental records never carry the physician's history and lab orders.
+// No clinician screen shows the birth history and lab orders older records carry.
 
 import { describe, expect, test } from "bun:test";
 import { findingDetail } from "./camps";
@@ -11,8 +11,9 @@ describe("finding detail", () => {
     expect(findingDetail("Dental", { hygiene: "Good", history: {} })).toEqual({ hygiene: "Good" });
   });
 
-  test("the physician's checks keep them", () => {
-    expect(findingDetail("Height & weight", stored)).toEqual(stored);
+  test("the physician's growth record drops them too", () => {
+    expect(findingDetail("Height & weight", { heightCm: "132", history: { birth: "Term" }, investigations: {} }))
+      .toEqual({ heightCm: "132" });
   });
 
   test("no detail reads as empty", () => {

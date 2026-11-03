@@ -1590,13 +1590,14 @@ const CONTEXT_SECTIONS: Record<string, string> = {
 const NO_CONTEXT_CHECKS = new Set(["Vision", "Dental"]);
 
 /**
- * A finding's detail as it is shown. Older vision and dental records carry
- * the history and lab orders that were merged into every check; they are
- * dropped on the way out, so no screen shows them and no app sends them back.
+ * A finding's detail as it is shown. Records saved before the forms were
+ * trimmed to the sheets carry the birth history, systemic illness and lab
+ * orders that were merged into every check. No form asks for them any more,
+ * so they are dropped on the way out of every check: no clinician screen
+ * shows them and no app sends them back.
  */
-export function findingDetail(checkType: string, detail: unknown): Record<string, unknown> {
+export function findingDetail(_checkType: string, detail: unknown): Record<string, unknown> {
   const d = (detail && typeof detail === "object" ? detail : {}) as Record<string, unknown>;
-  if (!NO_CONTEXT_CHECKS.has(checkType)) return d;
   const out: Record<string, unknown> = {};
   const context = new Set(Object.values(CONTEXT_SECTIONS));
   for (const [k, v] of Object.entries(d)) if (!context.has(k)) out[k] = v;

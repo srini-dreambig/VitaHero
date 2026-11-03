@@ -33,6 +33,16 @@ import { muacBand, nutritionBand } from "./clinical";
 import { dobText } from "./parent-sheet";
 
 /**
+ * Older records carry the birth history and lab orders that were merged into
+ * every check; no form asks for them now, so the dietician never sees them.
+ */
+function withoutHistory(detail: unknown): Record<string, unknown> {
+  const d = (detail && typeof detail === "object" ? detail : {}) as Record<string, unknown>;
+  const { history: _h, investigations: _i, ...rest } = d;
+  return rest;
+}
+
+/**
  * The checks a dietician may read.
  *
  * Both of them bear directly on what a child eats: growth says whether they
@@ -502,7 +512,7 @@ export async function dieticianChild(sql: Sql, actor: Actor, kidId: string) {
     findings: findings.map((f) => ({
       checkType: f.check_type as string,
       flag: f.flag as string,
-      detail: (f.detail as Record<string, unknown>) || {},
+      detail: withoutHistory(f.detail),
       valueText: (f.value_text as string) || "",
       rationale: (f.rationale as string) || "",
       date: (f.date as string) || "",
