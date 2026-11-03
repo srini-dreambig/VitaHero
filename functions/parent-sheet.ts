@@ -65,13 +65,29 @@ function prescription(d: Record<string, unknown>, base: "present" | "new"): stri
   return [od && `Right (OD): ${od}`, os && `Left (OS): ${os}`].filter(Boolean).join("; ");
 }
 
+/** BMI and the nutritional status for a growth record, as the sheet words them. */
+export function growthSummary(
+  detail: unknown, child: SheetChild
+): { bmi: string; nutritionalStatus: string } {
+  const d = (detail && typeof detail === "object" ? detail : {}) as Record<string, unknown>;
+  const h = num(d.heightCm), w = num(d.weightKg);
+  if (!h || !w || h <= 0 || w <= 0) return { bmi: "", nutritionalStatus: str(d.nutritionalStatus) };
+  const r = whoReading(h, w, child.ageYears, child.gender, child.dob);
+  return {
+    bmi: `${fix1(w / Math.pow(h / 100, 2))} kg/m²`,
+    // The doctor's own status wins over the WHO reading.
+    nutritionalStatus: str(d.nutritionalStatus) || (r ? nutritionStatus(r) : ""),
+  };
+}
+
 function growthSheet(d: Record<string, unknown>, child: SheetChild): AssessmentSheet {
   const h = num(d.heightCm), w = num(d.weightKg), muac = num(d.muacCm);
   const rows: SheetRow[] = [
     { label: "Height", value: h !== null ? `${fix1(h)} cm` : NOT_RECORDED },
     { label: "Weight", value: w !== null ? `${fix1(w)} kg` : NOT_RECORDED },
-    { label: "Mid-arm circumference", value: muac !== null ? `${fix1(muac)} cm` : NOT_RECORDED },
   ];
+  // No longer on the clinician's form; older records that have it keep it.
+  if (muac !== null) rows.push({ label: "Mid-arm circumference", value: `${fix1(muac)} cm` });
   if (h && w && h > 0 && w > 0) {
     rows.push({ label: "BMI", value: `${fix1(w / Math.pow(h / 100, 2))} kg/m²` });
     const r = whoReading(h, w, child.ageYears, child.gender, child.dob);
@@ -102,23 +118,30 @@ function growthSheet(d: Record<string, unknown>, child: SheetChild): AssessmentS
   return { title: "Physical growth assessment", rows };
 }
 
+/** "Right (OD) 6/6, Left (OS) 6/12", or not recorded. */
+function perEye(right: unknown, left: unknown): string {
+  const r = str(right), l = str(left);
+  return r || l ? [`Right (OD) ${r || "—"}`, `Left (OS) ${l || "—"}`].join(", ") : NOT_RECORDED;
+}
+
+// The vision sheet's four parts, each with the values the camp tested:
+// visual acuity (distance, near, how it was tested), the present and the new
+// glasses prescription, and colour vision; then any other complaints.
 function visionSheet(d: Record<string, unknown>): AssessmentSheet {
-  const r = str(d.rightAcuity), l = str(d.leftAcuity);
-  const acuity = r || l
-    ? [`Right (OD) ${r || "—"}`, `Left (OS) ${l || "—"}`].join(", ")
-    : NOT_RECORDED;
-  return {
-    title: "Vision assessment",
-    rows: [
-      { label: "Visual acuity", value: acuity },
-      { label: "Testing condition", value: str(d.testingCondition) || NOT_RECORDED },
-      { label: "Present glasses prescription", value: prescription(d, "present") },
-      { label: "New glasses prescription", value: prescription(d, "new") },
-      { label: "Colour vision", value: str(d.colorVision) || NOT_RECORDED },
-      { label: "Other complaints", value: orNone(d.otherComplaints) },
-      { label: "Other abnormalities", value: orNone(d.otherAbnormalities) },
-    ],
-  };
+  const rows: SheetRow[] = [
+    { label: "Visual acuity, distance", value: perEye(d.rightAcuity, d.leftAcuity) },
+    { label: "Visual acuity, near", value: perEye(d.rightNearVision, d.leftNearVision) },
+    { label: "Testing condition", value: str(d.testingCondition) || NOT_RECORDED },
+    { label: "Present glasses prescription", value: prescription(d, "present") },
+    { label: "New glasses prescription", value: prescription(d, "new") },
+    { label: "Colour vision", value: str(d.colorVision) || NOT_RECORDED },
+    { label: "Any other complaints", value: orNone(d.otherComplaints) },
+  ];
+  // No longer on the form; an older record that noted one keeps it.
+  if (orNone(d.otherAbnormalities) !== NONE) {
+    rows.push({ label: "Other abnormalities", value: orNone(d.otherAbnormalities) });
+  }
+  return { title: "Vision assessment", rows };
 }
 
 function dentalSheet(d: Record<string, unknown>): AssessmentSheet {
@@ -133,17 +156,20 @@ function dentalSheet(d: Record<string, unknown>): AssessmentSheet {
   const other = str(d.otherComplaints);
   if (other && other.toLowerCase() !== "none") complaints.push(other);
   const interventions = list(d.treatmentNeeded);
-  return {
-    title: "Dental assessment",
-    rows: [
-      { label: "Oral hygiene", value: str(d.hygiene) || NOT_RECORDED },
-      { label: "Tooth index", value: index ? `${index} (${counts})` : NOT_RECORDED },
-      { label: "Dental fluorosis", value: str(d.fluorosis) || NOT_RECORDED },
-      { label: "Complaints", value: complaints.length ? complaints.join(", ") : NONE },
-      { label: "Other abnormalities", value: orNone(d.abnormalFindings) },
-      { label: "Recommended dental intervention", value: interventions.length ? interventions.join(", ") : NONE },
-    ],
-  };
+  // The sheet's four parts in its order: tooth index, oral hygiene index,
+  // enamel, alignment & occlusion, and the treatment plan.
+  const rows: SheetRow[] = [
+    { label: "Tooth index", value: index ? `${index} (${counts})` : NOT_RECORDED },
+    { label: "Oral hygiene index", value: str(d.hygiene) || NOT_RECORDED },
+    { label: "Enamel, alignment & occlusion", value: str(d.fluorosis) ? `Dental fluorosis: ${str(d.fluorosis)}` : NOT_RECORDED },
+    { label: "Treatment plan", value: interventions.length ? interventions.join(", ") : NONE },
+    { label: "Any other complaints", value: complaints.length ? complaints.join(", ") : NONE },
+  ];
+  // No longer on the form; an older record that noted one keeps it.
+  if (orNone(d.abnormalFindings) !== NONE) {
+    rows.push({ label: "Other abnormalities", value: orNone(d.abnormalFindings) });
+  }
+  return { title: "Dental assessment", rows };
 }
 
 /** The sheet for one check, or null for a check that has none. */

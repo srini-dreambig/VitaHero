@@ -21,7 +21,7 @@ import {
   tidyName,
 } from "./common";
 import { SmsSender, sendToMany } from "./messaging";
-import { assessmentSheet, dobText, type SheetChild } from "./parent-sheet";
+import { assessmentSheet, dobText, growthSummary, type SheetChild } from "./parent-sheet";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 import { openReferralsForCamp } from "./referrals";
 import { logRecordAccess } from "./oversight";
@@ -1303,7 +1303,7 @@ export async function getScreeningForm(sql: Sql, actor: Actor, campId: string, k
     specialty: access.specialty,
     findings: findings.map((f) => ({
       checkType: f.check_type as string,
-      detail: (f.detail as Record<string, unknown>) || {},
+      detail: findingDetail(f.check_type as string, f.detail),
       flag: f.flag as string,
       autoFlag: f.auto_flag as string,
       rationale: (f.rationale as string) || "",
@@ -1445,7 +1445,9 @@ function evaluateChild(
         "CHECK_NOT_MY_SPECIALTY"
       );
     }
-    const detail = { ...((raw.detail as Record<string, unknown>) || {}), ...context };
+    const detail = findingDetail(checkType, NO_CONTEXT_CHECKS.has(checkType)
+      ? (raw.detail as Record<string, unknown>) || {}
+      : { ...((raw.detail as Record<string, unknown>) || {}), ...context });
     const proposal = proposeFlag({ checkType, detail }, ctx);
 
     // C9 — a screener may override the proposal, but must say why.
@@ -1580,6 +1582,27 @@ const CONTEXT_SECTIONS: Record<string, string> = {
   Investigations: "investigations",
 };
 
+/**
+ * The checks the history and lab orders never ride on. Birth history,
+ * systemic illness and blood tests are the physician's; on an eye or a dental
+ * record they only read as findings nobody took.
+ */
+const NO_CONTEXT_CHECKS = new Set(["Vision", "Dental"]);
+
+/**
+ * A finding's detail as it is shown. Older vision and dental records carry
+ * the history and lab orders that were merged into every check; they are
+ * dropped on the way out, so no screen shows them and no app sends them back.
+ */
+export function findingDetail(checkType: string, detail: unknown): Record<string, unknown> {
+  const d = (detail && typeof detail === "object" ? detail : {}) as Record<string, unknown>;
+  if (!NO_CONTEXT_CHECKS.has(checkType)) return d;
+  const out: Record<string, unknown> = {};
+  const context = new Set(Object.values(CONTEXT_SECTIONS));
+  for (const [k, v] of Object.entries(d)) if (!context.has(k)) out[k] = v;
+  return out;
+}
+
 /** One child's captures, already judged, waiting to be written. */
 interface PreparedChild {
   kidId: string;
@@ -1703,7 +1726,7 @@ export async function shareWithFamilies(sql: Sql, campId: string, kidIds: string
       checkType: f.check_type as string,
       flag: f.flag as Flag,
       urgency: (f.urgency as Urgency) || "NONE",
-      detail: (f.detail as Record<string, unknown>) || {},
+      detail: findingDetail(f.check_type as string, f.detail),
     });
     byKid.set(f.kid_id as string, list);
   }
@@ -1863,7 +1886,7 @@ export async function campPack(sql: Sql, actor: Actor, campId: string) {
     const list = byKid.get(k) || [];
     list.push({
       checkType: f.check_type as string,
-      detail: (f.detail as Record<string, unknown>) || {},
+      detail: findingDetail(f.check_type as string, f.detail),
       flag: f.flag as string,
       rationale: (f.rationale as string) || "",
       note: (f.screener_note as string) || "",
@@ -2232,7 +2255,7 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
     .filter((f) => !access.checkScope || access.checkScope.includes(f.check_type as string))
     .map((f) => ({
     checkType: f.check_type as string,
-    detail: (f.detail as Record<string, unknown>) || {},
+    detail: reviewGrowth(f.check_type as string, findingDetail(f.check_type as string, f.detail), sheetChild),
     sheet: assessmentSheet(f.check_type as string, f.detail, sheetChild) ?? undefined,
     flag: f.flag as Flag,
     autoFlag: f.auto_flag as Flag,
@@ -2315,6 +2338,31 @@ export async function reviewDetail(sql: Sql, actor: Actor, campId: string, kidId
     // signing off. Null when this reader is not one of the clinical team.
     illnessHistory: await illnessHistoryOrNull(sql, actor, campId, kidId),
   };
+}
+
+/**
+ * A growth record as the reviewing doctor reads it: height and weight, then
+ * the BMI and the nutritional status worked out from them, so the physician
+ * signs off on the reading and not only on the two numbers.
+ */
+function reviewGrowth(checkType: string, detail: Record<string, unknown>, child: SheetChild) {
+  if (checkType !== "Height & weight") return detail;
+  const g = growthSummary(detail, child);
+  if (!g.bmi) return detail;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(detail)) {
+    if (k === "bmi" || k === "nutritionalStatus") continue;
+    out[k] = v;
+    if (k === "weightKg") {
+      out.bmi = g.bmi;
+      if (g.nutritionalStatus) out.nutritionalStatus = g.nutritionalStatus;
+    }
+  }
+  if (!("bmi" in out)) {
+    out.bmi = g.bmi;
+    if (g.nutritionalStatus) out.nutritionalStatus = g.nutritionalStatus;
+  }
+  return out;
 }
 
 /** D2, D3, D5 — confirm the flags, set urgency, write the parent-facing line. */
@@ -2587,7 +2635,7 @@ export async function releaseCamp(
       checkType: f.check_type as string,
       flag: f.flag as Flag,
       urgency: (f.urgency as Urgency) || "NONE",
-      detail: (f.detail as Record<string, unknown>) || {},
+      detail: findingDetail(f.check_type as string, f.detail),
       rationale: (f.rationale as string) || "",
     });
     findingsByKid.set(kidId, list);

@@ -1,7 +1,7 @@
 // The parent's assessment sheets: the paper sheet's columns, in its words.
 
 import { describe, expect, test } from "bun:test";
-import { assessmentSheet } from "./parent-sheet";
+import { assessmentSheet, growthSummary } from "./parent-sheet";
 
 const girl = { ageYears: 9, gender: "Female", dob: "" };
 const rows = (checkType: string, detail: Record<string, unknown>) =>
@@ -25,6 +25,20 @@ describe("physical growth sheet", () => {
     expect(sheet.growth).toEqual({ heightCm: 132, weightKg: 28, muacCm: 18.5 });
   });
 
+  test("no mid-arm measured, no mid-arm row", () => {
+    const labels = assessmentSheet("Height & weight", { heightCm: "132", weightKg: "28" }, girl)!.rows.map((x) => x.label);
+    expect(labels).not.toContain("Mid-arm circumference");
+    expect(labels).not.toContain("MUAC-for-age");
+    expect(labels).toContain("BMI");
+    expect(labels).toContain("Nutritional status");
+  });
+
+  test("the physician's BMI and nutritional status", () => {
+    expect(growthSummary({ heightCm: "132", weightKg: "28" }, girl)).toEqual({ bmi: "16.1 kg/m²", nutritionalStatus: "Normal" });
+    expect(growthSummary({ heightCm: "132", weightKg: "28", nutritionalStatus: "Stunted" }, girl).nutritionalStatus).toBe("Stunted");
+    expect(growthSummary({}, girl)).toEqual({ bmi: "", nutritionalStatus: "" });
+  });
+
   test("nothing measured reads not recorded, with no chart", () => {
     const sheet = assessmentSheet("Height & weight", {}, girl)!;
     expect(sheet.rows.every((x) => x.value === "Not recorded")).toBe(true);
@@ -33,44 +47,51 @@ describe("physical growth sheet", () => {
 });
 
 describe("vision sheet", () => {
-  test("the seven columns, prescriptions per eye", () => {
+  test("every tested value, prescriptions per eye", () => {
     const r = rows("Vision", {
-      rightAcuity: "6/6", leftAcuity: "6/12", testingCondition: "Unaided",
+      rightAcuity: "6/6", leftAcuity: "6/12", rightNearVision: "N6 (Normal)", leftNearVision: "N8",
+      testingCondition: "Unaided",
       newOdUva: "6/18", newOdSph: "-2.00", newOdCyl: "-0.75", newOdAxi: "180", newOdCva: "6/6",
       colorVision: "17/17 (Normal Pass)", otherComplaints: "Headache after reading",
     });
     expect(Object.keys(r)).toEqual([
-      "Visual acuity", "Testing condition", "Present glasses prescription", "New glasses prescription",
-      "Colour vision", "Other complaints", "Other abnormalities",
+      "Visual acuity, distance", "Visual acuity, near", "Testing condition",
+      "Present glasses prescription", "New glasses prescription", "Colour vision", "Any other complaints",
     ]);
-    expect(r["Visual acuity"]).toBe("Right (OD) 6/6, Left (OS) 6/12");
+    expect(r["Visual acuity, distance"]).toBe("Right (OD) 6/6, Left (OS) 6/12");
+    expect(r["Visual acuity, near"]).toBe("Right (OD) N6 (Normal), Left (OS) N8");
     expect(r["Present glasses prescription"]).toBe("None");
     expect(r["New glasses prescription"]).toBe("Right (OD): UVA 6/18, Sph -2.00, Cyl -0.75, Axis 180, CVA 6/6");
-    expect(r["Other complaints"]).toBe("Headache after reading");
-    expect(r["Other abnormalities"]).toBe("None");
+    expect(r["Any other complaints"]).toBe("Headache after reading");
+  });
+
+  test("an older record's abnormality is kept", () => {
+    expect(rows("Vision", { otherAbnormalities: "Squint" })["Other abnormalities"]).toBe("Squint");
+    expect(rows("Vision", {})["Visual acuity, near"]).toBe("Not recorded");
   });
 });
 
 describe("dental sheet", () => {
-  test("the six columns, complaints and interventions as lists", () => {
+  test("the four parts in the sheet's order, then complaints", () => {
     const r = rows("Dental", {
       hygiene: "Fair (Mild Plaque)", dentition: "Mixed", cariesCount: "3", missingCount: "0", filledCount: "1",
       fluorosis: "None", dentalSymptoms: "Reports Toothache / Pain,Hot / Cold Sensitivity",
       treatmentNeeded: "Restorative Dental Filling",
     });
     expect(Object.keys(r)).toEqual([
-      "Oral hygiene", "Tooth index", "Dental fluorosis", "Complaints", "Other abnormalities",
-      "Recommended dental intervention",
+      "Tooth index", "Oral hygiene index", "Enamel, alignment & occlusion", "Treatment plan",
+      "Any other complaints",
     ]);
     expect(r["Tooth index"]).toBe("dmft/DMFT 4 (decayed 3, missing 0, filled 1)");
-    expect(r.Complaints).toBe("Reports Toothache / Pain, Hot / Cold Sensitivity");
-    expect(r["Other abnormalities"]).toBe("None");
-    expect(r["Recommended dental intervention"]).toBe("Restorative Dental Filling");
+    expect(r["Oral hygiene index"]).toBe("Fair (Mild Plaque)");
+    expect(r["Enamel, alignment & occlusion"]).toBe("Dental fluorosis: None");
+    expect(r["Any other complaints"]).toBe("Reports Toothache / Pain, Hot / Cold Sensitivity");
+    expect(r["Treatment plan"]).toBe("Restorative Dental Filling");
   });
 
   test("any other complaints joins the complaints row", () => {
     const r = rows("Dental", { hygiene: "Good", otherComplaints: "Bleeding gums" });
-    expect(r.Complaints).toBe("Bleeding gums");
+    expect(r["Any other complaints"]).toBe("Bleeding gums");
   });
 });
 

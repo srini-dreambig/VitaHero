@@ -239,6 +239,15 @@ export async function symptomHistoryForClinician(
     if (!access.canScreen && !access.canReview) {
       throw new ApiError(403, "You cannot read this child's history", "FORBIDDEN");
     }
+    // An ophthalmologist or a dentist examines an eye or a mouth; the fevers
+    // and loose motions are for the doctor who records the child's growth.
+    if (access.checkScope && !access.checkScope.includes("Height & weight")) {
+      throw new ApiError(
+        403,
+        "Illness history is for the physician examining the child, not this specialty.",
+        "NOT_YOUR_SPECIALTY"
+      );
+    }
     // The camp is the reason to see it, so only for a child on that camp:
     // without this, any screener could read any child's log by its id.
     const [onCamp] = await sql`
