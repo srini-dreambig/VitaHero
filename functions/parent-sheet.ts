@@ -130,6 +130,8 @@ function dentalSheet(d: Record<string, unknown>): AssessmentSheet {
     filled !== null && `filled ${filled}`,
   ].filter(Boolean).join(", ");
   const complaints = list(d.dentalSymptoms);
+  const other = str(d.otherComplaints);
+  if (other && other.toLowerCase() !== "none") complaints.push(other);
   const interventions = list(d.treatmentNeeded);
   return {
     title: "Dental assessment",

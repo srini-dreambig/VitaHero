@@ -5052,7 +5052,9 @@ export const PORTAL_HTML = `<!doctype html>
           el("h4", { style: "margin:10px 0 6px" }, "Enamel, alignment & occlusion"),
           sel("fluorosis", "Dental fluorosis", FLUOROSIS_STAGE),
           el("h4", { style: "margin:10px 0 6px" }, "Treatment plan"),
-          many("treatmentNeeded", DENTAL_TREATMENTS));
+          many("treatmentNeeded", DENTAL_TREATMENTS),
+          el("h4", { style: "margin:10px 0 6px" }, "Any other complaints"),
+          txt("otherComplaints", "Any other complaints, if present", "e.g. bleeding gums, bad breath"));
       }
       if (ct === "ENT") {
         return el("div", null,

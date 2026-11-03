@@ -561,7 +561,7 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
             SimpleTextField("Any other complaints, if present", fields, "otherComplaints", Modifier.fillMaxWidth(), placeholder = "e.g. headache after reading, watering")
         }
         // Oral & dental, as the sheet has it: tooth index, oral hygiene index,
-        // enamel, alignment & occlusion, and the treatment plan.
+        // enamel, alignment & occlusion, the treatment plan and any other complaints.
         "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             HeroFormSectionHeader("Tooth index (dmft / DMFT)")
             ChoiceField("Type of dentition", DENTITION, fields, "dentition", Modifier.fillMaxWidth())
@@ -582,6 +582,10 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
             Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Treatment plan")
             MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded", label = "Select dental interventions")
+
+            Spacer(Modifier.height(AppSpacing.xxs))
+            HeroFormSectionHeader("Any other complaints")
+            SimpleTextField("Any other complaints, if present", fields, "otherComplaints", Modifier.fillMaxWidth(), placeholder = "e.g. bleeding gums, bad breath")
         }
         "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             HeroFormSectionHeader("Hearing Acuity Screening")

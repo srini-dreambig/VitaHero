@@ -67,6 +67,11 @@ describe("dental sheet", () => {
     expect(r["Other abnormalities"]).toBe("None");
     expect(r["Recommended dental intervention"]).toBe("Restorative Dental Filling");
   });
+
+  test("any other complaints joins the complaints row", () => {
+    const r = rows("Dental", { hygiene: "Good", otherComplaints: "Bleeding gums" });
+    expect(r.Complaints).toBe("Bleeding gums");
+  });
 });
 
 test("the other checks have no sheet", () => {

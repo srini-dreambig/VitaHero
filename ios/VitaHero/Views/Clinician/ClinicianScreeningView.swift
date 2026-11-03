@@ -239,7 +239,7 @@ struct ClinicianScreeningView: View {
     }
 
     // Oral & dental, as the sheet has it: tooth index, oral hygiene index,
-    // enamel, alignment & occlusion, and the treatment plan.
+    // enamel, alignment & occlusion, the treatment plan and any other complaints.
     private func dental(_ c: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
@@ -258,6 +258,8 @@ struct ClinicianScreeningView: View {
                 choice("Dental fluorosis", O.FLUOROSIS_STAGE, c, "fluorosis")
                 FormSectionHeader(title: "Treatment plan")
                 multi("Select dental interventions", O.DENTAL_TREATMENTS, c, "treatmentNeeded")
+                FormSectionHeader(title: "Any other complaints")
+                text("Any other complaints, if present", c, "otherComplaints", "e.g. bleeding gums, bad breath")
             }
         }
     }

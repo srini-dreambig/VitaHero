@@ -769,6 +769,11 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
         parts.push(`findings: ${abnormal}`);
         if (flag === "GOOD") flag = "WATCH";
       }
+      const dentalComplaints = String(d.otherComplaints || "").trim();
+      if (dentalComplaints && dentalComplaints.toLowerCase() !== "none") {
+        parts.push(`complaints: ${dentalComplaints}`);
+        if (flag === "GOOD") flag = "WATCH";
+      }
       if (treatment.length > 0) {
         parts.push(`rec: ${treatment.join(", ")}`);
       }
