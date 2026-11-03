@@ -34,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,16 +52,17 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kallam.healthcare.data.S
+import kallam.healthcare.ui.components.AppTextButton
 import kallam.healthcare.ui.components.PrimaryGradientButton
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
 import kotlinx.coroutines.delay
 
 /**
@@ -128,42 +128,42 @@ fun OtpScreen(
                 .fillMaxWidth()
                 .verticalScroll(scroll)
                 .heightIn(min = maxHeight)
-                .padding(horizontal = 24.dp)
+                .padding(horizontal = AppSpacing.xxl)
         ) {
-            IconButton(onClick = onBack, modifier = Modifier.padding(top = 8.dp)) {
+            IconButton(onClick = onBack, modifier = Modifier.padding(top = AppSpacing.sm)) {
                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             Box(
                 Modifier
                     .size(64.dp)
                     .clip(CircleShape)
-                    .background(HeroOrange.copy(alpha = 0.14f)),
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Outlined.MarkEmailRead, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(32.dp))
+                Icon(Icons.Outlined.MarkEmailRead, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.xl))
             Text(t(S.verifyNumber), style = MaterialTheme.typography.headlineLarge)
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(AppSpacing.sm))
             Text(
                 "${t(S.otpSubtitle)} ${if (phone.isNotBlank()) "+91 $phone" else ""}",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(AppSpacing.xxxl))
 
             // Error message
             if (error != null) {
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(AppCorners.medium))
                         // Theme colours, not a fixed light red: in dark mode the
                         // hardcoded pair was a bright pink panel in an otherwise
                         // dark screen.
                         .background(MaterialTheme.colorScheme.errorContainer)
-                        .padding(12.dp)
+                        .padding(AppSpacing.md)
                 ) {
                     Text(
                         error,
@@ -171,7 +171,7 @@ fun OtpScreen(
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
             }
 
             // OTP input.
@@ -218,7 +218,7 @@ fun OtpScreen(
 
                         Row(
                             Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
                         ) {
                             repeat(6) { i ->
                                 val char = code.getOrNull(i)?.toString() ?: ""
@@ -231,12 +231,12 @@ fun OtpScreen(
                                         // setting, so at 200% it needs more room
                                         // than 58dp and used to be cut in half.
                                         .defaultMinSize(minHeight = 58.dp)
-                                        .clip(RoundedCornerShape(14.dp))
+                                        .clip(RoundedCornerShape(AppCorners.medium))
                                         .background(MaterialTheme.colorScheme.surface)
                                         .border(
                                             width = if (active) 2.dp else 1.dp,
-                                            color = if (active) HeroOrange else MaterialTheme.colorScheme.outline,
-                                            shape = RoundedCornerShape(14.dp)
+                                            color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                                            shape = RoundedCornerShape(AppCorners.medium)
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -244,13 +244,12 @@ fun OtpScreen(
                                         CircularProgressIndicator(
                                             modifier = Modifier.size(20.dp),
                                             strokeWidth = 2.dp,
-                                            color = HeroOrange
+                                            color = MaterialTheme.colorScheme.primary
                                         )
                                     } else {
                                         Text(
                                             char,
                                             style = MaterialTheme.typography.headlineLarge,
-                                            fontWeight = FontWeight.Bold,
                                             color = MaterialTheme.colorScheme.onSurface
                                         )
                                     }
@@ -261,14 +260,14 @@ fun OtpScreen(
                 }
             )
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.xl))
             // Two strings sat directly against each other here and rendered as
             // "Didn't get the code?Resend in 30s". They also had nowhere to go on a
             // narrow screen, so a longer translation pushed the resend control off
             // the edge; the question yields space now instead.
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -282,19 +281,16 @@ fun OtpScreen(
                 if (seconds > 0) {
                     Text(
                         tf(S.resendIn, seconds.toString()),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.SemiBold
                     )
                 } else {
-                    TextButton(onClick = {
+                    // Was .take(10), which rendered "Resend cod" in English
+                    // and cut Telugu inside a consonant cluster.
+                    AppTextButton(t(S.resend), onClick = {
                         seconds = 30
                         onResend?.invoke()
-                    }) {
-                        // Was .take(10), which rendered "Resend cod" in English
-                        // and cut Telugu inside a consonant cluster.
-                        Text(t(S.resend), color = HeroOrange, fontWeight = FontWeight.SemiBold)
-                    }
+                    })
                 }
             }
 
@@ -305,7 +301,7 @@ fun OtpScreen(
                 onClick = { onVerified(code) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 32.dp)
+                    .padding(bottom = AppSpacing.xxxl)
             )
         }
     }

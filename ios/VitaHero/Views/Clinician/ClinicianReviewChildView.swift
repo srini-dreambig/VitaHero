@@ -54,10 +54,10 @@ struct ClinicianReviewChildView: View {
     private func content(_ detail: ReviewDetail) -> some View {
         if let child = detail.child {
             VStack(alignment: .leading, spacing: 2) {
-                Text(child.name).font(.title2.bold())
+                Text(child.name).font(.vh(.title2, .bold))
                 let parts = [child.grade, child.age.map { L("clin_years", String($0)) } ?? "", child.guardianName]
                 Text(parts.filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.subheadline).foregroundColor(.secondary)
+                    .font(.vh(.subheadline)).foregroundColor(.secondary)
             }
         }
         if detail.status == "APPROVED" {
@@ -81,7 +81,7 @@ struct ClinicianReviewChildView: View {
             Task { await approve() }
         }
         Text((detail.otherChecks.isEmpty ? "" : L("clin_sign_footer_each") + " ") + L("clin_approve_footer"))
-            .font(.footnote).foregroundColor(.secondary)
+            .font(.vh(.footnote)).foregroundColor(.secondary)
     }
 
     /// "Approve" for a physician who signs every check; a specialist signs
@@ -111,25 +111,25 @@ struct ClinicianReviewChildView: View {
     private func findingCard(_ finding: ReviewFinding) -> some View {
         let chosen = moved[finding.checkType] ?? finding.flag
         return Card {
-            Text(finding.checkType).font(.headline)
+            Text(finding.checkType).font(.vh(.headline))
             let measured = Self.shownDetail(finding.detail)
                 .map { "\(Self.detailLabel($0.key)): \(Self.detailValue($0))" }
                 .joined(separator: " · ")
             if finding.detail.contains(where: { $0.key == "notDone" && $0.value == .bool(true) }) {
-                Text(L("clin_not_done")).font(.footnote.weight(.semibold)).foregroundColor(Brand.orange)
+                Text(L("clin_not_done")).font(.vh(.footnote, .semibold)).foregroundColor(Brand.orange)
             }
             if !measured.isEmpty {
-                Text(measured).font(.footnote).foregroundColor(.secondary)
+                Text(measured).font(.vh(.footnote)).foregroundColor(.secondary)
             }
             if !finding.rationale.isEmpty {
-                Text(finding.rationale).font(.footnote).foregroundColor(.secondary)
+                Text(finding.rationale).font(.vh(.footnote)).foregroundColor(.secondary)
             }
             if !finding.screenerNote.isEmpty {
-                Text(L("clin_screener_note", finding.screenerNote)).font(.footnote).foregroundColor(.secondary)
+                Text(L("clin_screener_note", finding.screenerNote)).font(.vh(.footnote)).foregroundColor(.secondary)
             }
             if !finding.previous.isEmpty {
                 Text(L("clin_flagged_before", finding.previous.map { "\($0.flag) \($0.date)" }.joined(separator: ", ")))
-                    .font(.footnote).foregroundColor(Brand.orange)
+                    .font(.vh(.footnote)).foregroundColor(Brand.orange)
             }
             Picker(finding.checkType, selection: Binding(
                 get: { chosen },
@@ -142,7 +142,7 @@ struct ClinicianReviewChildView: View {
             .pickerStyle(.segmented)
             if chosen != finding.autoFlag, finding.autoFlag != "NOT_MEASURED" {
                 Text(L("clin_rules_said", flagName(finding.autoFlag).lowercased()))
-                    .font(.footnote).foregroundColor(.secondary)
+                    .font(.vh(.footnote)).foregroundColor(.secondary)
             }
         }
     }
@@ -210,15 +210,15 @@ struct ClinicianReviewChildView: View {
     /// this physician's to see.
     private func otherChecksCard(_ checks: [OtherCheck]) -> some View {
         Card {
-            Text(L("clin_other_specialists")).font(.headline)
+            Text(L("clin_other_specialists")).font(.vh(.headline))
             ForEach(checks) { check in
                 HStack(alignment: .firstTextBaseline) {
-                    Text(check.checkType).font(.subheadline)
+                    Text(check.checkType).font(.vh(.subheadline))
                     Spacer(minLength: 8)
                     Text(check.signedBy.isEmpty
                          ? (check.recorded ? L("clin_recorded_not_signed") : L("clin_not_recorded_yet"))
                          : L("clin_signed_by", check.signedBy))
-                        .font(.footnote.weight(.semibold))
+                        .font(.vh(.footnote, .semibold))
                         .foregroundColor(check.signedBy.isEmpty ? Brand.orange : Brand.blue)
                         .multilineTextAlignment(.trailing)
                 }
@@ -230,22 +230,22 @@ struct ClinicianReviewChildView: View {
 
     private var urgencyCard: some View {
         Card {
-            Text(L("clin_how_soon")).font(.headline)
+            Text(L("clin_how_soon")).font(.vh(.headline))
             Picker(L("clin_how_soon"), selection: $urgency) {
                 ForEach(Self.urgencies, id: \.value) { Text(L($0.key)).tag($0.value) }
             }
             .pickerStyle(.segmented)
             if urgency == "URGENT" {
-                Text(L("clin_urgent_note")).font(.footnote).foregroundColor(Brand.red)
+                Text(L("clin_urgent_note")).font(.vh(.footnote)).foregroundColor(Brand.red)
             }
         }
     }
 
     private func messageCard(_ detail: ReviewDetail) -> some View {
         Card {
-            Text(detail.otherChecks.isEmpty ? L("clin_guardian_reads") : L("clin_your_part")).font(.headline)
+            Text(detail.otherChecks.isEmpty ? L("clin_guardian_reads") : L("clin_your_part")).font(.vh(.headline))
             if detail.recommendationIsDraft {
-                Text(L("clin_draft_note")).font(.footnote).foregroundColor(.secondary)
+                Text(L("clin_draft_note")).font(.vh(.footnote)).foregroundColor(.secondary)
             }
             TextEditor(text: $recommendation)
                 .frame(minHeight: 140)
@@ -253,7 +253,7 @@ struct ClinicianReviewChildView: View {
                 .background(Color(.tertiarySystemGroupedBackground))
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             if RequiredChecks.isBlank(recommendation) {
-                Text(L("clin_write_first")).font(.footnote).foregroundColor(Brand.red)
+                Text(L("clin_write_first")).font(.vh(.footnote)).foregroundColor(Brand.red)
             }
         }
     }

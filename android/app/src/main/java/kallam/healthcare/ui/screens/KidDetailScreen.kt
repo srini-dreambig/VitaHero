@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Share
@@ -44,9 +43,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kallam.healthcare.data.GrowthAssessment
@@ -56,15 +53,21 @@ import kallam.healthcare.data.Kid
 import kallam.healthcare.data.heightText
 import kallam.healthcare.data.weightText
 import kallam.healthcare.data.S
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppScreenHeader
 import kallam.healthcare.ui.components.FlagChip
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.InfoNote
+import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.SecondaryButton
+import kallam.healthcare.ui.components.SegmentedChoice
+import kallam.healthcare.ui.components.StatTile
 import kallam.healthcare.ui.components.StatusBarSpacer
 import kallam.healthcare.ui.components.IconBubble
 import kallam.healthcare.ui.components.KidAvatar
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.t
-import kallam.healthcare.ui.components.tf
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
 
 private enum class DetailTab(val labelKey: String) {
     GROWTH(S.growthTabLabel), DENTAL(S.dentalTabLabel), EYE(S.eyeTabLabel), NUTRITION(S.nutritionTabLabel)
@@ -89,7 +92,7 @@ fun KidDetailScreen(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(bottom = 32.dp)
+        contentPadding = PaddingValues(bottom = AppSpacing.xxxl)
     ) {
         // Header
         item {
@@ -100,82 +103,58 @@ fun KidDetailScreen(
             ) {
                 Column {
                     StatusBarSpacer()
-                    Spacer(Modifier.height(8.dp))
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            Modifier
-                                .size(44.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable(onClick = onBack),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
-                        }
-                        Spacer(Modifier.weight(1f))
-                        // Share report button
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surface)
-                                // The indicator used to be theatre: it showed
-                                // for a fixed 800ms while nothing happened,
-                                // hid itself, and only then ran the work — on
-                                // the main thread, so the UI froze right after
-                                // the progress text disappeared. It now tracks
-                                // the actual job, which runs off the main
-                                // thread.
-                                .clickable(enabled = !isGeneratingReport) {
-                                    isGeneratingReport = true
-                                    scope.launch {
-                                        try {
-                                            onShareReport(context)
-                                        } finally {
-                                            isGeneratingReport = false
+                    AppScreenHeader(
+                        title = kid.name,
+                        subtitle = "${kid.age} yrs · ${kid.gender} · ${kid.school}",
+                        onBack = onBack,
+                        actions = {
+                            // Share report button
+                            Box(
+                                Modifier
+                                    .clip(RoundedCornerShape(AppCorners.medium))
+                                    .background(MaterialTheme.colorScheme.surface)
+                                    // The indicator used to be theatre: it showed
+                                    // for a fixed 800ms while nothing happened,
+                                    // hid itself, and only then ran the work — on
+                                    // the main thread, so the UI froze right after
+                                    // the progress text disappeared. It now tracks
+                                    // the actual job, which runs off the main
+                                    // thread.
+                                    .clickable(enabled = !isGeneratingReport) {
+                                        isGeneratingReport = true
+                                        scope.launch {
+                                            try {
+                                                onShareReport(context)
+                                            } finally {
+                                                isGeneratingReport = false
+                                            }
                                         }
                                     }
-                                }
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (isGeneratingReport) {
-                                    Text(t(S.generatingReport), style = MaterialTheme.typography.labelSmall, color = HeroOrange)
-                                } else {
-                                    Icon(Icons.Outlined.Share, contentDescription = "Share report", tint = HeroOrange, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text(t(S.shareReport), style = MaterialTheme.typography.labelSmall, color = HeroOrange, fontWeight = FontWeight.SemiBold)
+                                    .padding(horizontal = AppSpacing.md, vertical = 10.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val brand = MaterialTheme.colorScheme.primary
+                                    if (isGeneratingReport) {
+                                        Text(t(S.generatingReport), style = MaterialTheme.typography.labelMedium, color = brand)
+                                    } else {
+                                        Icon(Icons.Outlined.Share, contentDescription = "Share report", tint = brand, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(AppSpacing.xs))
+                                        Text(t(S.shareReport), style = MaterialTheme.typography.labelMedium, color = brand)
+                                    }
                                 }
                             }
                         }
-                    }
-                    Column(
+                    )
+                    Row(
                         Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .padding(horizontal = AppSpacing.xl, vertical = AppSpacing.sm),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
                     ) {
-                        KidAvatar(kid.name, kid.avatarColor, size = 84.dp)
-                        Spacer(Modifier.height(12.dp))
-                        Text(kid.name, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            "${kid.age} yrs · ${kid.gender} · ${kid.school}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            HeaderStat(t(S.heightLabel), kid.heightText())
-                            HeaderStat(t(S.weightLabel), kid.weightText())
-                        }
+                        KidAvatar(kid.name, kid.avatarColor, size = 64.dp)
+                        StatTile(t(S.heightLabel), kid.heightText(), Modifier.weight(1f))
+                        StatTile(t(S.weightLabel), kid.weightText(), Modifier.weight(1f))
                     }
                 }
             }
@@ -187,82 +166,35 @@ fun KidDetailScreen(
         // of a record a clinician can rely on. What a parent *can* add is the
         // everyday illness the school never sees.
         item {
-            Spacer(Modifier.height(12.dp))
-            Box(
-                Modifier
+            Spacer(Modifier.height(AppSpacing.md))
+            InfoNote(
+                t(S.measurementsFromSchool),
+                Modifier.padding(horizontal = AppSpacing.xl),
+                tone = Tone.Neutral,
+            )
+            Spacer(Modifier.height(AppSpacing.md))
+            SecondaryButton(
+                text = t(S.logSymptom),
+                onClick = onLogSymptom,
+                modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .padding(14.dp),
-            ) {
-                Text(
-                    t(S.measurementsFromSchool),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(HeroOrange.copy(alpha = 0.07f))
-                    .clickable(onClick = onLogSymptom)
-                    .padding(14.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Outlined.Add,
-                        contentDescription = null,
-                        tint = HeroOrange,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        t(S.logSymptom),
-                        color = HeroOrange,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-            }
+                    .padding(horizontal = AppSpacing.xl),
+                leadingIcon = Icons.Outlined.Add,
+            )
         }
 
         // Tabs
         item {
-            Spacer(Modifier.height(16.dp))
-            Row(
-                Modifier
-                    .padding(horizontal = 20.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-                    .padding(4.dp)
-            ) {
-                DetailTab.entries.forEach { t ->
-                    val selected = tab == t
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (selected) MaterialTheme.colorScheme.surface else Color.Transparent)
-                            .clickable { tab = t }
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            t(t.labelKey),
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
+            val labels = DetailTab.entries.associateWith { t(it.labelKey) }
+            SegmentedChoice(
+                options = DetailTab.entries,
+                selected = tab,
+                onSelect = { tab = it },
+                label = { labels.getValue(it) },
+                modifier = Modifier.padding(horizontal = AppSpacing.xl),
+            )
+            Spacer(Modifier.height(AppSpacing.lg))
         }
 
         item {
@@ -288,81 +220,55 @@ fun KidDetailScreen(
             }
         }
 
-        item { Spacer(Modifier.height(32.dp)) }
-    }
-}
-
-@Composable
-private fun HeaderStat(label: String, value: String) {
-    Column(
-        Modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 18.dp, vertical = 12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        item { Spacer(Modifier.height(AppSpacing.xxxl)) }
     }
 }
 
 @Composable
 private fun GrowthTab(kid: Kid, assessment: GrowthAssessment?, onOpenClinicalCharts: () -> Unit) {
-    Column(Modifier.padding(horizontal = 20.dp)) {
+    Column(Modifier.padding(horizontal = AppSpacing.xl)) {
         assessment?.let { a ->
-            HeroCard(Modifier.fillMaxWidth(), background = HeroOrange.copy(alpha = 0.06f)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(t(S.currentAssessment), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    Text("${t(S.heightPercentile)}: ${a.heightPercentile}% · ${a.heightStatus}", style = MaterialTheme.typography.bodySmall)
-                    Text("${t(S.weightPercentile)}: ${a.weightPercentile}% · ${a.weightStatus}", style = MaterialTheme.typography.bodySmall)
-                    Text("${t(S.referenceStandard)}: ${a.chartSource}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            AppCard(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)) {
+                Text(t(S.currentAssessment), style = MaterialTheme.typography.titleMedium)
+                Spacer(Modifier.height(AppSpacing.sm))
+                Text("${t(S.heightPercentile)}: ${a.heightPercentile}% · ${a.heightStatus}", style = MaterialTheme.typography.bodySmall)
+                Text("${t(S.weightPercentile)}: ${a.weightPercentile}% · ${a.weightStatus}", style = MaterialTheme.typography.bodySmall)
+                Text("${t(S.referenceStandard)}: ${a.chartSource}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            Spacer(Modifier.height(12.dp))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(HeroBlue.copy(alpha = 0.1f))
-                    .clickable(onClick = onOpenClinicalCharts)
-                    .padding(vertical = 14.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(t(S.viewClinicalCharts), color = HeroBlue, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.md))
+            SecondaryButton(
+                text = t(S.viewClinicalCharts),
+                onClick = onOpenClinicalCharts,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(AppSpacing.md))
         }
-        HeroCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(18.dp)) {
-                // No chip here: nothing computes a growth flag, and a constant
-                // "On track" told parents so even before anything was measured.
-                Text(t(S.heightTrend), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(16.dp))
-                GrowthChart(kid.growth, HeroOrange)
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    kid.growth.forEach {
-                        Text(it.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+        AppCard {
+            // No chip here: nothing computes a growth flag, and a constant
+            // "On track" told parents so even before anything was measured.
+            Text(t(S.heightTrend), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(AppSpacing.lg))
+            GrowthChart(kid.growth, MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(AppSpacing.sm))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                kid.growth.forEach {
+                    Text(it.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
-        Spacer(Modifier.height(14.dp))
-        HeroCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(18.dp)) {
-                Text(t(S.weightTrend), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(16.dp))
-                GrowthChart(kid.growth, HeroBlue, weight = true)
-                Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    kid.growth.forEach {
-                        Text(it.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+        Spacer(Modifier.height(AppSpacing.md))
+        AppCard {
+            Text(t(S.weightTrend), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(AppSpacing.lg))
+            GrowthChart(kid.growth, MaterialTheme.colorScheme.secondary, weight = true)
+            Spacer(Modifier.height(AppSpacing.sm))
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                kid.growth.forEach {
+                    Text(it.label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         InfoNote(t(S.disclaimerChart))
     }
 }
@@ -384,7 +290,7 @@ private fun GrowthChart(points: List<GrowthPoint>, color: Color, weight: Boolean
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = AppSpacing.xl)
             )
         }
         return
@@ -445,74 +351,50 @@ private fun GrowthChart(points: List<GrowthPoint>, color: Color, weight: Boolean
 
 @Composable
 private fun FlagTab(title: String, flag: HealthFlag, description: String) {
-    Column(Modifier.padding(horizontal = 20.dp)) {
-        HeroCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    FlagChip(flag)
-                }
-                Spacer(Modifier.height(14.dp))
-                Text(description, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    Column(Modifier.padding(horizontal = AppSpacing.xl)) {
+        AppCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                FlagChip(flag)
             }
+            Spacer(Modifier.height(AppSpacing.md))
+            Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         InfoNote(t(S.disclaimerShort))
     }
 }
 
 @Composable
 private fun NutritionTab(kid: Kid, onOpenDiet: () -> Unit) {
-    Column(Modifier.padding(horizontal = 20.dp)) {
-        HeroCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(20.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconBubble(Icons.Outlined.Restaurant, HeroOrange)
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(t(S.dietStatus), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text(t(S.dietSubtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    FlagChip(kid.nutrition)
+    Column(Modifier.padding(horizontal = AppSpacing.xl)) {
+        AppCard {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconBubble(Icons.Outlined.Restaurant, MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(AppSpacing.md))
+                Column(Modifier.weight(1f)) {
+                    Text(t(S.dietStatus), style = MaterialTheme.typography.titleMedium)
+                    Text(t(S.dietSubtitle), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    when (kid.nutrition) {
-                        HealthFlag.NOT_MEASURED -> t(S.notMeasuredMsg)
-                        HealthFlag.GOOD -> t(S.balancedDietMsg)
-                        else -> t(S.ironLowMsg)
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(16.dp))
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable(onClick = onOpenDiet)
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(t(S.viewDietPlan), color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                }
+                FlagChip(kid.nutrition)
             }
+            Spacer(Modifier.height(AppSpacing.lg))
+            Text(
+                when (kid.nutrition) {
+                    HealthFlag.NOT_MEASURED -> t(S.notMeasuredMsg)
+                    HealthFlag.GOOD -> t(S.balancedDietMsg)
+                    else -> t(S.ironLowMsg)
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(AppSpacing.lg))
+            PrimaryGradientButton(
+                text = t(S.viewDietPlan),
+                onClick = onOpenDiet,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
-    }
-}
-
-@Composable
-private fun InfoNote(text: String) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.tertiaryContainer)
-            .padding(14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onTertiaryContainer)
     }
 }
 
@@ -527,7 +409,7 @@ fun KidDetailMissingScreen(onBack: () -> Unit) {
         Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = AppSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         StatusBarSpacer()
@@ -538,21 +420,7 @@ fun KidDetailMissingScreen(onBack: () -> Unit) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(24.dp))
-        Box(
-            Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(HeroBlue.copy(alpha = 0.1f))
-                .clickable(onClick = onBack)
-                .padding(horizontal = 28.dp, vertical = 14.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                t(S.back),
-                color = HeroBlue,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
+        Spacer(Modifier.height(AppSpacing.xxl))
+        SecondaryButton(text = t(S.back), onClick = onBack)
     }
 }

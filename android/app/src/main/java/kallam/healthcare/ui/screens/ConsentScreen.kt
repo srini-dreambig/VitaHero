@@ -30,14 +30,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.S
 import kallam.healthcare.ui.components.PrimaryGradientButton
 import kallam.healthcare.ui.components.t
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
+import kallam.healthcare.ui.theme.HeroPurple
 
 @Composable
 fun ConsentScreen(
@@ -49,7 +49,7 @@ fun ConsentScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = AppSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(Modifier.height(60.dp))
@@ -57,21 +57,20 @@ fun ConsentScreen(
         Box(
             Modifier
                 .size(80.dp)
-                .clip(RoundedCornerShape(22.dp))
-                .background(Brush.linearGradient(listOf(HeroOrange, HeroBlue))),
+                .clip(RoundedCornerShape(AppCorners.xlarge))
+                .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Outlined.HealthAndSafety, contentDescription = null, tint = Color.White, modifier = Modifier.size(42.dp))
+            Icon(Icons.Outlined.HealthAndSafety, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(42.dp))
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(AppSpacing.xl))
         Text(
             t(S.consentTitle),
             style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         Text(
             t(S.consentSubtitle),
             style = MaterialTheme.typography.bodyMedium,
@@ -79,59 +78,58 @@ fun ConsentScreen(
             textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
 
         ConsentItem(
             icon = Icons.Outlined.Lock,
             title = t(S.consentItem1Title),
             description = t(S.consentItem1Desc),
-            tint = HeroOrange
+            tint = MaterialTheme.colorScheme.primary
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         ConsentItem(
             icon = Icons.Outlined.Security,
             title = t(S.consentItem2Title),
             description = t(S.consentItem2Desc),
-            tint = HeroBlue
+            tint = MaterialTheme.colorScheme.secondary
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         ConsentItem(
             icon = Icons.Outlined.PrivacyTip,
             title = t(S.consentItem3Title),
             description = t(S.consentItem3Desc),
-            tint = Color(0xFF8B5CF6)
+            tint = HeroPurple
         )
 
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         Text(
             t(S.medicalDisclaimer),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(vertical = 8.dp)
+            modifier = Modifier.padding(vertical = AppSpacing.sm)
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
         PrimaryGradientButton(
             text = t(S.consentAccept),
             onClick = onAccept,
             modifier = Modifier.fillMaxWidth()
         )
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AppSpacing.md))
         Box(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
+                .clip(RoundedCornerShape(AppCorners.large))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(vertical = 14.dp),
+                .padding(vertical = AppSpacing.md),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 t(S.learnPrivacy),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
             )
         }
 
@@ -142,7 +140,7 @@ fun ConsentScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(AppSpacing.xl))
     }
 }
 
@@ -156,9 +154,9 @@ private fun ConsentItem(
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(AppCorners.large))
             .background(MaterialTheme.colorScheme.surface)
-            .padding(18.dp),
+            .padding(AppSpacing.lg),
         verticalAlignment = Alignment.Top
     ) {
         Box(
@@ -170,10 +168,10 @@ private fun ConsentItem(
         ) {
             Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
         }
-        Spacer(Modifier.width(14.dp))
+        Spacer(Modifier.width(AppSpacing.md))
         Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(AppSpacing.xs))
             Text(
                 description,
                 style = MaterialTheme.typography.bodySmall,

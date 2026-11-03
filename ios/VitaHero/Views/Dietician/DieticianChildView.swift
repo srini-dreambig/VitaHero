@@ -53,37 +53,37 @@ struct DieticianChildView: View {
     private func content(_ r: DieticianChildRecord) -> some View {
         if let child = r.child {
             VStack(alignment: .leading, spacing: 2) {
-                Text(child.name).font(.title2.bold())
+                Text(child.name).font(.vh(.title2, .bold))
                 let className = [child.grade, child.section].filter { !$0.isEmpty }.joined(separator: " ")
                 let line = [dieticianChildLine(className: className, age: child.age), child.schoolName]
                     .filter { !$0.isEmpty }.joined(separator: " · ")
-                if !line.isEmpty { Text(line).font(.subheadline).foregroundColor(.secondary) }
+                if !line.isEmpty { Text(line).font(.vh(.subheadline)).foregroundColor(.secondary) }
             }
         }
         if !message.isEmpty { Banner(text: message, color: Brand.red) }
 
         // What the camps found
         Group {
-            Text("What the camps found").font(.headline)
+            Text("What the camps found").font(.vh(.headline))
             if r.findings.isEmpty {
                 Text("Nobody has measured this child yet. Once a camp records height and weight, the child's growth shows here.")
-                    .font(.footnote).foregroundColor(.secondary)
+                    .font(.vh(.footnote)).foregroundColor(.secondary)
             }
             ForEach(Array(r.findings.enumerated()), id: \.offset) { _, finding in findingCard(finding) }
         }
 
         // The food log
-        Text("The last week of meals").font(.headline).padding(.top, 6)
+        Text("The last week of meals").font(.vh(.headline)).padding(.top, 6)
         if r.foodLog.isEmpty {
-            Text("This family has not logged any meals yet.").font(.footnote).foregroundColor(.secondary)
+            Text("This family has not logged any meals yet.").font(.vh(.footnote)).foregroundColor(.secondary)
         } else {
             Card {
                 ForEach(Array(r.foodLog.enumerated()), id: \.offset) { _, day in
                     HStack {
-                        Text(day.day).font(.footnote)
+                        Text(day.day).font(.vh(.footnote))
                         Spacer()
-                        Text("\(day.eaten) of \(day.items) logged").font(.footnote).foregroundColor(.secondary)
-                        Text("\(day.kcal) kcal").font(.footnote.weight(.semibold)).foregroundColor(Brand.blue)
+                        Text("\(day.eaten) of \(day.items) logged").font(.vh(.footnote)).foregroundColor(.secondary)
+                        Text("\(day.kcal) kcal").font(.vh(.footnote, .semibold)).foregroundColor(Brand.blue)
                             .padding(.leading, 8)
                     }
                 }
@@ -91,16 +91,16 @@ struct DieticianChildView: View {
         }
 
         // The plan
-        Text("The plan").font(.headline).padding(.top, 6)
+        Text("The plan").font(.vh(.headline)).padding(.top, 6)
         if writing {
             editor
         } else if let current {
             currentCard(current)
         } else {
             Card {
-                Text("No plan yet").font(.subheadline.weight(.semibold))
+                Text("No plan yet").font(.vh(.subheadline, .semibold))
                 Text("What you write here is what the family reads in the app, against their own food log.")
-                    .font(.footnote).foregroundColor(.secondary)
+                    .font(.vh(.footnote)).foregroundColor(.secondary)
                 PrimaryButton(title: "Write a plan", enabled: !busy) { writing = true }
             }
         }
@@ -108,14 +108,14 @@ struct DieticianChildView: View {
         // What came before
         let past = r.plans.filter { $0.status != "ACTIVE" }
         if !past.isEmpty {
-            Text("Plans before this one").font(.headline).padding(.top, 6)
+            Text("Plans before this one").font(.vh(.headline)).padding(.top, 6)
             ForEach(Array(past.enumerated()), id: \.offset) { _, plan in
                 Card {
-                    Text(plan.title.isEmpty ? "Plan" : plan.title).font(.subheadline.weight(.semibold))
+                    Text(plan.title.isEmpty ? "Plan" : plan.title).font(.vh(.subheadline, .semibold))
                     let meta = [dietFocusLabel(plan.focus), plan.authorName].filter { !$0.isEmpty }
                         .joined(separator: " · ")
-                    Text(meta).font(.caption).foregroundColor(.secondary)
-                    Text(plan.guidance).font(.footnote).lineLimit(3)
+                    Text(meta).font(.vh(.caption)).foregroundColor(.secondary)
+                    Text(plan.guidance).font(.vh(.footnote)).lineLimit(3)
                 }
             }
         }
@@ -127,11 +127,11 @@ struct DieticianChildView: View {
         return HStack(spacing: 12) {
             RoundedRectangle(cornerRadius: 2).fill(colour).frame(width: 4, height: 36)
             VStack(alignment: .leading, spacing: 2) {
-                Text(finding.checkType).font(.subheadline.weight(.semibold))
-                if !text.isEmpty { Text(text).font(.footnote).foregroundColor(.secondary) }
+                Text(finding.checkType).font(.vh(.subheadline, .semibold))
+                if !text.isEmpty { Text(text).font(.vh(.footnote)).foregroundColor(.secondary) }
                 if !finding.date.isEmpty {
                     Text([finding.campTitle, finding.date].filter { !$0.isEmpty }.joined(separator: " · "))
-                        .font(.caption2).foregroundColor(.secondary)
+                        .font(.vh(.caption2)).foregroundColor(.secondary)
                 }
             }
             Spacer(minLength: 0)
@@ -144,16 +144,16 @@ struct DieticianChildView: View {
 
     private func currentCard(_ plan: DieticianPlan) -> some View {
         Card {
-            Text(plan.title.isEmpty ? "Plan" : plan.title).font(.subheadline.weight(.semibold))
+            Text(plan.title.isEmpty ? "Plan" : plan.title).font(.vh(.subheadline, .semibold))
             Text([dietFocusLabel(plan.focus), plan.authorName, plan.startsOn].filter { !$0.isEmpty }
                 .joined(separator: " · "))
-                .font(.caption).foregroundColor(.secondary)
-            Text(plan.guidance).font(.body)
+                .font(.vh(.caption)).foregroundColor(.secondary)
+            Text(plan.guidance).font(.vh(.body))
             ForEach(Array(plan.targets.enumerated()), id: \.offset) { _, target in
                 HStack {
-                    Text(target.label).font(.footnote).foregroundColor(.secondary)
+                    Text(target.label).font(.vh(.footnote)).foregroundColor(.secondary)
                     Spacer()
-                    Text(target.value).font(.footnote.weight(.semibold))
+                    Text(target.value).font(.vh(.footnote, .semibold))
                 }
             }
             PrimaryButton(title: "Replace this plan", enabled: !busy) {
@@ -163,14 +163,14 @@ struct DieticianChildView: View {
                 writing = true
             }
             Text("The plan before it is kept, so the family can see what changed.")
-                .font(.footnote).foregroundColor(.secondary)
+                .font(.vh(.footnote)).foregroundColor(.secondary)
         }
     }
 
     private var editor: some View {
         Card {
             TextFieldRow(label: "Title", value: $title)
-            Text("What this plan is for").font(.subheadline.weight(.semibold))
+            Text("What this plan is for").font(.vh(.subheadline, .semibold))
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     ForEach(dietFocuses, id: \.self) { f in
@@ -179,7 +179,7 @@ struct DieticianChildView: View {
                 }
             }
             DieticianTextArea(label: "What the family should do", text: $guidance)
-            Text("One thing to aim for (optional)").font(.subheadline.weight(.semibold))
+            Text("One thing to aim for (optional)").font(.vh(.subheadline, .semibold))
             HStack(spacing: 8) {
                 TextFieldRow(label: "Such as", value: $targetLabel)
                 TextFieldRow(label: "How much", value: $targetValue)
@@ -189,7 +189,7 @@ struct DieticianChildView: View {
                 Task { await save() }
             }
             Text("A plan needs a sentence the family can act on.")
-                .font(.footnote).foregroundColor(.secondary)
+                .font(.vh(.footnote)).foregroundColor(.secondary)
         }
     }
 

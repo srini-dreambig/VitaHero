@@ -67,10 +67,7 @@ struct RootView: View {
 struct SplashView: View {
     var body: some View {
         VStack(spacing: 16) {
-            Image(systemName: "heart.text.square.fill")
-                .font(.system(size: 64))
-                .foregroundStyle(Brand.gradient)
-            Text("VitaHero").font(.largeTitle.bold())
+            BrandLogo(height: 96)
             ProgressView()
         }
     }
@@ -88,7 +85,7 @@ struct LanguagePickerView: View {
             if firstRun {
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("VitaHero").font(.largeTitle.bold())
+                        BrandLogo(height: 64)
                         Text(L("app_subtitle")).foregroundColor(.secondary)
                     }
                     .padding(.vertical, 8)
@@ -138,10 +135,16 @@ struct SignInView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Image(systemName: "heart.text.square.fill")
-                        .font(.system(size: 48))
-                        .foregroundStyle(Brand.gradient)
-                    Text(codeSent ? L("otp_title") : L("verify_number")).font(.largeTitle.bold())
+                    BrandLogo(height: 56)
+                    if !codeSent {
+                        Illustration(scene: .growth)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 180)
+                            .background(Brand.beige)
+                            .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                            .padding(.vertical, 8)
+                    }
+                    Text(codeSent ? L("otp_title") : L("verify_number")).font(.vh(.largeTitle, .bold))
                     Text(codeSent ? "\(L("otp_subtitle")) \(AppConfig.countryCode) \(digits)" : L("we_will_send_code"))
                         .foregroundColor(.secondary)
                 }
@@ -159,18 +162,18 @@ struct SignInView: View {
 
     private var phoneStep: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(L("phone_label")).font(.subheadline.weight(.semibold))
+            Text(L("phone_label")).font(.vh(.subheadline, .semibold))
             HStack {
-                Text(AppConfig.countryCode).font(.title3.weight(.semibold))
+                Text(AppConfig.countryCode).font(.vh(.title3, .semibold))
                 TextField(L("phone_placeholder"), text: $phone)
                     .keyboardType(.phonePad)
                     .textContentType(.telephoneNumber)
-                    .font(.title3)
+                    .font(.vh(.title3))
             }
             .padding(14)
             .background(Color(.secondarySystemBackground))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            Text(L("sms_note")).font(.footnote).foregroundColor(.secondary)
+            Text(L("sms_note")).font(.vh(.footnote)).foregroundColor(.secondary)
             PrimaryButton(title: L("send_otp"), busy: busy, enabled: digits.count == 10) { send() }
         }
     }
@@ -198,11 +201,11 @@ struct SignInView: View {
                     Button(L("resend")) { send() }.disabled(busy)
                 }
             }
-            .font(.footnote)
+            .font(.vh(.footnote))
             Button(L("back")) {
                 codeSent = false; code = ""; error = nil
             }
-            .font(.footnote)
+            .font(.vh(.footnote))
         }
     }
 

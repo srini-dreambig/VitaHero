@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -79,39 +80,21 @@ fun HeroCard(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(24.dp),
+        shape = RoundedCornerShape(kallam.healthcare.ui.theme.AppCorners.large),
         color = background,
         border = if (border) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null,
         content = content
     )
 }
 
+/** Kept for existing callers; the section title is [AppSectionTitle]. */
 @Composable
 fun SectionHeader(
     title: String,
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null
-) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(title, style = MaterialTheme.typography.headlineSmall)
-        if (actionLabel != null && onAction != null) {
-            Text(
-                actionLabel,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer)
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            )
-        }
-    }
-}
+) = AppSectionTitle(title, modifier, actionLabel = actionLabel, onAction = onAction)
 
 /** Circular tinted container holding a linear icon. */
 @Composable
@@ -133,29 +116,24 @@ fun IconBubble(
     }
 }
 
-/** Small colored pill showing a health status flag with a dot. */
+/** A health flag as a [StatusPill], in the flag's own colour. */
 @Composable
 fun FlagChip(flag: HealthFlag, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(50))
             .background(flag.color.copy(alpha = 0.13f))
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Box(
             Modifier
-                .size(7.dp)
+                .size(6.dp)
                 .clip(CircleShape)
                 .background(flag.color)
         )
-        Text(
-            flag.label,
-            style = MaterialTheme.typography.labelMedium,
-            color = flag.color,
-            fontWeight = FontWeight.SemiBold
-        )
+        Text(flag.label, style = MaterialTheme.typography.labelMedium, color = flag.color, maxLines = 1)
     }
 }
 
@@ -197,7 +175,7 @@ fun ProgressRing(
     }
 }
 
-/** Initial-letter avatar with a colored gradient background. */
+/** Initial-letter avatar on the child's chosen colour. */
 @Composable
 fun KidAvatar(
     name: String,
@@ -210,16 +188,12 @@ fun KidAvatar(
         modifier = modifier
             .size(size)
             .clip(CircleShape)
-            .background(
-                Brush.linearGradient(
-                    listOf(base, base.copy(alpha = 0.7f))
-                )
-            ),
+            .background(base),
         contentAlignment = Alignment.Center
     ) {
         Text(
             name.take(1).uppercase(),
-            color = Color.White,
+            color = if (base.luminance() > 0.5f) kallam.healthcare.ui.theme.Ink else Color.White,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleLarge
         )
@@ -234,12 +208,15 @@ fun PrimaryGradientButton(
     enabled: Boolean = true,
     leadingIcon: ImageVector? = null
 ) {
+    // The one primary action: a pink pill with ink text. The name predates the
+    // palette; it no longer draws a gradient.
     val colors = MaterialTheme.colorScheme
+    val content = if (enabled) colors.onPrimaryContainer else colors.onSurfaceVariant
     Surface(
         onClick = onClick,
         enabled = enabled,
-        shape = RoundedCornerShape(18.dp),
-        color = Color.Transparent,
+        shape = RoundedCornerShape(50),
+        color = if (enabled) colors.primaryContainer else colors.surfaceVariant,
         // A floor, not a ceiling. This is the app's main button and its label
         // is translated: "Confirm registration" in Telugu needs two lines on a
         // narrow phone, and at a raised font scale so does the English. A fixed
@@ -249,24 +226,20 @@ fun PrimaryGradientButton(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .defaultMinSize(minHeight = 56.dp)
-                .background(
-                    if (enabled) Brush.horizontalGradient(listOf(colors.primary, colors.secondary))
-                    else Brush.horizontalGradient(listOf(colors.outline, colors.outline))
-                ),
+                .defaultMinSize(minHeight = 56.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
             ) {
                 if (leadingIcon != null) {
-                    Icon(leadingIcon, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                    Icon(leadingIcon, contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
                 }
                 Text(
                     text,
-                    color = Color.White,
+                    color = content,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
@@ -409,21 +382,9 @@ fun LoadingPlaceholder(
  */
 @Composable
 fun Notice(text: String, error: Boolean) {
-    Text(
+    InfoNote(
         text,
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 5.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (error) MaterialTheme.colorScheme.errorContainer
-                else HeroBlue.copy(alpha = 0.10f)
-            )
-            .padding(12.dp),
-        style = MaterialTheme.typography.bodySmall,
-        color =
-            if (error) MaterialTheme.colorScheme.onErrorContainer
-            else MaterialTheme.colorScheme.onSurface,
+        Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+        tone = if (error) Tone.Alert else Tone.Info,
     )
 }
-

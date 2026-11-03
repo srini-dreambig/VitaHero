@@ -2,7 +2,6 @@ package kallam.healthcare.ui.screens
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,9 +15,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -43,12 +39,15 @@ import kallam.healthcare.ui.components.GrowthChartsPanel
 import kallam.healthcare.data.GrowthStandards
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.S
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.SegmentedChoice
 import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.components.color
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppSpacing
 import kallam.healthcare.ui.theme.HeroYellow
 
 private enum class ChartMetric { HEIGHT, WEIGHT }
@@ -72,46 +71,45 @@ fun GrowthChartsScreen(
         ChartMetric.HEIGHT -> kid.heightCm
         ChartMetric.WEIGHT -> kid.weightKg
     }
+    // SegmentedChoice's label is not composable, so translate up front.
+    val metricLabels = mapOf(
+        ChartMetric.HEIGHT to t(S.heightChart),
+        ChartMetric.WEIGHT to t(S.weightChart),
+    )
+    // The header pads itself, so the list has no horizontal contentPadding;
+    // every other item carries the screen margin instead.
+    val margin = Modifier.padding(horizontal = AppSpacing.xl)
 
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp)
+        contentPadding = PaddingValues(bottom = AppSpacing.xxxl)
     ) {
         item {
             StatusBarSpacer()
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-                Box(
-                    Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
-                }
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(t(S.clinicalGrowthCharts), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text(tf(S.growthChartsFor, kid.name), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-            Spacer(Modifier.height(12.dp))
+            AppScreenHeader(
+                title = t(S.clinicalGrowthCharts),
+                subtitle = tf(S.growthChartsFor, kid.name),
+                onBack = onBack,
+            )
+            Spacer(Modifier.height(AppSpacing.md))
         }
 
         // No measurement, no chart. Plotting zero would put this child at the
         // bottom of the curve and read as a severe growth problem.
         if (kid.heightCm <= 0f || kid.weightKg <= 0f) {
             item {
-                HeroCard(Modifier.fillMaxWidth()) {
+                AppCard(margin, contentPadding = PaddingValues(AppSpacing.xxl)) {
                     Column(
-                        Modifier.fillMaxWidth().padding(24.dp),
+                        Modifier.fillMaxWidth(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(
                             t(S.noGrowthData),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.xs))
                         Text(
                             t(S.noGrowthDataSub),
                             style = MaterialTheme.typography.bodySmall,
@@ -126,17 +124,15 @@ fun GrowthChartsScreen(
 
         assessment?.let { a ->
             item {
-                HeroCard(Modifier.fillMaxWidth(), background = HeroOrange.copy(alpha = 0.06f)) {
-                    Column(Modifier.padding(16.dp)) {
-                        Text(t(S.currentAssessment), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(10.dp))
-                        AssessmentRow(t(S.heightPercentile), "${a.heightPercentile}%", a.heightStatus)
-                        AssessmentRow(t(S.weightPercentile), "${a.weightPercentile}%", a.weightStatus)
-                        Spacer(Modifier.height(8.dp))
-                        Text("${t(S.referenceStandard)}: ${a.chartSource}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                AppCard(margin, background = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)) {
+                    Text(t(S.currentAssessment), style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(AppSpacing.sm))
+                    AssessmentRow(t(S.heightPercentile), "${a.heightPercentile}%", a.heightStatus)
+                    AssessmentRow(t(S.weightPercentile), "${a.weightPercentile}%", a.weightStatus)
+                    Spacer(Modifier.height(AppSpacing.sm))
+                    Text("${t(S.referenceStandard)}: ${a.chartSource}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.md))
             }
         }
 
@@ -144,80 +140,83 @@ fun GrowthChartsScreen(
         // known here, read as the middle of that year.
         WhoBmi.forChild(kid.heightCm.toDouble(), kid.weightKg.toDouble(), kid.gender, null, kid.age)?.let { who ->
             item {
-                HeroCard(Modifier.fillMaxWidth()) {
+                // The panel brings its own padding, as it did inside HeroCard.
+                AppCard(margin, contentPadding = PaddingValues(0.dp)) {
                     GrowthChartsPanel(who, null, Modifier.fillMaxWidth())
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.md))
             }
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ChartMetric.entries.forEach { m ->
-                    val selected = metric == m
-                    val label = when (m) {
-                        ChartMetric.HEIGHT -> t(S.heightChart)
-                        ChartMetric.WEIGHT -> t(S.weightChart)
-                    }
-                    Text(
-                        label,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .clickable { metric = m }
-                            .background(if (selected) HeroBlue.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant)
-                            .padding(horizontal = 14.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (selected) HeroBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Spacer(Modifier.height(16.dp))
+            SegmentedChoice(
+                options = ChartMetric.entries.toList(),
+                selected = metric,
+                onSelect = { metric = it },
+                label = { metricLabels.getValue(it) },
+                modifier = margin,
+            )
+            Spacer(Modifier.height(AppSpacing.md))
         }
 
         item {
-            HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(
-                        "${t(S.yourChild)}: %.1f $unit".format(currentValue),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = HeroOrange,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    PercentileLegend()
-                    Spacer(Modifier.height(12.dp))
-                    ClinicalPercentileChart(
-                        kid = kid,
-                        metric = growthMetric,
-                        currentValue = currentValue,
-                    )
-                }
+            AppCard(margin) {
+                Text(
+                    "${t(S.yourChild)}: %.1f $unit".format(currentValue),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(Modifier.height(AppSpacing.sm))
+                PercentileLegend()
+                Spacer(Modifier.height(AppSpacing.md))
+                ClinicalPercentileChart(
+                    kid = kid,
+                    metric = growthMetric,
+                    currentValue = currentValue,
+                )
             }
-            Spacer(Modifier.height(12.dp))
-            Text(t(S.growthChartDisclaimer), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.height(AppSpacing.md))
+            Text(
+                t(S.growthChartDisclaimer),
+                modifier = margin,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
 
 @Composable
 private fun AssessmentRow(label: String, percentile: String, status: String) {
-    Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth().padding(vertical = AppSpacing.xs), verticalAlignment = Alignment.CenterVertically) {
         Text(label, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        Text(percentile, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = HeroBlue)
-        Spacer(Modifier.width(12.dp))
+        // The percentile is the number the parent came for, so it stays bold.
+        Text(percentile, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.secondary)
+        Spacer(Modifier.width(AppSpacing.md))
         Text(status, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
+/** P3, P15, P50, P85, P97, in that order; shared by the legend and the chart. */
+@Composable
+private fun percentileColors(): List<Color> {
+    val primary = MaterialTheme.colorScheme.primary
+    val secondary = MaterialTheme.colorScheme.secondary
+    return listOf(
+        Tone.Neutral.color(), secondary.copy(alpha = 0.35f), primary,
+        secondary.copy(alpha = 0.5f), HeroYellow,
+    )
+}
+
 @Composable
 private fun PercentileLegend() {
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        LegendDot(HeroYellow, "P97")
-        LegendDot(HeroBlue.copy(alpha = 0.5f), "P85")
-        LegendDot(HeroOrange, "P50")
-        LegendDot(HeroBlue.copy(alpha = 0.35f), "P15")
-        LegendDot(Color(0xFF94A3B8), "P3")
+    val c = percentileColors()
+    Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+        LegendDot(c[4], "P97")
+        LegendDot(c[3], "P85")
+        LegendDot(c[2], "P50")
+        LegendDot(c[1], "P15")
+        LegendDot(c[0], "P3")
     }
 }
 
@@ -225,7 +224,7 @@ private fun PercentileLegend() {
 private fun LegendDot(color: Color, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(8.dp).clip(RoundedCornerShape(50)).background(color))
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(AppSpacing.xs))
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
@@ -238,10 +237,9 @@ private fun ClinicalPercentileChart(
 ) {
     val ages = GrowthStandards.chartAges()
     val percentiles = listOf(3, 15, 50, 85, 97)
-    val colors = listOf(
-        Color(0xFF94A3B8), HeroBlue.copy(alpha = 0.35f), HeroOrange,
-        HeroBlue.copy(alpha = 0.5f), HeroYellow,
-    )
+    val colors = percentileColors()
+    val marker = MaterialTheme.colorScheme.primary
+    val markerCentre = MaterialTheme.colorScheme.surface
 
     Canvas(Modifier.fillMaxWidth().height(220.dp)) {
         val w = size.width
@@ -275,8 +273,8 @@ private fun ClinicalPercentileChart(
 
         val kidX = padL + chartW * ((kid.age.coerceIn(2, 18) - 2) / 16f)
         val kidY = yAt(currentValue)
-        drawCircle(HeroOrange, radius = 10f, center = Offset(kidX, kidY))
-        drawCircle(Color.White, radius = 5f, center = Offset(kidX, kidY))
+        drawCircle(marker, radius = 10f, center = Offset(kidX, kidY))
+        drawCircle(markerCentre, radius = 5f, center = Offset(kidX, kidY))
     }
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text("2y", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

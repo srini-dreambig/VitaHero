@@ -21,7 +21,7 @@ struct DieticianGroupsView: View {
             Section {
                 Text([school.name, grade.isEmpty ? "All classes" : classTitle(grade)]
                     .filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.subheadline).foregroundColor(.secondary)
+                    .font(.vh(.subheadline)).foregroundColor(.secondary)
                 if let error = dietician.cohortsError {
                     Banner(text: error, color: Brand.red)
                 }
@@ -46,13 +46,13 @@ struct DieticianGroupsView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "doc.text.fill").foregroundColor(Brand.orange)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text("Pre-camp diet plans").font(.body.weight(.semibold))
-                            Text("One plan per group. Families get their child's plan when the results are released.")
-                                .font(.caption).foregroundColor(.secondary)
+                            Text("Pre-camp diet plans").font(.vh(.body, .semibold))
+                            Text("One plan per growth group, for girls and boys. Families get their child's plan when the results are released.")
+                                .font(.vh(.caption)).foregroundColor(.secondary)
                         }
                         Spacer()
                         if let t = dietician.templates {
-                            Text("\(t.ready) of \(t.templates.count)").font(.subheadline.bold())
+                            Text("\(t.ready) of \(t.templates.count)").font(.vh(.subheadline, .bold))
                         }
                     }
                     .padding(.vertical, 2)
@@ -100,13 +100,13 @@ struct DieticianGroupsView: View {
         HStack(spacing: 12) {
             Image(systemName: "person.3.fill").foregroundColor(cohortColour(cohort))
             VStack(alignment: .leading, spacing: 3) {
-                Text(cohort.label).font(.body.weight(.semibold))
-                Text(cohortSummaryLine(cohort)).font(.caption).foregroundColor(.secondary)
+                Text(cohort.label).font(.vh(.body, .semibold))
+                Text(cohortSummaryLine(cohort)).font(.vh(.caption)).foregroundColor(.secondary)
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 2) {
-                Text("\(cohort.summary.count)").font(.title3.bold())
-                Text("\(cohort.summary.withPlan) on a plan").font(.caption2).foregroundColor(.secondary)
+                Text("\(cohort.summary.count)").font(.vh(.title3, .bold))
+                Text("\(cohort.summary.withPlan) on a plan").font(.vh(.caption2)).foregroundColor(.secondary)
             }
         }
         .padding(.vertical, 2)
@@ -188,10 +188,10 @@ struct DieticianCohortView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(live.label).font(.title2.bold())
+                    Text(live.label).font(.vh(.title2, .bold))
                     Text([school.name, grade.isEmpty ? "All classes" : classTitle(grade)].joined(separator: " · "))
-                        .font(.subheadline).foregroundColor(.secondary)
-                    Text(cohortSummaryLine(live)).font(.footnote).foregroundColor(.secondary)
+                        .font(.vh(.subheadline)).foregroundColor(.secondary)
+                    Text(cohortSummaryLine(live)).font(.vh(.footnote)).foregroundColor(.secondary)
                 }
                 if saved > 0 {
                     Banner(text: "Sent to \(saved == 1 ? "1 family" : "\(saved) families"). "
@@ -208,7 +208,7 @@ struct DieticianCohortView: View {
                     Task { await send() }
                 }
                 Text("Tap a name to open that child's record and write them a plan of their own.")
-                    .font(.footnote).foregroundColor(.secondary)
+                    .font(.vh(.footnote)).foregroundColor(.secondary)
             }
             .padding(16)
         }
@@ -223,41 +223,41 @@ struct DieticianCohortView: View {
     private var planCard: some View {
         Card {
             HStack {
-                Text("The plan").font(.headline)
+                Text("The plan").font(.vh(.headline))
                 Spacer()
                 Pill(text: source == "AI" ? "Drafted by AI" : source == "TEMPLATE" ? "Your pre-camp plan" : "Starter draft",
                      color: source == "AI" || source == "TEMPLATE" ? Brand.orange : .secondary)
             }
             Text("A starting point. Change anything before you send it.")
-                .font(.footnote).foregroundColor(.secondary)
+                .font(.vh(.footnote)).foregroundColor(.secondary)
             TextFieldRow(label: "Title", value: $title)
             DieticianTextArea(label: "What the family should do", text: $guidance, minHeight: 160)
-            Text("Targets").font(.subheadline.weight(.semibold))
+            Text("Targets").font(.vh(.subheadline, .semibold))
             ForEach(targets.indices, id: \.self) { i in
                 HStack(alignment: .bottom, spacing: 6) {
                     TextFieldRow(label: "Such as", value: targetBinding(i, \.label))
                     TextFieldRow(label: "How much", value: targetBinding(i, \.value))
                     Button("Remove") { if i < targets.count { targets.remove(at: i) } }
-                        .font(.footnote)
+                        .font(.vh(.footnote))
                         .buttonStyle(.borderless)
                         .frame(minHeight: 44)
                 }
             }
             if targets.count < 8 {
                 Button("Add a target") { targets.append(DietTarget(label: "", value: "")) }
-                    .font(.footnote.weight(.semibold))
+                    .font(.vh(.footnote, .semibold))
                     .buttonStyle(.borderless)
             }
             Button {
                 Task { await askAi() }
             } label: {
                 Label(drafting ? "Working…" : "Draft with AI", systemImage: "sparkles")
-                    .font(.subheadline.weight(.semibold))
+                    .font(.vh(.subheadline, .semibold))
             }
             .buttonStyle(.borderless)
             .disabled(busy || drafting)
             Text("The AI is told the group's make-up — ages, how many girls and boys, what was found — and never a child's name.")
-                .font(.footnote).foregroundColor(.secondary)
+                .font(.vh(.footnote)).foregroundColor(.secondary)
         }
     }
 
@@ -274,12 +274,12 @@ struct DieticianCohortView: View {
     private var childrenCard: some View {
         Card {
             HStack {
-                Text("Children (\(ticked.count) of \(live.children.count) ticked)").font(.headline)
+                Text("Children (\(ticked.count) of \(live.children.count) ticked)").font(.vh(.headline))
                 Spacer()
                 Button(allTicked ? "Untick all" : "Tick all") {
                     ticked = allTicked ? [] : Set(live.children.map(\.kidId))
                 }
-                .font(.footnote.weight(.semibold))
+                .font(.vh(.footnote, .semibold))
                 .buttonStyle(.borderless)
             }
             ForEach(live.children) { child in
@@ -288,7 +288,7 @@ struct DieticianCohortView: View {
                         if ticked.contains(child.kidId) { ticked.remove(child.kidId) } else { ticked.insert(child.kidId) }
                     } label: {
                         Image(systemName: ticked.contains(child.kidId) ? "checkmark.square.fill" : "square")
-                            .font(.title3)
+                            .font(.vh(.title3))
                             .foregroundColor(ticked.contains(child.kidId) ? Brand.orange : .secondary)
                             .frame(minWidth: 32, minHeight: 44)
                     }
@@ -298,8 +298,8 @@ struct DieticianCohortView: View {
 
                     NavigationLink(value: DieticianRoute.child(kidId: child.kidId)) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(child.name).font(.subheadline.weight(.semibold)).foregroundColor(.primary)
-                            Text(childLine(child)).font(.caption).foregroundColor(.secondary)
+                            Text(child.name).font(.vh(.subheadline, .semibold)).foregroundColor(.primary)
+                            Text(childLine(child)).font(.vh(.caption)).foregroundColor(.secondary)
                                 .multilineTextAlignment(.leading)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -379,31 +379,37 @@ struct DieticianTemplatesView: View {
                 Text("Write these before the camp. When a child's results are released, the family gets "
                      + "the plan for the child's group, with your number to phone about a milk intolerance "
                      + "or a food allergy.")
-                    .font(.footnote).foregroundColor(.secondary)
+                    .font(.vh(.footnote)).foregroundColor(.secondary)
                 if let error = dietician.templatesError {
                     Banner(text: error, color: Brand.red)
                 }
             }
+            // Six growth groups, written once for girls and once for boys.
             if let t = dietician.templates, !t.templates.isEmpty {
-                Section {
-                    ForEach(t.templates) { template in
-                        NavigationLink(value: DieticianRoute.precampPlan(key: template.key)) {
-                            HStack(spacing: 12) {
-                                Image(systemName: template.saved ? "checkmark.circle.fill" : "doc.text")
-                                    .foregroundColor(template.saved ? Brand.green : Brand.blue)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(template.label).font(.body.weight(.semibold))
-                                    Text(template.title).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                ForEach([("+GIRLS", "Girls"), ("+BOYS", "Boys")], id: \.0) { sex, heading in
+                    let part = t.templates.filter { $0.key.hasSuffix(sex) }
+                    if !part.isEmpty {
+                        Section {
+                            ForEach(part) { template in
+                                NavigationLink(value: DieticianRoute.precampPlan(key: template.key)) {
+                                    HStack(spacing: 12) {
+                                        Image(systemName: template.saved ? "checkmark.circle.fill" : "doc.text")
+                                            .foregroundColor(template.saved ? Brand.green : Brand.blue)
+                                        VStack(alignment: .leading, spacing: 3) {
+                                            Text(template.label).font(.vh(.body, .semibold))
+                                            Text(template.title).font(.vh(.caption)).foregroundColor(.secondary).lineLimit(1)
+                                        }
+                                        Spacer()
+                                        Pill(text: template.saved ? "Written" : "Starter draft",
+                                             color: template.saved ? Brand.green : .secondary)
+                                    }
+                                    .padding(.vertical, 2)
                                 }
-                                Spacer()
-                                Pill(text: template.saved ? "Written" : "Starter draft",
-                                     color: template.saved ? Brand.green : .secondary)
                             }
-                            .padding(.vertical, 2)
+                        } header: {
+                            Text("\(heading) · \(part.filter(\.saved).count) of \(part.count) written").textCase(nil)
                         }
                     }
-                } header: {
-                    Text("\(t.ready) of \(t.templates.count) written").textCase(nil)
                 }
             } else {
                 EmptyState(icon: "hourglass", title: dietician.templatesLoading ? "Loading…" : "Nothing to show")
@@ -440,7 +446,7 @@ struct DieticianTemplateView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 if let template {
-                    Text(template.label).font(.title2.bold())
+                    Text(template.label).font(.vh(.title2, .bold))
                     if saved {
                         Banner(text: "Saved. Families in this group get it when their child's results are released.",
                                color: Brand.green)
@@ -449,23 +455,23 @@ struct DieticianTemplateView: View {
                     Card {
                         Text(template.saved ? "Your plan for this group"
                              : "A starter draft. Change anything before you save it.")
-                            .font(.footnote).foregroundColor(.secondary)
+                            .font(.vh(.footnote)).foregroundColor(.secondary)
                         TextFieldRow(label: "Title", value: $title)
                         DieticianTextArea(label: "What the family should do", text: $guidance, minHeight: 160)
-                        Text("Targets").font(.subheadline.weight(.semibold))
+                        Text("Targets").font(.vh(.subheadline, .semibold))
                         ForEach(targets.indices, id: \.self) { i in
                             HStack(alignment: .bottom, spacing: 6) {
                                 TextFieldRow(label: "Such as", value: targetBinding(i, \.label))
                                 TextFieldRow(label: "How much", value: targetBinding(i, \.value))
                                 Button("Remove") { if i < targets.count { targets.remove(at: i) } }
-                                    .font(.footnote)
+                                    .font(.vh(.footnote))
                                     .buttonStyle(.borderless)
                                     .frame(minHeight: 44)
                             }
                         }
                         if targets.count < 8 {
                             Button("Add a target") { targets.append(DietTarget(label: "", value: "")) }
-                                .font(.footnote.weight(.semibold))
+                                .font(.vh(.footnote, .semibold))
                                 .buttonStyle(.borderless)
                         }
                     }
@@ -475,7 +481,7 @@ struct DieticianTemplateView: View {
                     }
                     Text("Families are asked to phone you before following it if their child has a milk "
                          + "intolerance or a food allergy.")
-                        .font(.footnote).foregroundColor(.secondary)
+                        .font(.vh(.footnote)).foregroundColor(.secondary)
                 } else {
                     EmptyState(icon: "hourglass", title: "Loading…")
                 }

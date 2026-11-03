@@ -52,11 +52,32 @@ struct DieticianSchoolsView: View {
     var body: some View {
         List {
             if let subtitle {
-                Text(subtitle).font(.subheadline).foregroundColor(.secondary)
+                Text(subtitle).font(.vh(.subheadline)).foregroundColor(.secondary)
                     .listRowBackground(Color.clear)
             }
             if let error = dietician.schoolsError, !dietician.schools.isEmpty {
                 Banner(text: error, color: Brand.red).listRowBackground(Color.clear)
+            }
+            // The first job before any camp: the twelve plans families get
+            // when their child's results are released.
+            Section {
+                NavigationLink(value: DieticianRoute.precampPlans) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "doc.text.fill").foregroundColor(Brand.orange)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Pre-camp diet plans").font(.vh(.headline))
+                            if let t = dietician.templates {
+                                Text("\(t.ready) of \(t.templates.count) written")
+                                    .font(.vh(.subheadline)).foregroundColor(.secondary)
+                            }
+                            Text("6 growth groups, for girls and boys. Write them before the camp.")
+                                .font(.vh(.caption, .semibold))
+                                .foregroundColor(dietician.templates.map { $0.ready == $0.templates.count } == true
+                                                 ? Brand.green : Brand.orange)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
             if dietician.schools.isEmpty {
                 Group {
@@ -77,12 +98,12 @@ struct DieticianSchoolsView: View {
                     ForEach(dietician.schools) { school in
                         NavigationLink(value: DieticianRoute.school(school)) {
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(school.name).font(.headline).lineLimit(1)
+                                Text(school.name).font(.vh(.headline)).lineLimit(1)
                                 if !school.city.isEmpty {
-                                    Text(school.city).font(.subheadline).foregroundColor(.secondary)
+                                    Text(school.city).font(.vh(.subheadline)).foregroundColor(.secondary)
                                 }
                                 Text("\(school.children) children · \(school.plans) on a plan")
-                                    .font(.caption.weight(.semibold)).foregroundColor(Brand.blue)
+                                    .font(.vh(.caption, .semibold)).foregroundColor(Brand.blue)
                             }
                             .padding(.vertical, 4)
                         }
@@ -96,9 +117,9 @@ struct DieticianSchoolsView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "book").foregroundColor(Brand.blue)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("What families read").font(.headline)
+                            Text("What families read").font(.vh(.headline))
                             Text("Write for every family, not one child at a time")
-                                .font(.footnote).foregroundColor(.secondary)
+                                .font(.vh(.footnote)).foregroundColor(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
@@ -118,8 +139,8 @@ struct DieticianSchoolsView: View {
         .confirmationDialog(L("logout"), isPresented: $confirmLogout, titleVisibility: .visible) {
             Button(L("logout"), role: .destructive) { Task { await auth.signOut() } }
         }
-        .refreshable { await dietician.loadSchools() }
-        .task { await dietician.loadSchools() }
+        .refreshable { await dietician.loadSchools(); await dietician.loadTemplates() }
+        .task { await dietician.loadSchools(); await dietician.loadTemplates() }
     }
 }
 
@@ -153,7 +174,7 @@ struct DieticianChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.footnote.weight(selected ? .semibold : .medium))
+                .font(.vh(.footnote, selected ? .semibold : .medium))
                 .foregroundColor(selected ? .white : .primary)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 32)
@@ -172,7 +193,7 @@ struct DieticianTextArea: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(.caption.weight(.medium)).foregroundColor(.secondary)
+            Text(label).font(.vh(.caption, .medium)).foregroundColor(.secondary)
             TextEditor(text: $text)
                 .frame(minHeight: minHeight)
                 .padding(6)

@@ -61,9 +61,9 @@ struct ClinicianRosterView: View {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
                     Text([camp.schoolName, camp.date].filter { !$0.isEmpty }.joined(separator: " · "))
-                        .font(.subheadline).foregroundColor(.secondary)
+                        .font(.vh(.subheadline)).foregroundColor(.secondary)
                     Text(L("clin_x_of_y_done_by_you", String(doneCount), String(children.count)))
-                        .font(.headline)
+                        .font(.vh(.headline))
                 }
                 if !children.isEmpty { filters }
                 if let error = clinician.rosterError, roster != nil {
@@ -75,9 +75,9 @@ struct ClinicianRosterView: View {
                 if let roster, roster.can.review, screenedCount > 0 {
                     NavigationLink(value: ClinicianRoute.review(camp)) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(L("clin_review_send")).font(.headline).foregroundColor(Brand.orange)
+                            Text(L("clin_review_send")).font(.vh(.headline)).foregroundColor(Brand.orange)
                             Text(L("clin_review_send_sub", String(screenedCount)))
-                                .font(.footnote).foregroundColor(.secondary)
+                                .font(.vh(.footnote)).foregroundColor(.secondary)
                         }
                         .padding(.vertical, 4)
                     }
@@ -157,7 +157,7 @@ struct ClinicianRosterView: View {
     private func chip(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.footnote.weight(.medium))
+                .font(.vh(.footnote, .medium))
                 .foregroundColor(selected ? .white : .primary)
                 .padding(.horizontal, 12)
                 .frame(minHeight: 32)
@@ -174,10 +174,10 @@ struct ClinicianRosterView: View {
         let canScreen = roster?.can.screen ?? false
         let content = HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(child.name).font(.body.weight(.semibold))
+                Text(child.name).font(.vh(.body, .semibold))
                 let sub = [child.className, child.studentRef]
                     .filter { !$0.isEmpty }.joined(separator: " · ")
-                if !sub.isEmpty { Text(sub).font(.caption).foregroundColor(.secondary) }
+                if !sub.isEmpty { Text(sub).font(.vh(.caption)).foregroundColor(.secondary) }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 3) {
@@ -185,7 +185,7 @@ struct ClinicianRosterView: View {
                 // With more than one check, say which are still to record.
                 if child.myChecks.count > 1, child.state != "DONE", !child.myOutstanding.isEmpty {
                     Text(child.myOutstanding.joined(separator: ", "))
-                        .font(.caption2).foregroundColor(.secondary)
+                        .font(.vh(.caption2)).foregroundColor(.secondary)
                         .multilineTextAlignment(.trailing)
                 }
             }

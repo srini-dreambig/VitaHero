@@ -1,24 +1,18 @@
 package kallam.healthcare.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,19 +20,21 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.ArticleDto
 import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.S
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
 import kallam.healthcare.ui.components.IconBubble
+import kallam.healthcare.ui.components.SecondaryButton
 import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf2
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * Reading, chosen from this family's own results.
@@ -64,60 +60,48 @@ fun LibraryScreen(
         return
     }
 
-    LazyColumn(
-        modifier = Modifier
+    Column(
+        Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item {
-            StatusBarSpacer()
-            ScreenHeader(t(S.libraryTitle), t(S.librarySub), onBack)
-            Spacer(Modifier.height(12.dp))
-        }
+        StatusBarSpacer()
+        AppScreenHeader(t(S.libraryTitle), subtitle = t(S.librarySub), onBack = onBack)
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxxl),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        ) {
+            if (library.forYou.isNotEmpty()) {
+                item { AppSectionTitle(t(S.forYourFamily)) }
+                items(library.forYou, key = { "you/" + it.slug }) { a ->
+                    ArticleRow(a, true) { guardianViewModel.openArticle(a.slug) }
+                }
+            }
 
-        if (library.forYou.isNotEmpty()) {
-            item {
-                Text(
-                    t(S.forYourFamily),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(8.dp))
+            if (library.general.isNotEmpty()) {
+                item {
+                    AppSectionTitle(
+                        t(S.generalReading),
+                        Modifier.padding(top = if (library.forYou.isNotEmpty()) AppSpacing.md else 0.dp),
+                    )
+                }
+                items(library.general, key = { "gen/" + it.slug }) { a ->
+                    ArticleRow(a, false) { guardianViewModel.openArticle(a.slug) }
+                }
             }
-            items(library.forYou, key = { "you/" + it.slug }) { a ->
-                ArticleRow(a, true) { guardianViewModel.openArticle(a.slug) }
-                Spacer(Modifier.height(8.dp))
-            }
-            item { Spacer(Modifier.height(12.dp)) }
-        }
 
-        if (library.general.isNotEmpty()) {
-            item {
-                Text(
-                    t(S.generalReading),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-            items(library.general, key = { "gen/" + it.slug }) { a ->
-                ArticleRow(a, false) { guardianViewModel.openArticle(a.slug) }
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-
-        if (library.forYou.isEmpty() && library.general.isEmpty()) {
-            item {
-                HeroCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconBubble(Icons.AutoMirrored.Outlined.MenuBook, HeroBlue)
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            t(S.libraryEmpty),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+            if (library.forYou.isEmpty() && library.general.isEmpty()) {
+                item {
+                    AppCard {
+                        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                            IconBubble(Icons.AutoMirrored.Outlined.MenuBook, MaterialTheme.colorScheme.secondary)
+                            Spacer(Modifier.height(AppSpacing.md))
+                            Text(
+                                t(S.libraryEmpty),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                        }
                     }
                 }
             }
@@ -127,78 +111,45 @@ fun LibraryScreen(
 
 @Composable
 private fun ArticleRow(a: ArticleDto, personal: Boolean, onOpen: () -> Unit) {
-    HeroCard(Modifier.fillMaxWidth()) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpen)
-                .padding(16.dp),
-        ) {
-            Text(a.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (a.summary.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    a.summary,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            // Saying why this article is here matters more than the article: a
-            // parent should never wonder whether the app knows something they
-            // have not been told.
-            val because = a.because
-            if (personal && because != null) {
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.AutoMirrored.Outlined.MenuBook,
-                        contentDescription = null,
-                        tint = HeroOrange,
-                        modifier = Modifier.size(16.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        tf2(S.becauseOfFinding, because.kidName, because.checkType),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = HeroOrange,
-                    )
-                }
-            }
-        }
-    }
+    // Saying why this article is here matters more than the article: a
+    // parent should never wonder whether the app knows something they
+    // have not been told.
+    val because = a.because
+    AppListRow(
+        title = a.title,
+        subtitle = a.summary.ifBlank { null },
+        supporting = if (personal && because != null) tf2(S.becauseOfFinding, because.kidName, because.checkType) else null,
+        supportingTone = Tone.Brand,
+        showChevron = true,
+        onClick = onOpen,
+    )
 }
 
 @Composable
 private fun ArticleScreen(a: ArticleDto, onBack: () -> Unit) {
-    LazyColumn(
-        modifier = Modifier
+    Column(
+        Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item {
-            StatusBarSpacer()
-            ScreenHeader(a.title, a.summary, onBack)
-            Spacer(Modifier.height(12.dp))
-            HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp)) {
+        StatusBarSpacer()
+        AppScreenHeader(a.title, subtitle = a.summary, onBack = onBack)
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxxl),
+        ) {
+            item {
+                AppCard {
                     Text(a.body, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     Text(
                         t(S.libraryDisclaimer),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            Spacer(Modifier.height(14.dp))
-            OutlinedButton(onClick = onBack, shape = RoundedCornerShape(14.dp)) {
-                Text(t(S.backLabel))
+                Spacer(Modifier.height(AppSpacing.md))
+                SecondaryButton(t(S.backLabel), onClick = onBack)
             }
         }
     }

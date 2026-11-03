@@ -17,8 +17,8 @@ struct FormSectionHeader: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.subheadline.weight(.semibold)).foregroundColor(Brand.orange)
-            if let subtitle { Text(subtitle).font(.caption).foregroundColor(.secondary) }
+            Text(title).font(.vh(.subheadline, .semibold)).foregroundColor(Brand.orange)
+            if let subtitle { Text(subtitle).font(.vh(.caption)).foregroundColor(.secondary) }
         }
         .padding(.top, 4)
     }
@@ -28,7 +28,7 @@ struct FormSectionHeader: View {
 private struct FieldLabel: View {
     let text: String
     var body: some View {
-        Text(text).font(.caption.weight(.medium)).foregroundColor(.secondary)
+        Text(text).font(.vh(.caption, .medium)).foregroundColor(.secondary)
     }
 }
 
@@ -117,7 +117,7 @@ struct ChoiceField: View {
                             .foregroundColor(value.isEmpty ? .secondary : .primary)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 4)
-                        Image(systemName: "chevron.up.chevron.down").font(.caption).foregroundColor(.secondary)
+                        Image(systemName: "chevron.up.chevron.down").font(.vh(.caption)).foregroundColor(.secondary)
                     }
                     .padding(.vertical, 8)
                 }
@@ -156,7 +156,7 @@ struct MultiChoiceField: View {
                             .foregroundColor(selected.isEmpty ? .secondary : .primary)
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 4)
-                        Image(systemName: "list.bullet").font(.caption).foregroundColor(.secondary)
+                        Image(systemName: "list.bullet").font(.vh(.caption)).foregroundColor(.secondary)
                     }
                     .padding(.vertical, 8)
                 }
@@ -208,7 +208,7 @@ struct ToggleRow: View {
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: isOn ? "checkmark.square.fill" : "square")
-                    .font(.title3)
+                    .font(.vh(.title3))
                     .foregroundColor(isOn ? Brand.orange : .secondary)
                 Text(label).foregroundColor(.primary)
                 Spacer()

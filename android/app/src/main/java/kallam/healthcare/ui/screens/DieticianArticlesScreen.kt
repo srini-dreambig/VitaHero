@@ -1,8 +1,6 @@
 package kallam.healthcare.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -10,17 +8,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,18 +18,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.DieticianViewModel
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppTextButton
+import kallam.healthcare.ui.components.AppTextField
 import kallam.healthcare.ui.components.Notice
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.SelectChip
 import kallam.healthcare.ui.components.StatusBarSpacer
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.components.StatusPill
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * C4 — what a dietician writes for every family, not just one child.
@@ -80,45 +71,33 @@ fun DieticianArticlesScreen(
         }
     }
 
-    LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 40.dp)) {
-        item {
-            StatusBarSpacer()
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp, 8.dp, 20.dp, 0.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "What families read",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        "Shown to families whose child was flagged on growth",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            if (message.isNotBlank()) {
-                Column(Modifier.padding(horizontal = 20.dp)) { Notice(message, error = true) }
-            }
-            Spacer(Modifier.height(12.dp))
-        }
+    Column(Modifier.fillMaxSize()) {
+        StatusBarSpacer()
+        AppScreenHeader(
+            "What families read",
+            subtitle = "Shown to families whose child was flagged on growth",
+            onBack = onBack,
+        )
+        if (message.isNotBlank()) Notice(message, error = true)
 
-        if (!writing) {
-            item {
-                HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                    Column(Modifier.padding(16.dp)) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = AppSpacing.xl,
+                end = AppSpacing.xl,
+                top = AppSpacing.sm,
+                bottom = AppSpacing.xxxl,
+            ),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        ) {
+            if (!writing) {
+                item {
+                    AppCard {
                         Text(
                             "Write something for everyone",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(AppSpacing.xs))
                         Text(
                             "A plan is for one child. This is the advice that is the same "
                                 + "for every family — what iron-rich food costs nothing, "
@@ -126,7 +105,7 @@ fun DieticianArticlesScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(AppSpacing.md))
                         PrimaryGradientButton(
                             text = "Write an article",
                             onClick = { writing = true },
@@ -135,55 +114,44 @@ fun DieticianArticlesScreen(
                         )
                     }
                 }
-                Spacer(Modifier.height(14.dp))
-            }
-        } else {
-            item {
-                HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                    Column(Modifier.padding(16.dp)) {
-                        OutlinedTextField(
+            } else {
+                item {
+                    AppCard {
+                        AppTextField(
                             value = title,
                             onValueChange = { title = it },
-                            label = { Text("Title") },
-                            singleLine = true,
+                            label = "Title",
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
                         )
-                        Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(
+                        Spacer(Modifier.height(AppSpacing.md))
+                        AppTextField(
                             value = summary,
                             onValueChange = { summary = it },
-                            label = { Text("One line, shown in the list") },
-                            singleLine = true,
+                            label = "One line, shown in the list",
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
                         )
-                        Spacer(Modifier.height(10.dp))
-                        OutlinedTextField(
+                        Spacer(Modifier.height(AppSpacing.md))
+                        AppTextField(
                             value = body,
                             onValueChange = { body = it },
-                            label = { Text("The article") },
+                            label = "The article",
+                            singleLine = false,
                             minLines = 6,
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
                         )
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(AppSpacing.md))
                         Text(
                             "Language",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.height(6.dp))
-                        Row {
+                        Spacer(Modifier.height(AppSpacing.xs))
+                        Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                             LOCALES.forEach { (code, label) ->
-                                LocaleChip(label, locale == code) { locale = code }
-                                Spacer(Modifier.width(6.dp))
+                                SelectChip(label, locale == code, onClick = { locale = code })
                             }
                         }
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.sm))
                         Text(
                             // Said out loud because a family reading Telugu is
                             // shown the English one when there is no Telugu
@@ -193,81 +161,52 @@ fun DieticianArticlesScreen(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(AppSpacing.lg))
                         PrimaryGradientButton(
                             text = if (busy) "Publishing…" else "Publish",
                             onClick = { dietician.saveArticle(title, summary, body, locale) },
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !busy && title.trim().length >= 3 && body.trim().length >= 40,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.sm))
                         Text(
                             "A title and a few sentences. Write it for a parent, not for a "
                                 + "clinician.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.height(10.dp))
-                        Text(
-                            "Cancel",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.clickable { writing = false },
-                        )
+                        Spacer(Modifier.height(AppSpacing.xs))
+                        AppTextButton("Cancel", { writing = false }, tone = Tone.Neutral)
                     }
                 }
-                Spacer(Modifier.height(14.dp))
             }
-        }
 
-        if (articles.isEmpty()) {
-            item {
-                Text(
-                    if (busy) "Loading…" else "You have not written anything yet.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 20.dp),
-                )
-            }
-        } else {
-            items(articles.size) { i ->
-                val a = articles[i]
-                HeroCard(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 5.dp)
-                        .clickable {
+            if (articles.isEmpty()) {
+                item {
+                    Text(
+                        if (busy) "Loading…" else "You have not written anything yet.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                items(articles.size) { i ->
+                    val a = articles[i]
+                    AppListRow(
+                        title = a.title,
+                        subtitle = localeLabel(a.locale),
+                        supporting = a.summary.ifBlank { null },
+                        trailing = if (a.published) null else {
+                            { StatusPill("not published", Tone.Neutral) }
+                        },
+                        onClick = {
                             title = a.title
                             summary = a.summary
                             body = a.body
                             locale = a.locale
                             writing = true
                         },
-                ) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text(
-                            a.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            listOf(localeLabel(a.locale), if (a.published) "" else "not published")
-                                .filter { it.isNotBlank() }.joinToString(" · "),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        if (a.summary.isNotBlank()) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                a.summary,
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
+                    )
                 }
             }
         }
@@ -278,24 +217,3 @@ private val LOCALES = listOf("en" to "English", "hi" to "हिन्दी", "t
 
 private fun localeLabel(code: String): String =
     LOCALES.firstOrNull { it.first == code }?.second ?: code
-
-@Composable
-private fun LocaleChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(50))
-            .background(
-                if (selected) HeroOrange.copy(alpha = 0.16f)
-                else MaterialTheme.colorScheme.surfaceVariant,
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}

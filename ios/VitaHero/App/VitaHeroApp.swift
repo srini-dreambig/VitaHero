@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
             FirebaseApp.configure()
         }
+        applyAppearance()
         return true
     }
 
@@ -31,6 +32,28 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     }
 }
 
+/// Navigation titles and list backgrounds are UIKit, so the palette and the
+/// title typeface are set here once rather than in every view.
+private func applyAppearance() {
+    let ink = UIColor(red: 0x2D / 255, green: 0x2D / 255, blue: 0x2B / 255, alpha: 1)
+    let cream = UIColor(red: 1, green: 0xFC / 255, blue: 0xF5 / 255, alpha: 1)
+    let nav = UINavigationBarAppearance()
+    nav.configureWithOpaqueBackground()
+    nav.backgroundColor = cream
+    nav.shadowColor = .clear
+    if let large = UIFont(name: "BricolageGrotesque96pt-ExtraBold", size: 32) {
+        nav.largeTitleTextAttributes = [.font: UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: large), .foregroundColor: ink]
+    }
+    if let inline = UIFont(name: "HostGrotesk-SemiBold", size: 17) {
+        nav.titleTextAttributes = [.font: UIFontMetrics(forTextStyle: .headline).scaledFont(for: inline), .foregroundColor: ink]
+    }
+    UINavigationBar.appearance().standardAppearance = nav
+    UINavigationBar.appearance().scrollEdgeAppearance = nav
+    UINavigationBar.appearance().compactAppearance = nav
+    UICollectionView.appearance().backgroundColor = cream
+    UITableView.appearance().backgroundColor = cream
+}
+
 @main
 struct VitaHeroApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
@@ -48,6 +71,7 @@ struct VitaHeroApp: App {
                 // language rebuilds the views.
                 .id(l10n.language)
                 .tint(Brand.orange)
+                .font(.vh(.body))
                 .onOpenURL { url in
                     if AuthManager.firebaseConfigured { _ = Auth.auth().canHandle(url) }
                 }

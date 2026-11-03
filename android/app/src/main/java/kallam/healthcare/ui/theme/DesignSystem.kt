@@ -30,12 +30,12 @@ object AppSpacing {
 object AppCorners {
     /** 8.dp - Small subtle rounded corners */
     val small: Dp = 8.dp
-    /** 12.dp - Medium rounded corners for text inputs & chips */
-    val medium: Dp = 12.dp
-    /** 16.dp - Large rounded corners for dialogs & dropdown menus */
-    val large: Dp = 16.dp
-    /** 24.dp - Extra large rounded corners for main HeroCards */
-    val xlarge: Dp = 24.dp
+    /** 14.dp - Text inputs, notes, stat tiles */
+    val medium: Dp = 14.dp
+    /** 20.dp - Cards, dialogs, menus */
+    val large: Dp = 20.dp
+    /** 28.dp - Hero banners and illustration panels */
+    val xlarge: Dp = 28.dp
     /** 50.dp - Fully rounded pill shape for buttons & chips */
     val pill: Dp = 50.dp
 }

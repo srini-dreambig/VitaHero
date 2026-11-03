@@ -45,6 +45,15 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>VitaHero uses your location once, when you ask, to list hospitals nearest to you. It is not stored or tracked.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>bricolage_grotesque_bold.ttf</string>
+		<string>bricolage_grotesque_extrabold.ttf</string>
+		<string>host_grotesk_regular.ttf</string>
+		<string>host_grotesk_medium.ttf</string>
+		<string>host_grotesk_semibold.ttf</string>
+		<string>host_grotesk_bold.ttf</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

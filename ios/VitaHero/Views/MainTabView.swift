@@ -27,7 +27,7 @@ struct ToastView: View {
     var body: some View {
         if let text = store.toast {
             Text(text)
-                .font(.subheadline)
+                .font(.vh(.subheadline))
                 .foregroundColor(.white)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
@@ -60,7 +60,7 @@ struct KidPicker: View {
                             Task { await store.loadKid(kid.id) }
                         } label: {
                             Text(kid.name)
-                                .font(.subheadline.weight(.semibold))
+                                .font(.vh(.subheadline, .semibold))
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
                                 .foregroundColor(selected ? .white : .primary)

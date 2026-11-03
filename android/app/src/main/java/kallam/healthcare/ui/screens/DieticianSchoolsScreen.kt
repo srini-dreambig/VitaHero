@@ -1,14 +1,14 @@
 package kallam.healthcare.ui.screens
 
-import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.outlined.Groups
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -18,24 +18,20 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.DieticianViewModel
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
 import kallam.healthcare.ui.components.EmptyState
-import kallam.healthcare.ui.components.HeroCard
 import kallam.healthcare.ui.components.IconBubble
 import kallam.healthcare.ui.components.Notice
 import kallam.healthcare.ui.components.StatusBarSpacer
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * Where a dietician lands: the schools they were assigned.
@@ -56,120 +52,94 @@ fun DieticianSchoolsScreen(
     val schools by dietician.schools.collectAsState()
     val busy by dietician.busy.collectAsState()
     val message by dietician.message.collectAsState()
+    val templates by dietician.templates.collectAsState()
+    var precamp by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { dietician.loadSchools() }
+    LaunchedEffect(precamp) {
+        if (!precamp) {
+            dietician.loadSchools()
+            dietician.loadTemplates()
+        }
+    }
 
-    LazyColumn(Modifier.fillMaxSize()) {
-        item {
-            StatusBarSpacer()
-            Row(
-                Modifier.fillMaxWidth().padding(20.dp, 12.dp, 12.dp, 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "My schools",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    if (me.name.isNotBlank()) {
-                        Text(
-                            listOf(me.name, me.qualification).filter { it.isNotBlank() }
-                                .joinToString(" · "),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+    if (precamp) {
+        PrecampPlansScreen(dietician) { precamp = false }
+        return
+    }
+
+    Column(Modifier.fillMaxSize()) {
+        StatusBarSpacer()
+        AppScreenHeader(
+            "My schools",
+            subtitle = if (me.name.isNotBlank()) {
+                listOf(me.name, me.qualification).filter { it.isNotBlank() }.joinToString(" · ")
+            } else null,
+            actions = {
                 IconButton(onClick = onLogout) {
                     Icon(Icons.Outlined.Logout, contentDescription = "Sign out")
                 }
-            }
-            if (message.isNotBlank()) {
-                Column(Modifier.padding(horizontal = 20.dp)) { Notice(message, error = true) }
-            }
-            Spacer(Modifier.height(8.dp))
-        }
+            },
+        )
+        if (message.isNotBlank()) Notice(message, error = true)
 
-        if (schools.isEmpty()) {
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        ) {
+            // The first job before any camp: the twelve plans families get
+            // when their child's results are released.
             item {
-                EmptyState(
-                    icon = Icons.Outlined.School,
-                    title = if (busy) "Loading your schools…" else "No schools yet",
-                    subtitle =
-                        if (busy) "One moment."
-                        else "VitaHero operations assigns you to a school. Once they do, its "
-                            + "children appear here with their growth.",
-                    modifier = Modifier.padding(20.dp),
+                val t = templates
+                val left = if (t == null) 0 else t.templates.size - t.ready
+                AppListRow(
+                    title = "Pre-camp diet plans",
+                    subtitle = if (t == null) "Write before the camp" else "${t.ready} of ${t.templates.size} written",
+                    supporting = if (t != null && left == 0) {
+                        "Families get their child's plan when results are released."
+                    } else {
+                        "6 growth groups, for girls and boys. Write them before the camp."
+                    },
+                    supportingTone = if (t != null && left == 0) Tone.Good else Tone.Watch,
+                    leading = { IconBubble(Icons.Outlined.Groups, MaterialTheme.colorScheme.primary) },
+                    onClick = { precamp = true },
                 )
             }
-        } else {
-            items(schools, key = { it.id }) { school ->
-                HeroCard(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 7.dp)
-                        .clickable { onOpenSchool(school.id, school.name) }
-                ) {
-                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconBubble(Icons.Outlined.School, HeroOrange)
-                        Spacer(Modifier.width(14.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                school.name,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (school.city.isNotBlank()) {
-                                Text(
-                                    school.city,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                "${school.children} children · ${school.plans} on a plan",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = HeroBlue,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
+            if (schools.isEmpty()) {
+                item {
+                    EmptyState(
+                        icon = Icons.Outlined.School,
+                        title = if (busy) "Loading your schools…" else "No schools yet",
+                        subtitle =
+                            if (busy) "One moment."
+                            else "VitaHero operations assigns you to a school. Once they do, its "
+                                + "children appear here with their growth.",
+                    )
+                }
+            } else {
+                items(schools, key = { it.id }) { school ->
+                    AppListRow(
+                        title = school.name,
+                        subtitle = school.city.ifBlank { null },
+                        supporting = "${school.children} children · ${school.plans} on a plan",
+                        supportingTone = Tone.Info,
+                        leading = { IconBubble(Icons.Outlined.School, MaterialTheme.colorScheme.primary) },
+                        onClick = { onOpenSchool(school.id, school.name) },
+                    )
                 }
             }
-        }
-        // C4 — the other half of the job. A plan is for one child; the
-        // reading list is the advice that is the same for every family, and
-        // it was operations-only until now.
-        item {
-            Spacer(Modifier.height(10.dp))
-            HeroCard(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 7.dp)
-                    .clickable(onClick = onOpenArticles)
-            ) {
-                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    IconBubble(Icons.Outlined.MenuBook, HeroBlue)
-                    Spacer(Modifier.width(14.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "What families read",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            "Write for every family, not one child at a time",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
+            // C4 — the other half of the job. A plan is for one child; the
+            // reading list is the advice that is the same for every family, and
+            // it was operations-only until now.
+            item {
+                AppListRow(
+                    title = "What families read",
+                    supporting = "Write for every family, not one child at a time",
+                    leading = { IconBubble(Icons.Outlined.MenuBook, MaterialTheme.colorScheme.secondary) },
+                    onClick = onOpenArticles,
+                    modifier = Modifier.padding(top = AppSpacing.md),
+                )
             }
         }
-        item { Spacer(Modifier.height(24.dp)) }
     }
 }

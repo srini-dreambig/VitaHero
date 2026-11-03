@@ -1,20 +1,110 @@
 import SwiftUI
 
-/// The VitaHero palette, the same orange and blue as the Android app.
+/// The VitaHero palette. The same hex values are in the Android app's
+/// ui/theme/Color.kt and in the :root block of functions/portal.ts; change all
+/// three together.
+///
+/// Fills are the soft pastels: pink for the main action, yellow, olive and blue
+/// for cards, tags and stat tiles, all on a cream page. Text and icons never use
+/// a pastel; they use the deep shade of the same hue so they stay readable.
 enum Brand {
-    static let orange = Color(red: 244 / 255, green: 123 / 255, blue: 32 / 255)
-    static let blue = Color(red: 37 / 255, green: 99 / 255, blue: 235 / 255)
-    static let green = Color(red: 16 / 255, green: 185 / 255, blue: 129 / 255)
-    static let amber = Color(red: 245 / 255, green: 158 / 255, blue: 11 / 255)
-    static let red = Color(red: 239 / 255, green: 68 / 255, blue: 68 / 255)
-    static let purple = Color(red: 139 / 255, green: 92 / 255, blue: 246 / 255)
+    // Fills
+    static let cream = Color(hex: 0xFFFCF5)
+    static let beige = Color(hex: 0xF8F3E7)
+    static let beigeDeep = Color(hex: 0xEFE8D7)
+    static let pink = Color(hex: 0xFFB2DD)
+    static let pinkLight = Color(hex: 0xFAE0E4)
+    static let yellow = Color(hex: 0xF7D66E)
+    static let yellowLight = Color(hex: 0xFEEFBF)
+    static let olive = Color(hex: 0x9AAB65)
+    static let oliveLight = Color(hex: 0xE1E6D1)
+    static let sky = Color(hex: 0xB6CAEB)
+    static let skyLight = Color(hex: 0xEAF0F9)
 
-    static let gradient = LinearGradient(
-        colors: [orange, Color(red: 249 / 255, green: 115 / 255, blue: 22 / 255)],
-        startPoint: .leading, endPoint: .trailing)
+    // Text
+    static let ink = Color(hex: 0x2D2D2B)
+    static let inkSoft = Color(hex: 0x66625A)
+
+    // Deep shades, for text and icons
+    static let pinkDeep = Color(hex: 0xB0457C)
+    static let yellowDeep = Color(hex: 0x8A6A0C)
+    static let oliveDeep = Color(hex: 0x55642A)
+    static let blueDeep = Color(hex: 0x3B5B94)
+
+    // Older names, kept so views read the new palette without a rename sweep.
+    static let orange = pinkDeep
+    static let blue = blueDeep
+    static let green = oliveDeep
+    static let amber = Color(hex: 0xA86E12)
+    /// Clinical alerts stay red: an alert must never read as decoration.
+    static let red = Color(hex: 0xC8372D)
+    static let purple = oliveDeep
+
+    /// The main button's fill. A flat pink; kept as a style so the views that
+    /// paint an icon with it still compile.
+    static let gradient = LinearGradient(colors: [pink, pink], startPoint: .leading, endPoint: .trailing)
 }
 
-/// A rounded card on the grouped background, used for every block of content.
+extension Color {
+    init(hex: UInt32) {
+        self.init(red: Double((hex >> 16) & 0xFF) / 255,
+                  green: Double((hex >> 8) & 0xFF) / 255,
+                  blue: Double(hex & 0xFF) / 255)
+    }
+}
+
+/// The app's two typefaces: Bricolage Grotesque for titles, Host Grotesk for
+/// everything else, the same as Android. Sizes follow Dynamic Type through
+/// `relativeTo`, so a parent's larger text setting still applies.
+extension Font {
+    static func vh(_ style: TextStyle, _ weight: Weight? = nil) -> Font {
+        let size: CGFloat
+        switch style {
+        case .largeTitle: size = 34
+        case .title: size = 28
+        case .title2: size = 22
+        case .title3: size = 20
+        case .headline: size = 17
+        case .body: size = 17
+        case .callout: size = 16
+        case .subheadline: size = 15
+        case .footnote: size = 13
+        case .caption: size = 12
+        case .caption2: size = 11
+        default: size = 17
+        }
+        let w = weight ?? (style == .headline ? .semibold : .regular)
+        let display: Bool = [.largeTitle, .title, .title2].contains(style) && (w == .bold || w == .heavy || w == .black)
+        let name: String
+        if display {
+            name = style == .title2 ? "BricolageGrotesque96pt-Bold" : "BricolageGrotesque96pt-ExtraBold"
+        } else {
+            switch w {
+            case .bold, .heavy, .black: name = "HostGrotesk-Bold"
+            case .semibold: name = "HostGrotesk-SemiBold"
+            case .medium: name = "HostGrotesk-Medium"
+            default: name = "HostGrotesk-Regular"
+            }
+        }
+        return .custom(name, size: size, relativeTo: style)
+    }
+}
+
+/// The app logo, wherever the brand shows: splash, sign-in, the language
+/// screen and the profile footer.
+struct BrandLogo: View {
+    var height: CGFloat = 56
+
+    var body: some View {
+        Image("VitaHeroLogo")
+            .resizable()
+            .scaledToFit()
+            .frame(height: height)
+            .accessibilityLabel("VitaHero")
+    }
+}
+
+/// A beige card on the cream page, used for every block of content.
 struct Card<Content: View>: View {
     @ViewBuilder var content: Content
 
@@ -22,8 +112,8 @@ struct Card<Content: View>: View {
         VStack(alignment: .leading, spacing: 10) { content }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .background(Brand.beige)
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 }
 
@@ -34,16 +124,16 @@ struct Pill: View {
 
     var body: some View {
         Text(text)
-            .font(.caption.weight(.semibold))
+            .font(.vh(.caption, .semibold))
             .foregroundColor(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(color.opacity(0.14))
+            .background(color.opacity(0.16))
             .clipShape(Capsule())
     }
 }
 
-/// The orange, full-width button the app's main actions use.
+/// The pink, full-width pill the app's main actions use, with ink text.
 struct PrimaryButton: View {
     let title: String
     var busy = false
@@ -53,12 +143,12 @@ struct PrimaryButton: View {
     var body: some View {
         Button(action: action) {
             ZStack {
-                if busy { ProgressView().tint(.white) } else { Text(title).fontWeight(.semibold) }
+                if busy { ProgressView().tint(Brand.ink) } else { Text(title).font(.vh(.body, .semibold)) }
             }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity, minHeight: 50)
-            .background(enabled ? AnyShapeStyle(Brand.gradient) : AnyShapeStyle(Color.gray.opacity(0.4)))
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .foregroundColor(enabled ? Brand.ink : Brand.inkSoft)
+            .frame(maxWidth: .infinity, minHeight: 56)
+            .background(enabled ? Brand.pink : Brand.beigeDeep)
+            .clipShape(Capsule())
         }
         .disabled(!enabled || busy)
     }
@@ -72,9 +162,9 @@ struct EmptyState: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            Image(systemName: icon).font(.system(size: 40)).foregroundColor(.secondary)
-            Text(title).font(.headline)
-            if let subtitle { Text(subtitle).font(.subheadline).foregroundColor(.secondary) }
+            Illustration(scene: .empty).frame(width: 120, height: 120)
+            Text(title).font(.vh(.headline))
+            if let subtitle { Text(subtitle).font(.vh(.subheadline)).foregroundColor(.secondary) }
         }
         .multilineTextAlignment(.center)
         .frame(maxWidth: .infinity)
@@ -93,11 +183,11 @@ struct Banner: View {
             Image(systemName: "exclamationmark.triangle.fill")
             Text(text).frame(maxWidth: .infinity, alignment: .leading)
         }
-        .font(.footnote)
+        .font(.vh(.footnote))
         .foregroundColor(color)
         .padding(12)
         .background(color.opacity(0.12))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 }
 

@@ -49,11 +49,11 @@ struct ClinicianScreeningView: View {
     private var header: some View {
         if let child = form?.child {
             VStack(alignment: .leading, spacing: 2) {
-                Text(child.name).font(.title2.bold())
+                Text(child.name).font(.vh(.title2, .bold))
                 let gradeSection = [child.grade, child.section].filter { !$0.isEmpty }.joined(separator: " ")
                 let parts = [gradeSection, child.gender, child.age.map { L("clin_years", String($0)) } ?? ""]
                 Text(parts.filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.subheadline).foregroundColor(.secondary)
+                    .font(.vh(.subheadline)).foregroundColor(.secondary)
             }
         }
     }
@@ -90,7 +90,7 @@ struct ClinicianScreeningView: View {
         }
         if !message.isEmpty { Banner(text: message, color: Brand.red) }
         if !gapMessage.isEmpty { Banner(text: gapMessage, color: Brand.red) }
-        Text(L("clin_required_intro")).font(.footnote).foregroundColor(.secondary)
+        Text(L("clin_required_intro")).font(.vh(.footnote)).foregroundColor(.secondary)
     }
 
     /// "Dental: Dental. Vision is another clinician's at this camp."
@@ -106,8 +106,8 @@ struct ClinicianScreeningView: View {
 
     private func illnessCard(_ history: IllnessHistory) -> some View {
         Card {
-            Text(L("clin_illness_title")).font(.headline)
-            if !history.caution.isEmpty { Text(history.caution).font(.footnote) }
+            Text(L("clin_illness_title")).font(.vh(.headline))
+            if !history.caution.isEmpty { Text(history.caution).font(.vh(.footnote)) }
             ForEach(history.events.prefix(10)) { e in
                 let dates = e.endedOn.isEmpty ? e.startedOn : L("clin_date_range", e.startedOn, e.endedOn)
                 let extras = [e.severity.lowercased(),
@@ -115,10 +115,10 @@ struct ClinicianScreeningView: View {
                               e.missedSchool ? L("clin_missed_school") : ""]
                     .filter { !$0.isEmpty }.joined(separator: ", ")
                 let note = e.note.isEmpty ? "" : " — " + e.note
-                Text("\(dates): \(e.symptom) (\(extras))\(note)").font(.subheadline)
+                Text("\(dates): \(e.symptom) (\(extras))\(note)").font(.vh(.subheadline))
             }
             if history.events.count > 10 {
-                Text(L("clin_and_earlier", String(history.events.count - 10))).font(.footnote)
+                Text(L("clin_and_earlier", String(history.events.count - 10))).font(.vh(.footnote))
             }
         }
     }
@@ -141,11 +141,11 @@ struct ClinicianScreeningView: View {
 
     private func checkCard(_ check: String, _ form: ScreeningForm) -> some View {
         Card {
-            Text(check).font(.headline)
+            Text(check).font(.vh(.headline))
             if let existing = form.findings.first(where: { $0.checkType == check && $0.flag != "NOT_MEASURED" }) {
                 let reason = existing.rationale.isEmpty ? "" : " — " + existing.rationale
                 Text(L("clin_recorded", flagWord(existing.flag)) + reason)
-                    .font(.footnote).foregroundColor(flagColor(existing.flag))
+                    .font(.vh(.footnote)).foregroundColor(flagColor(existing.flag))
             }
             ToggleRow(label: L("clin_not_done"), value: field(check, RequiredChecks.notDone))
             if isNotDone(check) {
@@ -153,7 +153,7 @@ struct ClinicianScreeningView: View {
                              placeholder: L("clin_not_done_hint"))
                 // What was seen still counts: the server keeps a WATCH or
                 // ALERT it raises, so the fields stay, none of them required.
-                Text(L("clin_not_done_seen")).font(.footnote).foregroundColor(.secondary)
+                Text(L("clin_not_done_seen")).font(.vh(.footnote)).foregroundColor(.secondary)
             }
             checkFields(check)
         }
@@ -171,7 +171,7 @@ struct ClinicianScreeningView: View {
         case "Immunisation review": immunisation(check)
         case "Haemoglobin": haemoglobin(check)
         default:
-            Text(L("clin_no_form")).font(.footnote).foregroundColor(.secondary)
+            Text(L("clin_no_form")).font(.vh(.footnote)).foregroundColor(.secondary)
         }
     }
 
@@ -193,7 +193,7 @@ struct ClinicianScreeningView: View {
                     GrowthChartsPanel(reading: who, muacCm: Double(values[c]?["muacCm"] ?? ""))
                 } else if child.age == nil && child.dob.isEmpty {
                     Text("No age or date of birth on record, so the growth charts cannot be read.")
-                        .font(.footnote).foregroundColor(.secondary)
+                        .font(.vh(.footnote)).foregroundColor(.secondary)
                 }
             }
         }
@@ -372,7 +372,7 @@ struct ClinicianScreeningView: View {
                           enabled: !busy && !form.checks.isEmpty) {
                 Task { await save(form) }
             }
-            Text(L("clin_reviewed_first")).font(.footnote).foregroundColor(.secondary)
+            Text(L("clin_reviewed_first")).font(.vh(.footnote)).foregroundColor(.secondary)
         }
         .padding(.top, 4)
     }

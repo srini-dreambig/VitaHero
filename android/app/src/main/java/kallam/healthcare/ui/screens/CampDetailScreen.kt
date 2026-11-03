@@ -1,9 +1,7 @@
 package kallam.healthcare.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -16,9 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Verified
@@ -27,26 +23,27 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.Camp
 import kallam.healthcare.data.CampResultDto
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.S
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
+import kallam.healthcare.ui.components.InfoNote
 import kallam.healthcare.ui.components.PrimaryGradientButton
 import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.StatusPill
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.campWhen
+import kallam.healthcare.ui.components.color
 import kallam.healthcare.ui.components.t
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppSpacing
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -65,117 +62,88 @@ fun CampDetailScreen(
     onRefreshProgress: (campId: String, kidIds: List<String>) -> Unit = { _, _ -> },
 ) {
     val upcoming = camp.status.isUpcoming
-    val accent = if (upcoming) HeroBlue else HeroOrange
+    val accent = if (upcoming) Tone.Info.color() else MaterialTheme.colorScheme.primary
     val registered = camp.registeredKidIds
+    // The header pads itself, so the list has no horizontal contentPadding;
+    // every other item carries the screen margin instead.
+    val margin = Modifier.padding(horizontal = AppSpacing.xl)
 
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp)
+        contentPadding = PaddingValues(bottom = AppSpacing.xxxl)
     ) {
         item {
             StatusBarSpacer()
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
-                Box(
-                    Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onBack),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
-                }
-                Spacer(Modifier.width(12.dp))
-                Text(t(S.campDetails), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.height(12.dp))
+            AppScreenHeader(title = t(S.campDetails), onBack = onBack)
+            Spacer(Modifier.height(AppSpacing.sm))
         }
 
         item {
-            HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp)) {
-                    if (camp.isPartnerCamp) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(t(S.partnerCamp), style = MaterialTheme.typography.labelMedium, color = HeroOrange, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(Modifier.height(10.dp))
+            AppCard(margin) {
+                if (camp.isPartnerCamp) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Outlined.Verified, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(AppSpacing.xs))
+                        Text(t(S.partnerCamp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                     }
-                    Text(camp.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold,
-                        maxLines = 2,
+                    Spacer(Modifier.height(AppSpacing.sm))
+                }
+                Text(camp.title, style = MaterialTheme.typography.headlineSmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(AppSpacing.sm))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(AppSpacing.xs))
+                    Text(camp.school, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(Modifier.height(8.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(camp.school, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Spacer(Modifier.height(10.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Outlined.Schedule, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text(campWhen(camp.date, camp.time), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    }
-                    if (camp.description.isNotBlank()) {
-                        Spacer(Modifier.height(14.dp))
-                        Text(camp.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    if (camp.grades.isNotEmpty()) {
-                        Spacer(Modifier.height(14.dp))
-                        Text(t(S.eligibleGrades), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(8.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            camp.grades.forEach { grade ->
-                                Box(
-                                    Modifier
-                                        .padding(bottom = 6.dp)
-                                        .clip(RoundedCornerShape(50))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant)
-                                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                                ) {
-                                    Text(grade, style = MaterialTheme.typography.labelMedium)
-                                }
-                            }
-                        }
-                    }
-                    Spacer(Modifier.height(14.dp))
-                    Text(t(S.screeningsIncluded), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(8.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        camp.checks.forEach { check ->
-                            Box(
-                                Modifier
-                                    .padding(bottom = 6.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(accent.copy(alpha = 0.12f))
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                Text(check, style = MaterialTheme.typography.labelMedium, color = accent)
-                            }
-                        }
-                    }
-                    if (camp.capacity > 0) {
-                        Spacer(Modifier.height(10.dp))
-                        Text("${t(S.capacity)}: ${camp.capacity}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    camp.resultSummary?.let {
-                        Spacer(Modifier.height(12.dp))
-                        Box(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(HeroOrange.copy(alpha = 0.1f))
-                                .padding(12.dp)
-                        ) {
-                            Text(it, style = MaterialTheme.typography.bodySmall, color = HeroOrange, fontWeight = FontWeight.Medium)
-                        }
+                }
+                Spacer(Modifier.height(AppSpacing.sm))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Outlined.Schedule, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(AppSpacing.xs))
+                    Text(campWhen(camp.date, camp.time), style = MaterialTheme.typography.bodyMedium)
+                }
+                if (camp.description.isNotBlank()) {
+                    Spacer(Modifier.height(AppSpacing.md))
+                    Text(camp.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (camp.grades.isNotEmpty()) {
+                    Spacer(Modifier.height(AppSpacing.lg))
+                    AppSectionTitle(t(S.eligibleGrades))
+                    Spacer(Modifier.height(AppSpacing.sm))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                        verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                    ) {
+                        camp.grades.forEach { grade -> StatusPill(grade, Tone.Neutral) }
                     }
                 }
+                Spacer(Modifier.height(AppSpacing.lg))
+                AppSectionTitle(t(S.screeningsIncluded))
+                Spacer(Modifier.height(AppSpacing.sm))
+                // Same chip as the camp cards on the Camps tab.
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                    verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                ) {
+                    camp.checks.forEach { check -> StatusPill(check, Tone.Neutral) }
+                }
+                if (camp.capacity > 0) {
+                    Spacer(Modifier.height(AppSpacing.md))
+                    Text("${t(S.capacity)}: ${camp.capacity}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                camp.resultSummary?.let {
+                    Spacer(Modifier.height(AppSpacing.md))
+                    InfoNote(it, tone = Tone.Brand)
+                }
             }
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
         }
 
         if (upcoming && camp.isPartnerCamp && kids.isNotEmpty()) {
@@ -193,39 +161,27 @@ fun CampDetailScreen(
                 // The same list is still worth showing — a parent opening a
                 // camp wants to know whether it involves their child — so it
                 // reads rather than acts.
-                Text(t(S.campRosterTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(10.dp))
+                AppSectionTitle(t(S.campRosterTitle), margin)
+                Spacer(Modifier.height(AppSpacing.md))
                 kids.forEach { kid ->
                     val isOnList = kid.id in registered
-                    HeroCard(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-                        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text("${kid.grade} · ${kid.school}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            Text(
-                                if (isOnList) t(S.campRosterOnList) else t(S.campRosterNotOnList),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isOnList) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.End,
-                            )
-                        }
-                    }
+                    // The on-list status is a sentence, so it sits under the
+                    // name rather than beside it, where it squeezed the name.
+                    AppListRow(
+                        title = kid.name,
+                        modifier = margin.padding(bottom = AppSpacing.md),
+                        subtitle = "${kid.grade} · ${kid.school}",
+                        supporting = if (isOnList) t(S.campRosterOnList) else t(S.campRosterNotOnList),
+                        supportingTone = if (isOnList) Tone.Brand else Tone.Neutral,
+                    )
                 }
-                Spacer(Modifier.height(4.dp))
                 Text(
                     t(S.campRosterNote),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = margin,
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
             }
         }
 
@@ -256,21 +212,23 @@ fun CampDetailScreen(
                     }
                 }
 
-                Text(t(S.campProgressTitle), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(10.dp))
+                AppSectionTitle(t(S.campProgressTitle), margin)
+                Spacer(Modifier.height(AppSpacing.md))
                 resultKids.forEach { kid ->
                     ChildProgressCard(
                         name = kid.name,
                         result = progress["$campKey/${kid.id}"],
                         onOpen = { onOpenResult(campKey, kid.id) },
+                        modifier = margin.padding(bottom = AppSpacing.md),
                     )
                 }
                 Text(
                     t(S.progressValuesNote),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = margin,
                 )
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
             }
         }
 
@@ -278,6 +236,7 @@ fun CampDetailScreen(
             PrimaryGradientButton(
                 text = if (upcoming) t(S.addToReminders) else t(S.bookFollowUp),
                 onClick = onBookFollowUp,
+                modifier = margin.fillMaxWidth(),
             )
         }
     }
@@ -285,73 +244,60 @@ fun CampDetailScreen(
 
 /** One child: where they are in the camp, and each check's state under it. */
 @Composable
-private fun ChildProgressCard(name: String, result: CampResultDto?, onOpen: () -> Unit) {
+private fun ChildProgressCard(name: String, result: CampResultDto?, onOpen: () -> Unit, modifier: Modifier = Modifier) {
     val p = result?.progress
     val released = p?.stage == "RELEASED"
-    HeroCard(
-        Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp)
-            .clickable(onClick = onOpen)
-    ) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        when (p?.stage) {
-                            null -> t(S.loadingLabel)
-                            "RELEASED" -> t(S.progressReleased)
-                            "WITH_DOCTOR" -> t(S.progressWithDoctor)
-                            "SCREENING" -> "${t(S.progressScreening)} · ${p.done}/${p.total}"
-                            "CONSENT_NEEDED" -> t(S.progressConsentNeeded)
-                            "DECLINED" -> t(S.progressDeclined)
-                            "NOT_SCREENED" -> t(S.progressNotScreened)
-                            else -> t(S.progressWaiting)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (released) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = if (released) FontWeight.Bold else FontWeight.Normal,
-                    )
-                }
-                if (released) {
-                    Text(
-                        t(S.viewLabel),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = HeroBlue,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+    AppCard(modifier = modifier, onClick = onOpen) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(name, style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    when (p?.stage) {
+                        null -> t(S.loadingLabel)
+                        "RELEASED" -> t(S.progressReleased)
+                        "WITH_DOCTOR" -> t(S.progressWithDoctor)
+                        "SCREENING" -> "${t(S.progressScreening)} · ${p.done}/${p.total}"
+                        "CONSENT_NEEDED" -> t(S.progressConsentNeeded)
+                        "DECLINED" -> t(S.progressDeclined)
+                        "NOT_SCREENED" -> t(S.progressNotScreened)
+                        else -> t(S.progressWaiting)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (released) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
-            p?.checks?.forEach { c ->
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        c.checkType,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        when (c.state) {
-                            "DONE" -> "\u2713 " + t(S.checkStateDone)
-                            "NOT_DONE" -> t(S.checkStateNotDone)
-                            "NOT_CONSENTED" -> t(S.checkStateNotIncluded)
-                            else -> t(S.checkStatePending)
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = when (c.state) {
-                            "DONE" -> HeroBlue
-                            "PENDING" -> HeroOrange
-                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                    )
-                }
+            if (released) {
+                Spacer(Modifier.width(AppSpacing.sm))
+                StatusPill(t(S.viewLabel), Tone.Info)
+            }
+        }
+        p?.checks?.forEach { c ->
+            Spacer(Modifier.height(AppSpacing.sm))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    c.checkType,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.width(AppSpacing.sm))
+                StatusPill(
+                    when (c.state) {
+                        "DONE" -> "✓ " + t(S.checkStateDone)
+                        "NOT_DONE" -> t(S.checkStateNotDone)
+                        "NOT_CONSENTED" -> t(S.checkStateNotIncluded)
+                        else -> t(S.checkStatePending)
+                    },
+                    when (c.state) {
+                        "DONE" -> Tone.Good
+                        "PENDING" -> Tone.Watch
+                        else -> Tone.Neutral
+                    },
+                )
             }
         }
     }

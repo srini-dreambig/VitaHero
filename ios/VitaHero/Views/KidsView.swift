@@ -18,9 +18,9 @@ struct KidsView: View {
                         HStack(spacing: 12) {
                             Avatar(kid: kid, size: 40)
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(kid.name).font(.headline)
+                                Text(kid.name).font(.vh(.headline))
                                 Text([kid.school, kid.grade].filter { !$0.isEmpty }.joined(separator: " · "))
-                                    .font(.subheadline).foregroundColor(.secondary)
+                                    .font(.vh(.subheadline)).foregroundColor(.secondary)
                             }
                             Spacer()
                             if kid.shared { Pill(text: L("shared_child"), color: Brand.purple) }
@@ -47,11 +47,11 @@ struct KidDetailView: View {
                 HStack(spacing: 14) {
                     Avatar(kid: kid, size: 56)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(kid.name).font(.title3.bold())
+                        Text(kid.name).font(.vh(.title3, .bold))
                         Text([kid.age > 0 ? "\(kid.age)" : "", kid.gender, kid.grade]
                             .filter { !$0.isEmpty }.joined(separator: " · "))
                             .foregroundColor(.secondary)
-                        if !kid.school.isEmpty { Text(kid.school).font(.subheadline).foregroundColor(.secondary) }
+                        if !kid.school.isEmpty { Text(kid.school).font(.vh(.subheadline)).foregroundColor(.secondary) }
                     }
                 }
                 .padding(.vertical, 4)
@@ -84,7 +84,7 @@ struct KidDetailView: View {
             Section(L("growth_tab_label")) {
                 let points = store.growth[kid.id] ?? []
                 if points.isEmpty {
-                    Text(L("no_growth_data_sub")).font(.subheadline).foregroundColor(.secondary)
+                    Text(L("no_growth_data_sub")).font(.vh(.subheadline)).foregroundColor(.secondary)
                 }
                 ForEach(points) { point in
                     HStack {
@@ -108,7 +108,7 @@ struct KidDetailView: View {
                 }
             }
 
-            Section { Text(L("medical_disclaimer")).font(.caption).foregroundColor(.secondary) }
+            Section { Text(L("medical_disclaimer")).font(.vh(.caption)).foregroundColor(.secondary) }
         }
         .navigationTitle(kid.name)
         .navigationBarTitleDisplayMode(.inline)

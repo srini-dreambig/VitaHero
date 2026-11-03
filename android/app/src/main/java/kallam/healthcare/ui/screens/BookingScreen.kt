@@ -23,24 +23,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.LocalHospital
-import androidx.compose.material.icons.outlined.MedicalServices
 import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material.icons.outlined.MyLocation
-import androidx.compose.material.icons.outlined.Verified
+import androidx.compose.material.icons.outlined.MedicalServices
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,24 +51,29 @@ import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.Appointment
 import kallam.healthcare.data.BookingDirectory
 import kallam.healthcare.data.Doctor
-import kallam.healthcare.data.Hospital
 import kallam.healthcare.data.ReferralSpecialtiesDto
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.LocationHelper
 import kallam.healthcare.data.S
 import kallam.healthcare.data.BookingTimeSlot
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
 import kallam.healthcare.ui.components.DoctorDirectoryCard
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.SelectChip
 import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.StatusPill
 import kallam.healthcare.ui.components.HospitalDirectoryCard
 import kallam.healthcare.ui.components.IconBubble
 import kallam.healthcare.ui.components.KidAvatar
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.components.color
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf2
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
-import kallam.healthcare.ui.theme.HeroPurple
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
 
 private data class BookingSlot(val label: String, val date: String, val time: String)
 
@@ -189,42 +186,34 @@ fun BookingScreen(
     // the list, which is how a booking gets confirmed at an hour nobody offered.
     val selectedSlot = selectedSlotLabel?.let { label -> slots.firstOrNull { it.label == label } }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text(t(S.bookAppt), style = MaterialTheme.typography.titleLarge) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
-        }
-    ) { pad ->
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        StatusBarSpacer()
+        AppScreenHeader(t(S.bookAppt), onBack = onBack)
+
         if (confirmed) {
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(pad)
-                    .padding(24.dp),
+                    .padding(AppSpacing.xxl),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                StatusBarSpacer()
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 Box(
                     Modifier
                         .size(96.dp)
                         .clip(CircleShape)
-                        .background(HeroOrange.copy(alpha = 0.14f)),
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(54.dp))
+                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(54.dp))
                 }
-                Spacer(Modifier.height(24.dp))
-                Text(t(S.apptConfirmed), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
+                Text(t(S.apptConfirmed), style = MaterialTheme.typography.headlineMedium)
+                Spacer(Modifier.height(AppSpacing.sm))
                 // The doctor and slot are a transient selection, so after a
                 // rotation on this screen they are gone while the confirmation
                 // itself — which lives in the view model — is not. Read the
@@ -241,139 +230,96 @@ fun BookingScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                Spacer(Modifier.height(32.dp))
+                Spacer(Modifier.height(AppSpacing.xxxl))
                 PrimaryGradientButton(text = t(S.done), onClick = onBack, modifier = Modifier.fillMaxWidth())
             }
-            return@Scaffold
-        }
-
-        LazyColumn(
-            Modifier
-                .fillMaxWidth()
-                .padding(pad),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp)
+        } else LazyColumn(
+            Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxl)
         ) {
             if (appointments.isNotEmpty()) {
                 item {
-                    Spacer(Modifier.height(4.dp))
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(t(S.upcomingAppts), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        Text(
-                            if (showExisting) "Hide" else "Show",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .clickable { showExisting = !showExisting }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-                    Spacer(Modifier.height(8.dp))
+                    AppSectionTitle(
+                        t(S.upcomingAppts),
+                        actionLabel = if (showExisting) "Hide" else "Show",
+                        onAction = { showExisting = !showExisting },
+                    )
+                    Spacer(Modifier.height(AppSpacing.sm))
                 }
                 if (showExisting) {
                     items(appointments, key = { it.id }) { appt ->
                         ExistingAppointmentCard(appt, onCancel = { onCancel(appt.id) })
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AppSpacing.md))
                     }
                 }
-                item { Spacer(Modifier.height(8.dp)) }
+                item { Spacer(Modifier.height(AppSpacing.md)) }
             }
 
             item {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = HeroBlue, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Outlined.LocationOn, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(AppSpacing.xs))
                     Text(t(S.yourArea), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(8.dp))
                 }
-                Spacer(Modifier.height(8.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(AppSpacing.sm))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                     items(listOf("Hyderabad"), key = { it }) { city ->
                         val selected = bookingCity.equals(city, ignoreCase = true)
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(if (selected) HeroBlue.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable { if (!selected) onCityChange(city) }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                city,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (selected) HeroBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
-                            )
-                        }
+                        SelectChip(
+                            text = city,
+                            selected = selected,
+                            onClick = { if (!selected) onCityChange(city) },
+                        )
                     }
                     item {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(if (locationEnabled) HeroOrange.copy(alpha = 0.14f) else HeroPurple.copy(alpha = 0.14f))
-                                .clickable {
-                                    if (LocationHelper.hasLocationPermission(context)) {
-                                        onUseMyLocation()
-                                    } else {
-                                        permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-                                    }
+                        SelectChip(
+                            text = t(S.useMyLocation),
+                            selected = locationEnabled,
+                            onClick = {
+                                if (LocationHelper.hasLocationPermission(context)) {
+                                    onUseMyLocation()
+                                } else {
+                                    permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
                                 }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Outlined.MyLocation,
-                                    contentDescription = null,
-                                    tint = if (locationEnabled) HeroOrange else HeroPurple,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    t(S.useMyLocation),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = if (locationEnabled) HeroOrange else HeroPurple,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
+                            },
+                        )
                     }
                 }
                 if (locationEnabled) {
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     Text(
                         t(S.locationSorted),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = HeroOrange,
-                        fontWeight = FontWeight.SemiBold
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
 
-                Text(t(S.selectKid), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(12.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                AppSectionTitle(t(S.selectKid))
+                Spacer(Modifier.height(AppSpacing.md))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                     items(kids, key = { it.id }) { kid ->
                         val selected = selectedKid == kid.name
+                        // An avatar chip: SelectChip carries text only, and the
+                        // face is how a parent tells two children apart at a glance.
                         Row(
                             Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(if (selected) HeroOrange.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
+                                .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surface)
                                 .clickable { selectedKid = kid.name }
-                                .padding(end = 16.dp, top = 6.dp, bottom = 6.dp, start = 6.dp),
+                                .padding(end = AppSpacing.lg, top = AppSpacing.xs, bottom = AppSpacing.xs, start = AppSpacing.xs),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             KidAvatar(kid.name, kid.avatarColor, size = 32.dp)
-                            Spacer(Modifier.width(8.dp))
-                            Text(kid.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurface,
+                            Spacer(Modifier.width(AppSpacing.sm))
+                            Text(kid.name, style = MaterialTheme.typography.labelLarge, color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
 
                 // What the school check-up actually asked for.
                 //
@@ -385,114 +331,89 @@ fun BookingScreen(
                 // and the app's job is to get them in front of an
                 // ophthalmologist, not to present a menu.
                 if (referrals.forChildren.isNotEmpty()) {
-                    Text(
-                        t(S.referredTitle),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    AppSectionTitle(t(S.referredTitle))
+                    Spacer(Modifier.height(AppSpacing.md))
+                    Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                         referrals.forChildren.forEach { r ->
                             val active = filterSpecialty == r.specialty
-                            HeroCard(
-                                Modifier.fillMaxWidth().clickable {
+                            AppCard(
+                                onClick = {
                                     // Tapping it does the filtering the parent
                                     // would otherwise have to do from memory.
                                     filterSpecialty = if (active) null else r.specialty
                                     viewMode = BookingViewMode.BY_SPECIALTY
                                     selectedDoctorId = null
                                     expandedHospitalId = null
-                                }
+                                },
+                                contentPadding = PaddingValues(AppSpacing.md),
                             ) {
-                                Row(
-                                    Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconBubble(
                                         Icons.Outlined.MedicalServices,
-                                        if (r.urgency == "URGENT") HeroOrange else HeroBlue,
+                                        if (r.urgency == "URGENT") Tone.Alert.color() else MaterialTheme.colorScheme.secondary,
                                     )
-                                    Spacer(Modifier.width(12.dp))
+                                    Spacer(Modifier.width(AppSpacing.md))
                                     Text(
                                         tf2(S.referredChip, r.kidName, r.specialty),
                                         style = MaterialTheme.typography.bodyMedium,
+                                        // Bold marks the referral currently filtering the list.
                                         fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                                         modifier = Modifier.weight(1f),
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis,
                                     )
                                     if (r.urgency != "ROUTINE") {
-                                        Text(
+                                        Spacer(Modifier.width(AppSpacing.sm))
+                                        StatusPill(
                                             t(S.referredUrgent),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = HeroOrange,
-                                            fontWeight = FontWeight.Bold,
+                                            if (r.urgency == "URGENT") Tone.Alert else Tone.Watch,
                                         )
                                     }
                                 }
                             }
                         }
                     }
-                    Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(AppSpacing.xxl))
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ViewModeChip(t(S.viewByHospital), viewMode == BookingViewMode.BY_HOSPITAL) {
-                        viewMode = BookingViewMode.BY_HOSPITAL
-                        selectedDoctorId = null
-                    }
-                    ViewModeChip(t(S.viewBySpecialty), viewMode == BookingViewMode.BY_SPECIALTY) {
-                        viewMode = BookingViewMode.BY_SPECIALTY
-                        selectedDoctorId = null
-                        expandedHospitalId = null
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        if (viewMode == BookingViewMode.BY_HOSPITAL) t(S.hospitalsNearYou) else t(S.selectDoctor),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.weight(1f)
+                Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                    SelectChip(
+                        text = t(S.viewByHospital),
+                        selected = viewMode == BookingViewMode.BY_HOSPITAL,
+                        onClick = {
+                            viewMode = BookingViewMode.BY_HOSPITAL
+                            selectedDoctorId = null
+                        },
                     )
-                    if (filterSpecialty != null) {
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(MaterialTheme.colorScheme.error.copy(alpha = 0.1f))
-                                .clickable { filterSpecialty = null }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(t(S.clearLabel), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.SemiBold)
-                                Spacer(Modifier.width(4.dp))
-                                Icon(Icons.Outlined.Close, contentDescription = null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(14.dp))
-                            }
-                        }
-                    }
+                    SelectChip(
+                        text = t(S.viewBySpecialty),
+                        selected = viewMode == BookingViewMode.BY_SPECIALTY,
+                        onClick = {
+                            viewMode = BookingViewMode.BY_SPECIALTY
+                            selectedDoctorId = null
+                            expandedHospitalId = null
+                        },
+                    )
                 }
-                Spacer(Modifier.height(10.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.height(AppSpacing.lg))
+
+                AppSectionTitle(
+                    if (viewMode == BookingViewMode.BY_HOSPITAL) t(S.hospitalsNearYou) else t(S.selectDoctor),
+                    actionLabel = if (filterSpecialty != null) t(S.clearLabel) else null,
+                    onAction = { filterSpecialty = null },
+                )
+                Spacer(Modifier.height(AppSpacing.sm))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                     items(allSpecialties, key = { it }) { spec ->
                         val active = filterSpecialty == spec
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(if (active) HeroBlue.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant)
-                                .clickable { filterSpecialty = if (active) null else spec }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                        ) {
-                            Text(
-                                spec,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (active) HeroBlue else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium
-                            )
-                        }
+                        SelectChip(
+                            text = spec,
+                            selected = active,
+                            onClick = { filterSpecialty = if (active) null else spec },
+                        )
                     }
                 }
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AppSpacing.md))
             }
 
             if (viewMode == BookingViewMode.BY_HOSPITAL && filteredHospitals.isNotEmpty()) {
@@ -509,7 +430,7 @@ fun BookingScreen(
                             selectedSlotLabel = null
                         }
                     )
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                 }
             } else if (viewMode == BookingViewMode.BY_SPECIALTY && filteredHospitals.isNotEmpty()) {
                 items(filteredHospitals, key = { "spec-${it.id}" }) { hospital ->
@@ -518,21 +439,24 @@ fun BookingScreen(
                     } else hospital.doctors
 
                     if (docs.isNotEmpty()) {
-                        HospitalSectionHeader(hospital)
-                        Spacer(Modifier.height(8.dp))
+                        AppSectionTitle(
+                            hospital.name,
+                            subtitle = if (hospital.userCampLinked || hospital.isCampPartner) t(S.campPartnerHospital) else null,
+                        )
+                        Spacer(Modifier.height(AppSpacing.sm))
                         docs.forEach { doctor ->
                             DoctorDirectoryCard(doctor, selectedDoctor?.id == doctor.id) {
                                 selectedDoctorId = doctor.id
                                 selectedSlotLabel = null
                             }
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(AppSpacing.md))
                         }
                     }
                 }
             } else {
                 items(fallbackDoctors, key = { it.id }) { doctor ->
                     DoctorDirectoryCard(doctor, selectedDoctor?.id == doctor.id) { selectedDoctorId = doctor.id; selectedSlotLabel = null }
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                 }
             }
 
@@ -541,7 +465,7 @@ fun BookingScreen(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 20.dp),
+                            .padding(vertical = AppSpacing.xl),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -556,7 +480,7 @@ fun BookingScreen(
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 20.dp),
+                            .padding(vertical = AppSpacing.xl),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(t(S.noHospitalsFound), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -566,36 +490,37 @@ fun BookingScreen(
 
             if (selectedDoctor != null) {
                 item {
-                    Spacer(Modifier.height(14.dp))
-                    Text(t(S.selectTime), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
+                    AppSectionTitle(t(S.selectTime))
+                    Spacer(Modifier.height(AppSpacing.md))
                     if (slots.isEmpty()) {
                         Text(
                             t(S.noSlotsAvailable),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 12.dp)
+                            modifier = Modifier.padding(vertical = AppSpacing.md)
                         )
                     } else {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                             slots.chunked(2).forEach { row ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                                     row.forEach { slot ->
                                         val selected = selectedSlot == slot
+                                        // Equal-width tiles in a grid; SelectChip sizes to
+                                        // its text, so the slot keeps its own box.
                                         Box(
                                             Modifier
                                                 .weight(1f)
-                                                .clip(RoundedCornerShape(14.dp))
+                                                .clip(RoundedCornerShape(AppCorners.medium))
                                                 .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface)
                                                 .clickable { selectedSlotLabel = slot.label }
-                                                .padding(vertical = 14.dp),
+                                                .padding(vertical = AppSpacing.md),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Text(
                                                 slot.label,
                                                 style = MaterialTheme.typography.labelLarge,
                                                 color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface,
-                                                fontWeight = FontWeight.SemiBold
                                             )
                                         }
                                     }
@@ -604,7 +529,7 @@ fun BookingScreen(
                             }
                         }
                     }
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(AppSpacing.xxl))
                     if (refusedMessage != null) {
                         // The server's own wording — "This slot is no longer
                         // available" — rather than a generic failure. Nothing
@@ -615,7 +540,7 @@ fun BookingScreen(
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(AppSpacing.md))
                     }
                     PrimaryGradientButton(
                         text = if (booking) t(S.bookingInProgress) else t(S.confirmBooking),
@@ -634,70 +559,17 @@ fun BookingScreen(
 }
 
 @Composable
-private fun ViewModeChip(label: String, active: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (active) HeroPurple.copy(alpha = 0.14f) else MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (active) HeroPurple else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium
-        )
-    }
-}
-
-@Composable
-private fun HospitalSectionHeader(hospital: Hospital) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Outlined.LocalHospital, contentDescription = null, tint = HeroBlue, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
-        Column {
-            Text(hospital.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (hospital.userCampLinked || hospital.isCampPartner) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Outlined.Verified, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(12.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(t(S.campPartnerHospital), style = MaterialTheme.typography.labelSmall, color = HeroOrange)
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun ExistingAppointmentCard(appt: Appointment, onCancel: () -> Unit) {
-    HeroCard(Modifier.fillMaxWidth(), background = HeroBlue.copy(alpha = 0.04f)) {
-        Row(
-            Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconBubble(Icons.Outlined.CalendarMonth, HeroBlue)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(appt.doctorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    "${appt.specialty} · for ${appt.kidName}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text("${appt.date} · ${appt.time}", style = MaterialTheme.typography.labelSmall, color = HeroBlue, fontWeight = FontWeight.SemiBold)
-            }
+    AppListRow(
+        title = appt.doctorName,
+        subtitle = "${appt.specialty} · for ${appt.kidName}",
+        supporting = "${appt.date} · ${appt.time}",
+        supportingTone = Tone.Info,
+        leading = { IconBubble(Icons.Outlined.CalendarMonth, MaterialTheme.colorScheme.secondary) },
+        trailing = {
             IconButton(onClick = onCancel) {
                 Icon(Icons.Outlined.Cancel, contentDescription = "Cancel appointment", tint = MaterialTheme.colorScheme.error)
             }
-        }
-    }
+        },
+    )
 }

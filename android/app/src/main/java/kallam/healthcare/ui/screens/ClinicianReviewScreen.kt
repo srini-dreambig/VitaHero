@@ -1,26 +1,20 @@
 package kallam.healthcare.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -30,17 +24,19 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.ClinicianViewModel
 import kallam.healthcare.data.ReviewQueueItemDto
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
+import kallam.healthcare.ui.components.AppTextButton
 import kallam.healthcare.ui.components.EmptyState
-import kallam.healthcare.ui.components.HeroCard
 import kallam.healthcare.ui.components.PrimaryGradientButton
 import kallam.healthcare.ui.components.Notice
 import kallam.healthcare.ui.components.StatusBarSpacer
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.components.StatusPill
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * The physician's queue: who is screened and waiting on a signature.
@@ -104,7 +100,7 @@ fun ClinicianReviewScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { clinician.clearReleased(); onBack() }) { Text("Done") }
+                AppTextButton("Done", onClick = { clinician.clearReleased(); onBack() })
             },
         )
     }
@@ -128,9 +124,9 @@ fun ClinicianReviewScreen(
                                 "will not be sent." else ""
                 )
             },
-            confirmButton = { TextButton(onClick = onConfirm) { Text("Send") } },
+            confirmButton = { AppTextButton("Send", onClick = onConfirm) },
             dismissButton = {
-                TextButton(onClick = { confirmRelease = false }) { Text("Not yet") }
+                AppTextButton("Not yet", onClick = { confirmRelease = false })
             },
         )
     }
@@ -138,29 +134,8 @@ fun ClinicianReviewScreen(
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             StatusBarSpacer()
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp, 8.dp, 20.dp, 0.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        "Review",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        campTitle,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
+            AppScreenHeader(title = "Review", subtitle = campTitle, onBack = onBack)
+            Spacer(Modifier.height(AppSpacing.sm))
             if (message.isNotBlank()) Notice(message, error = true)
             if (unsignable.isNotEmpty()) {
                 Notice(
@@ -184,34 +159,34 @@ fun ClinicianReviewScreen(
                         // result has already been sent; the server drops RELEASED rows.
                         else "Children appear here once they have been screened, and leave "
                             + "once their results are sent to guardians.",
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(AppSpacing.xl),
                 )
             }
         }
 
         if (waiting.isNotEmpty()) {
-            item { SectionLabel("${waiting.size} waiting on you") }
+            item { QueueSectionTitle("${waiting.size} waiting on you") }
             items(waiting, key = { it.kidId }) { child ->
                 ReviewRow(child) { onOpenChild(child.kidId) }
             }
         }
 
         if (incomplete.isNotEmpty()) {
-            item { SectionLabel("${incomplete.size} still being screened") }
+            item { QueueSectionTitle("${incomplete.size} still being screened") }
             items(incomplete, key = { it.kidId }) { child ->
                 ReviewRow(child) { onOpenChild(child.kidId) }
             }
         }
 
         if (signed.isNotEmpty()) {
-            item { SectionLabel("${signed.size} signed by you, waiting for others") }
+            item { QueueSectionTitle("${signed.size} signed by you, waiting for others") }
             items(signed, key = { it.kidId }) { child ->
                 ReviewRow(child) { onOpenChild(child.kidId) }
             }
         }
 
         if (approved.isNotEmpty()) {
-            item { SectionLabel("${approved.size} approved, not yet sent") }
+            item { QueueSectionTitle("${approved.size} approved, not yet sent") }
             items(approved, key = { it.kidId }) { child ->
                 ReviewRow(child) { onOpenChild(child.kidId) }
             }
@@ -219,15 +194,15 @@ fun ClinicianReviewScreen(
 
         if (approved.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
                 val openRelease: () -> Unit = { confirmRelease = true }
                 PrimaryGradientButton(
                     text = if (busy) "Sending…" else "Send results to guardians",
                     onClick = openRelease,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.xl),
                     enabled = !busy,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 val left = waiting.size + incomplete.size + signed.size
                 Text(
                     if (left == 0)
@@ -236,91 +211,60 @@ fun ClinicianReviewScreen(
                         "$left " +
                             (if (left == 1) "child is" else "children are") +
                             " still waiting. You can send the rest now and the others later.",
-                    Modifier.padding(horizontal = 20.dp),
+                    Modifier.padding(horizontal = AppSpacing.xl),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        item { Spacer(Modifier.height(28.dp)) }
+        item { Spacer(Modifier.height(AppSpacing.xxxl)) }
     }
 }
 
+/** A queue section's title, on the screen margin with a section's space above. */
 @Composable
-private fun SectionLabel(text: String) {
-    Text(
+private fun QueueSectionTitle(text: String) {
+    AppSectionTitle(
         text,
-        Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 2.dp),
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = FontWeight.SemiBold,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        Modifier.padding(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.lg, bottom = AppSpacing.xs),
     )
 }
 
 @Composable
 private fun ReviewRow(child: ReviewQueueItemDto, onClick: () -> Unit) {
-    HeroCard(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 5.dp)
-            .clickable(onClick = onClick)
-    ) {
-        Row(
-            Modifier.padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    child.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    listOfNotNull(
-                        child.grade.ifBlank { null },
-                        child.age?.let { "$it years" },
-                    ).joinToString(" · ").ifBlank { "—" },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                if (child.state != "APPROVED" && child.waitingFor.isNotEmpty()) {
-                    Text(
-                        "Waiting for: " + child.waitingFor.joinToString(", "),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = HeroOrange,
-                    )
+    AppListRow(
+        title = child.name,
+        subtitle = listOfNotNull(
+            child.grade.ifBlank { null },
+            child.age?.let { "$it years" },
+        ).joinToString(" · ").ifBlank { "—" },
+        // What the child still waits on is a supporting line, never the
+        // trailing column, so it cannot squeeze the name.
+        supporting = if (child.state != "APPROVED" && child.waitingFor.isNotEmpty())
+            "Waiting for: " + child.waitingFor.joinToString(", ") else null,
+        supportingTone = Tone.Watch,
+        modifier = Modifier.padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs + AppSpacing.xxs),
+        trailing = if (child.alerts > 0 || child.watches > 0 || child.status == "APPROVED") {
+            {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs),
+                ) {
+                    // Counts, not a single worst-flag: "2 alerts" and "1 alert"
+                    // are different amounts of work, and the queue is sorted by
+                    // them.
+                    if (child.alerts > 0) StatusPill("${child.alerts} alert", Tone.Alert)
+                    if (child.watches > 0) StatusPill("${child.watches} watch", Tone.Watch)
+                    if (child.status == "APPROVED") {
+                        Icon(
+                            Icons.Outlined.TaskAlt,
+                            contentDescription = "Approved",
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
-            // Counts, not a single worst-flag: "2 alerts" and "1 alert" are
-            // different amounts of work, and the queue is sorted by them.
-            if (child.alerts > 0) {
-                Text(
-                    "${child.alerts} alert",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            if (child.watches > 0) {
-                Text(
-                    "${child.watches} watch",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = HeroOrange,
-                )
-            }
-            if (child.status == "APPROVED") {
-                Spacer(Modifier.width(2.dp))
-                Icon(
-                    Icons.Outlined.TaskAlt,
-                    contentDescription = "Approved",
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-            }
-        }
-    }
+        } else null,
+        onClick = onClick,
+    )
 }

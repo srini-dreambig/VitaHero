@@ -15,33 +15,23 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Restaurant
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -56,22 +46,27 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import kallam.healthcare.data.DetectedFood
 import kallam.healthcare.data.FoodRecognitionService
 import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.S
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
 import kallam.healthcare.ui.components.IconBubble
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.SecondaryButton
+import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.StatusPill
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf
 import kallam.healthcare.ui.components.tf2
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
 import kallam.healthcare.ui.theme.HeroPurple
 import kallam.healthcare.ui.theme.HeroYellow
 import kotlinx.coroutines.Dispatchers
@@ -143,25 +138,16 @@ fun FoodRecognitionScreen(
         }
     }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text(t(S.foodRecognition), style = MaterialTheme.typography.titleLarge) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
-        }
-    ) { pad ->
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        StatusBarSpacer()
+        AppScreenHeader(t(S.foodRecognition), onBack = onBack)
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(pad),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp)
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxxl)
         ) {
             // The question, asked once, before the first photograph.
             //
@@ -172,34 +158,31 @@ fun FoodRecognitionScreen(
             // for a yes.
             if (consent != null && !consent.asked) {
                 item {
-                    HeroCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(18.dp)) {
-                            Text(
-                                t(S.mealPhotoAskTitle),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                t(S.mealPhotoAskBody),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Spacer(Modifier.height(14.dp))
-                            PrimaryGradientButton(
-                                text = t(S.mealPhotoAllow),
-                                onClick = { guardianViewModel.setMealPhotoConsent(kidId, true) },
-                                modifier = Modifier.fillMaxWidth(),
-                            )
-                            Spacer(Modifier.height(8.dp))
-                            OutlinedButton(
-                                onClick = { guardianViewModel.setMealPhotoConsent(kidId, false) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                            ) { Text(t(S.mealPhotoKeepOnPhone)) }
-                        }
+                    AppCard {
+                        Text(
+                            t(S.mealPhotoAskTitle),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        Text(
+                            t(S.mealPhotoAskBody),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(Modifier.height(AppSpacing.md))
+                        PrimaryGradientButton(
+                            text = t(S.mealPhotoAllow),
+                            onClick = { guardianViewModel.setMealPhotoConsent(kidId, true) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        SecondaryButton(
+                            text = t(S.mealPhotoKeepOnPhone),
+                            onClick = { guardianViewModel.setMealPhotoConsent(kidId, false) },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(AppSpacing.lg))
                 }
             } else if (consent != null && !consent.granted) {
                 item {
@@ -208,7 +191,7 @@ fun FoodRecognitionScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                 }
             }
 
@@ -218,7 +201,7 @@ fun FoodRecognitionScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
             }
 
             // Capture button
@@ -227,13 +210,8 @@ fun FoodRecognitionScreen(
                     Modifier
                         .fillMaxWidth()
                         .height(220.dp)
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(
-                            Brush.linearGradient(
-                                if (isAnalyzing) listOf(HeroPurple, HeroBlue)
-                                else listOf(HeroOrange, HeroBlue)
-                            )
-                        )
+                        .clip(RoundedCornerShape(AppCorners.xlarge))
+                        .background(if (isAnalyzing) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.secondaryContainer)
                         .clickable { onCaptureClick() },
                     contentAlignment = Alignment.Center
                 ) {
@@ -241,81 +219,57 @@ fun FoodRecognitionScreen(
                         AnalyzingContent()
                     } else if (detectedItems.isEmpty()) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = Color.White, modifier = Modifier.size(64.dp))
-                            Spacer(Modifier.height(14.dp))
-                            Text(t(S.captureMeal), color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.height(4.dp))
-                            Text(t(S.pointCamera), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                            Icon(Icons.Outlined.CameraAlt, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(64.dp))
+                            Spacer(Modifier.height(AppSpacing.md))
+                            Text(t(S.captureMeal), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.headlineSmall)
+                            Spacer(Modifier.height(AppSpacing.xs))
+                            Text(t(S.pointCamera), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                         }
                     } else {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Outlined.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(48.dp))
-                            Spacer(Modifier.height(10.dp))
-                            Text(tf(S.detectedItems, detectedItems.size.toString()), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Spacer(Modifier.height(4.dp))
-                            Text(t(S.tapAgain), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
+                            Icon(Icons.Outlined.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(48.dp))
+                            Spacer(Modifier.height(AppSpacing.sm))
+                            Text(tf(S.detectedItems, detectedItems.size.toString()), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(AppSpacing.xs))
+                            Text(t(S.tapAgain), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(AppSpacing.xl))
             }
 
             // Detected items
             if (detectedItems.isNotEmpty()) {
                 item {
-                    Text(t(S.detectedFoodTitle), style = MaterialTheme.typography.headlineSmall)
-                    Spacer(Modifier.height(12.dp))
+                    AppSectionTitle(t(S.detectedFoodTitle))
+                    Spacer(Modifier.height(AppSpacing.md))
                 }
                 itemsIndexed(detectedItems, key = { i, it -> "$i-${it.name}" }) { _, item ->
                     val logged = item.name in loggedItems
-                    HeroCard(
-                        Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                if (!logged) {
-                                    onLogDetectedFood(kidId, item.name, item.estimatedKcal)
-                                    loggedItems = loggedItems + item.name
-                                }
-                            },
-                        background = if (logged) HeroOrange.copy(alpha = 0.07f) else MaterialTheme.colorScheme.surface
-                    ) {
-                        Row(
-                            Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconBubble(Icons.Outlined.Restaurant, HeroYellow)
-                            Spacer(Modifier.width(14.dp))
-                            Column(Modifier.weight(1f)) {
-                                Text(item.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Text(
-                                    tf2(S.percentMatch, item.estimatedKcal.toString(), (item.confidence * 100).toInt().toString()),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                    AppListRow(
+                        title = item.name,
+                        subtitle = tf2(S.percentMatch, item.estimatedKcal.toString(), (item.confidence * 100).toInt().toString()),
+                        leading = { IconBubble(Icons.Outlined.Restaurant, HeroYellow) },
+                        trailing = {
                             if (logged) {
-                                Icon(Icons.Outlined.Check, contentDescription = "Logged", tint = HeroOrange, modifier = Modifier.size(24.dp))
+                                Icon(Icons.Outlined.Check, contentDescription = "Logged", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
                             } else {
-                                Box(
-                                    Modifier
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(MaterialTheme.colorScheme.primary)
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                ) {
-                                    Text(t(S.logLabel), color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
-                                }
+                                StatusPill(t(S.logLabel), Tone.Brand)
                             }
-                        }
-                    }
-                    Spacer(Modifier.height(10.dp))
+                        },
+                        onClick = {
+                            if (!logged) {
+                                onLogDetectedFood(kidId, item.name, item.estimatedKcal)
+                                loggedItems = loggedItems + item.name
+                            }
+                        },
+                    )
+                    Spacer(Modifier.height(AppSpacing.md))
                 }
             }
 
             item {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
                 Text(
                     t(S.foodRecTip),
                     style = MaterialTheme.typography.bodySmall,
@@ -335,19 +289,19 @@ private fun AnalyzingContent() {
         label = "pulse"
     )
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Icon(Icons.Outlined.Search, contentDescription = null, tint = Color.White.copy(alpha = alpha), modifier = Modifier.size(56.dp))
-        Spacer(Modifier.height(14.dp))
-        Text(t(S.analyzingPhoto), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.height(2.dp))
-        Text(t(S.identifyingFood), color = Color.White.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall)
-        Spacer(Modifier.height(14.dp))
+        Icon(Icons.Outlined.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha), modifier = Modifier.size(56.dp))
+        Spacer(Modifier.height(AppSpacing.md))
+        Text(t(S.analyzingPhoto), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(AppSpacing.xxs))
+        Text(t(S.identifyingFood), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
+        Spacer(Modifier.height(AppSpacing.md))
         LinearProgressIndicator(
             modifier = Modifier
                 .fillMaxWidth(0.5f)
                 .height(4.dp)
-                .clip(RoundedCornerShape(2.dp)),
-            color = Color.White,
-            trackColor = Color.White.copy(alpha = 0.2f),
+                .clip(RoundedCornerShape(50)),
+            color = MaterialTheme.colorScheme.onSurface,
+            trackColor = MaterialTheme.colorScheme.surface,
         )
     }
 }

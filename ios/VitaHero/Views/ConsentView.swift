@@ -12,10 +12,10 @@ struct ConsentListView: View {
             ForEach(store.consents) { consent in
                 NavigationLink { ConsentView(consent: consent) } label: {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(consent.title).font(.headline)
-                        Text("\(consent.kidName) · \(consent.date)").font(.subheadline).foregroundColor(.secondary)
+                        Text(consent.title).font(.vh(.headline))
+                        Text("\(consent.kidName) · \(consent.date)").font(.vh(.subheadline)).foregroundColor(.secondary)
                         if !consent.deadline.isEmpty {
-                            Text(L("consent_deadline_msg", consent.deadline)).font(.caption).foregroundColor(Brand.orange)
+                            Text(L("consent_deadline_msg", consent.deadline)).font(.vh(.caption)).foregroundColor(Brand.orange)
                         }
                     }
                 }
@@ -38,7 +38,7 @@ struct ConsentView: View {
         List {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(consent.title).font(.title3.bold())
+                    Text(consent.title).font(.vh(.title3, .bold))
                     Text(L("camp_consent_sub")).foregroundColor(.secondary)
                 }
                 Label(consent.kidName, systemImage: "person.fill")
@@ -46,7 +46,7 @@ struct ConsentView: View {
                 Label([consent.date, consent.time].filter { !$0.isEmpty }.joined(separator: " · "), systemImage: "calendar")
                 if !consent.venue.isEmpty { Label(consent.venue, systemImage: "mappin.and.ellipse") }
                 if !consent.deadline.isEmpty {
-                    Text(L("consent_deadline_msg", consent.deadline)).font(.subheadline).foregroundColor(Brand.orange)
+                    Text(L("consent_deadline_msg", consent.deadline)).font(.vh(.subheadline)).foregroundColor(Brand.orange)
                 }
             }
 

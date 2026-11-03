@@ -2,43 +2,69 @@ package kallam.healthcare.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Brand palette — VitaHero (orange + blue), playful & trustworthy (Light)
-// Primary accent is the "vita" orange; secondary is the "hero" blue from the logo.
-val HeroOrange = Color(0xFFF47B20)
-val HeroOrangeDark = Color(0xFFD9641A)
-val HeroOrangeSoft = Color(0xFFFCE5D1)
-val HeroBlue = Color(0xFF1FA2DD)
-val HeroBlueDark = Color(0xFF1380B8)
-val HeroBlueSoft = Color(0xFFD6EFFA)
-val HeroYellow = Color(0xFFFDB813)
-val HeroYellowSoft = Color(0xFFFFF1CC)
-val HeroCoral = Color(0xFFFB7185)
-val HeroPurple = Color(0xFF8B5CF6)
+// VitaHero palette. The same hex values are in ios/VitaHero/Support/Theme.swift
+// and in the :root block of functions/portal.ts; change all three together.
+//
+// Fills are the soft pastels: pink for the main action, yellow, olive and blue
+// for cards, tags and stat tiles, all on a cream page. Text and icons never use
+// a pastel; they use the deep shade of the same hue so they stay readable.
 
-val Ink = Color(0xFF0F172A)
-val InkSoft = Color(0xFF475569)
-val InkFaint = Color(0xFF94A3B8)
+// Fills
+val Cream = Color(0xFFFFFCF5)        // page background
+val Beige = Color(0xFFF8F3E7)        // cards
+val BeigeDeep = Color(0xFFEFE8D7)    // tracks, pressed cards, dividers on beige
+val Pink = Color(0xFFFFB2DD)         // primary button, selected chip
+val PinkLight = Color(0xFFFAE0E4)
+val Yellow = Color(0xFFF7D66E)
+val YellowLight = Color(0xFFFEEFBF)
+val Olive = Color(0xFF9AAB65)
+val OliveLight = Color(0xFFE1E6D1)
+val Blue = Color(0xFFB6CAEB)
+val BlueLight = Color(0xFFEAF0F9)
 
-val Canvas = Color(0xFFFAFCFE)
+// Text
+val Ink = Color(0xFF2D2D2B)
+val InkSoft = Color(0xFF66625A)
+val InkFaint = Color(0xFF9C978C)
+
+// Deep shades of the fills, for text and icons on cream or on their own tint
+val PinkDeep = Color(0xFFB0457C)
+val YellowDeep = Color(0xFF8A6A0C)
+val OliveDeep = Color(0xFF55642A)
+val BlueDeep = Color(0xFF3B5B94)
+
+// Older names, kept so screens read the new palette without a rename sweep.
+val HeroOrange = PinkDeep
+val HeroOrangeDark = Color(0xFF8E3260)
+val HeroOrangeSoft = PinkLight
+val HeroBlue = BlueDeep
+val HeroBlueDark = Color(0xFF2C4777)
+val HeroBlueSoft = BlueLight
+val HeroYellow = YellowDeep
+val HeroYellowSoft = YellowLight
+val HeroCoral = Pink
+val HeroPurple = OliveDeep
+
+val Canvas = Cream
 val SurfaceWhite = Color(0xFFFFFFFF)
-val SurfaceMuted = Color(0xFFEEF4F8)
-val HairLine = Color(0xFFE2E9EF)
+val SurfaceMuted = BeigeDeep
+val HairLine = Color(0xFFE6DFCC)
 
-// Health status flags
-val FlagGood = Color(0xFF10B981)
-val FlagWatch = Color(0xFFF59E0B)
-val FlagAlert = Color(0xFFEF4444)
-val FlagNeutral = Color(0xFF94A3B8)
+// Health status. Alert stays red: a clinical alert must never read as decoration.
+val FlagGood = OliveDeep
+val FlagWatch = Color(0xFFA86E12)
+val FlagAlert = Color(0xFFC8372D)
+val FlagNeutral = InkFaint
 
-// Dark theme palette
-val DarkBg = Color(0xFF0B1121)
-val DarkSurface = Color(0xFF1A2341)
-val DarkSurfaceVariant = Color(0xFF252D4A)
-val DarkOnBg = Color(0xFFF1F5F9)
-val DarkOnSurface = Color(0xFFE2E8F0)
-val DarkOnSurfaceVariant = Color(0xFF94A3B8)
-val DarkOutline = Color(0xFF334155)
-val DarkHeroOrange = Color(0xFFF9A35C)
-val DarkHeroBlue = Color(0xFF5CC2EE)
-val DarkHeroYellow = Color(0xFFFBBF24)
-val DarkHeroPurple = Color(0xFFA78BFA)
+// Dark theme
+val DarkBg = Color(0xFF1C1B19)
+val DarkSurface = Color(0xFF282724)
+val DarkSurfaceVariant = Color(0xFF34322E)
+val DarkOnBg = Color(0xFFF6F1E6)
+val DarkOnSurface = Color(0xFFEDE7DA)
+val DarkOnSurfaceVariant = Color(0xFFB3AD9F)
+val DarkOutline = Color(0xFF45423C)
+val DarkHeroOrange = Pink
+val DarkHeroBlue = Blue
+val DarkHeroYellow = Yellow
+val DarkHeroPurple = Olive

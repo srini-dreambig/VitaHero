@@ -1,6 +1,7 @@
 package kallam.healthcare.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -20,9 +20,6 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -34,20 +31,25 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.S
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
+import kallam.healthcare.ui.components.AppTextButton
+import kallam.healthcare.ui.components.AppTextField
 import kallam.healthcare.ui.components.IconBubble
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.SecondaryButton
 import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.t
 import androidx.compose.ui.platform.LocalContext
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * Your child's record, and what you can do about it.
@@ -88,36 +90,34 @@ fun PrivacyScreen(
         }
     }
 
-    LazyColumn(
-        modifier = Modifier
+    Column(
+        Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item {
-            StatusBarSpacer()
-            ScreenHeader(t(S.privacyTitle), t(S.privacySub), onBack)
-            Spacer(Modifier.height(12.dp))
-        }
-
-        item {
-            HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp)) {
+        StatusBarSpacer()
+        AppScreenHeader(t(S.privacyTitle), subtitle = t(S.privacySub), onBack = onBack)
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxxl),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        ) {
+            item {
+                AppCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Outlined.CheckCircle,
                             contentDescription = null,
-                            tint = HeroBlue,
+                            tint = MaterialTheme.colorScheme.secondary,
                             modifier = Modifier.size(20.dp),
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(Modifier.width(AppSpacing.sm))
                         Text(
                             t(S.careIsFreeTitle),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
                         )
                     }
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     Text(
                         entitlements.notice.ifBlank { t(S.careIsFreeBody) },
                         style = MaterialTheme.typography.bodySmall,
@@ -125,49 +125,43 @@ fun PrivacyScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(14.dp))
-        }
 
-        item {
-            HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp)) {
+            item {
+                AppCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBubble(Icons.Outlined.Lock, HeroOrange)
-                        Spacer(Modifier.width(12.dp))
+                        IconBubble(Icons.Outlined.Lock, MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.width(AppSpacing.md))
                         Text(
                             t(S.withdrawTitle),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleMedium,
                         )
                     }
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     Text(
                         t(S.withdrawBody),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     if (!withdrawing) {
-                        OutlinedButton(
+                        SecondaryButton(
+                            text = t(S.withdrawAction),
                             onClick = { withdrawing = true },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(14.dp),
-                        ) {
-                            Text(t(S.withdrawAction))
-                        }
+                        )
                     } else {
-                        OutlinedTextField(
+                        AppTextField(
                             value = reason,
                             onValueChange = { reason = it.take(500) },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text(t(S.withdrawReasonHint)) },
+                            placeholder = t(S.withdrawReasonHint),
+                            singleLine = false,
                             minLines = 2,
-                            shape = RoundedCornerShape(14.dp),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
                         )
-                        Spacer(Modifier.height(8.dp))
-                        Row {
-                            OutlinedButton(
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                            SecondaryButton(
+                                text = t(S.withdrawConfirm),
                                 onClick = {
                                     guardianViewModel.withdrawConsent(reason.trim()) {
                                         withdrawing = false
@@ -175,51 +169,43 @@ fun PrivacyScreen(
                                     }
                                 },
                                 enabled = !busy,
-                                shape = RoundedCornerShape(14.dp),
-                            ) {
-                                Text(t(S.withdrawConfirm))
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            OutlinedButton(
+                                modifier = Modifier.weight(1f),
+                            )
+                            SecondaryButton(
+                                text = t(S.cancelLabel),
                                 onClick = { withdrawing = false },
-                                shape = RoundedCornerShape(14.dp),
-                            ) {
-                                Text(t(S.cancelLabel))
-                            }
+                                modifier = Modifier.weight(1f),
+                            )
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(14.dp))
-        }
 
-        // Erasure. It lives here rather than beside a child's health data,
-        // because deleting a medical record is a right a parent exercises
-        // deliberately, not a tidy-up button next to their test results.
-        if (kids.isNotEmpty()) {
-            item {
-                HeroCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(18.dp)) {
+            // Erasure. It lives here rather than beside a child's health data,
+            // because deleting a medical record is a right a parent exercises
+            // deliberately, not a tidy-up button next to their test results.
+            if (kids.isNotEmpty()) {
+                item {
+                    AppCard {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconBubble(Icons.Outlined.DeleteOutline, MaterialTheme.colorScheme.error)
-                            Spacer(Modifier.width(12.dp))
+                            Spacer(Modifier.width(AppSpacing.md))
                             Text(
                                 t(S.eraseTitle),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.titleMedium,
                             )
                         }
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(AppSpacing.sm))
                         Text(
                             t(S.eraseBody),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(AppSpacing.md))
                         kids.forEach { kid ->
                             val confirming = erasing == kid.id
                             Row(
-                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                Modifier.fillMaxWidth().padding(vertical = AppSpacing.xs),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Text(
@@ -230,14 +216,16 @@ fun PrivacyScreen(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                                 if (!confirming) {
-                                    OutlinedButton(
+                                    SecondaryButton(
+                                        text = t(S.eraseAction),
                                         onClick = { erasing = kid.id },
-                                        shape = RoundedCornerShape(12.dp),
-                                    ) {
-                                        Text(t(S.eraseAction))
-                                    }
+                                    )
                                 } else {
-                                    OutlinedButton(
+                                    // A text action in the alert tone: the
+                                    // outlined button has no destructive colour,
+                                    // and the confirm must read as the dangerous one.
+                                    AppTextButton(
+                                        text = t(S.eraseConfirm),
                                         onClick = {
                                             guardianViewModel.eraseChild(kid.id) {
                                                 onErased(kid.id)
@@ -245,61 +233,50 @@ fun PrivacyScreen(
                                             }
                                         },
                                         enabled = !busy,
-                                        shape = RoundedCornerShape(12.dp),
-                                    ) {
-                                        Text(
-                                            t(S.eraseConfirm),
-                                            color = MaterialTheme.colorScheme.error,
-                                        )
-                                    }
-                                    Spacer(Modifier.width(6.dp))
-                                    OutlinedButton(
+                                        tone = Tone.Alert,
+                                    )
+                                    Spacer(Modifier.width(AppSpacing.sm))
+                                    SecondaryButton(
+                                        text = t(S.cancelLabel),
                                         onClick = { erasing = null },
-                                        shape = RoundedCornerShape(12.dp),
-                                    ) {
-                                        Text(t(S.cancelLabel))
-                                    }
+                                    )
                                 }
                             }
                         }
                     }
                 }
-                Spacer(Modifier.height(14.dp))
             }
-        }
 
-        // The access right itself.
-        //
-        // /api/me/export has been served since data rights were built, and the
-        // only thing this screen offered was the *history* of rights actions —
-        // a parent could see that they had withdrawn consent, and could not
-        // get the record the withdrawal was about.
-        item {
-            HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
+            // The access right itself.
+            //
+            // /api/me/export has been served since data rights were built, and the
+            // only thing this screen offered was the *history* of rights actions —
+            // a parent could see that they had withdrawn consent, and could not
+            // get the record the withdrawal was about.
+            item {
+                AppCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconBubble(Icons.Outlined.Download, HeroBlue)
-                        Spacer(Modifier.width(12.dp))
+                        IconBubble(Icons.Outlined.Download, MaterialTheme.colorScheme.secondary)
+                        Spacer(Modifier.width(AppSpacing.md))
                         Text(
                             t(S.exportTitle),
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
                         )
                     }
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     Text(
                         t(S.exportSub),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     PrimaryGradientButton(
                         text = if (busy) t(S.pleaseWait) else t(S.exportAction),
                         enabled = !busy,
                         onClick = startExport,
                     )
                     if (exportError) {
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(AppSpacing.sm))
                         Text(
                             t(S.exportFailed),
                             style = MaterialTheme.typography.bodySmall,
@@ -308,43 +285,22 @@ fun PrivacyScreen(
                     }
                 }
             }
-            Spacer(Modifier.height(14.dp))
-        }
 
-        if (rights.isNotEmpty()) {
-            item {
-                Text(
-                    t(S.rightsHistoryTitle),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    t(S.rightsHistorySub),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(8.dp))
-            }
-            items(rights, key = { it.action + it.at }) { entry ->
-                HeroCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text(
-                            entry.action.replace('_', ' ').lowercase()
-                                .replaceFirstChar { it.uppercase() },
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        if (entry.detail.isNotBlank()) {
-                            Text(
-                                entry.detail,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
+            if (rights.isNotEmpty()) {
+                item {
+                    AppSectionTitle(
+                        t(S.rightsHistoryTitle),
+                        Modifier.padding(top = AppSpacing.md),
+                        subtitle = t(S.rightsHistorySub),
+                    )
                 }
-                Spacer(Modifier.height(8.dp))
+                items(rights, key = { it.action + it.at }) { entry ->
+                    AppListRow(
+                        title = entry.action.replace('_', ' ').lowercase()
+                            .replaceFirstChar { it.uppercase() },
+                        supporting = entry.detail.ifBlank { null },
+                    )
+                }
             }
         }
     }

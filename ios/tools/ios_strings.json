@@ -1,5 +1,6 @@
 {
   "en": {
+    "clin_todo_done": "%1$@ to do · %2$@ done",
     "all_specialties": "All specialties",
     "camp_cancelled": "Cancelled",
     "edit": "Edit",
@@ -74,7 +75,7 @@
     "clin_clear_choice": "Clear",
     "clin_save_record": "Save Screening Record",
     "clin_saving": "Saving…",
-    "clin_reviewed_first": "A supervising physician reviews what you record before the child's parent can see it.",
+    "clin_reviewed_first": "Saved findings reach the child's parent straight away. Other doctors' checks stay to do until they record them.",
     "clin_record_one": "Record at least one measurement before saving.",
     "clin_err_save": "Could not save",
     "clin_review_title": "Review",
@@ -147,6 +148,7 @@
     "clin_sign_footer_each": "The child is approved once every specialist has signed their part."
   },
   "hi": {
+    "clin_todo_done": "%1$@ बाकी · %2$@ पूरे",
     "all_specialties": "सभी विशेषज्ञता",
     "camp_cancelled": "रद्द",
     "edit": "बदलें",
@@ -221,7 +223,7 @@
     "clin_clear_choice": "हटाएँ",
     "clin_save_record": "जाँच रिकॉर्ड सहेजें",
     "clin_saving": "सहेजा जा रहा है…",
-    "clin_reviewed_first": "बच्चे के माता-पिता के देखने से पहले एक पर्यवेक्षक चिकित्सक आपकी प्रविष्टि की समीक्षा करते हैं।",
+    "clin_reviewed_first": "सहेजे गए निष्कर्ष तुरंत बच्चे के माता-पिता तक पहुँचते हैं। अन्य डॉक्टरों की जाँचें तब तक बाकी रहती हैं जब तक वे उन्हें दर्ज नहीं करते।",
     "clin_record_one": "सहेजने से पहले कम से कम एक माप दर्ज करें।",
     "clin_err_save": "सहेजा नहीं जा सका",
     "clin_review_title": "समीक्षा",
@@ -294,6 +296,7 @@
     "clin_sign_footer_each": "हर विशेषज्ञ के अपने हिस्से पर हस्ताक्षर करने के बाद ही बच्चे को मंज़ूरी मिलती है।"
   },
   "te": {
+    "clin_todo_done": "%1$@ చేయాలి · %2$@ పూర్తి",
     "all_specialties": "అన్ని ప్రత్యేకతలు",
     "camp_cancelled": "రద్దు",
     "edit": "మార్చు",
@@ -368,7 +371,7 @@
     "clin_clear_choice": "తీసివేయండి",
     "clin_save_record": "పరీక్ష రికార్డు సేవ్ చేయండి",
     "clin_saving": "సేవ్ అవుతోంది…",
-    "clin_reviewed_first": "పిల్లల తల్లిదండ్రులు చూసే ముందు పర్యవేక్షక వైద్యుడు మీ నమోదును సమీక్షిస్తారు.",
+    "clin_reviewed_first": "సేవ్ చేసిన ఫలితాలు వెంటనే పిల్లల తల్లిదండ్రులకు చేరుతాయి. ఇతర వైద్యుల పరీక్షలు వారు నమోదు చేసే వరకు చేయాల్సినవిగానే ఉంటాయి.",
     "clin_record_one": "సేవ్ చేసే ముందు కనీసం ఒక కొలత నమోదు చేయండి.",
     "clin_err_save": "సేవ్ కాలేదు",
     "clin_review_title": "సమీక్ష",

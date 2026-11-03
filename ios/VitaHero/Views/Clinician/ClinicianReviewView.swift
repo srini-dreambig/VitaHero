@@ -109,13 +109,13 @@ struct ClinicianReviewView: View {
         NavigationLink(value: ClinicianRoute.reviewChild(campId: camp.id, kidId: item.kidId)) {
             HStack(spacing: 10) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(item.name).font(.body.weight(.semibold))
+                    Text(item.name).font(.vh(.body, .semibold))
                     let sub = [item.grade, item.age.map { L("clin_years", String($0)) } ?? ""]
                         .filter { !$0.isEmpty }.joined(separator: " · ")
-                    if !sub.isEmpty { Text(sub).font(.caption).foregroundColor(.secondary) }
+                    if !sub.isEmpty { Text(sub).font(.vh(.caption)).foregroundColor(.secondary) }
                     if !item.waitingFor.isEmpty, item.state != "APPROVED" {
                         Text(L("clin_waiting_for", item.waitingFor.joined(separator: ", ")))
-                            .font(.caption).foregroundColor(Brand.orange)
+                            .font(.vh(.caption)).foregroundColor(Brand.orange)
                     }
                 }
                 Spacer()

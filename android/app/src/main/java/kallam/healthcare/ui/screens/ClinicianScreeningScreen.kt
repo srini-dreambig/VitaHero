@@ -1,29 +1,21 @@
 package kallam.healthcare.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Divider
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -34,33 +26,34 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.ClinicianViewModel
 import kallam.healthcare.data.ScreeningChildDto
 import kallam.healthcare.data.WhoBmi
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppTextButton
+import kallam.healthcare.ui.components.AppTextField
 import kallam.healthcare.ui.components.GrowthChartsPanel
-import kallam.healthcare.ui.components.HeroCard
 import kallam.healthcare.ui.components.HeroSingleSelectDropdown
 import kallam.healthcare.ui.components.HeroMultiSelectDropdown
 import kallam.healthcare.ui.components.HeroFormSectionHeader
 import kallam.healthcare.ui.components.Notice
 import kallam.healthcare.ui.components.PrimaryGradientButton
 import kallam.healthcare.ui.components.StatusBarSpacer
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.components.color
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * A flag in words, and in a colour that means the same thing.
  */
-@Composable
-private fun flagColour(flag: String) = when (flag) {
-    "ALERT" -> MaterialTheme.colorScheme.error
-    "WATCH" -> HeroOrange
-    else -> HeroBlue
+private fun flagTone(flag: String) = when (flag) {
+    "ALERT" -> Tone.Alert
+    "WATCH" -> Tone.Watch
+    else -> Tone.Good
 }
 
 private fun flagWord(flag: String) = when (flag) {
@@ -348,41 +341,27 @@ fun ClinicianScreeningScreen(
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             StatusBarSpacer()
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp, 8.dp, 20.dp, 0.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = { clinician.closeChild(); onBack() }) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        f?.child?.name ?: "…",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    if (f != null) {
-                        Text(
-                            listOfNotNull(
-                                listOf(f.child.grade, f.child.section)
-                                    .filter { it.isNotBlank() }.joinToString(" ").ifBlank { null },
-                                f.child.gender.ifBlank { null },
-                                f.child.age?.let { "$it years" },
-                            ).joinToString(" · "),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
+            AppScreenHeader(
+                title = f?.child?.name ?: "…",
+                subtitle = f?.let {
+                    listOfNotNull(
+                        listOf(it.child.grade, it.child.section)
+                            .filter { s -> s.isNotBlank() }.joinToString(" ").ifBlank { null },
+                        it.child.gender.ifBlank { null },
+                        it.child.age?.let { a -> "$a years" },
+                    ).joinToString(" · ")
+                },
+                onBack = { clinician.closeChild(); onBack() },
+            )
+            Spacer(Modifier.height(AppSpacing.sm))
         }
 
         if (f == null) {
             item {
                 Text(
                     if (busy) "Opening…" else message.ifBlank { "Could not open this form." },
-                    Modifier.padding(20.dp),
+                    Modifier.padding(AppSpacing.xl),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -418,7 +397,7 @@ fun ClinicianScreeningScreen(
                 if (gapMessage.isNotBlank()) Notice(gapMessage, error = true)
                 Text(
                     "Fields marked * are required. A check that cannot be done is marked as such, with the reason.",
-                    Modifier.padding(horizontal = 20.dp),
+                    Modifier.padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -428,12 +407,12 @@ fun ClinicianScreeningScreen(
             val history = f.illnessHistory
             if (history != null && history.events.isNotEmpty()) {
                 item(key = "illness_history") {
-                    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp)) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AppCard(Modifier.padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs + AppSpacing.xxs)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                             Text(
                                 "Illness logged by the family",
                                 style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
                             )
                             if (history.caution.isNotBlank()) {
                                 Text(history.caution, style = MaterialTheme.typography.bodySmall)
@@ -473,96 +452,95 @@ fun ClinicianScreeningScreen(
                     val markPresent: () -> Unit = {
                         clinician.markAttendance(campId, kidId, "PRESENT")
                     }
-                    TextButton(onClick = markPresent, modifier = Modifier.padding(horizontal = 12.dp)) {
-                        Text("Mark Present instead")
-                    }
+                    // A TextButton pads its own label by 12, so 8 here puts the
+                    // words on the 20dp screen margin.
+                    AppTextButton("Mark Present instead", onClick = markPresent, modifier = Modifier.padding(horizontal = AppSpacing.sm))
                 }
                 item {
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     val onConfirmAbsent: () -> Unit = {
                         clinician.save(campId, kidId, emptyMap(), note = "Student absent")
                     }
                     PrimaryGradientButton(
                         text = "Confirm Absent & Close",
                         onClick = onConfirmAbsent,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.xl),
                         enabled = !busy,
                     )
-                    Spacer(Modifier.height(28.dp))
+                    Spacer(Modifier.height(AppSpacing.xxxl))
                 }
             } else {
                 for (check in f.checks) {
                     item(key = check) {
-                        HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp)) {
-                            Column(Modifier.padding(16.dp)) {
-                                Text(
-                                    check,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                )
-                                val existing = f.findings.firstOrNull {
-                                    it.checkType == check && it.flag != "NOT_MEASURED"
-                                }
-                                if (existing != null) {
-                                    val reason =
-                                        if (existing.rationale.isBlank()) ""
-                                        else " — ${existing.rationale}"
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        "Recorded: ${flagWord(existing.flag)}$reason",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = flagColour(existing.flag),
-                                    )
-                                }
-                                Spacer(Modifier.height(6.dp))
-                                ToggleField("Could not be done", fields(check), NOT_DONE)
-                                Spacer(Modifier.height(6.dp))
-                                if (fields(check)[NOT_DONE] == "true") {
-                                    SimpleTextField(
-                                        "Why it could not be done *", fields(check), NOT_DONE_REASON,
-                                        Modifier.fillMaxWidth(),
-                                        placeholder = "e.g. child unwell, equipment not available",
-                                    )
-                                    Spacer(Modifier.height(6.dp))
-                                    // Still open: pallor seen without an Hb
-                                    // meter is still a finding, and it is kept.
-                                    Text(
-                                        "Record anything you did see",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                                CheckFields(check, fields(check), f.child)
+                        AppCard(Modifier.padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs + AppSpacing.xxs)) {
+                            Text(
+                                check,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                            )
+                            val existing = f.findings.firstOrNull {
+                                it.checkType == check && it.flag != "NOT_MEASURED"
                             }
+                            if (existing != null) {
+                                val reason =
+                                    if (existing.rationale.isBlank()) ""
+                                    else " — ${existing.rationale}"
+                                Spacer(Modifier.height(AppSpacing.xs))
+                                Text(
+                                    "Recorded: ${flagWord(existing.flag)}$reason",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = flagTone(existing.flag).color(),
+                                )
+                            }
+                            Spacer(Modifier.height(AppSpacing.xs))
+                            ToggleField("Could not be done", fields(check), NOT_DONE)
+                            Spacer(Modifier.height(AppSpacing.xs))
+                            if (fields(check)[NOT_DONE] == "true") {
+                                SimpleTextField(
+                                    "Why it could not be done *", fields(check), NOT_DONE_REASON,
+                                    Modifier.fillMaxWidth(),
+                                    placeholder = "e.g. child unwell, equipment not available",
+                                )
+                                Spacer(Modifier.height(AppSpacing.sm))
+                                // Still open: pallor seen without an Hb
+                                // meter is still a finding, and it is kept.
+                                Text(
+                                    "Record anything you did see",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                                Spacer(Modifier.height(AppSpacing.sm))
+                            }
+                            CheckFields(check, fields(check), f.child)
                         }
                     }
                 }
 
                 // Universal Pediatric History & Diagnostic Investigations Requisition Card
                 item(key = "history_investigations") {
-                    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 7.dp)) {
-                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AppCard(Modifier.padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs + AppSpacing.xxs)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
                             HeroFormSectionHeader(
                                 "Birth History & Co-morbidities (Images 2 & 5)",
                                 subtitle = "Perinatal history, chronic illness & allergies"
                             )
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                                 ChoiceField("Gestational Status", GESTATIONAL_AGE, fields("Systemic"), "gestationalAge", Modifier.weight(1f))
                                 NumberField("Birth Weight (kg)", fields("Systemic"), "birthWeightKg", Modifier.weight(1f))
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                                 ChoiceField("Consanguinity", CONSANGUINITY_MARRIAGE, fields("Systemic"), "consanguinity", Modifier.weight(1f))
                                 ChoiceField("Parental Myopia", PARENTAL_MYOPIA, fields("Systemic"), "parentalMyopia", Modifier.weight(1f))
                             }
                             ToggleField("Incubation / NICU Stay Required", fields("Systemic"), "incubationStay")
 
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(AppSpacing.xs))
                             HeroFormSectionHeader("Systemic Health Issues & Allergies")
                             MultiChoiceField(SYSTEMIC_DISEASES, fields("Systemic"), "systemicDiseases", label = "Systemic Diseases (DM, Polio, Paralysis...)")
                             MultiChoiceField(ALLERGIES_LIST, fields("Systemic"), "drugAllergies", label = "Drug Allergies (Penicillin, Xylocaine, Sulpha...)")
                             MultiChoiceField(CURRENT_TREATMENTS, fields("Systemic"), "currentTreatments", label = "Current Medications (Insulin, Anticoagulants...)")
 
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(AppSpacing.xs))
                             HeroFormSectionHeader(
                                 "Diagnostic Lab Requisition Orders (Image 1)",
                                 subtitle = "Maxivision clinical pathology & imaging tests"
@@ -577,13 +555,13 @@ fun ClinicianScreeningScreen(
                     val markAbsent: () -> Unit = {
                         clinician.markAttendance(campId, kidId, "ABSENT")
                     }
-                    TextButton(onClick = markAbsent, modifier = Modifier.padding(horizontal = 12.dp)) {
-                        Text("Child is absent today")
-                    }
+                    // A TextButton pads its own label by 12, so 8 here puts the
+                    // words on the 20dp screen margin.
+                    AppTextButton("Child is absent today", onClick = markAbsent, modifier = Modifier.padding(horizontal = AppSpacing.sm))
                 }
 
                 item {
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     val onSave: () -> Unit = {
                         val recorded = f.findings
                             .filter { it.flag != "NOT_MEASURED" || it.note.isNotBlank() }
@@ -601,17 +579,17 @@ fun ClinicianScreeningScreen(
                     PrimaryGradientButton(
                         text = if (busy) "Saving…" else "Save Screening Record",
                         onClick = onSave,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.xl),
                         enabled = !busy && f.checks.isNotEmpty(),
                     )
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     Text(
                         "Saved findings reach the child's parent straight away. Other doctors' checks stay to do until they record them.",
-                        Modifier.padding(horizontal = 20.dp),
+                        Modifier.padding(horizontal = AppSpacing.xl),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(28.dp))
+                    Spacer(Modifier.height(AppSpacing.xxxl))
                 }
             }
         }
@@ -627,8 +605,8 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
         // Physical growth assessment, as the sheet has it: height, weight,
         // mid-arm circumference and BMI. The nutritional status is the WHO
         // reading, worked out on the server from the same numbers.
-        "Height & weight" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        "Height & weight" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                 NumberField("Height (cm) *", fields, "heightCm", Modifier.weight(1f))
                 NumberField("Weight (kg) *", fields, "weightKg", Modifier.weight(1f))
                 NumberField("Mid-arm circ. (cm)", fields, "muacCm", Modifier.weight(1f))
@@ -651,64 +629,76 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
                 )
             }
         }
-        "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             HeroFormSectionHeader("Visual acuity", subtitle = "Snellen, distance, each eye")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                 ChoiceField("Right eye (OD) *", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
                 ChoiceField("Left eye (OS) *", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
             }
             ChoiceField("Testing condition", VISION_TEST_CONDITION, fields, "testingCondition", Modifier.fillMaxWidth())
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Present glasses prescription", subtitle = "Only if the child already wears glasses")
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            // At most three boxes to a row: four or five across a phone left
+            // each box too narrow for "-1.50" and clipped the labels.
+            FieldRow {
                 SimpleTextField("OD Sph", fields, "presentOdSph", Modifier.weight(1f), placeholder = "-1.50")
                 SimpleTextField("OD Cyl", fields, "presentOdCyl", Modifier.weight(1f), placeholder = "-0.50")
+            }
+            FieldRow {
                 SimpleTextField("OD Axi", fields, "presentOdAxi", Modifier.weight(1f), placeholder = "180")
                 SimpleTextField("OD CVA", fields, "presentOdCva", Modifier.weight(1f), placeholder = "6/6")
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FieldRow {
                 SimpleTextField("OS Sph", fields, "presentOsSph", Modifier.weight(1f), placeholder = "-1.75")
                 SimpleTextField("OS Cyl", fields, "presentOsCyl", Modifier.weight(1f), placeholder = "-0.50")
+            }
+            FieldRow {
                 SimpleTextField("OS Axi", fields, "presentOsAxi", Modifier.weight(1f), placeholder = "175")
                 SimpleTextField("OS CVA", fields, "presentOsCva", Modifier.weight(1f), placeholder = "6/6")
             }
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("New glasses prescription")
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FieldRow {
                 SimpleTextField("OD UVA", fields, "newOdUva", Modifier.weight(1f), placeholder = "6/18")
                 SimpleTextField("OD Sph", fields, "newOdSph", Modifier.weight(1f), placeholder = "-2.00")
                 SimpleTextField("OD Cyl", fields, "newOdCyl", Modifier.weight(1f), placeholder = "-0.75")
+            }
+            FieldRow {
                 SimpleTextField("OD Axi", fields, "newOdAxi", Modifier.weight(1f), placeholder = "180")
                 SimpleTextField("OD CVA", fields, "newOdCva", Modifier.weight(1f), placeholder = "6/6")
+                Spacer(Modifier.weight(1f))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FieldRow {
                 SimpleTextField("OS UVA", fields, "newOsUva", Modifier.weight(1f), placeholder = "6/24")
                 SimpleTextField("OS Sph", fields, "newOsSph", Modifier.weight(1f), placeholder = "-2.25")
                 SimpleTextField("OS Cyl", fields, "newOsCyl", Modifier.weight(1f), placeholder = "-0.75")
+            }
+            FieldRow {
                 SimpleTextField("OS Axi", fields, "newOsAxi", Modifier.weight(1f), placeholder = "175")
                 SimpleTextField("OS CVA", fields, "newOsCva", Modifier.weight(1f), placeholder = "6/6")
+                Spacer(Modifier.weight(1f))
             }
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             ChoiceField("Colour vision (Ishihara /17)", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
             SimpleTextField("Any other complaints, if present", fields, "otherComplaints", Modifier.fillMaxWidth(), placeholder = "e.g. headache after reading, watering")
             SimpleTextField("Any other abnormalities, if present", fields, "otherAbnormalities", Modifier.fillMaxWidth(), placeholder = "e.g. squint, drooping lid")
         }
-        "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             ChoiceField("Oral hygiene *", ORAL_HYGIENE_INDEX, fields, "hygiene", Modifier.fillMaxWidth())
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Tooth index (dmft / DMFT)")
             ChoiceField("Type of dentition", DENTITION, fields, "dentition", Modifier.fillMaxWidth())
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                 NumberField("Decayed *", fields, "cariesCount", Modifier.weight(1f))
                 NumberField("Missing", fields, "missingCount", Modifier.weight(1f))
                 NumberField("Filled", fields, "filledCount", Modifier.weight(1f))
             }
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             ChoiceField("Dental fluorosis", FLUOROSIS_STAGE, fields, "fluorosis", Modifier.fillMaxWidth())
             MultiChoiceField(
                 options = DENTAL_SYMPTOMS,
@@ -725,34 +715,34 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
             )
             SimpleTextField("Any other abnormalities, if present", fields, "abnormalFindings", Modifier.fillMaxWidth(), placeholder = "e.g. deep caries 85, retained 51")
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Recommended dental intervention")
             MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded", label = "Select dental interventions")
         }
-        "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             HeroFormSectionHeader("Hearing Acuity Screening")
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                 ChoiceField("Left Ear Acuity *", HEARING_ACUITY, fields, "leftHearing", Modifier.weight(1f))
                 ChoiceField("Right Ear Acuity *", HEARING_ACUITY, fields, "rightHearing", Modifier.weight(1f))
             }
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Clinical ENT Examination")
             MultiChoiceField(EAR_CANAL_EXAM, fields, "earExam", label = "Ear Canals & Tympanic Membrane Findings")
             MultiChoiceField(NASAL_EXAM, fields, "nasalExam", label = "Nasal Cavity & Septum Findings")
             MultiChoiceField(THROAT_TONSILS, fields, "throatExam", label = "Throat, Tonsils & Adenoids Findings")
             ChoiceField("Speech & Voice", SPEECH_VOICE, fields, "speechVoice", Modifier.fillMaxWidth())
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Recommended ENT Interventions")
             MultiChoiceField(ENT_TREATMENTS, fields, "entTreatment", label = "Select ENT Interventions")
         }
-        "Skin" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        "Skin" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             HeroFormSectionHeader("Dermatological Examination")
             MultiChoiceField(SKIN_CONDITIONS, fields, "skinCondition", label = "Primary Skin Condition & Findings *")
             MultiChoiceField(SKIN_LOCATIONS, fields, "skinLocation", label = "Lesion Distribution & Body Sites")
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Symptoms & Parasitic Screening")
             MultiChoiceField(
                 options = listOf(
@@ -771,16 +761,16 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
                 }
             )
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Recommended Dermatological Care")
             MultiChoiceField(SKIN_TREATMENTS, fields, "skinTreatment", label = "Select Dermatological Treatments")
         }
-        "Spine" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        "Spine" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             HeroFormSectionHeader("Musculoskeletal & Posture Assessment")
             MultiChoiceField(POSTURE_ALIGN, fields, "posture", label = "* Spinal Posture & Alignment (Slouching, Scoliosis...)")
             MultiChoiceField(GAIT_LIMB, fields, "gaitLimb", label = "* Gait & Lower Limb Assessment (Flat Feet, Knock-knees...)")
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Functional Symptoms & Joint Exam")
             MultiChoiceField(
                 options = JOINT_SYMPTOMS,
@@ -794,28 +784,28 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
                 }
             )
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Recommended Musculoskeletal Interventions")
             MultiChoiceField(SPINE_TREATMENTS, fields, "spineTreatment", label = "Select Orthopaedic Interventions")
         }
-        "Immunisation review" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        "Immunisation review" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             HeroFormSectionHeader("Immunization Status Review")
             ChoiceField("Overall Vaccine Status for Age *", VACCINE_STATUS, fields, "vaccineStatus", Modifier.fillMaxWidth())
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Missed Routine Immunizations")
             MultiChoiceField(MISSED_VACCINES, fields, "missedVaccines", label = "Select Missed Routine Vaccines")
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Recommended Immunization Action")
             MultiChoiceField(VACCINE_TREATMENTS, fields, "vaccineTreatment", label = "Select Recommended Action")
         }
-        "Haemoglobin" -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        "Haemoglobin" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             HeroFormSectionHeader("Anaemia & Haemoglobin Screening")
             NumberField("Haemoglobin Level (g/dL) *", fields, "hb", Modifier.fillMaxWidth())
             ChoiceField("Clinical Pallor Sign", PALLOR_SIGNS, fields, "pallor", Modifier.fillMaxWidth())
 
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Recommended Anaemia Management")
             MultiChoiceField(HB_TREATMENTS, fields, "hbTreatment", label = "Select Anaemia Interventions")
         }
@@ -827,6 +817,21 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
     }
 }
 
+/** Fields side by side, lined up on their boxes even when one label wraps. */
+@Composable
+private fun FieldRow(content: @Composable RowScope.() -> Unit) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+        content = content,
+    )
+}
+
+/**
+ * A free-text field bound to one key of a check. Built on [AppTextField], so
+ * the label sits above the box and a row of them lines up on its boxes.
+ */
 @Composable
 private fun SimpleTextField(
     label: String,
@@ -835,18 +840,16 @@ private fun SimpleTextField(
     modifier: Modifier = Modifier,
     placeholder: String = ""
 ) {
-    OutlinedTextField(
+    AppTextField(
         value = fields[key] ?: "",
         onValueChange = { fields[key] = it },
         modifier = modifier,
-        label = { Text(label) },
-        placeholder = if (placeholder.isNotBlank()) { { Text(placeholder) } } else null,
-        singleLine = true,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
+        label = label,
+        placeholder = placeholder.ifBlank { null },
     )
 }
 
+/** A decimal field: digits and a point only, on the number keyboard. */
 @Composable
 private fun NumberField(
     label: String,
@@ -854,15 +857,12 @@ private fun NumberField(
     key: String,
     modifier: Modifier = Modifier,
 ) {
-    OutlinedTextField(
+    AppTextField(
         value = fields[key] ?: "",
         onValueChange = { fields[key] = it.filter { c -> c.isDigit() || c == '.' } },
         modifier = modifier,
-        label = { Text(label) },
-        singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
+        label = label,
+        keyboardType = KeyboardType.Decimal,
     )
 }
 
@@ -887,14 +887,23 @@ private fun ChoiceField(
 @Composable
 private fun ToggleField(label: String, fields: MutableMap<String, String>, key: String) {
     // The whole row toggles: a screener taps the words, and only the small
-    // box used to answer.
+    // box used to answer. 48dp tall so it is a full touch target, with the
+    // box and the words centred on one line.
     val checked = fields[key] == "true"
     Row(
-        Modifier.clickable { fields[key] = if (checked) "false" else "true" },
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(
+                value = checked,
+                role = Role.Checkbox,
+                onValueChange = { fields[key] = if (checked) "false" else "true" },
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(checked = checked, onCheckedChange = null)
-        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Spacer(Modifier.width(AppSpacing.sm))
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
     }
 }
 

@@ -4,7 +4,6 @@ import android.graphics.BitmapFactory
 import android.util.Base64
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,17 +12,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.HealthAndSafety
-import androidx.compose.material.icons.outlined.PhotoCamera
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,7 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
 import kallam.healthcare.data.FindingPhotoDto
 import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.HealthFlag
@@ -44,14 +39,22 @@ import kallam.healthcare.data.ReleasedFindingDto
 import kallam.healthcare.data.ResultChildDto
 import kallam.healthcare.data.S
 import kallam.healthcare.data.WhoBmi
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
 import kallam.healthcare.ui.components.GrowthChartsPanel
 import kallam.healthcare.ui.components.FlagChip
-import kallam.healthcare.ui.components.HeroCard
 import kallam.healthcare.ui.components.IconBubble
+import kallam.healthcare.ui.components.InfoNote
+import kallam.healthcare.ui.components.SecondaryButton
 import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.StatusPill
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.components.color
 import kallam.healthcare.ui.components.t
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * What the camp found, once a doctor has approved it.
@@ -75,34 +78,37 @@ fun CampResultScreen(
     LaunchedEffect(campId, kidId) { guardianViewModel.loadResult(campId, kidId) }
 
     val r = result
+    // The header pads itself, so the list has no horizontal contentPadding;
+    // every other item carries the screen margin instead.
+    val margin = Modifier.padding(horizontal = AppSpacing.xl)
 
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
             .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+        contentPadding = PaddingValues(bottom = AppSpacing.xxxl),
     ) {
         item {
             StatusBarSpacer()
-            ScreenHeader(
-                r?.kidName?.takeIf { it.isNotBlank() } ?: t(S.campResultTitle),
-                listOf(r?.campTitle.orEmpty(), r?.date.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "),
-                onBack,
+            AppScreenHeader(
+                title = r?.kidName?.takeIf { it.isNotBlank() } ?: t(S.campResultTitle),
+                subtitle = listOf(r?.campTitle.orEmpty(), r?.date.orEmpty()).filter { it.isNotBlank() }.joinToString(" · "),
+                onBack = onBack,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.sm))
         }
 
         if (r == null) {
-            item { Text(t(S.loadingLabel), color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item { Text(t(S.loadingLabel), color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = margin) }
             return@LazyColumn
         }
 
         if (r.status != "RELEASED") {
             item {
-                HeroCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconBubble(Icons.Outlined.HealthAndSafety, HeroBlue)
-                        Spacer(Modifier.height(12.dp))
+                AppCard(margin, contentPadding = PaddingValues(AppSpacing.xl)) {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        IconBubble(Icons.Outlined.HealthAndSafety, MaterialTheme.colorScheme.secondary)
+                        Spacer(Modifier.height(AppSpacing.md))
                         // The stage, when the server says it: "a doctor is still
                         // checking this" was wrong for a child still in the queue.
                         Text(
@@ -115,13 +121,14 @@ fun CampResultScreen(
                                 else -> t(S.resultUnderReview)
                             },
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.xs))
                         Text(
                             r.message.ifBlank { t(S.resultUnderReviewSub) },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
                         )
                     }
                 }
@@ -130,31 +137,25 @@ fun CampResultScreen(
             val checks = r.progress?.checks.orEmpty()
             if (checks.isNotEmpty()) {
                 item {
-                    Spacer(Modifier.height(14.dp))
-                    HeroCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(18.dp)) {
-                            Text(t(S.campProgressTitle), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                            checks.forEach { c ->
-                                Spacer(Modifier.height(8.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(c.checkType, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                                    Text(
-                                        when (c.state) {
-                                            "DONE" -> "\u2713 " + t(S.checkStateDone)
-                                            "NOT_DONE" -> t(S.checkStateNotDone)
-                                            "NOT_CONSENTED" -> t(S.checkStateNotIncluded)
-                                            else -> t(S.checkStatePending)
-                                        },
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = when (c.state) {
-                                            "DONE" -> HeroBlue
-                                            "PENDING" -> HeroOrange
-                                            else -> MaterialTheme.colorScheme.onSurfaceVariant
-                                        },
-                                    )
-                                }
-                            }
+                    Spacer(Modifier.height(AppSpacing.md))
+                    AppCard(margin) {
+                        Text(t(S.campProgressTitle), style = MaterialTheme.typography.titleMedium)
+                        checks.forEach { c ->
+                            Spacer(Modifier.height(AppSpacing.sm))
+                            CheckStateRow(
+                                c.checkType,
+                                when (c.state) {
+                                    "DONE" -> "✓ " + t(S.checkStateDone)
+                                    "NOT_DONE" -> t(S.checkStateNotDone)
+                                    "NOT_CONSENTED" -> t(S.checkStateNotIncluded)
+                                    else -> t(S.checkStatePending)
+                                },
+                                when (c.state) {
+                                    "DONE" -> Tone.Good
+                                    "PENDING" -> Tone.Watch
+                                    else -> Tone.Neutral
+                                },
+                            )
                         }
                     }
                 }
@@ -166,28 +167,14 @@ fun CampResultScreen(
         // that are, so a parent does not read the list as the whole check-up.
         if (r.partial) {
             item {
-                HeroCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(18.dp)) {
-                        Text(
-                            r.message,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        r.pendingChecks.forEach { c ->
-                            Spacer(Modifier.height(8.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(c, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                                Text(
-                                    t(S.checkStatePending),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = HeroOrange,
-                                )
-                            }
-                        }
+                AppCard(margin) {
+                    Text(r.message, style = MaterialTheme.typography.titleMedium)
+                    r.pendingChecks.forEach { c ->
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        CheckStateRow(c, t(S.checkStatePending), Tone.Watch)
                     }
                 }
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.md))
             }
         }
 
@@ -195,19 +182,16 @@ fun CampResultScreen(
         // this screen should still read this.
         if (r.recommendation.isNotBlank()) {
             item {
-                HeroCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(18.dp)) {
-                        Text(
-                            t(S.doctorSays),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (r.urgency == "URGENT") HeroOrange else MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(r.recommendation, style = MaterialTheme.typography.bodyMedium)
-                    }
+                AppCard(margin) {
+                    Text(
+                        t(S.doctorSays),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (r.urgency == "URGENT") Tone.Watch.color() else MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(Modifier.height(AppSpacing.xs))
+                    Text(r.recommendation, style = MaterialTheme.typography.bodyMedium)
                 }
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.md))
             }
         }
 
@@ -215,190 +199,151 @@ fun CampResultScreen(
         // the family is told who confirms it, whatever the doctor wrote above.
         if (r.findings.any { it.flag == "WATCH" || it.flag == "ALERT" }) {
             item {
-                HeroCard(Modifier.fillMaxWidth()) {
-                    Text(
-                        t(S.consultPaediatrician),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = HeroOrange,
-                        modifier = Modifier.padding(18.dp),
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
+                InfoNote(t(S.consultPaediatrician), margin, tone = Tone.Watch, icon = Icons.Outlined.HealthAndSafety)
+                Spacer(Modifier.height(AppSpacing.md))
             }
         }
 
         items(r.findings, key = { it.checkType }) { f ->
-            FindingCard(f, r.child)
-            Spacer(Modifier.height(10.dp))
+            FindingCard(f, r.child, margin)
+            Spacer(Modifier.height(AppSpacing.md))
         }
 
         if (photos.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(8.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Outlined.PhotoCamera,
-                        contentDescription = null,
-                        tint = HeroOrange,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        t(S.photosTitle),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    t(S.photosSub),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(AppSpacing.md))
+                AppSectionTitle(t(S.photosTitle), margin, subtitle = t(S.photosSub))
+                Spacer(Modifier.height(AppSpacing.md))
             }
             items(photos, key = { it.id }) { p ->
-                PhotoRow(p) { guardianViewModel.openPhoto(p.id) }
-                Spacer(Modifier.height(8.dp))
+                PhotoRow(p, margin) { guardianViewModel.openPhoto(p.id) }
+                Spacer(Modifier.height(AppSpacing.sm))
             }
         }
 
         val image = openPhoto
         if (image != null) {
             item {
-                Spacer(Modifier.height(12.dp))
-                HeroCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
-                        // Decoded here rather than fetched as a URL, because the
-                        // image is only ever served to this guardian behind their
-                        // session and every fetch of it is recorded.
-                        val bitmap = remember(image.id, image.base64) {
-                            runCatching {
-                                val bytes = Base64.decode(image.base64, Base64.DEFAULT)
-                                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
-                            }.getOrNull()
-                        }
-                        if (bitmap != null) {
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
-                                contentDescription = image.caption.ifBlank { image.checkType },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp)),
-                                contentScale = ContentScale.FillWidth,
-                            )
-                        } else {
-                            Text(
-                                t(S.photoUnavailable),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                        if (image.caption.isNotBlank()) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(image.caption, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Spacer(Modifier.height(10.dp))
-                        OutlinedButton(
-                            onClick = { guardianViewModel.closePhoto() },
-                            shape = RoundedCornerShape(14.dp),
-                        ) {
-                            Text(t(S.closeLabel))
-                        }
+                Spacer(Modifier.height(AppSpacing.md))
+                AppCard(margin) {
+                    // Decoded here rather than fetched as a URL, because the
+                    // image is only ever served to this guardian behind their
+                    // session and every fetch of it is recorded.
+                    val bitmap = remember(image.id, image.base64) {
+                        runCatching {
+                            val bytes = Base64.decode(image.base64, Base64.DEFAULT)
+                            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                        }.getOrNull()
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FindingCard(f: ReleasedFindingDto, child: ResultChildDto?) {
-    val sheet = f.sheet
-    HeroCard(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp)) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    sheet?.title?.ifBlank { null } ?: f.checkType,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.weight(1f),
-                )
-                FlagChip(flagOf(f.flag))
-            }
-            if (sheet != null && sheet.rows.isNotEmpty()) {
-                // The assessment sheet, a row per column, as the doctor filled it.
-                Spacer(Modifier.height(8.dp))
-                sheet.rows.forEach { row ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    if (bitmap != null) {
+                        Image(
+                            bitmap = bitmap.asImageBitmap(),
+                            contentDescription = image.caption.ifBlank { image.checkType },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(AppCorners.medium)),
+                            contentScale = ContentScale.FillWidth,
+                        )
+                    } else {
                         Text(
-                            row.label,
+                            t(S.photoUnavailable),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(0.42f),
-                        )
-                        Text(
-                            row.value,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.weight(0.58f),
                         )
                     }
+                    if (image.caption.isNotBlank()) {
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        Text(image.caption, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Spacer(Modifier.height(AppSpacing.md))
+                    SecondaryButton(t(S.closeLabel), { guardianViewModel.closePhoto() })
                 }
-                // The growth charts, IAP and WHO, with the child on them.
-                val g = sheet.growth
-                val who = if (g != null && child != null) {
-                    WhoBmi.forChild(g.heightCm, g.weightKg, child.gender, child.dob, child.age)
-                } else null
-                if (who != null) {
-                    Spacer(Modifier.height(10.dp))
-                    GrowthChartsPanel(who, g?.muacCm, Modifier.fillMaxWidth())
-                }
-            }
-            if (f.summary.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
-                Text(f.summary, style = MaterialTheme.typography.bodyMedium)
-            }
-            if (f.note.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    f.note,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
         }
     }
 }
 
+/** One check's name and its state as a pill, as on the camp's progress card. */
 @Composable
-private fun PhotoRow(p: FindingPhotoDto, onOpen: () -> Unit) {
-    HeroCard(Modifier.fillMaxWidth()) {
+private fun CheckStateRow(name: String, state: String, tone: Tone) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(AppSpacing.sm))
+        StatusPill(state, tone)
+    }
+}
+
+@Composable
+private fun FindingCard(f: ReleasedFindingDto, child: ResultChildDto?, modifier: Modifier = Modifier) {
+    val sheet = f.sheet
+    AppCard(modifier) {
         Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpen)
-                .padding(16.dp),
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Column(Modifier.weight(1f)) {
-                Text(p.checkType, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                if (p.caption.isNotBlank()) {
+            Text(
+                sheet?.title?.ifBlank { null } ?: f.checkType,
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(AppSpacing.sm))
+            FlagChip(flagOf(f.flag))
+        }
+        if (sheet != null && sheet.rows.isNotEmpty()) {
+            // The assessment sheet, a row per column, as the doctor filled it.
+            Spacer(Modifier.height(AppSpacing.sm))
+            sheet.rows.forEach { row ->
+                Row(Modifier.fillMaxWidth().padding(vertical = AppSpacing.xxs)) {
                     Text(
-                        p.caption,
+                        row.label,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(0.42f),
+                    )
+                    // A value inside the sheet, set apart from its label.
+                    Text(
+                        row.value,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(0.58f),
                     )
                 }
             }
-            Text(t(S.viewLabel), style = MaterialTheme.typography.labelLarge, color = HeroBlue)
+            // The growth charts, IAP and WHO, with the child on them.
+            val g = sheet.growth
+            val who = if (g != null && child != null) {
+                WhoBmi.forChild(g.heightCm, g.weightKg, child.gender, child.dob, child.age)
+            } else null
+            if (who != null) {
+                Spacer(Modifier.height(AppSpacing.md))
+                GrowthChartsPanel(who, g?.muacCm, Modifier.fillMaxWidth())
+            }
+        }
+        if (f.summary.isNotBlank()) {
+            Spacer(Modifier.height(AppSpacing.sm))
+            Text(f.summary, style = MaterialTheme.typography.bodyMedium)
+        }
+        if (f.note.isNotBlank()) {
+            Spacer(Modifier.height(AppSpacing.xs))
+            Text(
+                f.note,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
+}
+
+@Composable
+private fun PhotoRow(p: FindingPhotoDto, modifier: Modifier = Modifier, onOpen: () -> Unit) {
+    AppListRow(
+        title = p.checkType,
+        modifier = modifier,
+        supporting = p.caption.ifBlank { null },
+        trailing = { StatusPill(t(S.viewLabel), Tone.Info) },
+        onClick = onOpen,
+    )
 }
 
 /**

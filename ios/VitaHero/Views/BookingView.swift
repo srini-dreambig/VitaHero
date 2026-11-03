@@ -49,9 +49,9 @@ struct BookingView: View {
                     }
                 }
                 if location.denied {
-                    Text(L("location_denied")).font(.caption).foregroundColor(.secondary)
+                    Text(L("location_denied")).font(.vh(.caption)).foregroundColor(.secondary)
                 } else if location.coordinate != nil {
-                    Text(L("location_sorted")).font(.caption).foregroundColor(.secondary)
+                    Text(L("location_sorted")).font(.vh(.caption)).foregroundColor(.secondary)
                 }
             }
 
@@ -104,14 +104,14 @@ struct HospitalRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(hospital.name).font(.headline)
+                Text(hospital.name).font(.vh(.headline))
                 Spacer()
                 if hospital.isCampPartner || hospital.userCampLinked {
                     Pill(text: L("camp_partner_hospital"), color: Brand.green)
                 }
             }
             Text([hospital.district, hospital.city].filter { !$0.isEmpty }.joined(separator: ", "))
-                .font(.subheadline).foregroundColor(.secondary)
+                .font(.vh(.subheadline)).foregroundColor(.secondary)
             HStack(spacing: 12) {
                 if let km = hospital.distanceKm {
                     Label(L("km_away", String(format: "%.1f", km)), systemImage: "location")
@@ -120,7 +120,7 @@ struct HospitalRow: View {
                     Label(String(format: "%.1f", hospital.rating), systemImage: "star.fill")
                 }
             }
-            .font(.caption).foregroundColor(.secondary)
+            .font(.vh(.caption)).foregroundColor(.secondary)
         }
         .padding(.vertical, 2)
     }
@@ -133,7 +133,7 @@ struct HospitalView: View {
         List {
             Section {
                 HospitalRow(hospital: hospital)
-                if !hospital.address.isEmpty { Label(hospital.address, systemImage: "mappin.and.ellipse").font(.subheadline) }
+                if !hospital.address.isEmpty { Label(hospital.address, systemImage: "mappin.and.ellipse").font(.vh(.subheadline)) }
                 if !hospital.phone.isEmpty, let url = URL(string: "tel:\(hospital.phone.filter { $0.isNumber || $0 == "+" })") {
                     Link(destination: url) { Label(hospital.phone, systemImage: "phone.fill") }
                 }
@@ -143,8 +143,8 @@ struct HospitalView: View {
                 ForEach(hospital.doctors) { doctor in
                     NavigationLink { SlotPickerView(doctor: doctor) } label: {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(doctor.name).font(.headline)
-                            Text(doctor.specialty).font(.subheadline).foregroundColor(.secondary)
+                            Text(doctor.name).font(.vh(.headline))
+                            Text(doctor.specialty).font(.vh(.subheadline)).foregroundColor(.secondary)
                         }
                     }
                 }
@@ -177,9 +177,9 @@ struct SlotPickerView: View {
             if let error { Banner(text: error, color: Brand.red).listRowInsets(EdgeInsets()) }
             Section {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(doctor.name).font(.headline)
+                    Text(doctor.name).font(.vh(.headline))
                     Text([doctor.specialty, doctor.hospital].filter { !$0.isEmpty }.joined(separator: " · "))
-                        .font(.subheadline).foregroundColor(.secondary)
+                        .font(.vh(.subheadline)).foregroundColor(.secondary)
                 }
             }
             Section(L("select_kid")) {
@@ -198,7 +198,7 @@ struct SlotPickerView: View {
                                 let selected = item == slot
                                 Button { slot = item } label: {
                                     Text(item.label.isEmpty ? item.time : item.label)
-                                        .font(.subheadline.weight(.semibold))
+                                        .font(.vh(.subheadline, .semibold))
                                         .frame(maxWidth: .infinity, minHeight: 36)
                                         .foregroundColor(selected ? .white : .primary)
                                         .background(selected ? Brand.orange : Color(.tertiarySystemFill))

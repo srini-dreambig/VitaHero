@@ -1,9 +1,11 @@
 package kallam.healthcare.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,13 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,15 +35,17 @@ import kallam.healthcare.data.DietTargetDto
 import kallam.healthcare.data.DieticianFindingDto
 import kallam.healthcare.data.DieticianViewModel
 import kallam.healthcare.data.FoodLogDayDto
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
+import kallam.healthcare.ui.components.AppTextField
 import kallam.healthcare.ui.components.Notice
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.SelectChip
 import kallam.healthcare.ui.components.StatusBarSpacer
-import kallam.healthcare.ui.theme.FlagAlert
-import kallam.healthcare.ui.theme.FlagGood
-import kallam.healthcare.ui.theme.FlagWatch
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.components.color
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * One child, and the plan they are given.
@@ -63,6 +61,7 @@ import kallam.healthcare.ui.theme.HeroOrange
  * the draft names the finding rather than giving the advice, because the
  * advice is the part only they can give.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DieticianChildScreen(
     kidId: String,
@@ -93,114 +92,90 @@ fun DieticianChildScreen(
         }
     }
 
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 40.dp),
-    ) {
-        item {
-            StatusBarSpacer()
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp, 8.dp, 20.dp, 0.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = {
-                    dietician.closeChild()
-                    onBack()
-                }) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                }
-                Column(Modifier.weight(1f)) {
+    Column(Modifier.fillMaxSize()) {
+        StatusBarSpacer()
+        AppScreenHeader(
+            record?.child?.name ?: "…",
+            subtitle = listOfNotNull(
+                record?.child?.let {
+                    listOf(it.grade, it.section).filter { p -> p.isNotBlank() }
+                        .joinToString(" ")
+                },
+                record?.child?.age?.let { "$it yrs" },
+                record?.child?.schoolName,
+            ).filter { it.isNotBlank() }.joinToString(" · "),
+            onBack = {
+                dietician.closeChild()
+                onBack()
+            },
+        )
+        if (message.isNotBlank()) Notice(message, error = true)
+
+        LazyColumn(
+            Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = AppSpacing.xl,
+                end = AppSpacing.xl,
+                top = AppSpacing.sm,
+                bottom = AppSpacing.xxxl,
+            ),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        ) {
+            if (record == null) {
+                item {
                     Text(
-                        record?.child?.name ?: "…",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        listOfNotNull(
-                            record?.child?.let {
-                                listOf(it.grade, it.section).filter { p -> p.isNotBlank() }
-                                    .joinToString(" ")
-                            },
-                            record?.child?.age?.let { "$it yrs" },
-                            record?.child?.schoolName,
-                        ).filter { it.isNotBlank() }.joinToString(" · "),
-                        style = MaterialTheme.typography.bodySmall,
+                        if (busy) "Loading…" else "Nothing to show.",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            }
-            if (message.isNotBlank()) {
-                Column(Modifier.padding(horizontal = 20.dp)) { Notice(message, error = true) }
-            }
-            Spacer(Modifier.height(12.dp))
-        }
+            } else {
+                val r = record!!
 
-        if (record == null) {
-            item {
-                Text(
-                    if (busy) "Loading…" else "Nothing to show.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(20.dp),
-                )
-            }
-        } else {
-            val r = record!!
-
-            // ── what the camps found ──
-            item {
-                SectionTitle("What the camps found")
-                if (r.findings.isEmpty()) {
-                    Text(
-                        "Nobody has measured this child yet. Once a camp records height and "
-                            + "weight, the child's growth shows here.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                    )
-                    Spacer(Modifier.height(8.dp))
+                // ── what the camps found ──
+                item {
+                    AppSectionTitle("What the camps found")
+                    if (r.findings.isEmpty()) {
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        Text(
+                            "Nobody has measured this child yet. Once a camp records height and "
+                                + "weight, the child's growth shows here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-            }
-            items(r.findings.size) { i -> FindingRow(r.findings[i]) }
+                items(r.findings.size) { i -> FindingRow(r.findings[i]) }
 
-            // ── the food log ──
-            item {
-                Spacer(Modifier.height(10.dp))
-                SectionTitle("The last week of meals")
-                if (r.foodLog.isEmpty()) {
-                    Text(
-                        "This family has not logged any meals yet.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 20.dp),
-                    )
-                    Spacer(Modifier.height(8.dp))
+                // ── the food log ──
+                item {
+                    AppSectionTitle("The last week of meals", Modifier.padding(top = AppSpacing.md))
+                    if (r.foodLog.isEmpty()) {
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        Text(
+                            "This family has not logged any meals yet.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-            }
-            items(r.foodLog.size) { i -> FoodLogRow(r.foodLog[i]) }
+                items(r.foodLog.size) { i -> FoodLogRow(r.foodLog[i]) }
 
-            // ── the plan ──
-            item {
-                Spacer(Modifier.height(10.dp))
-                SectionTitle("The plan")
-                if (current == null && !writing) {
-                    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text(
-                                "No plan yet",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Spacer(Modifier.height(4.dp))
+                // ── the plan ──
+                item {
+                    AppSectionTitle("The plan", Modifier.padding(top = AppSpacing.md))
+                    if (current == null && !writing) {
+                        Spacer(Modifier.height(AppSpacing.md))
+                        AppCard {
+                            Text("No plan yet", style = MaterialTheme.typography.titleMedium)
+                            Spacer(Modifier.height(AppSpacing.xs))
                             Text(
                                 "What you write here is what the family reads in the app, "
                                     + "against their own food log.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(AppSpacing.md))
                             PrimaryGradientButton(
                                 text = "Write a plan",
                                 onClick = { writing = true },
@@ -208,14 +183,12 @@ fun DieticianChildScreen(
                                 enabled = !busy,
                             )
                         }
-                    }
-                } else if (current != null && !writing) {
-                    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                        Column(Modifier.padding(16.dp)) {
+                    } else if (current != null && !writing) {
+                        Spacer(Modifier.height(AppSpacing.md))
+                        AppCard {
                             Text(
                                 current.title.ifBlank { "Plan" },
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.titleMedium,
                             )
                             Text(
                                 listOf(focusLabel(current.focus), current.authorName, current.startsOn)
@@ -223,10 +196,10 @@ fun DieticianChildScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Spacer(Modifier.height(8.dp))
+                            Spacer(Modifier.height(AppSpacing.sm))
                             Text(current.guidance, style = MaterialTheme.typography.bodyMedium)
                             current.targets.forEach { t ->
-                                Spacer(Modifier.height(6.dp))
+                                Spacer(Modifier.height(AppSpacing.sm))
                                 Row {
                                     Text(
                                         t.label,
@@ -234,6 +207,7 @@ fun DieticianChildScreen(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.weight(1f),
                                     )
+                                    // The amount is what the family acts on, so it stays bold.
                                     Text(
                                         t.value,
                                         style = MaterialTheme.typography.bodySmall,
@@ -241,7 +215,7 @@ fun DieticianChildScreen(
                                     )
                                 }
                             }
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(AppSpacing.md))
                             PrimaryGradientButton(
                                 text = "Replace this plan",
                                 onClick = {
@@ -253,7 +227,7 @@ fun DieticianChildScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 enabled = !busy,
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(AppSpacing.sm))
                             Text(
                                 "The plan before it is kept, so the family can see what changed.",
                                 style = MaterialTheme.typography.bodySmall,
@@ -262,81 +236,64 @@ fun DieticianChildScreen(
                         }
                     }
                 }
-            }
 
-            if (writing) {
-                item {
-                    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                        Column(Modifier.padding(16.dp)) {
-                            OutlinedTextField(
+                if (writing) {
+                    item {
+                        AppCard {
+                            AppTextField(
                                 value = title,
                                 onValueChange = { title = it },
-                                label = { Text("Title") },
-                                singleLine = true,
+                                label = "Title",
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = HeroOrange,
-                                ),
                             )
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(AppSpacing.md))
                             Text(
                                 "What this plan is for",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Spacer(Modifier.height(6.dp))
-                            Row {
+                            Spacer(Modifier.height(AppSpacing.xs))
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                                verticalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                            ) {
                                 FOCUS.forEach { f ->
-                                    FocusChip(focusLabel(f), focus == f) { focus = f }
-                                    Spacer(Modifier.width(6.dp))
+                                    SelectChip(focusLabel(f), focus == f, onClick = { focus = f })
                                 }
                             }
-                            Spacer(Modifier.height(10.dp))
-                            OutlinedTextField(
+                            Spacer(Modifier.height(AppSpacing.md))
+                            AppTextField(
                                 value = guidance,
                                 onValueChange = { guidance = it },
-                                label = { Text("What the family should do") },
+                                label = "What the family should do",
+                                singleLine = false,
                                 minLines = 4,
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(14.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = HeroOrange,
-                                ),
                             )
-                            Spacer(Modifier.height(10.dp))
+                            Spacer(Modifier.height(AppSpacing.lg))
                             Text(
                                 "One thing to aim for (optional)",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.titleMedium,
                             )
-                            Spacer(Modifier.height(6.dp))
-                            Row {
-                                OutlinedTextField(
+                            Spacer(Modifier.height(AppSpacing.sm))
+                            Row(
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+                            ) {
+                                AppTextField(
                                     value = targetLabel,
                                     onValueChange = { targetLabel = it },
-                                    label = { Text("Such as") },
-                                    singleLine = true,
+                                    label = "Such as",
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = HeroOrange,
-                                    ),
                                 )
-                                Spacer(Modifier.width(8.dp))
-                                OutlinedTextField(
+                                AppTextField(
                                     value = targetValue,
                                     onValueChange = { targetValue = it },
-                                    label = { Text("How much") },
-                                    singleLine = true,
+                                    label = "How much",
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = OutlinedTextFieldDefaults.colors(
-                                        focusedBorderColor = HeroOrange,
-                                    ),
                                 )
                             }
-                            Spacer(Modifier.height(14.dp))
+                            Spacer(Modifier.height(AppSpacing.lg))
                             PrimaryGradientButton(
                                 text = if (busy) "Saving…" else "Send this plan to the family",
                                 onClick = {
@@ -353,7 +310,7 @@ fun DieticianChildScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 enabled = !busy && guidance.trim().length >= 10,
                             )
-                            Spacer(Modifier.height(6.dp))
+                            Spacer(Modifier.height(AppSpacing.sm))
                             Text(
                                 "A plan needs a sentence the family can act on.",
                                 style = MaterialTheme.typography.bodySmall,
@@ -362,23 +319,19 @@ fun DieticianChildScreen(
                         }
                     }
                 }
-            }
 
-            // ── what came before ──
-            val past = r.plans.filter { it.status != "ACTIVE" }
-            if (past.isNotEmpty()) {
-                item {
-                    Spacer(Modifier.height(10.dp))
-                    SectionTitle("Plans before this one")
-                }
-                items(past.size) { i ->
-                    val p = past[i]
-                    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 5.dp)) {
-                        Column(Modifier.padding(14.dp)) {
+                // ── what came before ──
+                val past = r.plans.filter { it.status != "ACTIVE" }
+                if (past.isNotEmpty()) {
+                    item {
+                        AppSectionTitle("Plans before this one", Modifier.padding(top = AppSpacing.md))
+                    }
+                    items(past.size) { i ->
+                        val p = past[i]
+                        AppCard {
                             Text(
                                 p.title.ifBlank { "Plan" },
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
+                                style = MaterialTheme.typography.titleMedium,
                             )
                             Text(
                                 listOf(focusLabel(p.focus), p.authorName)
@@ -386,7 +339,7 @@ fun DieticianChildScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Spacer(Modifier.height(4.dp))
+                            Spacer(Modifier.height(AppSpacing.xs))
                             Text(
                                 p.guidance,
                                 style = MaterialTheme.typography.bodySmall,
@@ -412,59 +365,27 @@ private fun focusLabel(v: String): String = when (v) {
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 8.dp),
-    )
-}
-
-@Composable
-private fun FocusChip(text: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(50))
-            .background(
-                if (selected) HeroOrange.copy(alpha = 0.16f)
-                else MaterialTheme.colorScheme.surfaceVariant,
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-@Composable
 private fun FindingRow(f: DieticianFindingDto) {
-    val colour = when (f.flag) {
-        "ALERT" -> FlagAlert
-        "WATCH" -> FlagWatch
-        else -> FlagGood
+    val tone = when (f.flag) {
+        "ALERT" -> Tone.Alert
+        "WATCH" -> Tone.Watch
+        else -> Tone.Good
     }
-    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 5.dp)) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+    val colour = tone.color()
+    // Not AppListRow: the rationale can run to a few lines and must not be cut
+    // to one, so this keeps its own column inside the kit card.
+    AppCard {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .width(4.dp)
+                    .width(AppSpacing.xs)
                     .height(36.dp)
-                    .clip(RoundedCornerShape(2.dp))
+                    .clip(RoundedCornerShape(AppSpacing.xxs))
                     .background(colour),
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(AppSpacing.md))
             Column(Modifier.weight(1f)) {
-                Text(
-                    f.checkType,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Text(f.checkType, style = MaterialTheme.typography.titleMedium)
                 Text(
                     listOf(f.valueText, f.rationale).filter { it.isNotBlank() }.first(),
                     style = MaterialTheme.typography.bodySmall,
@@ -473,7 +394,7 @@ private fun FindingRow(f: DieticianFindingDto) {
                 if (f.date.isNotBlank()) {
                     Text(
                         listOf(f.campTitle, f.date).filter { it.isNotBlank() }.joinToString(" · "),
-                        style = MaterialTheme.typography.labelSmall,
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
@@ -487,7 +408,7 @@ private fun FoodLogRow(d: FoodLogDayDto) {
     Row(
         Modifier
             .fillMaxWidth()
-            .padding(horizontal = 24.dp, vertical = 5.dp),
+            .padding(horizontal = AppSpacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(d.day, style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
@@ -496,12 +417,13 @@ private fun FoodLogRow(d: FoodLogDayDto) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(AppSpacing.md))
+        // The day's total is the number scanned for, so it stays bold.
         Text(
             "${d.kcal} kcal",
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.SemiBold,
-            color = HeroBlue,
+            color = MaterialTheme.colorScheme.secondary,
         )
     }
 }

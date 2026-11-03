@@ -49,9 +49,9 @@ struct FamilyView: View {
                 Section(L("co_parent_pending")) {
                     ForEach(requests) { request in
                         VStack(alignment: .leading, spacing: 8) {
-                            Text(request.name).font(.headline)
+                            Text(request.name).font(.vh(.headline))
                             Text([request.relation, request.joinedDate].filter { !$0.isEmpty }.joined(separator: " · "))
-                                .font(.caption).foregroundColor(.secondary)
+                                .font(.vh(.caption)).foregroundColor(.secondary)
                             HStack {
                                 Button(L("co_parent_approve")) { Task { await store.answerCoParent(request, approve: true) } }
                                     .buttonStyle(.borderedProminent)
@@ -74,7 +74,7 @@ struct FamilyView: View {
                                 .foregroundColor(member.isOwnerRow ? Brand.amber : Brand.purple)
                             Text(member.name)
                             Spacer()
-                            Text(member.relation).font(.caption).foregroundColor(.secondary)
+                            Text(member.relation).font(.vh(.caption)).foregroundColor(.secondary)
                         }
                     }
                 }

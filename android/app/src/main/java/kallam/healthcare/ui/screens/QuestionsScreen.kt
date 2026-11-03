@@ -3,28 +3,20 @@ package kallam.healthcare.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,22 +28,27 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.QuestionThreadDto
 import kallam.healthcare.data.S
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
+import kallam.healthcare.ui.components.AppTextField
 import kallam.healthcare.ui.components.IconBubble
+import kallam.healthcare.ui.components.InfoNote
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.SecondaryButton
+import kallam.healthcare.ui.components.SelectChip
 import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.StatusPill
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * Ask the school about your child's check-up.
@@ -85,93 +82,69 @@ fun QuestionsScreen(
     var acknowledged by rememberSaveable { mutableStateOf(false) }
     var kidId by remember(kids) { mutableStateOf(kids.firstOrNull()?.id) }
 
-    LazyColumn(
-        modifier = Modifier
+    Column(
+        Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item {
-            StatusBarSpacer()
-            ScreenHeader(t(S.questionsTitle), t(S.questionsSub), onBack)
-            Spacer(Modifier.height(12.dp))
-        }
-
-        if (!policy.available) {
-            item {
-                HeroCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconBubble(Icons.AutoMirrored.Outlined.HelpOutline, HeroBlue)
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            t(S.questionsClosed),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            t(S.questionsClosedSub),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+        StatusBarSpacer()
+        AppScreenHeader(t(S.questionsTitle), subtitle = t(S.questionsSub), onBack = onBack)
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxxl),
+        ) {
+            if (!policy.available) {
+                item {
+                    AppCard {
+                        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                            IconBubble(Icons.AutoMirrored.Outlined.HelpOutline, MaterialTheme.colorScheme.secondary)
+                            Spacer(Modifier.height(AppSpacing.md))
+                            Text(
+                                t(S.questionsClosed),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            Spacer(Modifier.height(AppSpacing.sm))
+                            Text(
+                                t(S.questionsClosedSub),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
+                return@LazyColumn
             }
-            return@LazyColumn
-        }
 
-        // The safety notice is the first thing on the screen, above the box,
-        // and it is the server's own words rather than a copy that could drift.
-        item {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(HeroOrange.copy(alpha = 0.12f))
-                    .padding(14.dp),
-            ) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Icon(
-                        Icons.Outlined.Warning,
-                        contentDescription = null,
-                        tint = HeroOrange,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        policy.notice.ifBlank { t(S.questionsNoticeFallback) },
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-            Spacer(Modifier.height(14.dp))
-        }
-
-        if (threads.isNotEmpty()) {
+            // The safety notice is the first thing on the screen, above the box,
+            // and it is the server's own words rather than a copy that could drift.
             item {
-                Text(
-                    t(S.yourQuestions),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
+                InfoNote(
+                    policy.notice.ifBlank { t(S.questionsNoticeFallback) },
+                    tone = Tone.Watch,
+                    icon = Icons.Outlined.Warning,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
             }
-            items(threads, key = { it.id }) { th ->
-                ThreadRow(th) { guardianViewModel.loadThread(th.id) }
-                Spacer(Modifier.height(8.dp))
-            }
-            item { Spacer(Modifier.height(10.dp)) }
-        }
 
-        item {
-            HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp)) {
+            if (threads.isNotEmpty()) {
+                item {
+                    AppSectionTitle(t(S.yourQuestions))
+                    Spacer(Modifier.height(AppSpacing.md))
+                }
+                items(threads, key = { it.id }) { th ->
+                    ThreadRow(th) { guardianViewModel.loadThread(th.id) }
+                    Spacer(Modifier.height(AppSpacing.md))
+                }
+                item { Spacer(Modifier.height(AppSpacing.md)) }
+            }
+
+            item {
+                AppCard {
                     Text(
                         t(S.askTheSchool),
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(AppSpacing.xs))
                     Text(
                         tf(S.replyWithinDays, policy.responseWindowDays.toString()),
                         style = MaterialTheme.typography.bodySmall,
@@ -179,46 +152,35 @@ fun QuestionsScreen(
                     )
 
                     if (kids.size > 1) {
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(AppSpacing.md))
                         Text(
                             t(S.aboutWhichChild),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
-                        Spacer(Modifier.height(6.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Spacer(Modifier.height(AppSpacing.sm))
+                        Row(horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                             kids.forEach { kid ->
-                                val selected = kidId == kid.id
-                                Text(
-                                    kid.name,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(50))
-                                        .clickable { kidId = kid.id }
-                                        .background(
-                                            if (selected) HeroOrange.copy(alpha = 0.15f)
-                                            else MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
+                                SelectChip(
+                                    text = kid.name,
+                                    selected = kidId == kid.id,
+                                    onClick = { kidId = kid.id },
                                 )
                             }
                         }
                     }
 
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
+                    Spacer(Modifier.height(AppSpacing.md))
+                    AppTextField(
                         value = body,
                         onValueChange = { body = it.take(2000) },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(t(S.questionPlaceholder)) },
+                        placeholder = t(S.questionPlaceholder),
+                        singleLine = false,
                         minLines = 4,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
                     )
 
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     Row(
                         Modifier
                             .fillMaxWidth()
@@ -226,11 +188,11 @@ fun QuestionsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Checkbox(checked = acknowledged, onCheckedChange = { acknowledged = it })
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(AppSpacing.xs))
                         Text(t(S.notUrgentAck), style = MaterialTheme.typography.bodySmall)
                     }
 
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     PrimaryGradientButton(
                         text = t(S.sendQuestion),
                         onClick = {
@@ -251,39 +213,19 @@ fun QuestionsScreen(
 
 @Composable
 private fun ThreadRow(th: QuestionThreadDto, onOpen: () -> Unit) {
-    HeroCard(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpen)
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    th.subject.ifBlank { th.schoolName },
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    listOf(th.schoolName, th.kidName).filter { it.isNotBlank() }.joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            // The one fact a waiting parent wants: has the school replied yet.
-            Text(
-                if (th.awaiting == "SCHOOL") t(S.awaitingSchool) else t(S.schoolReplied),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = if (th.awaiting == "SCHOOL") HeroOrange else HeroBlue,
+    val awaitingSchool = th.awaiting == "SCHOOL"
+    AppListRow(
+        title = th.subject.ifBlank { th.schoolName },
+        subtitle = listOf(th.schoolName, th.kidName).filter { it.isNotBlank() }.joinToString(" · "),
+        // The one fact a waiting parent wants: has the school replied yet.
+        trailing = {
+            StatusPill(
+                if (awaitingSchool) t(S.awaitingSchool) else t(S.schoolReplied),
+                if (awaitingSchool) Tone.Watch else Tone.Info,
             )
-        }
-    }
+        },
+        onClick = onOpen,
+    )
 }
 
 @Composable
@@ -292,44 +234,39 @@ private fun ThreadScreen(
     detail: kallam.healthcare.data.ThreadDetailDto,
     onBack: () -> Unit,
 ) {
-    LazyColumn(
-        modifier = Modifier
+    Column(
+        Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item {
-            StatusBarSpacer()
-            ScreenHeader(
-                title.ifBlank { t(S.questionsTitle) },
-                listOf(detail.thread.schoolName, detail.thread.kidName)
-                    .filter { it.isNotBlank() }.joinToString(" · "),
-                onBack,
-            )
-            Spacer(Modifier.height(12.dp))
-        }
-        items(detail.messages, key = { it.id }) { m ->
-            val fromSchool = m.side == "SCHOOL"
-            HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
+        StatusBarSpacer()
+        AppScreenHeader(
+            title.ifBlank { t(S.questionsTitle) },
+            subtitle = listOf(detail.thread.schoolName, detail.thread.kidName)
+                .filter { it.isNotBlank() }.joinToString(" · "),
+            onBack = onBack,
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxxl),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        ) {
+            items(detail.messages, key = { it.id }) { m ->
+                val fromSchool = m.side == "SCHOOL"
+                AppCard {
                     Text(
                         if (fromSchool) m.name.ifBlank { t(S.theSchool) } else t(S.you),
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (fromSchool) HeroBlue else MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = if (fromSchool) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(AppSpacing.xs))
                     Text(m.body, style = MaterialTheme.typography.bodyMedium)
                 }
             }
-            Spacer(Modifier.height(8.dp))
-        }
-        item {
-            Spacer(Modifier.height(10.dp))
-            OutlinedButton(onClick = onBack, shape = RoundedCornerShape(14.dp)) {
-                Text(t(S.backLabel))
+            item {
+                SecondaryButton(t(S.backLabel), onClick = onBack)
             }
         }
     }

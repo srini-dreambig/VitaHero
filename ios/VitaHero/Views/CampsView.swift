@@ -24,14 +24,14 @@ struct CampsView: View {
                     EmptyState(icon: "cross.case", title: L("no_camps_yet"), subtitle: L("no_camps_sub"))
                 }
                 if !upcoming.isEmpty {
-                    Text(L("upcoming")).font(.headline)
+                    Text(L("upcoming")).font(.vh(.headline))
                     ForEach(upcoming) { camp in
                         NavigationLink { CampDetailView(camp: camp) } label: { CampRow(camp: camp) }
                             .buttonStyle(.plain)
                     }
                 }
                 if !past.isEmpty {
-                    Text(L("past_camps")).font(.headline).padding(.top, 8)
+                    Text(L("past_camps")).font(.vh(.headline)).padding(.top, 8)
                     ForEach(past) { camp in
                         NavigationLink { CampDetailView(camp: camp) } label: { CampRow(camp: camp) }
                             .buttonStyle(.plain)
@@ -54,10 +54,10 @@ struct CampRow: View {
         Card {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(camp.title).font(.headline)
-                    if !camp.school.isEmpty { Text(camp.school).font(.subheadline).foregroundColor(.secondary) }
+                    Text(camp.title).font(.vh(.headline))
+                    if !camp.school.isEmpty { Text(camp.school).font(.vh(.subheadline)).foregroundColor(.secondary) }
                     Label([camp.date, camp.time].filter { !$0.isEmpty }.joined(separator: " · "), systemImage: "calendar")
-                        .font(.caption).foregroundColor(.secondary)
+                        .font(.vh(.caption)).foregroundColor(.secondary)
                 }
                 Spacer()
                 CampStatusPill(status: camp.status)
@@ -106,7 +106,7 @@ struct CampDetailView: View {
             Section {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text(camp.title).font(.title3.bold())
+                        Text(camp.title).font(.vh(.title3, .bold))
                         Spacer()
                         CampStatusPill(status: camp.status)
                     }
@@ -115,7 +115,7 @@ struct CampDetailView: View {
                 if !camp.date.isEmpty { row("calendar", [camp.date, camp.time].filter { !$0.isEmpty }.joined(separator: " · ")) }
                 if !camp.venue.isEmpty { row("mappin.and.ellipse", camp.venue) }
                 if camp.isPartner { row("cross.case.fill", L("camp_partner_hospital")) }
-                if !camp.description.isEmpty { Text(camp.description).font(.subheadline) }
+                if !camp.description.isEmpty { Text(camp.description).font(.vh(.subheadline)) }
             }
 
             if !camp.checks.isEmpty {
@@ -181,9 +181,9 @@ struct CampDetailView: View {
             HStack(spacing: 10) {
                 Avatar(kid: kid, size: 32)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(kid.name).font(.headline).lineLimit(1)
+                    Text(kid.name).font(.vh(.headline)).lineLimit(1)
                     if let p {
-                        Text(p.stageLabel).font(.caption)
+                        Text(p.stageLabel).font(.vh(.caption))
                             .fontWeight(p.stage == "RELEASED" ? .bold : .regular)
                             .foregroundColor(p.stage == "RELEASED" ? Brand.amber : .secondary)
                     } else {
@@ -197,7 +197,7 @@ struct CampDetailView: View {
     }
 
     private func row(_ icon: String, _ text: String) -> some View {
-        Label(text, systemImage: icon).font(.subheadline)
+        Label(text, systemImage: icon).font(.vh(.subheadline))
     }
 }
 
@@ -234,7 +234,7 @@ struct CampResultView: View {
             } else if error == nil {
                 HStack { Spacer(); ProgressView(); Spacer() }
             }
-            Section { Text(L("medical_disclaimer")).font(.caption).foregroundColor(.secondary) }
+            Section { Text(L("medical_disclaimer")).font(.vh(.caption)).foregroundColor(.secondary) }
         }
         .navigationTitle(kid.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -246,8 +246,8 @@ struct CampResultView: View {
     private func released(_ result: CampResult) -> some View {
         Section {
             VStack(alignment: .leading, spacing: 4) {
-                Text(result.campTitle.isEmpty ? camp.title : result.campTitle).font(.headline)
-                Text(result.date.isEmpty ? camp.date : result.date).font(.subheadline).foregroundColor(.secondary)
+                Text(result.campTitle.isEmpty ? camp.title : result.campTitle).font(.vh(.headline))
+                Text(result.date.isEmpty ? camp.date : result.date).font(.vh(.subheadline)).foregroundColor(.secondary)
             }
             if !result.urgency.isEmpty { urgency(result.urgency) }
         }
@@ -255,12 +255,12 @@ struct CampResultView: View {
         // are named here rather than looking like nothing was found.
         if result.partial {
             Section {
-                if !result.message.isEmpty { Text(result.message).font(.subheadline) }
+                if !result.message.isEmpty { Text(result.message).font(.vh(.subheadline)) }
                 ForEach(result.pendingChecks, id: \.self) { check in
                     HStack {
-                        Text(check).font(.subheadline).lineLimit(1)
+                        Text(check).font(.vh(.subheadline)).lineLimit(1)
                         Spacer()
-                        Text(L("check_state_pending")).font(.caption.weight(.semibold)).foregroundColor(Brand.amber)
+                        Text(L("check_state_pending")).font(.vh(.caption, .semibold)).foregroundColor(Brand.amber)
                     }
                 }
             }
@@ -274,15 +274,15 @@ struct CampResultView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
                             Text(finding.sheet.map { $0.title.isEmpty ? finding.checkType : $0.title }
-                                 ?? finding.checkType.capitalized).font(.headline)
+                                 ?? finding.checkType.capitalized).font(.vh(.headline))
                             Spacer()
                             Pill(text: flag.label, color: flag.color)
                         }
                         if let sheet = finding.sheet, !sheet.rows.isEmpty {
                             sheetRows(sheet, child: result.child)
                         }
-                        if !finding.summary.isEmpty { Text(finding.summary).font(.subheadline) }
-                        if !finding.note.isEmpty { Text(finding.note).font(.caption).foregroundColor(.secondary) }
+                        if !finding.summary.isEmpty { Text(finding.summary).font(.vh(.subheadline)) }
+                        if !finding.note.isEmpty { Text(finding.note).font(.vh(.caption)).foregroundColor(.secondary) }
                     }
                     .padding(.vertical, 4)
                 }
@@ -296,7 +296,7 @@ struct CampResultView: View {
         if result.findings.contains(where: { $0.flag == "WATCH" || $0.flag == "ALERT" }) {
             Section {
                 Text(L("consult_paediatrician"))
-                    .font(.subheadline.weight(.semibold))
+                    .font(.vh(.subheadline, .semibold))
                     .foregroundColor(Brand.orange)
             }
         }
@@ -309,9 +309,9 @@ struct CampResultView: View {
         VStack(alignment: .leading, spacing: 6) {
             ForEach(sheet.rows) { row in
                 HStack(alignment: .top) {
-                    Text(row.label).font(.caption).foregroundColor(.secondary)
+                    Text(row.label).font(.vh(.caption)).foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    Text(row.value).font(.caption.weight(.medium))
+                    Text(row.value).font(.vh(.caption, .medium))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
@@ -360,9 +360,9 @@ struct CheckStateRow: View {
 
     var body: some View {
         HStack {
-            Text(check.checkType).font(.subheadline).lineLimit(1)
+            Text(check.checkType).font(.vh(.subheadline)).lineLimit(1)
             Spacer()
-            Text(label).font(.caption.weight(.semibold)).foregroundColor(color)
+            Text(label).font(.vh(.caption, .semibold)).foregroundColor(color)
         }
     }
 

@@ -28,7 +28,7 @@ struct DieticianChildrenView: View {
         List {
             Section {
                 Text("\(onPlan) of \(children.count) on a plan")
-                    .font(.subheadline).foregroundColor(.secondary)
+                    .font(.vh(.subheadline)).foregroundColor(.secondary)
                 if let error = dietician.childrenError {
                     Banner(text: error, color: Brand.red)
                 }
@@ -38,9 +38,9 @@ struct DieticianChildrenView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "person.3.fill").foregroundColor(Brand.orange)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Plan by groups").font(.headline).foregroundColor(Brand.orange)
+                            Text("Plan by groups").font(.vh(.headline)).foregroundColor(Brand.orange)
                             Text("Children grouped by what their checks found, each with a draft plan to edit and send.")
-                                .font(.footnote).foregroundColor(.secondary)
+                                .font(.vh(.footnote)).foregroundColor(.secondary)
                         }
                     }
                     .padding(.vertical, 4)
@@ -81,9 +81,9 @@ struct DieticianChildrenView: View {
     private func row(_ child: DieticianChild) -> some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(child.name).font(.body.weight(.semibold)).lineLimit(1)
+                Text(child.name).font(.vh(.body, .semibold)).lineLimit(1)
                 let sub = dieticianChildLine(className: child.className, age: child.age)
-                if !sub.isEmpty { Text(sub).font(.caption).foregroundColor(.secondary) }
+                if !sub.isEmpty { Text(sub).font(.vh(.caption)).foregroundColor(.secondary) }
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {

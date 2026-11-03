@@ -1,33 +1,21 @@
 package kallam.healthcare.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.FactCheck
 import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -37,20 +25,21 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.CampChildDto
 import kallam.healthcare.data.ClinicianViewModel
 import kallam.healthcare.data.classTitle
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppTextField
 import kallam.healthcare.ui.components.EmptyState
-import kallam.healthcare.ui.components.HeroCard
 import kallam.healthcare.ui.components.IconBubble
 import kallam.healthcare.ui.components.KidAvatar
+import kallam.healthcare.ui.components.SelectChip
 import kallam.healthcare.ui.components.StatusBarSpacer
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.components.StatusPill
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.theme.AppSpacing
 
 /**
  * One camp's children, as a clinician works through them.
@@ -99,106 +88,71 @@ fun ClinicianRosterScreen(
     // still counts on the child's own status.
     val screened = roster.count { it.status != "NOT_SCREENED" && it.status != "ABSENT" }
 
+    // The header and the chip rows run edge to edge (the header pads itself,
+    // the chips scroll under the margin), so the 20dp margin is on each item
+    // rather than on the list's contentPadding.
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             StatusBarSpacer()
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp, 8.dp, 20.dp, 0.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        campTitle,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        "$doneByMe of ${mine.size} done by you",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
+            AppScreenHeader(
+                title = campTitle,
+                subtitle = "$doneByMe of ${mine.size} done by you",
+                onBack = onBack,
+            )
+            Spacer(Modifier.height(AppSpacing.sm))
+            AppTextField(
                 value = query,
                 onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                placeholder = { Text("Search name or roll number") },
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.xl),
+                placeholder = "Search name or roll number",
+                leadingIcon = Icons.Outlined.Search,
             )
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             val states = listOf(
                 "" to "All", "TODO" to "To do", "DONE" to "Done",
                 "ABSENT" to "Absent", "NO_CONSENT" to "No consent",
             )
             LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = AppSpacing.xl),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
             ) {
                 items(states, key = { "s" + it.first }) { (value, label) ->
                     val count = if (value.isEmpty()) mine.size else mine.count { it.state == value }
-                    FilterPill("$label $count", stateFilter == value) { stateFilter = value }
+                    SelectChip(label, stateFilter == value, onClick = { stateFilter = value }, count = count)
                 }
             }
             if (classes.size > 1) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 LazyRow(
-                    contentPadding = PaddingValues(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = AppSpacing.xl),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
                 ) {
                     item(key = "c-all") {
-                        FilterPill("All classes", classFilter.isEmpty()) { classFilter = "" }
+                        SelectChip("All classes", classFilter.isEmpty(), onClick = { classFilter = "" })
                     }
                     items(classes, key = { "c$it" }) { c ->
-                        FilterPill(classTitle(c), classFilter == c) {
+                        SelectChip(classTitle(c), classFilter == c, onClick = {
                             classFilter = if (classFilter == c) "" else c
-                        }
+                        })
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.lg))
             // Only a physician sees this, and only once there is something to
             // sign off. The server decides both: `can.review` comes back with
             // the roster, and it refuses the queue to anyone else regardless
             // of what this build chooses to draw.
             if (can.review && screened > 0) {
-                HeroCard(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp)
-                        .clickable(onClick = onOpenReview)
-                ) {
-                    Row(
-                        Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        IconBubble(Icons.Outlined.FactCheck, HeroBlue)
-                        Spacer(Modifier.width(12.dp))
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                "Review and send results",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                            Text(
-                                "$screened screened. Nothing reaches a guardian until you "
-                                    + "sign it off.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-                }
-                Spacer(Modifier.height(12.dp))
+                AppListRow(
+                    title = "Review and send results",
+                    supporting = "$screened screened. Nothing reaches a guardian until you "
+                        + "sign it off.",
+                    modifier = Modifier.padding(horizontal = AppSpacing.xl),
+                    leading = { IconBubble(Icons.Outlined.FactCheck, MaterialTheme.colorScheme.secondary) },
+                    showChevron = true,
+                    onClick = onOpenReview,
+                )
+                Spacer(Modifier.height(AppSpacing.md))
             }
         }
 
@@ -223,7 +177,7 @@ fun ClinicianRosterScreen(
                         q.isNotEmpty() -> "Nobody on this camp matches \"$query\"."
                         else -> "Nobody matches these filters."
                     },
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(AppSpacing.xl),
                 )
             }
         } else {
@@ -231,103 +185,55 @@ fun ClinicianRosterScreen(
                 ChildRow(child) { onOpenChild(child.kidId) }
             }
         }
-        item { Spacer(Modifier.height(24.dp)) }
+        item { Spacer(Modifier.height(AppSpacing.xxl)) }
     }
 }
 
 @Composable
 private fun ChildRow(child: CampChildDto, onClick: () -> Unit) {
-    HeroCard(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
-            .clickable(onClick = onClick)
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Consent first: without it nothing may be recorded at all, so a clinician
+    // must see that before they sit the child down.
+    val consented = child.consentStatus == "GRANTED" || child.consentStatus == "PAPER"
+    val done = child.state == "DONE"
+    AppListRow(
+        title = child.name,
+        subtitle = listOf(
+            listOf(child.grade, child.section).filter { it.isNotBlank() }.joinToString(" "),
+            child.studentRef,
+        ).filter { it.isNotBlank() }.joinToString(" · "),
+        // What is left of this clinician's own share, when they have more than
+        // one check to do. It is a supporting line, not part of the trailing
+        // column: in the trailing column it used to squeeze the child's name
+        // to "Aarav…" or to nothing.
+        supporting = if (consented && !done && child.myOutstanding.isNotEmpty() && child.myChecks.size > 1)
+            child.myOutstanding.joinToString(", ") else null,
+        supportingTone = Tone.Watch,
+        modifier = Modifier.padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs + AppSpacing.xxs),
+        leading = {
             // The same derivation ProfileViewModel uses, so a child keeps one
             // colour wherever they appear. KidAvatar requires it; there is no
             // default.
             KidAvatar(
                 name = child.name,
                 colorValue = (child.name.hashCode() and 0xFFFFFF).toLong() or 0xFF000000,
-                size = 42.dp,
+                size = 40.dp,
             )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    child.name,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    listOf(
-                        listOf(child.grade, child.section).filter { it.isNotBlank() }.joinToString(" "),
-                        child.studentRef,
-                    ).filter { it.isNotBlank() }.joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.Center) {
-                // Consent first: without it nothing may be recorded at all, so
-                // a clinician must see that before they sit the child down.
-                if (child.consentStatus != "GRANTED" && child.consentStatus != "PAPER") {
-                    Text(
-                        if (child.consentStatus == "DECLINED") "Declined" else "No consent",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.error,
-                    )
+        },
+        trailing = {
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(AppSpacing.xs),
+            ) {
+                if (!consented) {
+                    StatusPill(if (child.consentStatus == "DECLINED") "Declined" else "No consent", Tone.Alert)
                 } else {
-                    val done = child.state == "DONE"
-                    Text(
-                        if (done) "Done" else "To do",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = if (done) HeroBlue else HeroOrange,
-                    )
-                    // What is left of this clinician's own share, when they
-                    // have more than one check to do.
-                    if (!done && child.myOutstanding.isNotEmpty() && child.myChecks.size > 1) {
-                        Text(
-                            child.myOutstanding.joinToString(", "),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
+                    StatusPill(if (done) "Done" else "To do", if (done) Tone.Good else Tone.Brand)
                 }
                 if (child.attendance == "ABSENT") {
-                    Text(
-                        "Absent",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    StatusPill("Absent", Tone.Neutral)
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun FilterPill(label: String, active: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (active) HeroOrange.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 8.dp)
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (active) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
-        )
-    }
+        },
+        onClick = onClick,
+    )
 }

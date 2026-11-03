@@ -38,7 +38,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -49,19 +48,24 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import kallam.healthcare.R
 import kallam.healthcare.data.S
+import kallam.healthcare.ui.components.AppTextButton
 import kallam.healthcare.ui.components.IconBubble
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.StatTile
+import kallam.healthcare.ui.components.Illustration
+import kallam.healthcare.ui.components.Scene
+import kallam.healthcare.ui.components.StatusPill
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.theme.AppCorners
 import kallam.healthcare.ui.theme.AppSpacing
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.FlagWatch
+import kallam.healthcare.ui.theme.HeroPurple
 import kotlinx.coroutines.launch
 
 private data class Slide(
@@ -81,25 +85,25 @@ fun OnboardingScreen(
             images.getOrElse(0) { "" },
             t(S.onboardingTitle1),
             t(S.onboardingSub1),
-            HeroOrange
+            MaterialTheme.colorScheme.primary
         ),
         Slide(
             images.getOrElse(1) { "" },
             t(S.onboardingTitle2),
             t(S.onboardingSub2),
-            HeroBlue
+            MaterialTheme.colorScheme.secondary
         ),
         Slide(
             images.getOrElse(2) { "" },
             t(S.onboardingTitle3),
             t(S.onboardingSub3),
-            Color(0xFF8B5CF6)
+            HeroPurple
         ),
         Slide(
             images.getOrElse(3) { "" },
             t(S.onboardingTitle4),
             t(S.onboardingSub4),
-            Color(0xFFF59E0B)
+            FlagWatch
         ),
     )
 
@@ -124,15 +128,9 @@ fun OnboardingScreen(
                 Image(
                     painter = painterResource(id = R.drawable.vitahero_logo),
                     contentDescription = "VitaHero",
-                    modifier = Modifier.height(36.dp)
+                    modifier = Modifier.height(48.dp)
                 )
-                TextButton(onClick = onFinish) {
-                    Text(
-                        t(S.skip),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                AppTextButton(t(S.skip), onClick = onFinish, tone = Tone.Neutral)
             }
 
             HorizontalPager(
@@ -156,15 +154,10 @@ fun OnboardingScreen(
                     ) {
                         Box(
                             Modifier
-                                .fillMaxHeight()
-                                .aspectRatio(0.82f, matchHeightConstraintsFirst = true)
+                                .fillMaxSize()
+                                .padding(horizontal = AppSpacing.xl)
                                 .clip(RoundedCornerShape(AppCorners.xlarge))
-                                .background(slide.accent.copy(alpha = 0.06f))
-                                .border(
-                                    1.dp,
-                                    slide.accent.copy(alpha = 0.18f),
-                                    RoundedCornerShape(AppCorners.xlarge)
-                                )
+                                .background(MaterialTheme.colorScheme.surface)
                         ) {
                             if (slide.image.isNotBlank()) {
                                 AsyncImage(
@@ -174,7 +167,10 @@ fun OnboardingScreen(
                                     modifier = Modifier.fillMaxSize()
                                 )
                             } else {
-                                OnboardingVisualHero(page = page, accent = slide.accent)
+                                Illustration(
+                                    scene = listOf(Scene.Growth, Scene.Checkup, Scene.Food, Scene.Doctor)[page],
+                                    modifier = Modifier.fillMaxSize().padding(AppSpacing.lg)
+                                )
                             }
                         }
                     }
@@ -214,7 +210,7 @@ fun OnboardingScreen(
                     )
                     Box(
                         Modifier
-                            .padding(horizontal = 4.dp)
+                            .padding(horizontal = AppSpacing.xs)
                             .height(8.dp)
                             .size(width = width, height = 8.dp)
                             .clip(CircleShape)
@@ -239,324 +235,6 @@ fun OnboardingScreen(
                 )
             }
         }
-    }
-}
-
-/**
- * Handcrafted vector visual hero composable for instant 0ms slide rendering.
- */
-@Composable
-private fun OnboardingVisualHero(
-    page: Int,
-    accent: Color
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        accent.copy(alpha = 0.12f),
-                        accent.copy(alpha = 0.03f)
-                    )
-                )
-            )
-            .padding(AppSpacing.lg),
-        contentAlignment = Alignment.Center
-    ) {
-        when (page) {
-            0 -> OnboardingVitalsCard(accent)
-            1 -> OnboardingTriageCard(accent)
-            2 -> OnboardingNutritionCard(accent)
-            else -> OnboardingTeleconsultCard(accent)
-        }
-    }
-}
-
-@Composable
-private fun OnboardingVitalsCard(accent: Color) {
-    Surface(
-        shape = RoundedCornerShape(AppCorners.large),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 6.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(AppSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-            ) {
-                IconBubble(icon = Icons.Default.Favorite, tint = accent, size = 40.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Live Kid Vitals Tracker",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "Aarav Kallam · 7 Yrs",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Icon(
-                    Icons.Default.Verified,
-                    contentDescription = null,
-                    tint = HeroBlue,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                MetricPill("Height", "122 cm", HeroBlue)
-                MetricPill("Weight", "23 kg", HeroOrange)
-                MetricPill("Heart Rate", "78 bpm", Color(0xFF10B981))
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AppCorners.medium))
-                    .background(accent.copy(alpha = 0.1f))
-                    .padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)
-                ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = accent,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Text(
-                        "Oakridge Health Camp Sync: Optimal Vitals",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = accent,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun OnboardingTriageCard(accent: Color) {
-    Surface(
-        shape = RoundedCornerShape(AppCorners.large),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 6.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(AppSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-            ) {
-                IconBubble(icon = Icons.Default.Psychology, tint = accent, size = 40.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "AI Symptom Triage Engine",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "Instant Pediatric Guidance",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .clip(CircleShape)
-                        .background(accent.copy(alpha = 0.15f))
-                        .padding(horizontal = AppSpacing.sm, vertical = AppSpacing.xxs)
-                ) {
-                    Text(
-                        "98.4% Confidence",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = accent
-                    )
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AppCorners.medium))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-                    .padding(AppSpacing.md)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
-                    Text(
-                        "Triage Finding: Mild Seasonal Runny Nose",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "Recommendation: Warm fluids, rest, monitor temp.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun OnboardingNutritionCard(accent: Color) {
-    Surface(
-        shape = RoundedCornerShape(AppCorners.large),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 6.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(AppSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-            ) {
-                IconBubble(icon = Icons.Default.Restaurant, tint = accent, size = 40.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "AI Snap Meal Analyzer",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "Balanced Meal Certified",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                Icon(
-                    Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = accent,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                MetricPill("Protein", "18g", accent)
-                MetricPill("Carbs", "42g", HeroBlue)
-                MetricPill("Fiber", "8g", Color(0xFF10B981))
-            }
-        }
-    }
-}
-
-@Composable
-private fun OnboardingTeleconsultCard(accent: Color) {
-    Surface(
-        shape = RoundedCornerShape(AppCorners.large),
-        color = MaterialTheme.colorScheme.surface,
-        shadowElevation = 6.dp,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.padding(AppSpacing.lg),
-            verticalArrangement = Arrangement.spacedBy(AppSpacing.md)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)
-            ) {
-                IconBubble(icon = Icons.Default.LocalHospital, tint = accent, size = 40.dp)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Dr. Ananya Sharma",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "Senior Pediatrician · Rainbow Children's",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(AppCorners.medium))
-                    .background(accent.copy(alpha = 0.12f))
-                    .padding(AppSpacing.md)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(
-                            "Next Teleconsult Available",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = accent
-                        )
-                        Text(
-                            "Today · 5:30 PM",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(AppCorners.pill))
-                            .background(accent)
-                            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.xs)
-                    ) {
-                        Text(
-                            "Book",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.White
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun MetricPill(label: String, value: String, accent: Color) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .clip(RoundedCornerShape(AppCorners.medium))
-            .background(accent.copy(alpha = 0.08f))
-            .padding(horizontal = AppSpacing.md, vertical = AppSpacing.sm)
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            value,
-            style = MaterialTheme.typography.titleSmall,
-            color = accent,
-            fontWeight = FontWeight.Bold
-        )
     }
 }
 

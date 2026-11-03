@@ -18,12 +18,12 @@ struct NotificationsView: View {
                         .clipShape(Circle())
                     VStack(alignment: .leading, spacing: 4) {
                         HStack {
-                            Text(note.title).font(.headline)
+                            Text(note.title).font(.vh(.headline))
                             Spacer()
                             if note.unread { Circle().fill(Brand.orange).frame(width: 8, height: 8) }
                         }
-                        Text(note.body).font(.subheadline)
-                        if !note.time.isEmpty { Text(note.time).font(.caption).foregroundColor(.secondary) }
+                        Text(note.body).font(.vh(.subheadline))
+                        if !note.time.isEmpty { Text(note.time).font(.vh(.caption)).foregroundColor(.secondary) }
                     }
                 }
                 .padding(.vertical, 4)

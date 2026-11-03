@@ -11,28 +11,28 @@ struct DietPlanView: View {
             if let plan = store.dietPlans[kid.id] {
                 Section {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(plan.title).font(.title3.bold())
+                        Text(plan.title).font(.vh(.title3, .bold))
                         if !plan.focus.isEmpty { Pill(text: plan.focus, color: Brand.green) }
                         if !plan.authorName.isEmpty {
-                            Text(L("diet_plan_from", plan.authorName)).font(.subheadline).foregroundColor(.secondary)
+                            Text(L("diet_plan_from", plan.authorName)).font(.vh(.subheadline)).foregroundColor(.secondary)
                         }
                         if !plan.startsOn.isEmpty {
                             Text([plan.startsOn, plan.endsOn].filter { !$0.isEmpty }.joined(separator: " – "))
-                                .font(.caption).foregroundColor(.secondary)
+                                .font(.vh(.caption)).foregroundColor(.secondary)
                         }
                     }
-                    if !plan.guidance.isEmpty { Text(plan.guidance).font(.subheadline) }
+                    if !plan.guidance.isEmpty { Text(plan.guidance).font(.vh(.subheadline)) }
                 }
                 // A plan written for a group cannot know this child's milk
                 // intolerance or allergy, so the family is asked to phone first.
                 Section {
-                    Text(L("diet_allergy_note")).font(.subheadline)
+                    Text(L("diet_allergy_note")).font(.vh(.subheadline))
                     if !plan.dieticianPhone.isEmpty,
                        let url = URL(string: "tel:" + plan.dieticianPhone.filter { $0.isNumber || $0 == "+" }) {
                         Link(destination: url) {
                             Label(L("diet_call_dietician", plan.dieticianName.isEmpty ? plan.dieticianPhone : plan.dieticianName)
                                   + " · " + plan.dieticianPhone, systemImage: "phone.fill")
-                                .font(.subheadline.weight(.semibold))
+                                .font(.vh(.subheadline, .semibold))
                         }
                     }
                 }
@@ -44,11 +44,11 @@ struct DietPlanView: View {
                         } label: {
                             HStack {
                                 Image(systemName: item.eaten ? "checkmark.circle.fill" : "circle")
-                                    .foregroundColor(item.eaten ? Brand.green : .secondary).font(.title3)
+                                    .foregroundColor(item.eaten ? Brand.green : .secondary).font(.vh(.title3))
                                 VStack(alignment: .leading) {
                                     Text(item.name).foregroundColor(.primary)
                                     if !item.detail.isEmpty {
-                                        Text(item.detail).font(.caption).foregroundColor(.secondary)
+                                        Text(item.detail).font(.vh(.caption)).foregroundColor(.secondary)
                                     }
                                 }
                             }
@@ -59,7 +59,7 @@ struct DietPlanView: View {
             } else {
                 EmptyState(icon: "fork.knife", title: L("no_diet_plan"), subtitle: L("no_diet_plan_sub"))
             }
-            Section { Text(L("medical_disclaimer")).font(.caption).foregroundColor(.secondary) }
+            Section { Text(L("medical_disclaimer")).font(.vh(.caption)).foregroundColor(.secondary) }
         }
         .navigationTitle(L("diet_plan_title"))
         .navigationBarTitleDisplayMode(.inline)
@@ -86,8 +86,8 @@ struct StreakSection: View {
 
     private func stat(icon: String, color: Color, value: Int, label: String) -> some View {
         VStack(spacing: 4) {
-            Label("\(value)", systemImage: icon).font(.title2.bold()).foregroundColor(color)
-            Text(label).font(.caption).foregroundColor(.secondary)
+            Label("\(value)", systemImage: icon).font(.vh(.title2, .bold)).foregroundColor(color)
+            Text(label).font(.vh(.caption)).foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
     }
@@ -110,8 +110,8 @@ struct RewardsView: View {
             if let kid {
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L("kid_badges", kid.name)).font(.headline)
-                        Text(L("hero_badges_title")).font(.subheadline).foregroundColor(.secondary)
+                        Text(L("kid_badges", kid.name)).font(.vh(.headline))
+                        Text(L("hero_badges_title")).font(.vh(.subheadline)).foregroundColor(.secondary)
                     }
                 }
                 StreakSection(kidId: kid.id)
@@ -166,22 +166,22 @@ struct BadgeRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: info.icon)
-                .font(.title2)
+                .font(.vh(.title2))
                 .foregroundColor(info.badge.earned ? .white : info.color)
                 .frame(width: 48, height: 48)
                 .background(info.badge.earned ? info.color : info.color.opacity(0.14))
                 .clipShape(Circle())
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(info.title).font(.headline)
+                    Text(info.title).font(.vh(.headline))
                     Spacer()
                     if info.badge.earned { Pill(text: L("earned"), color: info.color) }
                 }
-                Text(info.subtitle).font(.caption).foregroundColor(.secondary)
+                Text(info.subtitle).font(.vh(.caption)).foregroundColor(.secondary)
                 if !info.badge.earned {
                     ProgressView(value: info.badge.progress).tint(info.color)
                     if info.badge.target > 0 {
-                        Text("\(info.badge.current) / \(info.badge.target)").font(.caption2).foregroundColor(.secondary)
+                        Text("\(info.badge.current) / \(info.badge.target)").font(.vh(.caption2)).foregroundColor(.secondary)
                     }
                 }
             }

@@ -39,7 +39,7 @@ struct SymptomsView: View {
                 }
                 Section {
                     Text(data?.notice.isEmpty == false ? data!.notice : L("symptoms_notice_fallback"))
-                        .font(.caption).foregroundColor(.secondary)
+                        .font(.vh(.caption)).foregroundColor(.secondary)
                 }
             } else {
                 EmptyState(icon: "person.2", title: L("no_kids_yet"), subtitle: L("no_kids_sub"))
@@ -87,18 +87,18 @@ struct SymptomRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
-                Text(event.symptom).font(.headline)
+                Text(event.symptom).font(.vh(.headline))
                 Spacer()
                 Pill(text: SymptomForm.severityLabel(event.severity),
                      color: event.severity.uppercased() == "MODERATE" ? Brand.amber : Brand.blue)
             }
             Text(event.endedOn.isEmpty ? "\(event.startedOn) · \(L("still_unwell"))" : "\(event.startedOn) – \(event.endedOn)")
-                .font(.caption).foregroundColor(.secondary)
+                .font(.vh(.caption)).foregroundColor(.secondary)
             HStack(spacing: 8) {
                 if event.sawDoctor { Pill(text: L("saw_a_doctor"), color: Brand.green) }
                 if event.missedSchool { Pill(text: L("missed_school"), color: Brand.purple) }
             }
-            if !event.note.isEmpty { Text(event.note).font(.subheadline) }
+            if !event.note.isEmpty { Text(event.note).font(.vh(.subheadline)) }
         }
         .padding(.vertical, 2)
     }
@@ -160,7 +160,7 @@ struct SymptomForm: View {
                 Toggle(L("missed_school"), isOn: $missedSchool)
                 TextField(L("symptom_note_hint"), text: $note, axis: .vertical).lineLimit(2...5)
             }
-            Section { Text(L("symptom_not_a_diagnosis")).font(.caption).foregroundColor(.secondary) }
+            Section { Text(L("symptom_not_a_diagnosis")).font(.vh(.caption)).foregroundColor(.secondary) }
         }
         .navigationTitle(L("log_symptom"))
         .navigationBarTitleDisplayMode(.inline)

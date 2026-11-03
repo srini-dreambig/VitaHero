@@ -20,12 +20,15 @@ struct ProfileView: View {
             if let profile = auth.profile {
                 Section {
                     HStack(spacing: 14) {
-                        Image(systemName: "person.crop.circle.fill")
-                            .font(.system(size: 48))
-                            .foregroundStyle(Brand.gradient)
+                        Text(profile.name.isEmpty ? "?" : String(profile.name.prefix(1)).uppercased())
+                            .font(.vh(.title2, .bold))
+                            .foregroundColor(Brand.ink)
+                            .frame(width: 52, height: 52)
+                            .background(Brand.pink)
+                            .clipShape(Circle())
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(profile.name.isEmpty ? L("your_name") : profile.name).font(.headline)
-                            Text(profile.phone).font(.subheadline).foregroundColor(.secondary)
+                            Text(profile.name.isEmpty ? L("your_name") : profile.name).font(.vh(.headline))
+                            Text(profile.phone).font(.vh(.subheadline)).foregroundColor(.secondary)
                         }
                         Spacer()
                         Button(L("edit")) {
@@ -54,7 +57,7 @@ struct ProfileView: View {
                     Toggle(isOn: setting(\.campRemindersEnabled)) {
                         VStack(alignment: .leading) {
                             Text(L("camp_reminders"))
-                            Text(L("camp_reminder_sub")).font(.caption).foregroundColor(.secondary)
+                            Text(L("camp_reminder_sub")).font(.vh(.caption)).foregroundColor(.secondary)
                         }
                     }
                 }
@@ -65,8 +68,8 @@ struct ProfileView: View {
             }
 
             Section {
-                Text(L("medical_disclaimer")).font(.caption).foregroundColor(.secondary)
-                Text("VitaHero \(version)").font(.caption).foregroundColor(.secondary)
+                Text(L("medical_disclaimer")).font(.vh(.caption)).foregroundColor(.secondary)
+                Text("VitaHero \(version)").font(.vh(.caption)).foregroundColor(.secondary)
             }
         }
         .navigationTitle(L("nav_profile"))

@@ -40,7 +40,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -53,8 +52,8 @@ import kallam.healthcare.ui.components.FieldLabel
 import kallam.healthcare.ui.components.HeroTextField
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.theme.AppTheme
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
 
 
 /**
@@ -79,10 +78,10 @@ fun AuthScreen(
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.systemBars)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = AppSpacing.xxl),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(Modifier.height(32.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
 
         // Brand logo
         Image(
@@ -92,14 +91,14 @@ fun AuthScreen(
                 .fillMaxWidth(0.62f)
                 .heightIn(max = 180.dp)
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(AppSpacing.xs))
         Text(
             t(S.appSubtitle),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(AppSpacing.xxl))
 
         // Closed app: parents sign in with their registered mobile number only.
         PhoneAuthSection(
@@ -111,15 +110,15 @@ fun AuthScreen(
 
         // ─── Auth Error ───────────────────────────────────────
         if (authError != null) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(AppCorners.medium))
                     // Theme colours: the fixed light red was a bright pink
                     // panel on an otherwise dark screen in dark mode.
                     .background(MaterialTheme.colorScheme.errorContainer)
-                    .padding(12.dp)
+                    .padding(AppSpacing.md)
             ) {
                 Text(
                     authError,
@@ -131,23 +130,23 @@ fun AuthScreen(
 
         // ─── Loading ──────────────────────────────────────────
         if (isLoading) {
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(AppSpacing.md))
             CircularProgressIndicator(
                 modifier = Modifier.size(24.dp),
                 strokeWidth = 2.dp,
-                color = HeroOrange
+                color = MaterialTheme.colorScheme.primary
             )
         }
 
         Spacer(Modifier.weight(1f))
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(AppSpacing.md))
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(bottom = 16.dp)
+            horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+            modifier = Modifier.padding(bottom = AppSpacing.lg)
         ) {
-            Icon(Icons.Outlined.Lock, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(16.dp))
+            Icon(Icons.Outlined.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
             Text(
                 t(S.trustBadge),
                 style = MaterialTheme.typography.bodySmall,
@@ -178,14 +177,14 @@ private fun PhoneAuthSection(
         Box(
             Modifier
                 .height(52.dp)
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(AppCorners.medium))
                 .background(MaterialTheme.colorScheme.surfaceVariant)
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = AppSpacing.lg),
             contentAlignment = Alignment.Center
         ) {
             Text("+91", style = MaterialTheme.typography.titleMedium)
         }
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(AppSpacing.sm))
         HeroTextField(
             value = phone,
             onValueChange = onPhoneChange,
@@ -195,7 +194,7 @@ private fun PhoneAuthSection(
         )
     }
 
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(AppSpacing.sm))
     Text(
         t(S.smsNote),
         style = MaterialTheme.typography.bodySmall,
@@ -203,27 +202,21 @@ private fun PhoneAuthSection(
         modifier = Modifier.fillMaxWidth()
     )
 
-    Spacer(Modifier.height(20.dp))
+    Spacer(Modifier.height(AppSpacing.xl))
 
     Box(
         Modifier
             .fillMaxWidth()
-            .height(52.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(
-                if (phone.length == 10 && !isLoading)
-                    Brush.linearGradient(listOf(HeroOrange, HeroBlue))
-                else
-                    Brush.linearGradient(listOf(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.colorScheme.surfaceVariant))
-            )
+            .height(56.dp)
+            .clip(RoundedCornerShape(50))
+            .background(if (phone.length == 10 && !isLoading) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant)
             .clickable(enabled = phone.length == 10 && !isLoading) { onSubmit() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             if (isLoading) t(S.pleaseWait) else t(S.sendOtp),
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = if (phone.length == 10 && !isLoading) Color.White
+            style = MaterialTheme.typography.labelLarge,
+            color = if (phone.length == 10 && !isLoading) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurfaceVariant
         )
     }

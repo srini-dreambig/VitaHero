@@ -3,7 +3,6 @@ package kallam.healthcare.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,15 +14,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,21 +31,25 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.GuardianViewModel
 import kallam.healthcare.data.S
 import kallam.healthcare.data.SymptomEventDto
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
+import kallam.healthcare.ui.components.AppTextField
+import kallam.healthcare.ui.components.FieldLabel
 import kallam.healthcare.ui.components.HeroSingleSelectDropdown
-import kallam.healthcare.ui.components.HeroSegmentedPicker
+import kallam.healthcare.ui.components.InfoNote
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.SegmentedChoice
 import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppSpacing
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -91,60 +91,36 @@ fun SymptomScreen(
     var sawDoctor by rememberSaveable(kidId) { mutableStateOf(false) }
     var missedSchool by rememberSaveable(kidId) { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = Modifier
+    Column(
+        Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 40.dp),
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item {
-            StatusBarSpacer()
-            ScreenHeader(t(S.symptomsTitle), tf(S.symptomsSub, kidName), onBack)
-            Spacer(Modifier.height(12.dp))
-        }
-
-        // The safety line sits above the form, in the server's own words.
-        item {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(HeroOrange.copy(alpha = 0.12f))
-                    .padding(14.dp),
-            ) {
-                Row(verticalAlignment = Alignment.Top) {
-                    Icon(
-                        Icons.Outlined.Warning,
-                        contentDescription = null,
-                        tint = HeroOrange,
-                        modifier = Modifier.size(20.dp),
-                    )
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        log.notice.ifBlank { t(S.symptomsNoticeFallback) },
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            // A child who is unwell can be booked in from here, straight to
-            // the hospitals we work with, without hunting for the screen.
-            PrimaryGradientButton(text = t(S.bookAppt), onClick = onBookDoctor)
-            Spacer(Modifier.height(14.dp))
-        }
-
-        // Advice for a complaint that can turn serious. Shown above the form
-        // after saving, because the record is kept either way.
-        if (advice.isNotBlank()) {
+        StatusBarSpacer()
+        AppScreenHeader(t(S.symptomsTitle), subtitle = tf(S.symptomsSub, kidName), onBack = onBack)
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxxl),
+            verticalArrangement = Arrangement.spacedBy(AppSpacing.md),
+        ) {
+            // The safety line sits above the form, in the server's own words.
             item {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.errorContainer)
-                        .padding(14.dp),
-                ) {
-                    Column {
+                InfoNote(
+                    log.notice.ifBlank { t(S.symptomsNoticeFallback) },
+                    tone = Tone.Watch,
+                    icon = Icons.Outlined.Warning,
+                )
+                Spacer(Modifier.height(AppSpacing.md))
+                // A child who is unwell can be booked in from here, straight to
+                // the hospitals we work with, without hunting for the screen.
+                PrimaryGradientButton(text = t(S.bookAppt), onClick = onBookDoctor)
+            }
+
+            // Advice for a complaint that can turn serious. Shown above the form
+            // after saving, because the record is kept either way.
+            if (advice.isNotBlank()) {
+                item {
+                    AppCard(background = MaterialTheme.colorScheme.errorContainer) {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -152,8 +128,7 @@ fun SymptomScreen(
                         ) {
                             Text(
                                 t(S.seeADoctor),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                                 modifier = Modifier.weight(1f),
                             )
@@ -166,23 +141,20 @@ fun SymptomScreen(
                                     .clickable { guardianViewModel.clearSymptomAdvice() },
                             )
                         }
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(AppSpacing.sm))
                         Text(
                             advice,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                         )
-                        Spacer(Modifier.height(10.dp))
+                        Spacer(Modifier.height(AppSpacing.md))
                         PrimaryGradientButton(text = t(S.bookAppt), onClick = onBookDoctor)
                     }
                 }
-                Spacer(Modifier.height(14.dp))
             }
-        }
 
-        item {
-            HeroCard(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp)) {
+            item {
+                AppCard {
                     HeroSingleSelectDropdown(
                         label = t(S.whatHappened),
                         options = log.symptoms,
@@ -191,18 +163,19 @@ fun SymptomScreen(
                         placeholder = "Select reported symptom..."
                     )
 
-                    val mildText = t(S.severityMild)
-                    val modText = t(S.severityModerate)
-                    HeroSegmentedPicker(
-                        label = t(S.howBad),
-                        options = listOf(mildText, modText),
-                        selected = if (severity == "MILD") mildText else modText,
-                        onSelect = { chosen ->
-                            severity = if (chosen == mildText) "MILD" else "MODERATE"
-                        }
+                    Spacer(Modifier.height(AppSpacing.md))
+                    FieldLabel(t(S.howBad))
+                    val mild = t(S.severityMild)
+                    val moderate = t(S.severityModerate)
+                    SegmentedChoice(
+                        options = listOf("MILD", "MODERATE"),
+                        selected = severity,
+                        onSelect = { severity = it },
+                        label = { if (it == "MILD") mild else moderate },
+                        toneOf = { if (it == "MILD") Tone.Good else Tone.Watch },
                     )
 
-                    Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(AppSpacing.lg))
                     val dayChoices = listOf(
                         0 to t(S.dayToday),
                         1 to t(S.dayYesterday),
@@ -221,23 +194,22 @@ fun SymptomScreen(
                         placeholder = "Select start day..."
                     )
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     CheckRow(t(S.stillUnwell), stillGoing) { stillGoing = it }
                     CheckRow(t(S.missedSchool), missedSchool) { missedSchool = it }
                     CheckRow(t(S.sawADoctor), sawDoctor) { sawDoctor = it }
 
-                    Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
+                    Spacer(Modifier.height(AppSpacing.md))
+                    AppTextField(
                         value = note,
                         onValueChange = { note = it.take(500) },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text(t(S.symptomNoteHint)) },
+                        placeholder = t(S.symptomNoteHint),
+                        singleLine = false,
                         minLines = 2,
-                        shape = RoundedCornerShape(14.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = HeroOrange),
                     )
 
-                    Spacer(Modifier.height(14.dp))
+                    Spacer(Modifier.height(AppSpacing.md))
                     PrimaryGradientButton(
                         text = t(S.saveSymptom),
                         onClick = {
@@ -264,7 +236,7 @@ fun SymptomScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !busy && symptom.isNotBlank(),
                     )
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(AppSpacing.sm))
                     Text(
                         t(S.symptomNotADiagnosis),
                         style = MaterialTheme.typography.bodySmall,
@@ -272,27 +244,18 @@ fun SymptomScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(20.dp))
-        }
 
-        if (log.events.isNotEmpty()) {
-            item {
-                Text(
-                    t(S.pastIllnesses),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    t(S.pastIllnessesSub),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(10.dp))
-            }
-            items(log.events, key = { it.id }) { e ->
-                EventRow(e) { guardianViewModel.deleteSymptom(kidId, e.id) }
-                Spacer(Modifier.height(8.dp))
+            if (log.events.isNotEmpty()) {
+                item {
+                    AppSectionTitle(
+                        t(S.pastIllnesses),
+                        Modifier.padding(top = AppSpacing.md),
+                        subtitle = t(S.pastIllnessesSub),
+                    )
+                }
+                items(log.events, key = { it.id }) { e ->
+                    EventRow(e) { guardianViewModel.deleteSymptom(kidId, e.id) }
+                }
             }
         }
     }
@@ -300,90 +263,26 @@ fun SymptomScreen(
 
 @Composable
 private fun EventRow(e: SymptomEventDto, onDelete: () -> Unit) {
-    HeroCard(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    e.symptom,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    listOf(
-                        e.startedOn,
-                        if (e.endedOn.isBlank()) t(S.ongoingLabel) else "→ " + e.endedOn,
-                        if (e.severity == "MODERATE") t(S.severityModerate) else "",
-                    ).filter { it.isNotBlank() }.joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (e.note.isNotBlank()) {
-                    Text(
-                        e.note,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            Spacer(Modifier.width(8.dp))
+    AppListRow(
+        title = e.symptom,
+        subtitle = listOf(
+            e.startedOn,
+            if (e.endedOn.isBlank()) t(S.ongoingLabel) else "→ " + e.endedOn,
+            if (e.severity == "MODERATE") t(S.severityModerate) else "",
+        ).filter { it.isNotBlank() }.joinToString(" · "),
+        supporting = e.note.ifBlank { null },
+        trailing = {
             Icon(
                 Icons.Outlined.Close,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp).clickable(onClick = onDelete),
             )
-        }
-    }
+        },
+    )
 }
 
-/** Wrapping chips. Written by hand so the layout never runs off a narrow screen. */
-@Composable
-private fun ChipGrid(options: List<String>, selected: String, onPick: (String) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        options.chunked(2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                pair.forEach { option ->
-                    Box(Modifier.weight(1f)) { Choice(option, option == selected) { onPick(option) } }
-                }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun Choice(label: String, selected: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (selected) HeroOrange.copy(alpha = 0.16f)
-                else MaterialTheme.colorScheme.surfaceVariant
-            )
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) HeroOrange else MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
+/** A form checkbox, not a list row: it sits inside the form card. */
 @Composable
 private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
     Row(
@@ -391,7 +290,7 @@ private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Uni
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(checked = checked, onCheckedChange = onChange)
-        Spacer(Modifier.width(4.dp))
+        Spacer(Modifier.width(AppSpacing.xs))
         Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }

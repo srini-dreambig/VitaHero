@@ -29,7 +29,7 @@ import androidx.compose.ui.unit.dp
 import kallam.healthcare.R
 import kallam.healthcare.data.S
 import kallam.healthcare.ui.components.t
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppSpacing
 import kotlinx.coroutines.delay
 
 /**
@@ -53,7 +53,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 24.dp),
+            .padding(horizontal = AppSpacing.xxl),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -66,7 +66,7 @@ fun SplashScreen(onTimeout: () -> Unit) {
                 .scale(0.92f + reveal.value * 0.08f)
                 .alpha(reveal.value)
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(AppSpacing.sm))
         Text(
             t(S.appSubtitle),
             style = MaterialTheme.typography.bodyMedium,
@@ -74,13 +74,13 @@ fun SplashScreen(onTimeout: () -> Unit) {
             textAlign = TextAlign.Center,
             modifier = Modifier.alpha(reveal.value),
         )
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(AppSpacing.xxxl))
         CircularProgressIndicator(
             modifier = Modifier
                 .size(22.dp)
                 .alpha(reveal.value),
             strokeWidth = 2.dp,
-            color = HeroOrange,
+            color = MaterialTheme.colorScheme.primary,
         )
     }
 }

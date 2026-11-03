@@ -1,8 +1,6 @@
 package kallam.healthcare.ui.screens
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -10,14 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,20 +20,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.ClinicianViewModel
 import kallam.healthcare.data.OtherCheckDto
 import kallam.healthcare.data.ReviewFindingDto
 import kotlinx.serialization.json.JsonPrimitive
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
+import kallam.healthcare.ui.components.AppTextField
 import kallam.healthcare.ui.components.Notice
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.SegmentedChoice
 import kallam.healthcare.ui.components.StatusBarSpacer
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.components.StatusPill
+import kallam.healthcare.ui.components.Tone
+import kallam.healthcare.ui.components.color
+import kallam.healthcare.ui.theme.AppSpacing
 
 /** What the rules can conclude, worst last. */
 private val FLAGS = listOf("GOOD", "WATCH", "ALERT")
@@ -109,40 +102,26 @@ fun ClinicianReviewChildScreen(
     LazyColumn(Modifier.fillMaxSize()) {
         item {
             StatusBarSpacer()
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp, 8.dp, 20.dp, 0.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                IconButton(onClick = { clinician.closeReview(); onBack() }) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        d?.child?.name ?: "…",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    if (d != null) {
-                        Text(
-                            listOfNotNull(
-                                d.child.grade.ifBlank { null },
-                                d.child.age?.let { "$it years" },
-                                d.child.guardianName.ifBlank { null },
-                            ).joinToString(" · "),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-            Spacer(Modifier.height(10.dp))
+            AppScreenHeader(
+                title = d?.child?.name ?: "…",
+                subtitle = d?.let {
+                    listOfNotNull(
+                        it.child.grade.ifBlank { null },
+                        it.child.age?.let { a -> "$a years" },
+                        it.child.guardianName.ifBlank { null },
+                    ).joinToString(" · ")
+                },
+                onBack = { clinician.closeReview(); onBack() },
+            )
+            Spacer(Modifier.height(AppSpacing.sm))
         }
 
         if (d == null) {
             item {
                 Text(
                     if (busy) "Opening…" else message.ifBlank { "Could not open this record." },
-                    Modifier.padding(20.dp),
+                    Modifier.padding(AppSpacing.xl),
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -196,28 +175,22 @@ fun ClinicianReviewChildScreen(
             }
 
             item {
-                Spacer(Modifier.height(6.dp))
-                Text(
+                Spacer(Modifier.height(AppSpacing.lg))
+                AppSectionTitle(
                     "How soon should the guardian act?",
-                    Modifier.padding(horizontal = 20.dp),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    Modifier.padding(horizontal = AppSpacing.xl),
                 )
-                Spacer(Modifier.height(8.dp))
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    URGENCIES.forEach { u ->
-                        ReviewChoice(
-                            label = urgencyWord(u),
-                            selected = urgency == u,
-                            tint = urgencyColour(u),
-                            modifier = Modifier.weight(1f),
-                        ) { urgency = u }
-                    }
-                }
+                Spacer(Modifier.height(AppSpacing.sm))
+                SegmentedChoice(
+                    options = URGENCIES,
+                    selected = urgency,
+                    onSelect = { urgency = it },
+                    label = ::urgencyWord,
+                    modifier = Modifier.padding(horizontal = AppSpacing.xl),
+                    toneOf = ::urgencyTone,
+                )
                 if (urgency == "URGENT") {
+                    Spacer(Modifier.height(AppSpacing.xs))
                     Notice(
                         "Marking this urgent texts the guardian as soon as you sign off, "
                             + "without waiting for the camp to be released.",
@@ -227,35 +200,26 @@ fun ClinicianReviewChildScreen(
             }
 
             item {
-                Spacer(Modifier.height(14.dp))
-                Text(
+                Spacer(Modifier.height(AppSpacing.xxl))
+                AppSectionTitle(
                     if (d.otherChecks.isEmpty()) "What the guardian will read"
                     else "Your part of what the guardian will read",
-                    Modifier.padding(horizontal = 20.dp),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
+                    Modifier.padding(horizontal = AppSpacing.xl),
+                    subtitle = if (d.recommendationIsDraft)
+                        "Drafted from the findings. Edit it into your own words." else null,
                 )
-                if (d.recommendationIsDraft) {
-                    Text(
-                        "Drafted from the findings. Edit it into your own words.",
-                        Modifier.padding(horizontal = 20.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
+                Spacer(Modifier.height(AppSpacing.sm))
+                AppTextField(
                     value = recommendation,
                     onValueChange = { recommendation = it },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.xl),
+                    singleLine = false,
                     minLines = 3,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(),
                 )
             }
 
             item {
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(AppSpacing.lg))
                 val onApprove: () -> Unit = {
                     clinician.approve(
                         campId = campId,
@@ -272,19 +236,19 @@ fun ClinicianReviewChildScreen(
                         else -> "Sign off " + d.myChecks.joinToString(", ")
                     },
                     onClick = onApprove,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = AppSpacing.xl),
                     enabled = !busy && recommendation.isNotBlank(),
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
                 Text(
                     (if (d.otherChecks.isEmpty()) ""
                     else "The child is approved once every specialist has signed their part. ") +
                         "Nothing is sent yet: results reach guardians when the camp is released.",
-                    Modifier.padding(horizontal = 20.dp),
+                    Modifier.padding(horizontal = AppSpacing.xl),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(AppSpacing.xxxl))
             }
         }
     }
@@ -318,77 +282,72 @@ private fun FindingCard(
     chosen: String,
     onChoose: (String) -> Unit,
 ) {
-    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
-        Column(Modifier.padding(16.dp)) {
+    AppCard(Modifier.padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs + AppSpacing.xxs)) {
+        Text(
+            finding.checkType,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        // What was actually measured, in the clinician's own terms. Without
+        // it a physician is asked to endorse a flag without seeing the
+        // number behind it.
+        val measured = finding.detail.entries
+            .filter { (k, _) -> k != "__note" }
+            .joinToString(" · ") { (k, v) ->
+                val shown = (v as? JsonPrimitive)?.content ?: v.toString()
+                "${formatDetailKey(k)}: $shown"
+            }
+        if (measured.isNotBlank()) {
+            Spacer(Modifier.height(AppSpacing.xs))
             Text(
-                finding.checkType,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
+                measured,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            // What was actually measured, in the clinician's own terms. Without
-            // it a physician is asked to endorse a flag without seeing the
-            // number behind it.
-            val measured = finding.detail.entries
-                .filter { (k, _) -> k != "__note" }
-                .joinToString(" · ") { (k, v) ->
-                    val shown = (v as? JsonPrimitive)?.content ?: v.toString()
-                    "${formatDetailKey(k)}: $shown"
-                }
-            if (measured.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    measured,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (finding.rationale.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    finding.rationale,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (finding.screenerNote.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Screener: ${finding.screenerNote}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            if (finding.previous.isNotEmpty()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Flagged before: " + finding.previous.joinToString(", ") {
-                        listOf(it.flag.lowercase(), it.date).filter { p -> p.isNotBlank() }
-                            .joinToString(" ")
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = HeroOrange,
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FLAGS.forEach { flag ->
-                    ReviewChoice(
-                        label = flagWord(flag),
-                        selected = chosen == flag,
-                        tint = flagColour(flag),
-                        modifier = Modifier.weight(1f),
-                    ) { onChoose(flag) }
-                }
-            }
-            if (chosen != finding.autoFlag) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "The rules said ${flagWord(finding.autoFlag).lowercase()}. " +
-                        "Your decision is what the guardian sees.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
+        }
+        if (finding.rationale.isNotBlank()) {
+            Spacer(Modifier.height(AppSpacing.xs))
+            Text(
+                finding.rationale,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (finding.screenerNote.isNotBlank()) {
+            Spacer(Modifier.height(AppSpacing.xs))
+            Text(
+                "Screener: ${finding.screenerNote}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (finding.previous.isNotEmpty()) {
+            Spacer(Modifier.height(AppSpacing.xs))
+            Text(
+                "Flagged before: " + finding.previous.joinToString(", ") {
+                    listOf(it.flag.lowercase(), it.date).filter { p -> p.isNotBlank() }
+                        .joinToString(" ")
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = Tone.Watch.color(),
+            )
+        }
+        Spacer(Modifier.height(AppSpacing.md))
+        SegmentedChoice(
+            options = FLAGS,
+            selected = chosen,
+            onSelect = onChoose,
+            label = ::flagWord,
+            toneOf = ::flagTone,
+        )
+        if (chosen != finding.autoFlag) {
+            Spacer(Modifier.height(AppSpacing.sm))
+            Text(
+                "The rules said ${flagWord(finding.autoFlag).lowercase()}. " +
+                    "Your decision is what the guardian sees.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -396,56 +355,43 @@ private fun FindingCard(
 /** The checks other specialists sign: done or not, and by whom. Never their results. */
 @Composable
 private fun OtherChecksCard(checks: List<OtherCheckDto>) {
-    HeroCard(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 6.dp)) {
-        Column(Modifier.padding(16.dp)) {
-            Text(
-                "Other specialists",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Spacer(Modifier.height(6.dp))
-            checks.forEach { c ->
-                Row(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                    Text(
-                        c.checkType,
-                        Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    Text(
-                        when {
-                            c.signedBy.isNotBlank() -> "Signed by ${c.signedBy}"
-                            c.recorded -> "Recorded, not signed"
-                            else -> "Not recorded yet"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (c.signedBy.isNotBlank()) HeroBlue else HeroOrange,
-                    )
-                }
+    AppCard(Modifier.padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs + AppSpacing.xxs)) {
+        Text(
+            "Other specialists",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(AppSpacing.sm))
+        checks.forEach { c ->
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = AppSpacing.xs),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm),
+            ) {
+                Text(
+                    c.checkType,
+                    Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                // Capped at half the row, so a long "Signed by …" ellipsises
+                // in its pill instead of squeezing the check's name.
+                StatusPill(
+                    when {
+                        c.signedBy.isNotBlank() -> "Signed by ${c.signedBy}"
+                        c.recorded -> "Recorded, not signed"
+                        else -> "Not recorded yet"
+                    },
+                    when {
+                        c.signedBy.isNotBlank() -> Tone.Info
+                        c.recorded -> Tone.Watch
+                        else -> Tone.Neutral
+                    },
+                    Modifier.weight(1f, fill = false),
+                )
             }
         }
     }
-}
-
-/** A tappable choice. Selected state is colour and weight, not a tick nobody sees. */
-@Composable
-private fun ReviewChoice(
-    label: String,
-    selected: Boolean,
-    tint: Color,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    Text(
-        label,
-        modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 9.dp),
-        style = MaterialTheme.typography.labelMedium,
-        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        color = if (selected) tint else MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 private fun flagWord(flag: String) = when (flag) {
@@ -455,11 +401,10 @@ private fun flagWord(flag: String) = when (flag) {
     else -> "Not measured"
 }
 
-@Composable
-private fun flagColour(flag: String) = when (flag) {
-    "ALERT" -> MaterialTheme.colorScheme.error
-    "WATCH" -> HeroOrange
-    else -> HeroBlue
+private fun flagTone(flag: String) = when (flag) {
+    "ALERT" -> Tone.Alert
+    "WATCH" -> Tone.Watch
+    else -> Tone.Good
 }
 
 private fun urgencyWord(u: String) = when (u) {
@@ -469,9 +414,9 @@ private fun urgencyWord(u: String) = when (u) {
     else -> "Urgent"
 }
 
-@Composable
-private fun urgencyColour(u: String) = when (u) {
-    "URGENT" -> MaterialTheme.colorScheme.error
-    "SOON" -> HeroOrange
-    else -> HeroBlue
+private fun urgencyTone(u: String) = when (u) {
+    "URGENT" -> Tone.Alert
+    "SOON" -> Tone.Watch
+    "ROUTINE" -> Tone.Info
+    else -> Tone.Neutral
 }

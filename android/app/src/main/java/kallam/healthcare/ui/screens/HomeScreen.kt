@@ -46,18 +46,27 @@ import kallam.healthcare.data.Kid
 import kallam.healthcare.data.HealthFlag
 import kallam.healthcare.data.LocalAppLocale
 import kallam.healthcare.data.S
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.Illustration
+import kallam.healthcare.ui.components.Scene
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
+import kallam.healthcare.ui.components.IconBubble
+import kallam.healthcare.ui.components.InfoNote
 import kallam.healthcare.ui.components.KidAvatar
 import kallam.healthcare.ui.components.ProgressRing
-import kallam.healthcare.ui.components.SectionHeader
+import kallam.healthcare.ui.components.StatTile
 import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.bottomBarClearance
 import kallam.healthcare.ui.components.t
 import kallam.healthcare.ui.components.tf
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
 import kallam.healthcare.ui.theme.AppTheme
 import kallam.healthcare.ui.theme.HeroBlue
 import kallam.healthcare.ui.theme.FlagNeutral
-import kallam.healthcare.ui.theme.HeroOrange
 import kallam.healthcare.ui.theme.HeroPurple
 import kallam.healthcare.ui.theme.HeroYellow
 
@@ -85,88 +94,84 @@ fun HomeScreen(
     ) {
         item {
             StatusBarSpacer()
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        t(S.goodMorning),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        tf(S.hiName, parentName),
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Box {
-                    Box(
-                        Modifier
-                            .size(46.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surface)
-                            .clickable(onClick = onOpenNotifications),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = MaterialTheme.colorScheme.onSurface)
-                    }
-                    if (unreadCount > 0) {
+            AppScreenHeader(
+                title = tf(S.hiName, parentName),
+                actions = {
+                    Box {
                         Box(
                             Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(4.dp)
-                                .size(16.dp)
+                                .size(46.dp)
                                 .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.error),
+                                .background(MaterialTheme.colorScheme.surface)
+                                .clickable(onClick = onOpenNotifications),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                "$unreadCount",
-                                color = Color.White,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold
-                            )
+                            Icon(Icons.Outlined.Notifications, contentDescription = "Notifications", tint = MaterialTheme.colorScheme.onSurface)
+                        }
+                        if (unreadCount > 0) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(AppSpacing.xs)
+                                    .size(16.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.error),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "$unreadCount",
+                                    color = MaterialTheme.colorScheme.onError,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
                         }
                     }
                 }
-            }
+            )
         }
 
-        // Kid stat cards
+        // Kid stat cards. One child fills the width; several scroll as a row
+        // of fixed-width cards, so a lone card never floats at half width.
         item {
-            Spacer(Modifier.height(4.dp))
-            SectionHeader(
+            Spacer(Modifier.height(AppSpacing.xs))
+            AppSectionTitle(
                 t(S.yourKids),
-                modifier = Modifier.padding(horizontal = 20.dp)
+                modifier = Modifier.padding(horizontal = AppSpacing.xl)
             )
-            Spacer(Modifier.height(12.dp))
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                items(kids, key = { it.id }) { kid ->
-                    KidStatCard(kid) { onOpenKid(kid.id) }
+            Spacer(Modifier.height(AppSpacing.md))
+            if (kids.isEmpty()) {
+                InfoNote(
+                    "Add your child from the Children tab to see their growth and diet plan here.",
+                    Modifier.padding(horizontal = AppSpacing.xl)
+                )
+            } else if (kids.size == 1) {
+                val kid = kids.first()
+                KidStatCard(kid, Modifier.padding(horizontal = AppSpacing.xl)) { onOpenKid(kid.id) }
+            } else {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = AppSpacing.xl),
+                    horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
+                ) {
+                    items(kids, key = { it.id }) { kid ->
+                        KidStatCard(kid, Modifier.width(280.dp)) { onOpenKid(kid.id) }
+                    }
                 }
             }
         }
 
         // Quick actions
         item {
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(AppSpacing.xxl))
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(horizontal = AppSpacing.xl),
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.md)
             ) {
-                QuickAction(t(S.dietPlan), Icons.Outlined.Restaurant, HeroOrange, Modifier.weight(1f)) {
+                QuickAction(t(S.dietPlan), Icons.Outlined.Restaurant, MaterialTheme.colorScheme.primary, Modifier.weight(1f)) {
                     kids.firstOrNull()?.let { onOpenDiet(it.id) }
                 }
-                QuickAction(t(S.bookVisit), Icons.Outlined.MedicalServices, HeroBlue, Modifier.weight(1f), onClick = onBookAppointment)
+                QuickAction(t(S.bookVisit), Icons.Outlined.MedicalServices, MaterialTheme.colorScheme.secondary, Modifier.weight(1f), onClick = onBookAppointment)
                 QuickAction(t(S.badges), Icons.Outlined.WorkspacePremium, HeroYellow, Modifier.weight(1f), onClick = onOpenRewards)
             }
         }
@@ -174,103 +179,89 @@ fun HomeScreen(
         // Next camp banner
         if (nextCamp != null) {
             item {
-                Spacer(Modifier.height(24.dp))
-                SectionHeader(
+                Spacer(Modifier.height(AppSpacing.xxl))
+                AppSectionTitle(
                     t(S.upcomingCamp),
-                    modifier = Modifier.padding(horizontal = 20.dp),
+                    modifier = Modifier.padding(horizontal = AppSpacing.xl),
                     actionLabel = t(S.allCamps),
                     onAction = onOpenCamps
                 )
-                Spacer(Modifier.height(12.dp))
-                CampBanner(nextCamp, Modifier.padding(horizontal = 20.dp), onOpenCamps)
+                Spacer(Modifier.height(AppSpacing.md))
+                CampBanner(nextCamp, Modifier.padding(horizontal = AppSpacing.xl), onOpenCamps)
             }
         }
 
         // Appointments
         if (appointments.isNotEmpty()) {
             item {
-                Spacer(Modifier.height(24.dp))
-                SectionHeader(
+                Spacer(Modifier.height(AppSpacing.xxl))
+                AppSectionTitle(
                     t(S.upcomingAppts),
-                    modifier = Modifier.padding(horizontal = 20.dp)
+                    modifier = Modifier.padding(horizontal = AppSpacing.xl)
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(AppSpacing.sm))
             }
             items(appointments, key = { it.id }) { appt ->
-                AppointmentRow(appt, Modifier.padding(horizontal = 20.dp, vertical = 6.dp))
+                AppointmentRow(appt, Modifier.padding(horizontal = AppSpacing.xl, vertical = 6.dp))
             }
         }
     }
 }
 
 @Composable
-private fun KidStatCard(kid: Kid, onClick: () -> Unit) {
-    HeroCard(
-        modifier = Modifier
-            .width(220.dp)
-            .clickable(onClick = onClick),
-        border = false,
-        background = MaterialTheme.colorScheme.surface
-    ) {
-        Column(Modifier.padding(18.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                KidAvatar(kid.name, kid.avatarColor, size = 44.dp)
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(kid.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        "${kid.age} yrs · ${kid.grade}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
+private fun KidStatCard(kid: Kid, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    AppCard(modifier = modifier, onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            KidAvatar(kid.name, kid.avatarColor, size = 44.dp)
+            Spacer(Modifier.width(AppSpacing.md))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    kid.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    "${kid.age} yrs · ${kid.grade}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
-            Spacer(Modifier.height(16.dp))
-            // A child nobody has examined has no health score. The column
-            // defaults to 80, which used to render here as a confident "80%,
-            // doing well" for a child who had never been screened — the most
-            // prominent number in the app, and invented.
-            val screened = kid.dental != HealthFlag.NOT_MEASURED ||
-                kid.eyesight != HealthFlag.NOT_MEASURED ||
-                kid.nutrition != HealthFlag.NOT_MEASURED
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                ProgressRing(
-                    progress = if (screened) kid.overallScore / 100f else 0f,
-                    size = 58.dp,
-                    color = if (screened) Color(kid.avatarColor) else FlagNeutral
-                ) {
-                    Text(
-                        if (screened) "${kid.overallScore}%" else "\u2014",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(Modifier.width(14.dp))
-                Column {
-                    Text(
-                        t(S.healthScore),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        when {
-                            !screened -> t(S.notScreenedYet)
-                            kid.overallScore >= 85 -> t(S.growthOnTrack)
-                            else -> t(S.doingWell)
-                        },
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (screened) Color(kid.avatarColor) else MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+        }
+        Spacer(Modifier.height(AppSpacing.lg))
+        // A child nobody has examined has no health score. The column
+        // defaults to 80, which used to render here as a confident "80%,
+        // doing well" for a child who had never been screened — the most
+        // prominent number in the app, and invented.
+        val screened = kid.dental != HealthFlag.NOT_MEASURED ||
+            kid.eyesight != HealthFlag.NOT_MEASURED ||
+            kid.nutrition != HealthFlag.NOT_MEASURED
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ProgressRing(
+                progress = if (screened) kid.overallScore / 100f else 0f,
+                size = 58.dp,
+                color = if (screened) Color(kid.avatarColor) else FlagNeutral
+            ) {
+                // The score is a bold value inside the ring, not a heading.
+                Text(
+                    if (screened) "${kid.overallScore}%" else "—",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
             }
+            Spacer(Modifier.width(AppSpacing.md))
+            StatTile(
+                label = t(S.healthScore),
+                value = when {
+                    !screened -> t(S.notScreenedYet)
+                    kid.overallScore >= 85 -> t(S.growthOnTrack)
+                    else -> t(S.doingWell)
+                },
+                modifier = Modifier.weight(1f),
+                tone = if (screened) Tone.Good else Tone.Neutral
+            )
         }
     }
 }
@@ -283,14 +274,15 @@ private fun QuickAction(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    HeroCard(modifier = modifier.clickable(onClick = onClick)) {
-        Column(
-            Modifier.padding(vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            kallam.healthcare.ui.components.IconBubble(icon, tint, size = 44.dp)
-            Spacer(Modifier.height(10.dp))
-            Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+    AppCard(
+        modifier = modifier,
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = AppSpacing.xs, vertical = AppSpacing.lg)
+    ) {
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            IconBubble(icon, tint, size = 44.dp)
+            Spacer(Modifier.height(AppSpacing.sm))
+            Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
@@ -300,39 +292,40 @@ private fun CampBanner(camp: Camp, modifier: Modifier = Modifier, onClick: () ->
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(24.dp))
-            .background(Brush.linearGradient(listOf(HeroBlue, HeroPurple)))
+            .clip(RoundedCornerShape(AppCorners.xlarge))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
             .clickable(onClick = onClick)
-            .padding(20.dp)
+            .padding(AppSpacing.xl)
     ) {
-        Column {
+        Illustration(Scene.Banner, Modifier.align(Alignment.TopEnd).size(76.dp))
+        Column(Modifier.padding(end = 64.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(Color.White.copy(alpha = 0.2f))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 10.dp, vertical = AppSpacing.xs)
                 ) {
-                    Text(t(S.upcoming).uppercase(), color = Color.White, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                    Text(t(S.upcoming).uppercase(), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.labelMedium)
                 }
             }
-            Spacer(Modifier.height(12.dp))
-            Text(camp.title, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+            Spacer(Modifier.height(AppSpacing.md))
+            Text(camp.title, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleLarge,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Spacer(Modifier.height(4.dp))
-            Text("${camp.date} · ${camp.time}", color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.bodyMedium)
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(AppSpacing.xs))
+            Text("${camp.date} · ${camp.time}", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(AppSpacing.md))
             Row(
                 Modifier
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(AppCorners.medium))
                     .background(Color.White)
-                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                    .padding(horizontal = AppSpacing.lg, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(t(S.viewDetails), color = HeroBlue, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.width(6.dp))
+                Text(t(S.viewDetails), color = HeroBlue, style = MaterialTheme.typography.labelLarge)
+                Spacer(Modifier.width(AppSpacing.xs))
                 Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, tint = HeroBlue, modifier = Modifier.size(18.dp))
             }
         }
@@ -341,32 +334,18 @@ private fun CampBanner(camp: Camp, modifier: Modifier = Modifier, onClick: () ->
 
 @Composable
 private fun AppointmentRow(appt: Appointment, modifier: Modifier = Modifier) {
-    HeroCard(modifier = modifier.fillMaxWidth()) {
-        Row(
-            Modifier.padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            kallam.healthcare.ui.components.IconBubble(Icons.Outlined.CalendarMonth, HeroBlue)
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(appt.doctorName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    "${appt.specialty} · for ${appt.kidName}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+    AppListRow(
+        title = appt.doctorName,
+        modifier = modifier,
+        subtitle = "${appt.specialty} · for ${appt.kidName}",
+        leading = { IconBubble(Icons.Outlined.CalendarMonth, MaterialTheme.colorScheme.secondary) },
+        trailing = {
             Column(horizontalAlignment = Alignment.End) {
-                Text(appt.date, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = HeroBlue)
+                Text(appt.date, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.secondary)
                 Text(appt.time, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-    }
+    )
 }
 
 @Preview(showBackground = true)

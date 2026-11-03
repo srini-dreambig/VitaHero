@@ -171,7 +171,7 @@ struct GrowthChart: View {
         while g < hi {
             var p = Path(); p.move(to: CGPoint(x: padL, y: y(g))); p.addLine(to: CGPoint(x: padL + cw, y: y(g)))
             ctx.stroke(p, with: .color(grid), lineWidth: 0.5)
-            ctx.draw(Text("\(Int(g))").font(.caption2).foregroundColor(.secondary),
+            ctx.draw(Text("\(Int(g))").font(.vh(.caption2)).foregroundColor(.secondary),
                      at: CGPoint(x: padL - 4, y: y(g)), anchor: .trailing)
             g += step
         }
@@ -181,7 +181,7 @@ struct GrowthChart: View {
             let gx = x(Double(yr * 12))
             var p = Path(); p.move(to: CGPoint(x: gx, y: padT)); p.addLine(to: CGPoint(x: gx, y: padT + ch))
             ctx.stroke(p, with: .color(grid), lineWidth: 0.5)
-            ctx.draw(Text("\(yr)y").font(.caption2).foregroundColor(.secondary),
+            ctx.draw(Text("\(yr)y").font(.vh(.caption2)).foregroundColor(.secondary),
                      at: CGPoint(x: gx, y: size.height - 2), anchor: .bottom)
         }
 
@@ -246,7 +246,7 @@ private struct StatusChip: View {
     let text: String
     var body: some View {
         let tone = growthClassColor(text)
-        Text(text).font(.subheadline.bold()).foregroundColor(tone)
+        Text(text).font(.vh(.subheadline, .bold)).foregroundColor(tone)
             .padding(.horizontal, 12).padding(.vertical, 6)
             .background(tone.opacity(0.16)).clipShape(Capsule())
     }
@@ -271,8 +271,8 @@ private struct MeasureCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title).font(.caption).foregroundColor(.secondary)
-                    Text(value).font(.headline)
+                    Text(title).font(.vh(.caption)).foregroundColor(.secondary)
+                    Text(value).font(.vh(.headline))
                 }
                 Spacer()
                 StatusChip(text: cls)
@@ -283,10 +283,10 @@ private struct MeasureCard: View {
                 }
                 .pickerStyle(.segmented)
             } else if let side {
-                Text(side.name).font(.caption.bold()).foregroundColor(Brand.blue)
+                Text(side.name).font(.vh(.caption, .bold)).foregroundColor(Brand.blue)
             }
             if let side { sideView(side) }
-            if let note { Text(note).font(.footnote).foregroundColor(.secondary) }
+            if let note { Text(note).font(.vh(.footnote)).foregroundColor(.secondary) }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -299,8 +299,8 @@ private struct MeasureCard: View {
         HStack {
             ForEach(side.stats.indices, id: \.self) { i in
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(side.stats[i].label).font(.caption2).foregroundColor(.secondary)
-                    Text(side.stats[i].value).font(.subheadline.bold())
+                    Text(side.stats[i].label).font(.vh(.caption2)).foregroundColor(.secondary)
+                    Text(side.stats[i].value).font(.vh(.subheadline, .bold))
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -311,11 +311,11 @@ private struct MeasureCard: View {
                 HStack(spacing: 4) {
                     RoundedRectangle(cornerRadius: 3).fill(side.model.legend[i].color.opacity(0.35))
                         .frame(width: 10, height: 10)
-                    Text(side.model.legend[i].label).font(.caption2).foregroundColor(.secondary)
+                    Text(side.model.legend[i].label).font(.vh(.caption2)).foregroundColor(.secondary)
                 }
             }
         }
-        Text(side.note).font(.footnote).foregroundColor(.secondary)
+        Text(side.note).font(.vh(.footnote)).foregroundColor(.secondary)
     }
 }
 
@@ -378,13 +378,13 @@ struct GrowthChartsPanel: View {
         return VStack(alignment: .leading, spacing: 6) {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Nutritional status · \(who), \(years)y \(months)m").font(.caption).foregroundColor(.secondary)
-                    Text(String(format: "BMI %.1f kg/m²", r.bmi)).font(.headline)
+                    Text("Nutritional status · \(who), \(years)y \(months)m").font(.vh(.caption)).foregroundColor(.secondary)
+                    Text(String(format: "BMI %.1f kg/m²", r.bmi)).font(.vh(.headline))
                 }
                 Spacer()
                 StatusChip(text: r.status)
             }
-            ForEach(notes, id: \.self) { Text($0).font(.footnote).foregroundColor(.secondary) }
+            ForEach(notes, id: \.self) { Text($0).font(.vh(.footnote)).foregroundColor(.secondary) }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

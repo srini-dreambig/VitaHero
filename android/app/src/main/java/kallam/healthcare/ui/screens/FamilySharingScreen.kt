@@ -7,6 +7,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,9 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.GroupAdd
 import androidx.compose.material.icons.outlined.Groups
@@ -31,13 +30,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,19 +42,25 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import kallam.healthcare.data.CoParent
 import kallam.healthcare.data.S
-import kallam.healthcare.ui.components.HeroCard
+import kallam.healthcare.ui.components.AppCard
+import kallam.healthcare.ui.components.AppListRow
+import kallam.healthcare.ui.components.AppScreenHeader
+import kallam.healthcare.ui.components.AppSectionTitle
+import kallam.healthcare.ui.components.AppTextButton
+import kallam.healthcare.ui.components.AppTextField
 import kallam.healthcare.ui.components.IconBubble
 import kallam.healthcare.ui.components.PrimaryGradientButton
+import kallam.healthcare.ui.components.SecondaryButton
+import kallam.healthcare.ui.components.StatusBarSpacer
+import kallam.healthcare.ui.components.Tone
 import kallam.healthcare.ui.components.t
-import kallam.healthcare.ui.theme.HeroBlue
-import kallam.healthcare.ui.theme.HeroOrange
+import kallam.healthcare.ui.theme.AppCorners
+import kallam.healthcare.ui.theme.AppSpacing
 import kallam.healthcare.ui.theme.HeroPurple
 
 
@@ -86,56 +85,38 @@ fun FamilySharingScreen(
     var joinCode by rememberSaveable { mutableStateOf("") }
     var showJoin by rememberSaveable { mutableStateOf(false) }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = { Text(t(S.familyTitle), style = MaterialTheme.typography.titleLarge) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = t(S.goBack))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
-        }
-    ) { pad ->
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
+        StatusBarSpacer()
+        AppScreenHeader(t(S.familyTitle), subtitle = t(S.familySubtitle), onBack = onBack)
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(pad),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp)
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(start = AppSpacing.xl, end = AppSpacing.xl, top = AppSpacing.sm, bottom = AppSpacing.xxxl)
         ) {
-            item {
-                Text(
-                    t(S.familySubtitle),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.height(20.dp))
-            }
-
             // Your family code card
             item {
                 Box(
                     Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Brush.linearGradient(listOf(HeroOrange, HeroBlue)))
-                        .padding(24.dp)
+                        .clip(RoundedCornerShape(AppCorners.xlarge))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(AppSpacing.xxl)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        IconBubble(Icons.Outlined.Groups, Color.White, size = 56.dp, bg = Color.White.copy(alpha = 0.2f))
-                        Spacer(Modifier.height(14.dp))
-                        Text(t(S.yourFamilyCode), color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Spacer(Modifier.height(8.dp))
+                        IconBubble(Icons.Outlined.Groups, MaterialTheme.colorScheme.onSurface, size = 56.dp, bg = MaterialTheme.colorScheme.surface)
+                        Spacer(Modifier.height(AppSpacing.md))
+                        Text(t(S.yourFamilyCode), color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(AppSpacing.sm))
                         if (familyCode.isBlank()) {
                             Text(
                                 t(S.noFamilyCodeYet),
-                                color = Color.White.copy(alpha = 0.9f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.bodyMedium
                             )
-                            Spacer(Modifier.height(12.dp))
+                            Spacer(Modifier.height(AppSpacing.md))
                             PrimaryGradientButton(
                                 text = if (busy) t(S.pleaseWait) else t(S.generateFamilyCode),
                                 enabled = !busy,
@@ -143,184 +124,160 @@ fun FamilySharingScreen(
                                 modifier = Modifier.fillMaxWidth()
                             )
                         } else {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                familyCode,
-                                color = Color.White,
-                                style = MaterialTheme.typography.displayMedium,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.5f).sp
-                            )
-                            Spacer(Modifier.width(12.dp))
-                            IconButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    clipboard.setPrimaryClip(ClipData.newPlainText("familyCode", familyCode))
-                                    Toast.makeText(context, "Family code copied!", Toast.LENGTH_SHORT).show()
-                                }
-                            ) {
-                                Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy code", tint = Color.White.copy(alpha = 0.9f))
-                            }
-                        }
-                        Spacer(Modifier.height(12.dp))
-                        Text(
-                            t(S.shareYourCode),
-                            color = Color.White.copy(alpha = 0.85f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(Modifier.height(16.dp))
-                        Box(
-                            Modifier
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(Color.White)
-                                .clickable {
-                                    val intent = Intent(Intent.ACTION_SEND).apply {
-                                        type = "text/plain"
-                                        putExtra(Intent.EXTRA_TEXT, "Join me on VitaHero! Use family code: $familyCode")
-                                        putExtra(Intent.EXTRA_SUBJECT, "VitaHero Family Sharing")
-                                    }
-                                    context.startActivity(Intent.createChooser(intent, "Share family code"))
-                                }
-                                .padding(horizontal = 24.dp, vertical = 12.dp)
-                        ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.Share, contentDescription = null, tint = HeroOrange, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(8.dp))
-                                // Was .take(25) + "…", which cut every language
-                                // mid-word — Telugu inside a consonant cluster.
-                                // One line, ellipsised by the text layout, which
-                                // knows where the characters actually end.
                                 Text(
-                                    t(S.shareYourCode),
-                                    color = HeroOrange,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
+                                    familyCode,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    style = MaterialTheme.typography.displayMedium,
                                 )
+                                Spacer(Modifier.width(AppSpacing.md))
+                                IconButton(
+                                    onClick = {
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        clipboard.setPrimaryClip(ClipData.newPlainText("familyCode", familyCode))
+                                        Toast.makeText(context, "Family code copied!", Toast.LENGTH_SHORT).show()
+                                    }
+                                ) {
+                                    Icon(Icons.Outlined.ContentCopy, contentDescription = "Copy code", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
-                        }
+                            Spacer(Modifier.height(AppSpacing.md))
+                            Text(
+                                t(S.shareYourCode),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Spacer(Modifier.height(AppSpacing.lg))
+                            // White pill on the blue block: kit buttons are drawn for
+                            // the page background, not for a tinted fill.
+                            Box(
+                                Modifier
+                                    .clip(RoundedCornerShape(50))
+                                    .background(Color.White)
+                                    .clickable {
+                                        val intent = Intent(Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(Intent.EXTRA_TEXT, "Join me on VitaHero! Use family code: $familyCode")
+                                            putExtra(Intent.EXTRA_SUBJECT, "VitaHero Family Sharing")
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, "Share family code"))
+                                    }
+                                    .padding(horizontal = AppSpacing.xxl, vertical = AppSpacing.md)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Outlined.Share, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(AppSpacing.sm))
+                                    // Was .take(25) + "…", which cut every language
+                                    // mid-word — Telugu inside a consonant cluster.
+                                    // One line, ellipsised by the text layout, which
+                                    // knows where the characters actually end.
+                                    Text(
+                                        t(S.shareYourCode),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
                     }
                 }
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
             }
 
             // Co-parents list
             if (coParents.isNotEmpty()) {
                 item {
-                    Text(t(S.coParentsSection), style = MaterialTheme.typography.headlineSmall)
-                    Spacer(Modifier.height(12.dp))
+                    AppSectionTitle(t(S.coParentsSection))
+                    Spacer(Modifier.height(AppSpacing.md))
                 }
                 coParents.forEach { co ->
                     item {
-                        HeroCard(Modifier.fillMaxWidth()) { Column {
-                            Row(
-                                Modifier.padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                IconBubble(Icons.Outlined.PersonAdd, HeroPurple)
-                                Spacer(Modifier.width(14.dp))
-                                Column(Modifier.weight(1f)) {
-                                    Text(co.name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Text(
-                                        if (co.status == "PENDING") t(S.coParentPending)
-                                        else "${co.relation}${if (co.joinedDate.isNotEmpty()) " · Joined ${co.joinedDate}" else ""}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                        if (co.status == "PENDING") {
+                            // A pending request carries two answers, which a
+                            // single list row has no room for.
+                            AppCard {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconBubble(Icons.Outlined.PersonAdd, HeroPurple)
+                                    Spacer(Modifier.width(AppSpacing.md))
+                                    Column(Modifier.weight(1f)) {
+                                        Text(
+                                            co.name,
+                                            style = MaterialTheme.typography.titleMedium,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                        )
+                                        Text(
+                                            t(S.coParentPending),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
-                            }
-                            if (co.status == "PENDING") {
                                 Row(
-                                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
-                                    horizontalArrangement = androidx.compose.foundation.layout.Arrangement.End,
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.End,
                                 ) {
-                                    TextButton(enabled = !busy, onClick = { onAnswerRequest(co.id, false) }) {
-                                        Text(t(S.coParentDecline))
-                                    }
-                                    Spacer(Modifier.width(8.dp))
-                                    TextButton(enabled = !busy, onClick = { onAnswerRequest(co.id, true) }) {
-                                        Text(t(S.coParentApprove), fontWeight = FontWeight.SemiBold)
-                                    }
+                                    AppTextButton(t(S.coParentDecline), onClick = { onAnswerRequest(co.id, false) }, enabled = !busy, tone = Tone.Neutral)
+                                    Spacer(Modifier.width(AppSpacing.sm))
+                                    AppTextButton(t(S.coParentApprove), onClick = { onAnswerRequest(co.id, true) }, enabled = !busy)
                                 }
                             }
-                        } }
-                        Spacer(Modifier.height(10.dp))
+                        } else {
+                            AppListRow(
+                                title = co.name,
+                                subtitle = "${co.relation}${if (co.joinedDate.isNotEmpty()) " · Joined ${co.joinedDate}" else ""}",
+                                leading = { IconBubble(Icons.Outlined.PersonAdd, HeroPurple) },
+                            )
+                        }
+                        Spacer(Modifier.height(AppSpacing.md))
                     }
                 }
             }
 
             // Join family section
             item {
-                Spacer(Modifier.height(16.dp))
+                Spacer(Modifier.height(AppSpacing.md))
                 if (!showJoin) {
-                    Box(
-                        Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(HeroBlue.copy(alpha = 0.06f))
-                            .clickable { showJoin = true }
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.GroupAdd, contentDescription = null, tint = HeroBlue, modifier = Modifier.size(22.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Text(t(S.enterFamilyCode), color = HeroBlue, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
+                    SecondaryButton(
+                        text = t(S.enterFamilyCode),
+                        onClick = { showJoin = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = Icons.Outlined.GroupAdd,
+                    )
                 } else {
-                    HeroCard(Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(18.dp)) {
-                            Text(t(S.enterFamilyCode), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Text(t(S.askForCode), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(12.dp))
-                            OutlinedTextField(
-                                value = joinCode,
-                                onValueChange = { joinCode = it.take(6) },
-                                placeholder = {
-                                    Text(
-                                        t(S.familyCodePlaceholder),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(14.dp),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = HeroBlue,
-                                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                                ),
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Spacer(Modifier.height(14.dp))
-                            PrimaryGradientButton(
-                                text = if (busy) t(S.pleaseWait) else t(S.joinFamily),
-                                enabled = joinCode.length >= 4 && !busy,
-                                // The form used to close and clear itself the
-                                // instant this was tapped, before the code had
-                                // been validated. A parent who mistyped saw the
-                                // form vanish and a complaint arrive with
-                                // nothing left to correct. It stays until the
-                                // shared children actually appear.
-                                onClick = { onJoinFamily(joinCode) },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+                    AppCard {
+                        Text(t(S.enterFamilyCode), style = MaterialTheme.typography.titleMedium)
+                        Text(t(S.askForCode), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(AppSpacing.md))
+                        AppTextField(
+                            value = joinCode,
+                            onValueChange = { joinCode = it.take(6) },
+                            placeholder = t(S.familyCodePlaceholder),
+                            singleLine = true,
+                            keyboardType = KeyboardType.Text,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(AppSpacing.md))
+                        PrimaryGradientButton(
+                            text = if (busy) t(S.pleaseWait) else t(S.joinFamily),
+                            enabled = joinCode.length >= 4 && !busy,
+                            // The form used to close and clear itself the
+                            // instant this was tapped, before the code had
+                            // been validated. A parent who mistyped saw the
+                            // form vanish and a complaint arrive with
+                            // nothing left to correct. It stays until the
+                            // shared children actually appear.
+                            onClick = { onJoinFamily(joinCode) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
             }
 
             item {
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(AppSpacing.xxl))
                 Text(
                     t(S.familyInfo),
                     style = MaterialTheme.typography.bodySmall,
