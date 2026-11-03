@@ -118,7 +118,21 @@ data class AssessmentSheetDto(
     val rows: List<SheetRowDto> = emptyList(),
     /** Physical growth only: the numbers the WHO chart is drawn from. */
     val growth: SheetGrowthDto? = null,
-)
+    /** Vision only: each prescription as the glasses slip lays it out. */
+    val rx: List<RxTableDto> = emptyList(),
+) {
+    /** The rows to list: a prescription drawn as a table is not repeated as text. */
+    val listedRows: List<SheetRowDto> get() = rows.filterNot { row -> rx.any { it.title == row.label } }
+}
+
+@Serializable
+data class RxTableDto(val title: String = "", val lensType: String = "", val rows: List<RxRowDto> = emptyList())
+
+@Serializable
+data class RxRowDto(val label: String = "", val right: RxEyeDto = RxEyeDto(), val left: RxEyeDto = RxEyeDto())
+
+@Serializable
+data class RxEyeDto(val sph: String = "", val cyl: String = "", val axis: String = "", val va: String = "")
 
 @Serializable
 data class SheetRowDto(val label: String = "", val value: String = "")

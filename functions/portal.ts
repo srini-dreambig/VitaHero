@@ -1020,6 +1020,7 @@ export const PORTAL_HTML = `<!doctype html>
   var ACUITY = ["6/6","6/9","6/12","6/18","6/24","6/36","6/60","3/60","2/60","1/60","<6/60",
     "CF @ 1/2 meter","CF CF (Close to Face)","HM+ (Hand Movements)","PL + PR Accurate","PL + PR Inaccurate","NLP (No Light Perception)"];
   var NEAR_VISION = ["N6 (Normal)","N8","N10","N12","N18","N24","N36"];
+  var LENS_TYPE = ["Distance","Near","Bifocals","Progressive"];
   var VISION_TEST_CONDITION = ["Unaided","Aided (With Present Glasses)","Pinhole (PH)"];
   var COLOR_VISION = ["17/17 (Normal Pass)","15-16/17 (Borderline)","<15/17 (Defective Red-Green)","Total Color Blindness","Ishihara Partial Deficit","Uncooperative"];
   var ORAL_HYGIENE_INDEX = ["Good (Clean)","Fair (Mild Plaque)","Poor (Heavy Plaque / Calculus)","Stains / Calculus Noted"];
@@ -5008,16 +5009,34 @@ export const PORTAL_HTML = `<!doctype html>
           sel("nutritionalStatus", "Nutritional status (leave blank for the WHO reading)", NUTRITIONAL_STATUS));
       }
       if (ct === "Vision") {
-        var rx = function (prefix, cols) {
-          return el("div", { class: "row", style: "gap:6px" },
-            cols.map(function (c) {
-              var k = prefix + c[0];
-              return el("div", { class: "fld", style: "flex:1;min-width:0" }, el("label", null, c[1]),
-                el("input", { type: "text", placeholder: c[2], value: d[k] || "", oninput: bind(k) }));
-            }));
+        // The prescription as it is written on the slip: distance (D/V) and
+        // near (N/V) rows, each eye's SPH, CYL, AXIS and V/A, then the lens.
+        // Distance keeps the keys older records use (Axi, Cva); near adds Near.
+        var rxCell = function (k, ph) {
+          return el("td", { style: "padding:2px" },
+            el("input", { type: "text", placeholder: ph, value: d[k] || "", oninput: bind(k), style: "width:100%;min-width:56px;text-align:center" }));
         };
-        var PRESENT = [["Sph", "Sph", "-1.50"], ["Cyl", "Cyl", "-0.50"], ["Axi", "Axi", "180"], ["Cva", "CVA", "6/6"]];
-        var NEWRX = [["Uva", "UVA", "6/18"]].concat(PRESENT);
+        var rxTable = function (prefix) {
+          var th = function (t, span) { return el("th", { colspan: span || 1, style: "padding:4px;text-align:center;font-size:12px" }, t); };
+          var row = function (label, near) {
+            var cells = [el("th", { style: "padding:4px;text-align:left;font-size:12px" }, label)];
+            ["Od", "Os"].forEach(function (eye) {
+              cells.push(rxCell(prefix + eye + (near ? "NearSph" : "Sph"), near ? "+1.00" : "-1.50"));
+              cells.push(rxCell(prefix + eye + (near ? "NearCyl" : "Cyl"), "-0.50"));
+              cells.push(rxCell(prefix + eye + (near ? "NearAxi" : "Axi"), "180"));
+              cells.push(rxCell(prefix + eye + (near ? "NearVa" : "Cva"), near ? "N6" : "6/6"));
+            });
+            return el("tr", null, cells);
+          };
+          return el("div", null,
+            el("div", { style: "overflow-x:auto" },
+              el("table", { style: "border-collapse:collapse;width:100%" },
+                el("thead", null,
+                  el("tr", null, th(""), th("RIGHT EYE (OD)", 4), th("LEFT EYE (OS)", 4)),
+                  el("tr", null, th(""), th("SPH"), th("CYL"), th("AXIS"), th("V/A"), th("SPH"), th("CYL"), th("AXIS"), th("V/A"))),
+                el("tbody", null, row("D/V", false), row("N/V", true)))),
+            sel(prefix + "LensType", "Lens", LENS_TYPE));
+        };
         return el("div", null,
           el("h4", { style: "margin-bottom:6px" }, "Visual acuity"),
           el("div", { class: "muted" }, "Distance (Snellen)"),
@@ -5027,11 +5046,15 @@ export const PORTAL_HTML = `<!doctype html>
           el("div", { class: "g2" }, sel("rightNearVision", "Right eye (OD)", NEAR_VISION), sel("leftNearVision", "Left eye (OS)", NEAR_VISION)),
           sel("testingCondition", "Testing condition", VISION_TEST_CONDITION),
           el("h4", { style: "margin:10px 0 6px" }, "Present glasses prescription (only if the child already wears glasses)"),
-          el("div", { class: "muted" }, "Right eye (OD)"), rx("presentOd", PRESENT),
-          el("div", { class: "muted" }, "Left eye (OS)"), rx("presentOs", PRESENT),
+          rxTable("present"),
           el("h4", { style: "margin:10px 0 6px" }, "New glasses prescription"),
-          el("div", { class: "muted" }, "Right eye (OD)"), rx("newOd", NEWRX),
-          el("div", { class: "muted" }, "Left eye (OS)"), rx("newOs", NEWRX),
+          el("div", { class: "muted" }, "Unaided vision (UVA), before glasses"),
+          el("div", { class: "g2" },
+            el("div", { class: "fld" }, el("label", null, "Right eye (OD)"),
+              el("input", { type: "text", placeholder: "6/18", value: d.newOdUva || "", oninput: bind("newOdUva") })),
+            el("div", { class: "fld" }, el("label", null, "Left eye (OS)"),
+              el("input", { type: "text", placeholder: "6/24", value: d.newOsUva || "", oninput: bind("newOsUva") }))),
+          rxTable("new"),
           el("h4", { style: "margin:10px 0 6px" }, "Colour vision"),
           sel("colorVision", "Colour vision (Ishihara /17)", COLOR_VISION),
           el("h4", { style: "margin:10px 0 6px" }, "Any other complaints"),

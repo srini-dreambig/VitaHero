@@ -52,6 +52,7 @@ import kallam.healthcare.data.GrowthPoint
 import kallam.healthcare.data.HealthFlag
 import kallam.healthcare.data.Kid
 import kallam.healthcare.data.ReleasedFindingDto
+import kallam.healthcare.ui.components.PrescriptionTables
 import kallam.healthcare.data.heightText
 import kallam.healthcare.data.weightText
 import kallam.healthcare.data.S
@@ -355,7 +356,8 @@ private fun GrowthChart(points: List<GrowthPoint>, color: Color, weight: Boolean
 
 @Composable
 private fun FlagTab(title: String, flag: HealthFlag, finding: ReleasedFindingDto?, description: String) {
-    val rows = finding?.sheet?.rows.orEmpty()
+    val rows = finding?.sheet?.listedRows.orEmpty()
+    val rx = finding?.sheet?.rx.orEmpty()
     Column(Modifier.padding(horizontal = AppSpacing.xl)) {
         AppCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -363,7 +365,7 @@ private fun FlagTab(title: String, flag: HealthFlag, finding: ReleasedFindingDto
                 FlagChip(finding?.let { sheetFlag(it.flag) } ?: flag)
             }
             Spacer(Modifier.height(AppSpacing.md))
-            if (finding == null || rows.isEmpty()) {
+            if (finding == null || (rows.isEmpty() && rx.isEmpty())) {
                 Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 // Every value screened at the camp, as the doctor recorded it.
@@ -388,6 +390,7 @@ private fun FlagTab(title: String, flag: HealthFlag, finding: ReleasedFindingDto
                         )
                     }
                 }
+                if (rx.isNotEmpty()) PrescriptionTables(rx, Modifier.fillMaxWidth())
                 if (finding.note.isNotBlank()) {
                     Spacer(Modifier.height(AppSpacing.sm))
                     Text(finding.note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)

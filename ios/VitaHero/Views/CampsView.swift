@@ -307,7 +307,7 @@ struct CampResultView: View {
     @ViewBuilder
     private func sheetRows(_ sheet: CampResult.Sheet, child: CampResult.Child?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            ForEach(sheet.rows) { row in
+            ForEach(sheet.listedRows) { row in
                 HStack(alignment: .top) {
                     Text(row.label).font(.vh(.caption)).foregroundColor(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -315,6 +315,7 @@ struct CampResultView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
+            ForEach(sheet.rx) { PrescriptionTableView(table: $0).padding(.top, 4) }
             if let g = sheet.growth, let child,
                let who = WhoBmi.forChild(heightCm: g.heightCm, weightKg: g.weightKg,
                                          gender: child.gender, dob: child.dob, ageYears: child.age) {

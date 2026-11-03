@@ -65,6 +65,31 @@ describe("vision sheet", () => {
     expect(r["Any other complaints"]).toBe("Headache after reading");
   });
 
+  test("the prescription as the glasses slip lays it out", () => {
+    const sheet = assessmentSheet("Vision", {
+      newOdSph: "-2.00", newOdCyl: "-0.75", newOdAxi: "180", newOdCva: "6/6",
+      newOsSph: "-2.25", newOsCva: "6/9",
+      newOdNearSph: "+1.00", newOdNearVa: "N6",
+      newLensType: "Bifocals",
+    }, girl)!;
+    expect(sheet.rx).toEqual([{
+      title: "New glasses prescription",
+      lensType: "Bifocals",
+      rows: [
+        { label: "D/V", right: { sph: "-2.00", cyl: "-0.75", axis: "180", va: "6/6" }, left: { sph: "-2.25", cyl: "", axis: "", va: "6/9" } },
+        { label: "N/V", right: { sph: "+1.00", cyl: "", axis: "", va: "N6" }, left: { sph: "", cyl: "", axis: "", va: "" } },
+      ],
+    }]);
+    // Older apps read the row's text.
+    const r = Object.fromEntries(sheet.rows.map((x) => [x.label, x.value]));
+    expect(r["New glasses prescription"]).toBe(
+      "Right (OD): Sph -2.00, Cyl -0.75, Axis 180, CVA 6/6, near Sph +1.00, V/A N6; Left (OS): Sph -2.25, CVA 6/9; Lens: Bifocals");
+  });
+
+  test("no prescription written, no table", () => {
+    expect(assessmentSheet("Vision", { rightAcuity: "6/6" }, girl)!.rx).toBeUndefined();
+  });
+
   test("an older record's abnormality is kept", () => {
     expect(rows("Vision", { otherAbnormalities: "Squint" })["Other abnormalities"]).toBe("Squint");
     expect(rows("Vision", {})["Visual acuity, near"]).toBe("Not recorded");

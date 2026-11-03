@@ -330,15 +330,49 @@ struct CampResult: Decodable {
             }
         }
 
+        /// Vision only: a glasses prescription as the slip lays it out.
+        struct Rx: Decodable, Identifiable {
+            struct Eye: Decodable {
+                let sph, cyl, axis, va: String
+                init(from decoder: Decoder) throws {
+                    let c = try decoder.container(keyedBy: AnyKey.self)
+                    sph = c.str("sph"); cyl = c.str("cyl"); axis = c.str("axis"); va = c.str("va")
+                }
+            }
+            struct Line: Decodable, Identifiable {
+                let label: String
+                let right: Eye?
+                let left: Eye?
+                var id: String { label }
+                init(from decoder: Decoder) throws {
+                    let c = try decoder.container(keyedBy: AnyKey.self)
+                    label = c.str("label"); right = c.obj("right"); left = c.obj("left")
+                }
+            }
+            let title: String
+            let lensType: String
+            let rows: [Line]
+            var id: String { title }
+            init(from decoder: Decoder) throws {
+                let c = try decoder.container(keyedBy: AnyKey.self)
+                title = c.str("title"); lensType = c.str("lensType"); rows = c.list("rows")
+            }
+        }
+
         let title: String
         let rows: [Row]
         let growth: Growth?
+        let rx: [Rx]
+
+        /// The rows to list: a prescription drawn as a table is not repeated as text.
+        var listedRows: [Row] { rows.filter { row in !rx.contains { $0.title == row.label } } }
 
         init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: AnyKey.self)
             title = c.str("title")
             rows = c.list("rows")
             growth = c.obj("growth")
+            rx = c.list("rx")
         }
     }
 

@@ -15,6 +15,9 @@ enum ScreeningOptions {
     "N6 (Normal)", "N8", "N10", "N12", "N18", "N24", "N36"
     ]
 
+    /// The lens a prescription is for, as on the glasses slip.
+    static let LENS_TYPE = ["Distance", "Near", "Bifocals", "Progressive"]
+
     static let VISION_TEST_CONDITION = [
     "Unaided", "Aided (With Present Glasses)", "Pinhole (PH)"
     ]

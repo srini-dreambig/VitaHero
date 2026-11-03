@@ -46,8 +46,9 @@ android {
         // the admin writes the dietitians' twelve group plans. 1.1.11: the
         // clinician's growth, vision and dental forms trimmed to the sheets.
         // 1.1.12: the child screen shows every vision and dental value screened.
-        versionCode = 1789668246
-        versionName = "1.1.12"
+        // 1.1.13: near vision on its own, and the glasses prescription as a table.
+        versionCode = 1789668247
+        versionName = "1.1.13"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //

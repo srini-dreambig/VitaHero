@@ -210,25 +210,11 @@ struct ClinicianScreeningView: View {
             Group {
                 FormSectionHeader(title: "Present glasses prescription",
                                   subtitle: "Only if the child already wears glasses")
-                HStack(spacing: 6) {
-                    text("OD Sph", c, "presentOdSph", "-1.50"); text("OD Cyl", c, "presentOdCyl", "-0.50")
-                    text("OD Axi", c, "presentOdAxi", "180"); text("OD CVA", c, "presentOdCva", "6/6")
-                }
-                HStack(spacing: 6) {
-                    text("OS Sph", c, "presentOsSph", "-1.75"); text("OS Cyl", c, "presentOsCyl", "-0.50")
-                    text("OS Axi", c, "presentOsAxi", "175"); text("OS CVA", c, "presentOsCva", "6/6")
-                }
+                prescription("present", c)
                 FormSectionHeader(title: "New glasses prescription")
-                HStack(spacing: 6) {
-                    text("OD UVA", c, "newOdUva", "6/18"); text("OD Sph", c, "newOdSph", "-2.00")
-                    text("OD Cyl", c, "newOdCyl", "-0.75"); text("OD Axi", c, "newOdAxi", "180")
-                    text("OD CVA", c, "newOdCva", "6/6")
-                }
-                HStack(spacing: 6) {
-                    text("OS UVA", c, "newOsUva", "6/24"); text("OS Sph", c, "newOsSph", "-2.25")
-                    text("OS Cyl", c, "newOsCyl", "-0.75"); text("OS Axi", c, "newOsAxi", "175")
-                    text("OS CVA", c, "newOsCva", "6/6")
-                }
+                pair(text("Unaided V/A, right (OD)", c, "newOdUva", "6/18"),
+                     text("Unaided V/A, left (OS)", c, "newOsUva", "6/24"))
+                prescription("new", c)
             }
             Group {
                 FormSectionHeader(title: "Colour vision")
@@ -445,6 +431,43 @@ struct ClinicianScreeningView: View {
 
     private func text(_ label: String, _ check: String, _ key: String, _ placeholder: String = "") -> some View {
         TextFieldRow(label: shown(label, check), value: field(check, key), placeholder: placeholder)
+    }
+
+    /// The glasses slip: per eye, distance (D/V) and near (N/V) rows of SPH,
+    /// CYL, AXIS and V/A, then the lens. Distance keeps the keys older records
+    /// use; near adds "Near". One eye to a table, so four boxes fit a phone.
+    private func prescription(_ prefix: String, _ check: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach([("Od", "Right eye (OD)"), ("Os", "Left eye (OS)")], id: \.0) { eye, title in
+                Text(title).font(.vh(.subheadline, .semibold))
+                HStack(spacing: 6) {
+                    Text("").frame(width: 36)
+                    ForEach(["SPH", "CYL", "AXIS", "V/A"], id: \.self) {
+                        Text($0).font(.vh(.caption)).foregroundColor(.secondary).frame(maxWidth: .infinity)
+                    }
+                }
+                ForEach([false, true], id: \.self) { near in
+                    let n = near ? "Near" : ""
+                    HStack(spacing: 6) {
+                        Text(near ? "N/V" : "D/V").font(.vh(.caption, .medium)).frame(width: 36, alignment: .leading)
+                        rxCell(check, prefix + eye + n + "Sph", near ? "+1.00" : "-1.50")
+                        rxCell(check, prefix + eye + n + "Cyl", "-0.50")
+                        rxCell(check, prefix + eye + n + "Axi", "180")
+                        rxCell(check, near ? prefix + eye + "NearVa" : prefix + eye + "Cva", near ? "N6" : "6/6")
+                    }
+                }
+            }
+            choice("Lens", O.LENS_TYPE, check, prefix + "LensType")
+        }
+    }
+
+    private func rxCell(_ check: String, _ key: String, _ placeholder: String) -> some View {
+        TextField(placeholder, text: field(check, key))
+            .multilineTextAlignment(.center)
+            .font(.vh(.subheadline))
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Color(.tertiarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
     private func choice(_ label: String, _ options: [String], _ check: String, _ key: String) -> some View {

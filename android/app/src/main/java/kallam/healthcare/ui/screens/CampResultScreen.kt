@@ -38,6 +38,7 @@ import kallam.healthcare.data.HealthFlag
 import kallam.healthcare.data.ReleasedFindingDto
 import kallam.healthcare.data.ResultChildDto
 import kallam.healthcare.data.S
+import kallam.healthcare.ui.components.PrescriptionTables
 import kallam.healthcare.data.WhoBmi
 import kallam.healthcare.ui.components.AppCard
 import kallam.healthcare.ui.components.AppListRow
@@ -293,7 +294,7 @@ private fun FindingCard(f: ReleasedFindingDto, child: ResultChildDto?, modifier:
         if (sheet != null && sheet.rows.isNotEmpty()) {
             // The assessment sheet, a row per column, as the doctor filled it.
             Spacer(Modifier.height(AppSpacing.sm))
-            sheet.rows.forEach { row ->
+            sheet.listedRows.forEach { row ->
                 Row(Modifier.fillMaxWidth().padding(vertical = AppSpacing.xxs)) {
                     Text(
                         row.label,
@@ -310,6 +311,7 @@ private fun FindingCard(f: ReleasedFindingDto, child: ResultChildDto?, modifier:
                     )
                 }
             }
+            if (sheet.rx.isNotEmpty()) PrescriptionTables(sheet.rx, Modifier.fillMaxWidth())
             // The growth charts, IAP and WHO, with the child on them.
             val g = sheet.growth
             val who = if (g != null && child != null) {

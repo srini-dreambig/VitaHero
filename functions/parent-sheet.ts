@@ -16,7 +16,17 @@ export interface AssessmentSheet {
   rows: SheetRow[];
   /** Physical growth only: the numbers the app draws the IAP, WHO and MUAC charts from. */
   growth?: { heightCm: number; weightKg: number; muacCm?: number };
+  /**
+   * Vision only: each prescription with a value in it, as the glasses slip
+   * lays it out. The app draws the table and leaves out the row of the same
+   * title; older apps show that row's text instead.
+   */
+  rx?: RxTable[];
 }
+
+export interface RxEye { sph: string; cyl: string; axis: string; va: string }
+export interface RxRow { label: "D/V" | "N/V"; right: RxEye; left: RxEye }
+export interface RxTable { title: string; lensType: string; rows: RxRow[] }
 
 export interface SheetChild { ageYears: number | null; gender: string; dob: string }
 
@@ -47,22 +57,49 @@ const orNone = (v: unknown) => {
 const signed = (z: number) => (z > 0 ? `+${z.toFixed(2)}` : z.toFixed(2));
 const fix1 = (n: number) => (Math.round(n * 10) / 10).toString();
 
-/** "Sph -1.50, Cyl -0.50, Axis 180, CVA 6/6" for one eye, "" when blank. */
+// The slip's boxes per eye: distance keeps the keys older records use, near adds "Near".
+const DISTANCE_KEYS = { sph: "Sph", cyl: "Cyl", axis: "Axi", va: "Cva" } as const;
+const NEAR_KEYS = { sph: "NearSph", cyl: "NearCyl", axis: "NearAxi", va: "NearVa" } as const;
+
+function rxEye(d: Record<string, unknown>, prefix: string, keys: Record<keyof RxEye, string>): RxEye {
+  return { sph: str(d[prefix + keys.sph]), cyl: str(d[prefix + keys.cyl]), axis: str(d[prefix + keys.axis]), va: str(d[prefix + keys.va]) };
+}
+const blankEye = (e: RxEye) => !e.sph && !e.cyl && !e.axis && !e.va;
+
+/** "Sph -1.50, Cyl -0.50, Axis 180, CVA 6/6" for one eye's row, "" when blank. */
+function eyeText(e: RxEye, va: string): string {
+  return ([["Sph", e.sph], ["Cyl", e.cyl], ["Axis", e.axis], [va, e.va]] as const)
+    .filter(([, v]) => v).map(([w, v]) => `${w} ${v}`).join(", ");
+}
+
+/** One eye's prescription as text: distance, then near, "" when blank. */
 function eyeRx(d: Record<string, unknown>, prefix: string, withUva: boolean): string {
   const parts: string[] = [];
   if (withUva && str(d[`${prefix}Uva`])) parts.push(`UVA ${str(d[`${prefix}Uva`])}`);
-  for (const [k, word] of [["Sph", "Sph"], ["Cyl", "Cyl"], ["Axi", "Axis"], ["Cva", "CVA"]]) {
-    const v = str(d[`${prefix}${k}`]);
-    if (v) parts.push(`${word} ${v}`);
-  }
+  const distance = eyeText(rxEye(d, prefix, DISTANCE_KEYS), "CVA");
+  if (distance) parts.push(distance);
+  const near = eyeText(rxEye(d, prefix, NEAR_KEYS), "V/A");
+  if (near) parts.push(`near ${near}`);
   return parts.join(", ");
+}
+
+/** The prescription as the slip draws it, or null when nothing was written. */
+function rxTable(d: Record<string, unknown>, base: "present" | "new", title: string): RxTable | null {
+  const rows: RxRow[] = [];
+  for (const [label, keys] of [["D/V", DISTANCE_KEYS], ["N/V", NEAR_KEYS]] as const) {
+    const right = rxEye(d, `${base}Od`, keys), left = rxEye(d, `${base}Os`, keys);
+    if (!blankEye(right) || !blankEye(left)) rows.push({ label, right, left });
+  }
+  const lensType = str(d[`${base}LensType`]);
+  return rows.length ? { title, lensType, rows } : null;
 }
 
 function prescription(d: Record<string, unknown>, base: "present" | "new"): string {
   const od = eyeRx(d, `${base}Od`, base === "new");
   const os = eyeRx(d, `${base}Os`, base === "new");
   if (!od && !os) return NONE;
-  return [od && `Right (OD): ${od}`, os && `Left (OS): ${os}`].filter(Boolean).join("; ");
+  const lens = str(d[`${base}LensType`]);
+  return [od && `Right (OD): ${od}`, os && `Left (OS): ${os}`, lens && `Lens: ${lens}`].filter(Boolean).join("; ");
 }
 
 /** BMI and the nutritional status for a growth record, as the sheet words them. */
@@ -141,7 +178,11 @@ function visionSheet(d: Record<string, unknown>): AssessmentSheet {
   if (orNone(d.otherAbnormalities) !== NONE) {
     rows.push({ label: "Other abnormalities", value: orNone(d.otherAbnormalities) });
   }
-  return { title: "Vision assessment", rows };
+  const rx = [
+    rxTable(d, "present", "Present glasses prescription"),
+    rxTable(d, "new", "New glasses prescription"),
+  ].filter((x): x is RxTable => x !== null);
+  return rx.length ? { title: "Vision assessment", rows, rx } : { title: "Vision assessment", rows };
 }
 
 function dentalSheet(d: Record<string, unknown>): AssessmentSheet {

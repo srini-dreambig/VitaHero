@@ -106,7 +106,7 @@ struct KidDetailView: View {
                         let flag = HealthFlag(server: finding.flag)
                         Pill(text: flag.label, color: flag.color)
                     }
-                    ForEach(finding.sheet?.rows ?? []) { row in
+                    ForEach(finding.sheet?.listedRows ?? []) { row in
                         HStack(alignment: .top) {
                             Text(row.label).font(.vh(.caption)).foregroundColor(.secondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -114,6 +114,7 @@ struct KidDetailView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
+                    ForEach(finding.sheet?.rx ?? []) { PrescriptionTableView(table: $0) }
                     if !finding.note.isEmpty {
                         Text(finding.note).font(.vh(.caption)).foregroundColor(.secondary)
                     }

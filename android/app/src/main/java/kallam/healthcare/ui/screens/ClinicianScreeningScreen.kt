@@ -1,5 +1,11 @@
 package kallam.healthcare.ui.screens
 
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -77,6 +83,9 @@ private val ACUITY = listOf(
 
 // Near Vision Scale (Image 3). N6 is a child reading normal print.
 private val NEAR_VISION = listOf("N6 (Normal)", "N8", "N10", "N12", "N18", "N24", "N36")
+
+// The lens a prescription is for, as on the glasses slip.
+private val LENS_TYPE = listOf("Distance", "Near", "Bifocals", "Progressive")
 
 // Testing Condition (Image 3)
 private val VISION_TEST_CONDITION = listOf(
@@ -513,47 +522,15 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
 
             Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Present glasses prescription", subtitle = "Only if the child already wears glasses")
-            // At most three boxes to a row: four or five across a phone left
-            // each box too narrow for "-1.50" and clipped the labels.
-            FieldRow {
-                SimpleTextField("OD Sph", fields, "presentOdSph", Modifier.weight(1f), placeholder = "-1.50")
-                SimpleTextField("OD Cyl", fields, "presentOdCyl", Modifier.weight(1f), placeholder = "-0.50")
-            }
-            FieldRow {
-                SimpleTextField("OD Axi", fields, "presentOdAxi", Modifier.weight(1f), placeholder = "180")
-                SimpleTextField("OD CVA", fields, "presentOdCva", Modifier.weight(1f), placeholder = "6/6")
-            }
-            FieldRow {
-                SimpleTextField("OS Sph", fields, "presentOsSph", Modifier.weight(1f), placeholder = "-1.75")
-                SimpleTextField("OS Cyl", fields, "presentOsCyl", Modifier.weight(1f), placeholder = "-0.50")
-            }
-            FieldRow {
-                SimpleTextField("OS Axi", fields, "presentOsAxi", Modifier.weight(1f), placeholder = "175")
-                SimpleTextField("OS CVA", fields, "presentOsCva", Modifier.weight(1f), placeholder = "6/6")
-            }
+            PrescriptionTable("present", fields)
 
             Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("New glasses prescription")
             FieldRow {
-                SimpleTextField("OD UVA", fields, "newOdUva", Modifier.weight(1f), placeholder = "6/18")
-                SimpleTextField("OD Sph", fields, "newOdSph", Modifier.weight(1f), placeholder = "-2.00")
-                SimpleTextField("OD Cyl", fields, "newOdCyl", Modifier.weight(1f), placeholder = "-0.75")
+                SimpleTextField("Unaided V/A, right (OD)", fields, "newOdUva", Modifier.weight(1f), placeholder = "6/18")
+                SimpleTextField("Unaided V/A, left (OS)", fields, "newOsUva", Modifier.weight(1f), placeholder = "6/24")
             }
-            FieldRow {
-                SimpleTextField("OD Axi", fields, "newOdAxi", Modifier.weight(1f), placeholder = "180")
-                SimpleTextField("OD CVA", fields, "newOdCva", Modifier.weight(1f), placeholder = "6/6")
-                Spacer(Modifier.weight(1f))
-            }
-            FieldRow {
-                SimpleTextField("OS UVA", fields, "newOsUva", Modifier.weight(1f), placeholder = "6/24")
-                SimpleTextField("OS Sph", fields, "newOsSph", Modifier.weight(1f), placeholder = "-2.25")
-                SimpleTextField("OS Cyl", fields, "newOsCyl", Modifier.weight(1f), placeholder = "-0.75")
-            }
-            FieldRow {
-                SimpleTextField("OS Axi", fields, "newOsAxi", Modifier.weight(1f), placeholder = "175")
-                SimpleTextField("OS CVA", fields, "newOsCva", Modifier.weight(1f), placeholder = "6/6")
-                Spacer(Modifier.weight(1f))
-            }
+            PrescriptionTable("new", fields)
 
             Spacer(Modifier.height(AppSpacing.xxs))
             HeroFormSectionHeader("Colour vision")
@@ -689,6 +666,77 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
 }
 
 /** Fields side by side, lined up on their boxes even when one label wraps. */
+@Composable
+private fun PrescriptionTable(prefix: String, fields: MutableMap<String, String>) {
+    // The glasses slip: per eye, distance (D/V) and near (N/V) rows of SPH,
+    // CYL, AXIS and V/A. Distance keeps the keys older records use; near adds
+    // "Near". One eye to a table, so four boxes fit across a phone.
+    listOf("Od" to "Right eye (OD)", "Os" to "Left eye (OS)").forEach { (eye, title) ->
+        Text(title, style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = AppSpacing.xs))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs)) {
+            Spacer(Modifier.width(40.dp))
+            listOf("SPH", "CYL", "AXIS", "V/A").forEach {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+        listOf(false, true).forEach { near ->
+            val n = if (near) "Near" else ""
+            Row(
+                Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(AppSpacing.xs),
+            ) {
+                Text(if (near) "N/V" else "D/V", style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(40.dp))
+                RxCell(fields, "$prefix$eye${n}Sph", if (near) "+1.00" else "-1.50")
+                RxCell(fields, "$prefix$eye${n}Cyl", "-0.50")
+                RxCell(fields, "$prefix$eye${n}Axi", "180")
+                RxCell(fields, if (near) "$prefix${eye}NearVa" else "$prefix${eye}Cva", if (near) "N6" else "6/6")
+            }
+        }
+    }
+    ChoiceField("Lens", LENS_TYPE, fields, "${prefix}LensType", Modifier.fillMaxWidth())
+}
+
+/** One box of the prescription table: small, centred, no label of its own. */
+@Composable
+private fun RowScope.RxCell(fields: MutableMap<String, String>, key: String, placeholder: String) {
+    val style = MaterialTheme.typography.bodyMedium.copy(
+        textAlign = TextAlign.Center,
+        color = MaterialTheme.colorScheme.onSurface,
+    )
+    BasicTextField(
+        value = fields[key] ?: "",
+        onValueChange = { fields[key] = it },
+        singleLine = true,
+        textStyle = style,
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        modifier = Modifier
+            .weight(1f)
+            .padding(vertical = AppSpacing.xxs),
+        decorationBox = { inner ->
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                if ((fields[key] ?: "").isEmpty()) {
+                    Text(placeholder, style = style.copy(color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)))
+                }
+                inner()
+            }
+        },
+    )
+}
+
 @Composable
 private fun FieldRow(content: @Composable RowScope.() -> Unit) {
     Row(
