@@ -89,6 +89,8 @@ suite("a camp's results, from the doctor's form to the parent", () => {
   afterAll(async () => { if (client) await client.end(); });
 
   test("the history and lab card goes with the examination instead of losing the save", async () => {
+    // Only the physician's examination carries the card; a vision record
+    // sent with one still saves, without it.
     const r = await saveScreening(sql, DOC, CAMP, SEEN, {
       findings: [
         vision,
@@ -100,8 +102,8 @@ suite("a camp's results, from the doctor's form to the parent", () => {
     const rows = await sql`SELECT check_type, detail FROM vita_hero.camp_findings
                            WHERE camp_id = ${CAMP} AND kid_id = ${SEEN}`;
     expect(rows.map((x) => x.check_type)).toEqual(["Vision"]);
-    expect((rows[0].detail as any).history).toEqual({ drugAllergies: "Penicillin" });
-    expect((rows[0].detail as any).investigations).toEqual({ generalLabs: "CBP" });
+    expect((rows[0].detail as any).history).toBeUndefined();
+    expect((rows[0].detail as any).investigations).toBeUndefined();
   });
 
   test("history alone is refused with a reason the doctor can act on", async () => {

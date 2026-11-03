@@ -1445,9 +1445,11 @@ function evaluateChild(
         "CHECK_NOT_MY_SPECIALTY"
       );
     }
-    const detail = findingDetail(checkType, NO_CONTEXT_CHECKS.has(checkType)
-      ? (raw.detail as Record<string, unknown>) || {}
-      : { ...((raw.detail as Record<string, unknown>) || {}), ...context });
+    // The physician's examination keeps the history and lab card; it is only
+    // screens that leave it out. The other checks never carry one.
+    const detail = NO_CONTEXT_CHECKS.has(checkType)
+      ? findingDetail(checkType, raw.detail)
+      : { ...((raw.detail as Record<string, unknown>) || {}), ...context };
     const proposal = proposeFlag({ checkType, detail }, ctx);
 
     // C9 — a screener may override the proposal, but must say why.
