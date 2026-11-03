@@ -151,10 +151,10 @@ struct KidDetailView: View {
         }
     }
 
-    /// The latest vision and dental sheets that have rows to show.
+    /// The latest growth, vision and dental sheets that have rows to show.
     private var sheets: [CampResult.Finding] {
         let all = store.latestSheets[kid.id] ?? []
-        return ["Vision", "Dental"].compactMap { type in
+        return ["Height & weight", "Vision", "Dental"].compactMap { type in
             all.first { $0.checkType == type && !($0.sheet?.rows.isEmpty ?? true) }
         }
     }

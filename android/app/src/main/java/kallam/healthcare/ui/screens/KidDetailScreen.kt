@@ -204,7 +204,9 @@ fun KidDetailScreen(
 
         item {
             when (tab) {
-                DetailTab.GROWTH -> GrowthTab(kid, growthAssessment, onOpenGrowthCharts)
+                DetailTab.GROWTH -> GrowthTab(
+                    kid, growthAssessment, sheets.firstOrNull { it.checkType == "Height & weight" }, onOpenGrowthCharts,
+                )
                 DetailTab.DENTAL -> FlagTab(
                     t(S.dentalTabLabel), kid.dental, sheets.firstOrNull { it.checkType == "Dental" },
                     when (kid.dental) {
@@ -221,7 +223,7 @@ fun KidDetailScreen(
                         else -> t(S.eyeWatchMsg)
                     }
                 )
-                DetailTab.NUTRITION -> NutritionTab(kid, onOpenDiet)
+                DetailTab.NUTRITION -> NutritionTab(kid, sheets.firstOrNull { it.checkType == "Height & weight" }, onOpenDiet)
             }
         }
 
@@ -230,8 +232,25 @@ fun KidDetailScreen(
 }
 
 @Composable
-private fun GrowthTab(kid: Kid, assessment: GrowthAssessment?, onOpenClinicalCharts: () -> Unit) {
+private fun GrowthTab(
+    kid: Kid,
+    assessment: GrowthAssessment?,
+    finding: ReleasedFindingDto?,
+    onOpenClinicalCharts: () -> Unit,
+) {
     Column(Modifier.padding(horizontal = AppSpacing.xl)) {
+        // What the camp measured, every value, before anything drawn from it.
+        if (finding?.sheet != null && finding.sheet.rows.isNotEmpty()) {
+            AppCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(finding.sheet.title.ifBlank { finding.checkType }, style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f))
+                    FlagChip(sheetFlag(finding.flag))
+                }
+                Spacer(Modifier.height(AppSpacing.md))
+                SheetDetail(finding)
+            }
+            Spacer(Modifier.height(AppSpacing.md))
+        }
         assessment?.let { a ->
             AppCard(background = MaterialTheme.colorScheme.primary.copy(alpha = 0.06f)) {
                 Text(t(S.currentAssessment), style = MaterialTheme.typography.titleMedium)
@@ -368,39 +387,53 @@ private fun FlagTab(title: String, flag: HealthFlag, finding: ReleasedFindingDto
             if (finding == null || (rows.isEmpty() && rx.isEmpty())) {
                 Text(description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
-                // Every value screened at the camp, as the doctor recorded it.
-                val where = listOf(finding.campTitle, finding.date).filter { it.isNotBlank() }.joinToString(" · ")
-                if (where.isNotBlank()) {
-                    Text(where, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(AppSpacing.sm))
-                }
-                rows.forEach { row ->
-                    Row(Modifier.fillMaxWidth().padding(vertical = AppSpacing.xxs)) {
-                        Text(
-                            row.label,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(0.42f),
-                        )
-                        Text(
-                            row.value,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.weight(0.58f),
-                        )
-                    }
-                }
-                if (rx.isNotEmpty()) PrescriptionTables(rx, Modifier.fillMaxWidth())
-                if (finding.note.isNotBlank()) {
-                    Spacer(Modifier.height(AppSpacing.sm))
-                    Text(finding.note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                SheetDetail(finding)
             }
         }
         Spacer(Modifier.height(AppSpacing.md))
         InfoNote(t(S.disclaimerShort))
     }
 }
+
+/**
+ * Every value screened at the camp, as the clinician recorded it: where and
+ * when, a row per value (only [only] when given), the glasses prescription as
+ * the slip lays it out, then the doctor's note.
+ */
+@Composable
+private fun SheetDetail(finding: ReleasedFindingDto, only: Set<String>? = null) {
+    val rows = finding.sheet?.listedRows.orEmpty().filter { only == null || it.label in only }
+    val rx = if (only == null) finding.sheet?.rx.orEmpty() else emptyList()
+    val where = listOf(finding.campTitle, finding.date).filter { it.isNotBlank() }.joinToString(" · ")
+    if (where.isNotBlank()) {
+        Text(where, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(AppSpacing.sm))
+    }
+    rows.forEach { row ->
+        Row(Modifier.fillMaxWidth().padding(vertical = AppSpacing.xxs)) {
+            Text(
+                row.label,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(0.42f),
+            )
+            Text(
+                row.value,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(0.58f),
+            )
+        }
+    }
+    if (rx.isNotEmpty()) PrescriptionTables(rx, Modifier.fillMaxWidth())
+    if (only == null && finding.note.isNotBlank()) {
+        Spacer(Modifier.height(AppSpacing.sm))
+        Text(finding.note, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/** The growth sheet's rows that speak to nutrition. */
+private val NUTRITION_ROWS = setOf("Weight", "BMI", "Weight-for-age", "BMI-for-age", "Mid-arm circumference", "MUAC-for-age", "Nutritional status")
 
 private fun sheetFlag(raw: String): HealthFlag = when (raw.uppercase()) {
     "GOOD" -> HealthFlag.GOOD
@@ -410,8 +443,17 @@ private fun sheetFlag(raw: String): HealthFlag = when (raw.uppercase()) {
 }
 
 @Composable
-private fun NutritionTab(kid: Kid, onOpenDiet: () -> Unit) {
+private fun NutritionTab(kid: Kid, growth: ReleasedFindingDto?, onOpenDiet: () -> Unit) {
     Column(Modifier.padding(horizontal = AppSpacing.xl)) {
+        // BMI and nutritional status as the camp measured them.
+        if (growth?.sheet?.rows.orEmpty().any { it.label in NUTRITION_ROWS }) {
+            AppCard {
+                Text(t(S.nutritionTabLabel), style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(AppSpacing.md))
+                SheetDetail(growth!!, only = NUTRITION_ROWS)
+            }
+            Spacer(Modifier.height(AppSpacing.md))
+        }
         AppCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconBubble(Icons.Outlined.Restaurant, MaterialTheme.colorScheme.primary)
