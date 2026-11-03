@@ -202,8 +202,9 @@ struct ClinicianScreeningView: View {
                 FormSectionHeader(title: "Visual acuity", subtitle: "Distance (Snellen), each eye")
                 pair(choice("Right eye (OD) *", O.ACUITY, c, "rightAcuity"),
                      choice("Left eye (OS) *", O.ACUITY, c, "leftAcuity"))
-                pair(choice("Near, right (OD)", O.NEAR_VISION, c, "rightNearVision"),
-                     choice("Near, left (OS)", O.NEAR_VISION, c, "leftNearVision"))
+                FormSectionHeader(title: "Near vision", subtitle: "Near chart, each eye (N6 = normal print)")
+                pair(choice("Right eye (OD)", O.NEAR_VISION, c, "rightNearVision"),
+                     choice("Left eye (OS)", O.NEAR_VISION, c, "leftNearVision"))
                 choice("Testing condition", O.VISION_TEST_CONDITION, c, "testingCondition")
             }
             Group {

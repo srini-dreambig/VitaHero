@@ -502,9 +502,12 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
                 ChoiceField("Right eye (OD) *", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
                 ChoiceField("Left eye (OS) *", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
             }
+
+            Spacer(Modifier.height(AppSpacing.xxs))
+            HeroFormSectionHeader("Near vision", subtitle = "Near chart, each eye (N6 = normal print)")
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-                ChoiceField("Near, right (OD)", NEAR_VISION, fields, "rightNearVision", Modifier.weight(1f))
-                ChoiceField("Near, left (OS)", NEAR_VISION, fields, "leftNearVision", Modifier.weight(1f))
+                ChoiceField("Right eye (OD)", NEAR_VISION, fields, "rightNearVision", Modifier.weight(1f))
+                ChoiceField("Left eye (OS)", NEAR_VISION, fields, "leftNearVision", Modifier.weight(1f))
             }
             ChoiceField("Testing condition", VISION_TEST_CONDITION, fields, "testingCondition", Modifier.fillMaxWidth())
 
