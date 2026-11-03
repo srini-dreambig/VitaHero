@@ -4256,7 +4256,11 @@ export const PORTAL_HTML = `<!doctype html>
         })));
     }
 
-    function bulk(decision, photos) {
+    // Granting acts on the ticked children, or, with nothing ticked, on every
+    // child still waiting in the chosen classes and sections (the whole camp
+    // when none is chosen). Declining stays a tick-by-tick decision.
+    function bulk(decision, photos, list) {
+      var chosen = list || target;
       if (!chosen.length) return;
       var what = decision === "DECLINED" ? "DECLINED"
         : photos ? "GRANTED on paper, with photographs" : "GRANTED on paper";
@@ -4298,28 +4302,36 @@ export const PORTAL_HTML = `<!doctype html>
       printPage("/api/admin/camps/" + c.id + "/consent/form?" + q);
     }
     var shownWaiting = shown.filter(function (p) { return p.consentStatus === "PENDING"; });
+    var target = chosen.length ? chosen : shownPending;
 
+    var picked = (S.consentGrades.concat(S.consentSections)).length;
+    var scope = chosen.length ? chosen.length + " ticked"
+      : "all " + shownPending.length + " waiting" + (filtered
+          ? " in " + uniq(shownPending.map(classOf)).sort(byNum).join(", ")
+          : " on the camp");
     var bulkBar = el("div", { class: "card", style: "padding:12px 14px;margin-bottom:12px" },
-      el("div", { style: "font-size:12.5px;font-weight:600;margin-bottom:8px" }, "Record paper slips for many children at once"),
+      el("div", { style: "font-size:13.5px;font-weight:700;margin-bottom:2px" }, "Signed slips back? Grant consent in one go"),
+      el("div", { class: "muted", style: "font-size:12px;margin-bottom:8px" },
+        picked || chosen.length
+          ? "Acting on " + scope + "."
+          : "Choose a class or section above to grant just those, tick children in the table, or grant the whole camp."),
       el("div", { class: "row", style: "gap:8px;align-items:center;flex-wrap:wrap" },
-        el("span", { class: "muted", style: "font-size:12.5px" },
-          chosen.length + " of " + shownPending.length + " pending "
-          + (shownPending.length === 1 ? "child" : "children") + " ticked"
-          + (shown.length !== S.participants.length ? " (filtered: " + shown.length + " shown)" : "")),
-        el("button", { class: "sm pri", disabled: S.busy || !chosen.length,
+        el("button", { class: "sm pri", disabled: S.busy || !target.length,
           onclick: function () { bulk("PAPER", false); } },
-          c.photosEnabled ? "Check-up only" : "Granted on paper"),
+          (c.photosEnabled ? "Check-up only for " : "Consent granted for ") + scope),
         c.photosEnabled
-          ? el("button", { class: "sm", disabled: S.busy || !chosen.length,
-              onclick: function () { bulk("PAPER", true); } }, "Check-up + photographs")
+          ? el("button", { class: "sm", disabled: S.busy || !target.length,
+              onclick: function () { bulk("PAPER", true); } }, "Check-up + photographs for " + scope)
           : null,
         el("button", { class: "sm dang", disabled: S.busy || !chosen.length,
-          onclick: function () { bulk("DECLINED"); } }, "Declined"),
+          title: chosen.length ? "" : "Tick the children whose guardian said no",
+          onclick: function () { bulk("DECLINED", false, chosen); } },
+          chosen.length ? "Declined for " + chosen.length + " ticked" : "Declined (tick children first)"),
         chosen.length
           ? el("button", { class: "sm", onclick: function () { S.consentSel = {}; render(); } }, "Clear ticks")
           : null),
       el("div", { class: "hint", style: "margin-top:6px" },
-        "Only children still waiting can be ticked. Anyone whose guardian answered in the app, or who has been screened, is never changed."));
+        "You will be asked to confirm, with the classes named, before anything is saved. Only children still waiting can be ticked. Anyone whose guardian answered in the app, or who has been screened, is never changed."));
 
     function step(n, label, hint, button) {
       return el("div", { class: "card", style: "flex:1;min-width:190px;padding:12px 14px" },
