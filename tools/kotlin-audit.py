@@ -572,7 +572,9 @@ for f, src in SRC.items():
                     depth -= 1
                 i += 1
             for part in split_top(src[m.end():i - 1]):
-                am = re.match(r"\s*(\w+)\s*=(?!=)\s*\{([^}]*?)->", part, re.S)
+                # Only names before the arrow: a body's `when (x) { A -> ... }`
+                # is not a parameter list.
+                am = re.match(r"\s*(\w+)\s*=(?!=)\s*\{([^{}=]*?)->", part, re.S)
                 if not am or am.group(1) not in params:
                     continue
                 names = [x for x in split_top(am.group(2)) if x.strip()]
@@ -782,7 +784,10 @@ DECL_RE = re.compile(
     # nested declaration in the app — which reads as the whole file being
     # broken rather than as the check being wrong.
     r"^[ \t]*(?:@\w+(?:\([^)]*\))?\s+)*(?:\w+\s+)*?"
-    r"(?:class|object|interface|enum\s+class|annotation\s+class|fun|val|var)\s+([A-Za-z_]\w*)",
+    # `fun <T> SegmentedChoice` and `fun RowScope.RxCell` declare the name
+    # after the type parameters and the receiver, not the first word.
+    r"(?:class|object|interface|enum\s+class|annotation\s+class|fun|val|var)\s+"
+    r"(?:<[^>]*>\s*)?(?:[A-Za-z_][\w<>?, ]*\.)?([A-Za-z_]\w*)",
     re.M,
 )
 
