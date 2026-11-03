@@ -783,7 +783,7 @@ function templateFor(saved: Map<string, Template>, key: string): Template | unde
 
 const TOOTH_LINE = "If your child has tooth decay: sweets only at mealtimes, no sticky snacks, rinse after eating.";
 
-type Template = { title: string; focus: string; guidance: string; targets: Array<{ label: string; value: string }> };
+type Template = { title: string; focus: string; guidance: string; targets: Array<{ label: string; value: string }>; updatedAt?: string };
 
 function mapTemplate(r: Record<string, unknown>): Template & { updatedAt: string } {
   return {
@@ -823,7 +823,7 @@ async function templatesOf(sql: Sql, dieticianId: string) {
       title: t ? t.title : draft.title,
       guidance: t ? t.guidance : draft.guidance,
       targets: t ? t.targets : draft.targets,
-      updatedAt: t ? t.updatedAt : "",
+      updatedAt: t?.updatedAt || "",
     };
   });
   return { templates, ready: templates.filter((t) => t.saved).length };
