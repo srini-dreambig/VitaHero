@@ -703,15 +703,23 @@ function cohortFocus(growth: Growth, anaemic: boolean): PlanFocus {
   return anaemic ? "ANAEMIA" : "GENERAL";
 }
 
-function cohortKey(growth: Growth, anaemic: boolean, teeth: boolean): string {
+/** Girls and boys get plans of their own; a child with no gender on file, neither. */
+function sexOf(gender: string): "GIRLS" | "BOYS" | "" {
+  return /^f/i.test(gender) ? "GIRLS" : /^m/i.test(gender) ? "BOYS" : "";
+}
+
+function cohortKey(growth: Growth, anaemic: boolean, teeth: boolean, gender = ""): string {
   // Tooth decay splits only the otherwise-well group: for every other group
   // it is a line in the plan, not a different plan.
-  return growth + (anaemic ? "+ANAEMIA" : "") + (teeth && growth === "NORMAL" && !anaemic ? "+TEETH" : "");
+  return [growth, anaemic ? "ANAEMIA" : "", sexOf(gender),
+    teeth && growth === "NORMAL" && !anaemic ? "TEETH" : ""].filter(Boolean).join("+");
 }
 
 function cohortLabel(key: string): string {
   const [g, ...rest] = key.split("+");
   let label = GROWTH_LABEL[g as Growth] || g;
+  if (rest.includes("GIRLS")) label += ", girls";
+  if (rest.includes("BOYS")) label += ", boys";
   if (rest.includes("ANAEMIA")) label += ", low haemoglobin";
   if (rest.includes("TEETH")) label += ", tooth decay";
   return label;
@@ -760,21 +768,35 @@ function classify(latest: Latest, age: number | null, gender: string, dob: strin
   const anaemic = hb?.fl === "WATCH" || hb?.fl === "ALERT";
   const dd = (dental?.d || {}) as Record<string, unknown>;
   const teeth = dental?.fl === "WATCH" || dental?.fl === "ALERT" || (num(dd.cariesCount) ?? 0) > 0;
-  return { growth, anaemic, teeth, band, muacFlag, hb, key: cohortKey(growth, anaemic, teeth) };
+  return { growth, anaemic, teeth, band, muacFlag, hb, key: cohortKey(growth, anaemic, teeth, gender) };
 }
 
 // ─── The pre-camp plans ─────────────────────────────────────
 //
-// One per growth group. Tooth decay is a line added to the plan, not a plan of
-// its own, so the "+TEETH" group shares the healthy-weight plan. There were
-// twelve, each also "+ANAEMIA"; camps no longer measure haemoglobin, so an
-// anaemia group only comes from an old camp and is drafted fresh.
+// Twelve: one per growth group for girls and one for boys. Tooth decay is a
+// line added to the plan, not a plan of its own, so the "+TEETH" group shares
+// the healthy-weight plan. Camps no longer measure haemoglobin, so an anaemia
+// group only comes from an old camp and is drafted fresh.
+//
+// Before plans were split by girls and boys there was one per growth group,
+// under the bare growth key. A dietician's plan saved that way still stands
+// for both until they write the two of their own.
 
-export const TEMPLATE_KEYS: string[] = [...GROWTH_ORDER];
+export const TEMPLATE_KEYS: string[] = GROWTH_ORDER.flatMap((g) => [g + "+GIRLS", g + "+BOYS"]);
 
 /** The pre-camp plan a group's children are given. */
 export function templateKeyOf(cohort: string): string {
   return cohort.split("+").filter((p) => p !== "TEETH").join("+");
+}
+
+/** The one-per-growth-group plan this key's plan used to be. */
+function legacyKeyOf(key: string): string {
+  return key.split("+").filter((p) => p !== "GIRLS" && p !== "BOYS").join("+");
+}
+
+/** A dietician's plan for this key, or the older one it replaces. */
+function templateFor(saved: Map<string, Template>, key: string): Template | undefined {
+  return saved.get(key) ?? saved.get(legacyKeyOf(key));
 }
 
 const TOOTH_LINE = "If your child has tooth decay: sweets only at mealtimes, no sticky snacks, rinse after eating.";
@@ -808,13 +830,14 @@ async function templatesOf(sql: Sql, dieticianId: string) {
   const templates = TEMPLATE_KEYS.map((key) => {
     const [g, ...rest] = key.split("+");
     const anaemic = rest.includes("ANAEMIA");
-    const t = saved.get(key);
+    // A plan saved before the split shows as this one's draft, still to be saved.
+    const t = templateFor(saved, key);
     const draft = cohortDraft(g as Growth, anaemic, EMPTY_SUMMARY);
     return {
       key,
       label: cohortLabel(key),
       focus: cohortFocus(g as Growth, anaemic),
-      saved: !!t,
+      saved: saved.has(key),
       title: t ? t.title : draft.title,
       guidance: t ? t.guidance : draft.guidance,
       targets: t ? t.targets : draft.targets,
@@ -944,7 +967,7 @@ async function buildCohorts(sql: Sql, schoolId: string, grade: string, dietician
       priority: GROWTH_ORDER.indexOf(g.growth) * 2 + (g.anaemic ? 0 : 1),
       summary,
       children: g.children,
-      draft: templateDraft(templates.get(templateKeyOf(key)), summary)
+      draft: templateDraft(templateFor(templates, templateKeyOf(key)), summary)
         ?? cohortDraft(g.growth, g.anaemic, summary),
     };
   }).sort((a, b) => a.priority - b.priority);
@@ -1224,8 +1247,8 @@ async function givePrecampPlan(
     JOIN vita_hero.dieticians d ON d.id = t.dietician_id AND d.active
     JOIN vita_hero.dietician_schools ds
       ON ds.dietician_id = t.dietician_id AND ds.school_id = ${schoolId} AND ds.active
-    WHERE t.cohort_key = ${key}
-    ORDER BY t.updated_at DESC LIMIT 1
+    WHERE t.cohort_key IN (${key}, ${legacyKeyOf(key)})
+    ORDER BY (t.cohort_key = ${key}) DESC, t.updated_at DESC LIMIT 1
   `;
   if (t.length === 0) return false;
   const tpl = t[0];

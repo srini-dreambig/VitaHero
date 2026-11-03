@@ -459,13 +459,13 @@ suite("what a dietician can reach", () => {
     expect(r.grades).toEqual(["5"]);
     const byKid = (id: string) => r.cohorts.find((c) => c.children.some((k) => k.kidId === id))!;
     const diya = byKid("k_mine2");
-    expect(diya.key).toBe("OVER");
+    expect(diya.key).toBe("OVER+GIRLS");
     expect(diya.focus).toBe("WEIGHT_CONTROL");
     expect(diya.children[0].toothDecay).toBe(true);
     expect(diya.draft.guidance).toMatch(/tooth decay/);
     // Aarav has an ALERT haemoglobin and no growth reading with numbers.
     const aarav = byKid("k_mine");
-    expect(aarav.key).toBe("UNKNOWN+ANAEMIA");
+    expect(aarav.key).toBe("UNKNOWN+ANAEMIA+BOYS");
     expect(aarav.focus).toBe("ANAEMIA");
     expect(aarav.summary.severeAnaemia).toBe(1);
     // Bands and flags only; the readings stay behind the logged tap.
@@ -487,16 +487,16 @@ suite("what a dietician can reach", () => {
         targets: [{ label: "Sweet drinks", value: "None" }],
       });
     };
-    const r = await dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "OVER" }, ask);
+    const r = await dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "OVER+GIRLS" }, ask);
     expect(r.draft.source).toBe("AI");
     expect(r.draft.focus).toBe("WEIGHT_CONTROL");
     expect(r.draft.guidance).toContain("An hour of play");
     expect(told).not.toMatch(/Diya|Aarav|k_mine/);
 
     // Junk from the model, or no model at all, falls back to the rules.
-    const junk = await dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "OVER" }, async () => "sorry");
+    const junk = await dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "OVER+GIRLS" }, async () => "sorry");
     expect(junk.draft.source).toBe("RULES");
-    const none = await dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "OVER" }, null);
+    const none = await dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "OVER+GIRLS" }, null);
     expect(none.draft.source).toBe("RULES");
     await expect(dieticianCohortDraft(sql, DIET, { schoolId: "sch_mine", key: "SEVERE" }, null))
       .rejects.toThrow(/no children/);

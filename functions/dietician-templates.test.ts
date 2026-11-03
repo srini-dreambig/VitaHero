@@ -1,6 +1,7 @@
 // The twelve pre-camp diet plans.
 //
-// A dietician writes one plan per group before the camp. Once a child's
+// A dietician writes one plan per growth group for girls and one for boys
+// before the camp. Once a child's
 // results are released, the plan for the group those results put them in
 // reaches the family on its own, with the dietician's number to phone about
 // a milk intolerance or a food allergy.
@@ -27,15 +28,16 @@ import {
 } from "./dietician";
 
 describe("the groups a plan is written for", () => {
-  test("six: one per growth group, none for haemoglobin, which camps no longer measure", () => {
-    expect(TEMPLATE_KEYS.length).toBe(6);
-    expect(new Set(TEMPLATE_KEYS).size).toBe(6);
+  test("twelve: each growth group for girls and for boys, none for haemoglobin", () => {
+    expect(TEMPLATE_KEYS.length).toBe(12);
+    expect(new Set(TEMPLATE_KEYS).size).toBe(12);
+    expect(TEMPLATE_KEYS.filter((k) => k.endsWith("+GIRLS")).length).toBe(6);
     expect(TEMPLATE_KEYS.some((k) => k.includes("ANAEMIA"))).toBe(false);
   });
 
   test("tooth decay shares the healthy-weight plan", () => {
-    expect(templateKeyOf("NORMAL+TEETH")).toBe("NORMAL");
-    expect(templateKeyOf("OVER+ANAEMIA")).toBe("OVER+ANAEMIA");
+    expect(templateKeyOf("NORMAL+GIRLS+TEETH")).toBe("NORMAL+GIRLS");
+    expect(templateKeyOf("OVER+ANAEMIA+BOYS")).toBe("OVER+ANAEMIA+BOYS");
   });
 });
 
@@ -107,6 +109,20 @@ suite("pre-camp plans reach the family", () => {
 
   afterAll(async () => { if (client) await client.end(); });
 
+  test("a plan saved before girls and boys were split stands for both until rewritten", async () => {
+    const [d] = await sql`SELECT id FROM vita_hero.dieticians WHERE name = 'Meera'`;
+    await sql`INSERT INTO vita_hero.diet_plan_templates (dietician_id, cohort_key, title, guidance)
+              VALUES (${d.id}, 'STUNTED', 'Old growth plan', 'Dal and an egg every day.')`;
+    const r = await dieticianTemplates(sql, DIET);
+    for (const key of ["STUNTED+GIRLS", "STUNTED+BOYS"]) {
+      const t = r.templates.find((x) => x.key === key)!;
+      expect(t.title).toBe("Old growth plan");
+      expect(t.saved).toBe(false);
+    }
+    expect(r.ready).toBe(0);
+    await sql`DELETE FROM vita_hero.diet_plan_templates WHERE cohort_key = 'STUNTED'`;
+  });
+
   test("before anything is written, all twelve are starter drafts", async () => {
     const r = await dieticianTemplates(sql, DIET);
     expect(r.templates.map((t) => t.key)).toEqual(TEMPLATE_KEYS);
@@ -116,11 +132,11 @@ suite("pre-camp plans reach the family", () => {
 
   test("a plan is saved under its group, with the group's focus", async () => {
     const r = await saveDieticianTemplate(sql, DIET, {
-      key: "OVER", title: "Healthy weight plan", focus: "WEIGHT_GAIN",
+      key: "OVER+BOYS", title: "Healthy weight plan", focus: "WEIGHT_GAIN",
       guidance: OVERWEIGHT_GUIDANCE, targets: [{ label: "Sweet drinks", value: "None" }],
     });
     expect(r.ready).toBe(1);
-    const t = r.templates.find((x) => x.key === "OVER")!;
+    const t = r.templates.find((x) => x.key === "OVER+BOYS")!;
     expect(t.saved).toBe(true);
     expect(t.focus).toBe("WEIGHT_CONTROL");
     await expect(saveDieticianTemplate(sql, DIET, { key: "NOPE", guidance: OVERWEIGHT_GUIDANCE }))
@@ -129,7 +145,7 @@ suite("pre-camp plans reach the family", () => {
 
   test("the dietician's groups start from their own pre-camp plan", async () => {
     const r = await dieticianCohorts(sql, DIET, "sch_t");
-    const over = r.cohorts.find((c) => c.key === "OVER")!;
+    const over = r.cohorts.find((c) => c.key === "OVER+BOYS")!;
     expect(over.draft.source).toBe("TEMPLATE");
     expect(over.draft.guidance).toBe(OVERWEIGHT_GUIDANCE);
   });
@@ -156,7 +172,7 @@ suite("pre-camp plans reach the family", () => {
   test("a rewritten pre-camp plan replaces the one given from it", async () => {
     await new Promise((r) => setTimeout(r, 20));
     await saveDieticianTemplate(sql, DIET, {
-      key: "OVER", title: "Healthy weight plan, v2", guidance: OVERWEIGHT_GUIDANCE + " No sweet drinks.",
+      key: "OVER+BOYS", title: "Healthy weight plan, v2", guidance: OVERWEIGHT_GUIDANCE + " No sweet drinks.",
     });
     const r = await guardianDietPlan(sql, "ph_part", "k_t");
     expect(r.plan!.title).toBe("Healthy weight plan, v2");
@@ -169,7 +185,7 @@ suite("pre-camp plans reach the family", () => {
     // Uma has teeth released and no growth reading: no plan written for that group yet.
     expect((await guardianDietPlan(sql, "ph_part", "k_u")).plan).toBeNull();
     await saveDieticianTemplate(sql, DIET, {
-      key: "UNKNOWN", title: "Everyday plan", guidance: "A balanced plate every meal, with a fruit a day.",
+      key: "UNKNOWN+GIRLS", title: "Everyday plan", guidance: "A balanced plate every meal, with a fruit a day.",
     });
     const r = await guardianDietPlan(sql, "ph_part", "k_u");
     expect(r.plan!.title).toBe("Everyday plan");
@@ -186,37 +202,37 @@ suite("pre-camp plans reach the family", () => {
   });
 
   // Operations read and correct a dietician's plans from the admin console.
-  test("operations see the dietician's six plans, written and draft", async () => {
+  test("operations see the dietician's twelve plans, written and draft", async () => {
     const [d] = await sql`SELECT id FROM vita_hero.dieticians WHERE name = 'Meera'`;
     const r = await adminDieticianTemplates(sql, OPS, d.id as string);
     expect(r.dietician.name).toBe("Meera");
     expect(r.templates.map((t) => t.key)).toEqual(TEMPLATE_KEYS);
-    expect(r.templates.find((t) => t.key === "OVER")!.saved).toBe(true);
+    expect(r.templates.find((t) => t.key === "OVER+BOYS")!.saved).toBe(true);
     expect(r.ready).toBe((await dieticianTemplates(sql, DIET)).ready);
   });
 
   test("a plan operations save is the dietician's plan", async () => {
     const [d] = await sql`SELECT id FROM vita_hero.dieticians WHERE name = 'Meera'`;
     const r = await adminSaveDieticianTemplate(sql, OPS, d.id as string, {
-      key: "UNDER", title: "Catch-up plan",
+      key: "UNDER+GIRLS", title: "Catch-up plan",
       guidance: "An egg or a cup of dal at every meal.",
       targets: [{ label: "Protein", value: "Every meal" }, { label: "", value: "dropped" }],
     });
-    const t = r.templates.find((x) => x.key === "UNDER")!;
+    const t = r.templates.find((x) => x.key === "UNDER+GIRLS")!;
     expect(t.saved).toBe(true);
     expect(t.targets).toEqual([{ label: "Protein", value: "Every meal" }]);
     const mine = await dieticianTemplates(sql, DIET);
-    expect(mine.templates.find((x) => x.key === "UNDER")!.title).toBe("Catch-up plan");
+    expect(mine.templates.find((x) => x.key === "UNDER+GIRLS")!.title).toBe("Catch-up plan");
   });
 
   test("only operations reach another dietician's plans", async () => {
     const [d] = await sql`SELECT id FROM vita_hero.dieticians WHERE name = 'Meera'`;
     await expect(adminDieticianTemplates(sql, DIET, d.id as string)).rejects.toThrow(/operations/);
     await expect(adminSaveDieticianTemplate(sql, DIET, d.id as string, {
-      key: "OVER", guidance: OVERWEIGHT_GUIDANCE,
+      key: "OVER+BOYS", guidance: OVERWEIGHT_GUIDANCE,
     })).rejects.toThrow(/operations/);
     await expect(adminDieticianTemplates(sql, OPS, "die_nobody")).rejects.toThrow(/No such dietician/);
-    await expect(adminSaveDieticianTemplate(sql, OPS, d.id as string, { key: "OVER", guidance: "short" }))
+    await expect(adminSaveDieticianTemplate(sql, OPS, d.id as string, { key: "OVER+BOYS", guidance: "short" }))
       .rejects.toThrow();
   });
 });
