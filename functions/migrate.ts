@@ -28,6 +28,9 @@ import { Sql } from "./common";
  * shape. SCHEMA_DDL_FINGERPRINT below is what actually enforces that, and it
  * is checked in migrate.test.ts.
  */
+// 18 — school_camps gains `excluded_kids`: children a school took off a
+//     camp by hand. The roster is rebuilt from the camp's classes, so without
+//     this list a child added by mistake and then removed came straight back.
 // 17 — adds vita_hero.diet_plan_templates and diet_plans.template_key: the
 //     twelve plans a dietician writes before a camp, one per group, and which
 //     of them a family's plan was given from, so a rewrite replaces it.
@@ -83,7 +86,7 @@ import { Sql } from "./common";
 // 2 — adds vita_hero.record_access (K6, the record access log). An existing
 //     database stays on version 1 until this is bumped, which is exactly the
 //     failure mode the gate exists to prevent.
-export const SCHEMA_VERSION = 17;
+export const SCHEMA_VERSION = 18;
 
 /**
  * A fingerprint of every DDL statement in this worker.
@@ -104,7 +107,7 @@ export const SCHEMA_VERSION = 17;
  * means updating both lines, together, which is the point: the second line is
  * what makes you look at the first.
  */
-export const SCHEMA_DDL_FINGERPRINT = "890fcd52ea66b499";
+export const SCHEMA_DDL_FINGERPRINT = "943c528fdb824d68";
 
 /** How many statements go in one transaction — one outbound request each. */
 const BATCH = 40;

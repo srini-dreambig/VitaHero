@@ -9,6 +9,7 @@
 import { Sql, isOpsRole, normalizeMobile, normalizePhone, profileIdForPhone } from "./common";
 import { SPECIALTIES, normaliseSpecialty, screeningChecksFor, specialtyOptions } from "./clinical";
 import { SmsSender, sendToMany } from "./messaging";
+import { excludedFromCamp } from "./camps";
 import { Actor, ApiError, assertSchoolAccess } from "./schools";
 
 function opsOnly(actor: Actor, what: string) {
@@ -581,6 +582,7 @@ export async function campPeople(sql: Sql, actor: Actor, campId: string, schoolI
       status: (r.status as string) || "NOT_SCREENED",
       referrals: (r.referrals as number) || 0,
     })),
+    excluded: await excludedFromCamp(sql, campId, schoolId),
   };
 }
 

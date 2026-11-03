@@ -831,6 +831,7 @@ export const PORTAL_HTML = `<!doctype html>
       // Bulk consent on the camp's Consent tab: which camp the ticks belong
       // to, the ticks themselves, and the class / section filters.
       consentFor: null, consentSel: {}, consentGrades: [], consentSections: [],
+      removeFor: null, removeSel: {},
       screenKid: null, screenForm: null, screenTried: null, reviewKid: null, reviewData: null,
       myCamps: null, upload: null, otp: null, signMode: "otp", form: null,
       referrals: null, report: null, corrections: null, refKid: null, refDetail: null,
@@ -4056,6 +4057,36 @@ export const PORTAL_HTML = `<!doctype html>
       })));
     }
 
+    // Taking children off the camp. Only a child who has not been screened can
+    // go; the server checks that again and remembers them as removed, so
+    // rebuilding the list does not bring them back.
+    if (S.removeFor !== S.camp.camp.id) { S.removeFor = S.camp.camp.id; S.removeSel = {}; }
+    function removable(p) { return p.status === "NOT_SCREENED"; }
+    var shownRemovable = rows.filter(removable);
+    var ticked = shownRemovable.filter(function (p) { return S.removeSel[p.kidId]; });
+    var excluded = S.campPeople.excluded || [];
+    function removeKids(list) {
+      if (!list.length) return;
+      var names = list.length === 1 ? list[0].kidName : list.length + " children";
+      if (!confirm("Remove " + names + " from this camp?\\n\\nAny consent recorded for this camp goes with them. "
+          + "They stay on the school roster and can be put back on the camp later.")) return;
+      run(api("/api/admin/camps/" + S.camp.camp.id + "/participants/remove", { method: "POST",
+        body: { kidIds: list.map(function (p) { return p.kidId; }) } }),
+        function (r) {
+          S.notice = "Removed " + r.removed + (r.removed === 1 ? " child" : " children") + " from the camp"
+            + (r.kept ? "; " + r.kept + " kept because they have already been screened." : ".");
+          S.removeSel = {}; refreshCamp("people");
+        });
+    }
+    function restoreKids(list) {
+      run(api("/api/admin/camps/" + S.camp.camp.id + "/participants/restore", { method: "POST",
+        body: { kidIds: list.map(function (p) { return p.kidId; }) } }),
+        function () {
+          S.notice = (list.length === 1 ? list[0].kidName + " is" : list.length + " children are") + " back on the camp.";
+          refreshCamp("people");
+        });
+    }
+
     var noApp = all.filter(function (p) { return !p.usingApp; }).length;
     return el("div", null,
       el("div", { class: "row", style: "margin-bottom:12px" },
@@ -4063,6 +4094,10 @@ export const PORTAL_HTML = `<!doctype html>
           style: "max-width:300px",
           oninput: function (e) { S.peopleQuery = e.target.value; render(); } }),
         el("div", { style: "flex:1" }),
+        ticked.length
+          ? el("button", { class: "dang", disabled: S.busy, onclick: function () { removeKids(ticked); } },
+              "Remove " + ticked.length + " ticked from camp")
+          : null,
         el("button", { onclick: exportPeople }, icon("download", 14), " Export CSV")),
       noApp
         ? el("div", { class: "msg warn" },
@@ -4070,11 +4105,24 @@ export const PORTAL_HTML = `<!doctype html>
             + "Invite them from the school\u2019s App invites tab.")
         : null,
       el("div", { class: "tw" }, el("table", null,
-        el("thead", null, el("tr", null, el("th", null, "Child"), el("th", null, "Class"),
+        el("thead", null, el("tr", null,
+          el("th", { style: "width:28px" }, shownRemovable.length
+            ? el("input", { type: "checkbox", title: "Tick every child shown who can be removed",
+                checked: ticked.length === shownRemovable.length,
+                onchange: function (e) {
+                  shownRemovable.forEach(function (p) { S.removeSel[p.kidId] = e.target.checked; });
+                  render();
+                } })
+            : null),
+          el("th", null, "Child"), el("th", null, "Class"),
           el("th", null, "Guardian"), el("th", null, "Mobile"), el("th", null, "App"),
-          el("th", null, "Consent"), el("th", null, "Attendance"), el("th", null, "Result"))),
+          el("th", null, "Consent"), el("th", null, "Attendance"), el("th", null, "Result"), el("th", null, ""))),
         el("tbody", null, rows.map(function (p) {
           return el("tr", null,
+            el("td", null, removable(p)
+              ? el("input", { type: "checkbox", checked: !!S.removeSel[p.kidId],
+                  onchange: function (e) { S.removeSel[p.kidId] = e.target.checked; render(); } })
+              : null),
             el("td", null, el("b", null, p.kidName),
               p.studentRef ? el("div", { class: "muted mono", style: "font-size:12px" },
                 p.studentRef.replace(/^sid_/, "")) : null),
@@ -4087,10 +4135,30 @@ export const PORTAL_HTML = `<!doctype html>
             el("td", null, statusPill(p.consent)),
             el("td", null, p.attendance === "UNKNOWN"
               ? el("span", { class: "muted" }, "\u2014") : statusPill(p.attendance)),
-            el("td", null, statusPill(p.status)));
+            el("td", null, statusPill(p.status)),
+            el("td", null, removable(p)
+              ? el("button", { class: "sm", disabled: S.busy, title: "Take this child off the camp",
+                  onclick: function () { removeKids([p]); } }, "Remove")
+              : null));
         })))),
       el("p", { class: "muted", style: "margin-top:10px;font-size:12.5px" },
-        rows.length + " of " + all.length + " shown."));
+        rows.length + " of " + all.length + " shown."),
+      excluded.length
+        ? el("div", { class: "card", style: "margin-top:12px" },
+            el("div", { class: "card-h" }, el("h2", null, "Removed from this camp"),
+              el("div", { style: "flex:1" }),
+              excluded.length > 1
+                ? el("button", { class: "sm", disabled: S.busy, onclick: function () { restoreKids(excluded); } },
+                    "Put all " + excluded.length + " back")
+                : null),
+            el("table", null, el("tbody", null, excluded.map(function (p) {
+              return el("tr", null,
+                el("td", null, el("b", null, p.kidName)),
+                el("td", null, (p.grade || "") + (p.section ? " " + p.section : "")),
+                el("td", { style: "text-align:right" },
+                  el("button", { class: "sm", disabled: S.busy, onclick: function () { restoreKids([p]); } }, "Put back")));
+            }))))
+        : null);
   }
 
   function campConsent() {
@@ -4207,11 +4275,33 @@ export const PORTAL_HTML = `<!doctype html>
         });
     }
 
+    // One set of filters for both jobs below: printing the slips and keying
+    // them back in. Choosing Class 3, section B narrows the table, the print
+    // and the bulk buttons alike.
+    var filterCard = (grades.length > 1 || sections.length > 1)
+      ? el("div", { class: "card", style: "padding:12px 14px;margin-bottom:12px" },
+          el("div", { style: "font-size:12.5px;font-weight:600;margin-bottom:8px" }, "Choose classes and sections"),
+          filterChips("Class", S.consentGrades, grades, function (g) { return /^\\d+$/.test(g) ? "Class " + g : g; }),
+          filterChips("Section", S.consentSections, sections, function (s) { return s; }),
+          (S.consentGrades.length || S.consentSections.length)
+            ? el("button", { class: "sm", style: "margin-top:8px",
+                onclick: function () { S.consentGrades.length = 0; S.consentSections.length = 0; render(); } },
+                "Show the whole camp")
+            : null)
+      : null;
+    var filtered = shown.length !== S.participants.length;
+    function printSlips(only, kids) {
+      var q = "only=" + only + "&lang=" + (S.consentLang || "en");
+      if (kids) q += "&kids=" + encodeURIComponent(kids.map(function (p) { return p.kidId; }).join(","));
+      if (S.consentGrades.length) q += "&grades=" + encodeURIComponent(S.consentGrades.join(","));
+      if (S.consentSections.length) q += "&sections=" + encodeURIComponent(S.consentSections.join(","));
+      printPage("/api/admin/camps/" + c.id + "/consent/form?" + q);
+    }
+    var shownWaiting = shown.filter(function (p) { return p.consentStatus === "PENDING"; });
+
     var bulkBar = el("div", { class: "card", style: "padding:12px 14px;margin-bottom:12px" },
-      el("div", { style: "font-size:12.5px;font-weight:600;margin-bottom:8px" }, "Record a class's paper slips at once"),
-      filterChips("Class", S.consentGrades, grades, function (g) { return /^\\d+$/.test(g) ? "Class " + g : g; }),
-      filterChips("Section", S.consentSections, sections, function (s) { return s; }),
-      el("div", { class: "row", style: "gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px" },
+      el("div", { style: "font-size:12.5px;font-weight:600;margin-bottom:8px" }, "Record paper slips for many children at once"),
+      el("div", { class: "row", style: "gap:8px;align-items:center;flex-wrap:wrap" },
         el("span", { class: "muted", style: "font-size:12.5px" },
           chosen.length + " of " + shownPending.length + " pending "
           + (shownPending.length === 1 ? "child" : "children") + " ticked"
@@ -4264,6 +4354,7 @@ export const PORTAL_HTML = `<!doctype html>
             answered === S.participants.length && answered > 0
               ? "Everybody has answered."
               : "Recorded against the camp."))),
+      filterCard,
       // The paper round. A school hands these out in the classroom and keys
       // the answers back in below; the wording is the app's own, so the two
       // routes cannot ask different questions.
@@ -4274,18 +4365,18 @@ export const PORTAL_HTML = `<!doctype html>
           [["en", "English"], ["hi", "\\u0939\\u093F\\u0928\\u094D\\u0926\\u0940"], ["te", "\\u0C24\\u0C46\\u0C32\\u0C41\\u0C17\\u0C41"]].map(function (o) {
             return el("option", { value: o[0], selected: (S.consentLang || "en") === o[0] }, o[1]);
           })),
-        el("button", { class: "sm", disabled: !pend.length,
-          onclick: function () {
-            printPage("/api/admin/camps/" + c.id + "/consent/form?only=pending&lang="
-                      + (S.consentLang || "en"));
-          } }, icon("download", 13), " Print the " + pend.length + " still waiting"),
-        el("button", { class: "sm",
-          onclick: function () {
-            printPage("/api/admin/camps/" + c.id + "/consent/form?only=all&lang="
-                      + (S.consentLang || "en"));
-          } }, "Print the whole roster"),
+        chosen.length
+          ? el("button", { class: "sm pri", onclick: function () { printSlips("all", chosen); } },
+              icon("download", 13), " Print the " + chosen.length + " ticked")
+          : null,
+        el("button", { class: "sm", disabled: !shownWaiting.length,
+          onclick: function () { printSlips("pending"); } },
+          icon("download", 13), " Print the " + shownWaiting.length + " still waiting" + (filtered ? " in these classes" : "")),
+        el("button", { class: "sm", disabled: !shown.length,
+          onclick: function () { printSlips("all"); } },
+          "Print all " + shown.length + (filtered ? " in these classes" : " on the camp")),
         el("span", { class: "muted", style: "font-size:11.5px" },
-          "One page per child, pre-filled with their name and class.")),
+          "One page per child, pre-filled with their name and class. Pick classes above or tick children below to print just those.")),
       c.photosEnabled
         ? el("div", { class: "msg warn" },
             "Photographs are on for this camp, so the paper form has two questions. Tick photographs only where the guardian ticked it themselves \\u2014 agreeing to a check-up is not agreeing to a camera.")

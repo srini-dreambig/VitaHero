@@ -57,6 +57,8 @@ import {
   createCamp,
   updateCamp,
   buildCampRoster,
+  removeFromCamp,
+  restoreToCamp,
   listParticipants,
   requestConsent,
   recordConsent,
@@ -304,6 +306,11 @@ function cors(response: Response): Response {
   headers.set("Access-Control-Allow-Headers", "Content-Type,Authorization,Origin,Referer,X-Requested-With,X-Admin-Key");
   headers.set("Access-Control-Max-Age", "86400");
   return new Response(response.body, { status: response.status, headers });
+}
+
+/** A comma-separated query parameter as a list, blanks dropped. */
+function listParam(v: string | null): string[] {
+  return (v || "").split(",").map((s) => s.trim()).filter(Boolean);
 }
 
 function json(data: unknown, status = 200): Response {
@@ -2176,6 +2183,13 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
           if (section === "roster" && method === "POST") {
             return json(await buildCampRoster(sql, actor, campId));
           }
+          if (section === "participants" && (third === "remove" || third === "restore") && method === "POST") {
+            const b = await readBody();
+            const ids = Array.isArray(b.kidIds) ? (b.kidIds as string[]) : [];
+            return json(third === "remove"
+              ? await removeFromCamp(sql, actor, campId, ids)
+              : await restoreToCamp(sql, actor, campId, ids));
+          }
 
           if (section === "participants" && method === "GET") {
             return json(await listParticipants(sql, actor, campId, {
@@ -2218,6 +2232,9 @@ a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decorat
               const html = await campConsentForm(sql, actor, campId, {
                 lang: url.searchParams.get("lang") || "en",
                 only: url.searchParams.get("only") || "pending",
+                grades: listParam(url.searchParams.get("grades")),
+                sections: listParam(url.searchParams.get("sections")),
+                kids: listParam(url.searchParams.get("kids")),
               });
               return cors(new Response(html, {
                 headers: {

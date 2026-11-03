@@ -298,7 +298,7 @@ export async function campConsentForm(
   sql: Sql,
   actor: Actor,
   campId: string,
-  opts: { lang?: string; only?: string } = {},
+  opts: { lang?: string; only?: string; grades?: string[]; sections?: string[]; kids?: string[] } = {},
 ): Promise<string> {
   const access = await assertCampAccess(sql, actor, campId);
   if (!access.canSchedule) {
@@ -312,13 +312,21 @@ export async function campConsentForm(
     ? (camp.checks as string[])
     : JSON.parse(String(camp.checks || "[]"));
 
+  // Narrowed to the classes, sections or ticked children the office chose,
+  // so a teacher gets the slips for their own class and nobody else's.
   const pendingOnly = only !== "all";
+  const grades = opts.grades || [];
+  const sections = opts.sections || [];
+  const kids = opts.kids || [];
   const rows = await sql`
     SELECT k.name, k.grade, k.section, k.student_ref
     FROM vita_hero.camp_participants p
     JOIN vita_hero.kids k ON k.id = p.kid_id
     WHERE p.camp_id = ${campId}
       AND (${!pendingOnly} OR p.consent_status = 'PENDING')
+      AND (${grades.length === 0} OR COALESCE(k.grade,'') = ANY(${grades}))
+      AND (${sections.length === 0} OR COALESCE(k.section,'') = ANY(${sections}))
+      AND (${kids.length === 0} OR p.kid_id = ANY(${kids}))
     ORDER BY k.grade, k.section, k.name
   `;
 

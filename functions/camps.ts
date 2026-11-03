@@ -56,6 +56,9 @@ export async function ensureCampSchema(sql: Sql): Promise<void> {
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS academic_year TEXT DEFAULT ''`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '[]'::jsonb`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS consent_deadline TEXT DEFAULT ''`;
+  // Children taken off this camp by hand. The roster is rebuilt from the
+  // camp's classes, so without this a removed child would come straight back.
+  await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS excluded_kids JSONB DEFAULT '[]'::jsonb`;
   // Off by default and for almost every camp; see media.ts.
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS photos_enabled BOOLEAN DEFAULT false`;
   await sql`ALTER TABLE vita_hero.school_camps ADD COLUMN IF NOT EXISTS released_at TIMESTAMPTZ`;
@@ -722,9 +725,14 @@ export async function buildCampRoster(sql: Sql, actor: Actor, campId: string) {
     `,
   ]);
   const existingIds = new Set(existing.map((r) => r.kid_id as string));
-  const eligibleIds = new Set(eligible.map((r) => r.id as string));
+  const excluded = new Set(jsonList(camp.excluded_kids));
+  const eligibleIds = new Set(
+    eligible.map((r) => r.id as string).filter((id) => !excluded.has(id))
+  );
 
-  const toAdd = eligible.filter((r) => !existingIds.has(r.id as string));
+  const toAdd = eligible.filter(
+    (r) => !existingIds.has(r.id as string) && eligibleIds.has(r.id as string)
+  );
   for (const group of chunk(toAdd, 100)) {
     const values: string[] = [];
     const params: unknown[] = [];
@@ -780,6 +788,86 @@ export async function buildCampRoster(sql: Sql, actor: Actor, campId: string) {
   `;
 
   return { added: toAdd.length, removed, total: eligibleIds.size };
+}
+
+function jsonList(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map(String);
+  try {
+    const parsed = JSON.parse(String(v || "[]"));
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Take children off a camp who were put on it by mistake.
+ *
+ * Only a child who has not been screened and has nothing recorded against
+ * them can go; a screened child is a clinical record, not a list entry. Any
+ * consent on file goes with the row, which is the point: the child is not
+ * part of this camp. They are remembered as excluded so a rebuild of the
+ * roster does not put them straight back.
+ */
+export async function removeFromCamp(sql: Sql, actor: Actor, campId: string, kidIds: string[]) {
+  const access = await assertCampAccess(sql, actor, campId);
+  assertCan(access.canSchedule, "change this camp's list of children");
+  const ids = [...new Set(kidIds.map(String).filter(Boolean))];
+  if (ids.length === 0) throw new ApiError(400, "Choose at least one child", "NO_KIDS");
+
+  const gone = await sql`
+    DELETE FROM vita_hero.camp_participants p
+    WHERE p.camp_id = ${campId} AND p.kid_id = ANY(${ids})
+      AND p.status = 'NOT_SCREENED'
+      AND NOT EXISTS (SELECT 1 FROM vita_hero.camp_findings f
+                      WHERE f.camp_id = p.camp_id AND f.kid_id = p.kid_id)
+    RETURNING p.kid_id
+  `;
+  const removed = gone.map((r) => r.kid_id as string);
+  if (removed.length) {
+    const excluded = new Set(jsonList(access.camp.excluded_kids));
+    removed.forEach((id) => excluded.add(id));
+    await sql`
+      UPDATE vita_hero.school_camps
+      SET excluded_kids = ${JSON.stringify([...excluded])}::jsonb,
+          registered_count = (SELECT COUNT(*) FROM vita_hero.camp_participants WHERE camp_id = ${campId})
+      WHERE id = ${campId}
+    `;
+  }
+  return { removed: removed.length, kept: ids.length - removed.length };
+}
+
+/** Undo removeFromCamp: forget the exclusion and rebuild the roster. */
+export async function restoreToCamp(sql: Sql, actor: Actor, campId: string, kidIds: string[]) {
+  const access = await assertCampAccess(sql, actor, campId);
+  assertCan(access.canSchedule, "change this camp's list of children");
+  const back = new Set(kidIds.map(String));
+  const excluded = jsonList(access.camp.excluded_kids).filter((id) => !back.has(id));
+  await sql`
+    UPDATE vita_hero.school_camps SET excluded_kids = ${JSON.stringify(excluded)}::jsonb
+    WHERE id = ${campId}
+  `;
+  return buildCampRoster(sql, actor, campId);
+}
+
+/** The children taken off this camp by hand, so the console can put them back. */
+export async function excludedFromCamp(sql: Sql, campId: string, schoolId: string) {
+  const [camp] = await sql`
+    SELECT excluded_kids FROM vita_hero.school_camps WHERE id = ${campId} AND school_id = ${schoolId}
+  `;
+  const ids = jsonList(camp?.excluded_kids);
+  if (ids.length === 0) return [];
+  const rows = await sql`
+    SELECT id, name, grade, section FROM vita_hero.kids
+    WHERE id = ANY(${ids}) AND school_id = ${schoolId}
+    ORDER BY grade, section, name
+  `;
+  return rows.map((r) => ({
+    kidId: r.id as string,
+    kidName: (r.name as string) || "",
+    grade: (r.grade as string) || "",
+    section: (r.section as string) || "",
+  }));
 }
 
 // ─── B2-B6 · Consent ────────────────────────────────────────
