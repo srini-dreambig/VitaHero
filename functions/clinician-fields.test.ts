@@ -68,6 +68,19 @@ describe("the other checks' app-only fields", () => {
     expect(flag("ENT", { speechVoice: "Stuttering / Stammering" }).flag).toBe("WATCH");
   });
 
+  test("ENT and Spine: the app's own normal choices stay normal", () => {
+    const ent = flag("ENT", {
+      leftHearing: "Normal (Whisper test +)", rightHearing: "Normal (Whisper test +)",
+      earExam: "Normal", nasalExam: "Normal", throatExam: "Normal", speechVoice: "Normal Speech",
+    });
+    expect(ent.flag).toBe("GOOD");
+    expect(ent.rationale).not.toContain("Hearing");
+    const spine = flag("Spine", { posture: "Normal Spinal Alignment", gaitLimb: "Normal Gait", jointPain: "false", restrictedMotion: "false" });
+    expect(spine.flag).toBe("GOOD");
+    expect(flag("Spine", { posture: "Normal Spinal Alignment", gaitLimb: "Flat Feet (Pes Planus)" }).flag).toBe("WATCH");
+    expect(flag("ENT", { leftHearing: "Normal (Whisper test +)", rightHearing: "Mild Hearing Loss" }).flag).toBe("WATCH");
+  });
+
   test("Skin: night-time itching is treated as possible scabies", () => {
     const r = flag("Skin", { pruritus: "Nocturnal Itching (Scabies)", itching: "true", lice: "false" });
     expect(r.flag).toBe("ALERT");

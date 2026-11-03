@@ -575,7 +575,7 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       if (ocularInv.length > 0) {
         why += `, ordered: ${ocularInv.join(", ")}`;
       }
-      if (externalExam && externalExam.toLowerCase() !== "normal") {
+      if (externalExam && !isNormalAnswer(externalExam)) {
         why += `, external: ${externalExam.toLowerCase()}`;
         if (flag === "GOOD") flag = "WATCH";
       }
@@ -856,21 +856,21 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       let flag: Flag = "GOOD";
       const parts: string[] = [];
 
-      if ((leftH && leftH !== "normal") || (rightH && rightH !== "normal")) {
+      if ((leftH && !isNormalAnswer(leftH)) || (rightH && !isNormalAnswer(rightH))) {
         parts.push(`Hearing: L ${leftH || "normal"} / R ${rightH || "normal"}`);
         if (leftH.includes("severe") || rightH.includes("severe")) flag = "ALERT";
         else if (flag === "GOOD") flag = "WATCH";
       }
-      if (ear && ear !== "normal") {
+      if (ear && !isNormalAnswer(ear)) {
         parts.push(`Ear: ${ear}`);
         if (ear.includes("perforat") || ear.includes("discharge")) flag = "ALERT";
         else if (flag === "GOOD") flag = "WATCH";
       }
-      if (nasal && nasal !== "normal") {
+      if (nasal && !isNormalAnswer(nasal)) {
         parts.push(`Nasal: ${nasal}`);
         if (flag === "GOOD") flag = "WATCH";
       }
-      if (throat && throat !== "normal") {
+      if (throat && !isNormalAnswer(throat)) {
         parts.push(`Throat: ${throat}`);
         if (throat.includes("adenoid") || throat.includes("obstruction")) flag = "ALERT";
         else if (flag === "GOOD") flag = "WATCH";
@@ -966,12 +966,12 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
       let flag = "GOOD" as Flag;
       const parts: string[] = [];
 
-      if (posture && posture !== "normal") {
+      if (posture && !isNormalAnswer(posture)) {
         parts.push(`posture: ${posture}`);
         if (posture.includes("scoliosis") && flag !== "ALERT") flag = "ALERT";
         else if (flag === "GOOD") flag = "WATCH";
       }
-      if (gait && gait !== "normal") {
+      if (gait && !isNormalAnswer(gait)) {
         parts.push(`gait/limb: ${gait}`);
         if (gait.includes("limp") && flag !== "ALERT") flag = "ALERT";
         else if (flag === "GOOD") flag = "WATCH";
@@ -1052,6 +1052,13 @@ export function proposeFlag(input: FindingInput, ctx: FindingContext): Proposal 
     default:
       return notMeasured("Unknown check type");
   }
+}
+
+// The app's normal choices carry their method or detail — "Normal (Whisper test +)",
+// "Normal Spinal Alignment", "Normal Gait" — so an exact match on "normal" flagged
+// every healthy child for a watch and opened a referral the parent did not need.
+function isNormalAnswer(v: string): boolean {
+  return v.trim().toLowerCase().startsWith("normal");
 }
 
 function notMeasured(why: string): Proposal {
