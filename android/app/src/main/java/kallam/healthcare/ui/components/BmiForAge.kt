@@ -438,7 +438,7 @@ private fun iapClass(r: GrowthRefs.IapReading?): String = when {
  * saves, on the camp's cut-offs.
  */
 @Composable
-fun GrowthChartsPanel(r: WhoBmi.Reading, muacCm: Double?, modifier: Modifier = Modifier) {
+fun GrowthChartsPanel(r: WhoBmi.Reading, muacCm: Double?, modifier: Modifier = Modifier, bmiOnly: Boolean = false) {
     val sex = r.sex
     val age = r.ageMonths
     val sexLabel = if (r.sexUnknown) "sex not recorded" else if (sex == "M") "Boy" else "Girl"
@@ -491,51 +491,54 @@ fun GrowthChartsPanel(r: WhoBmi.Reading, muacCm: Double?, modifier: Modifier = M
             }
         }
 
-        // Height.
-        MeasureCard(
-            title = "Height-for-age",
-            value = String.format(Locale.US, "%.1f cm", r.heightCm),
-            cls = heightClass(r.heightZ),
-            sides = listOfNotNull(
-                iapH?.let { iapSide(GrowthRefs.Measure.HT, sex, it) },
-                whoSide(
-                    WhoBmi.Indicator.HFA, sex, r.heightZ, r.heightPercentile,
-                    "WHO 2007, 5–19 y. Stunted below −2 SD, severely stunted below −3 SD.",
+        // The clinician's growth form asks for BMI for age and nothing more.
+        if (!bmiOnly) {
+            // Height.
+            MeasureCard(
+                title = "Height-for-age",
+                value = String.format(Locale.US, "%.1f cm", r.heightCm),
+                cls = heightClass(r.heightZ),
+                sides = listOfNotNull(
+                    iapH?.let { iapSide(GrowthRefs.Measure.HT, sex, it) },
+                    whoSide(
+                        WhoBmi.Indicator.HFA, sex, r.heightZ, r.heightPercentile,
+                        "WHO 2007, 5–19 y. Stunted below −2 SD, severely stunted below −3 SD.",
+                    ),
                 ),
-            ),
-            ageMonths = age,
-            y = r.heightCm,
-            note = iapGone,
-            modifier = Modifier.fillMaxWidth(),
-        )
+                ageMonths = age,
+                y = r.heightCm,
+                note = iapGone,
+                modifier = Modifier.fillMaxWidth(),
+            )
 
-        // Weight. The WHO's weight-for-age stops at 10.
-        val wz = r.weightZ
-        val wp = r.weightPercentile
-        val weightSides = listOfNotNull(
-            iapW?.let { iapSide(GrowthRefs.Measure.WT, sex, it) },
-            if (wz != null && wp != null) {
-                whoSide(
-                    WhoBmi.Indicator.WFA, sex, wz, wp,
-                    "WHO 2007, 5–10 y. Underweight below −2 SD, severely below −3 SD. " +
-                        "Above +2 SD, read BMI-for-age for overweight.",
-                )
-            } else null,
-        )
-        MeasureCard(
-            title = "Weight-for-age",
-            value = String.format(Locale.US, "%.1f kg", r.weightKg),
-            cls = if (wz != null) weightClass(wz) else iapClass(iapW),
-            sides = weightSides,
-            ageMonths = age,
-            y = r.weightKg,
-            note = when {
-                wz == null && iapW == null -> "No weight-for-age chart at this age: the WHO's ends at 10 years and the IAP's at 18. BMI-for-age is the measure."
-                wz == null -> "The WHO's weight-for-age chart ends at 10 years; BMI-for-age is the WHO measure from 10."
-                else -> iapGone
-            },
-            modifier = Modifier.fillMaxWidth(),
-        )
+            // Weight. The WHO's weight-for-age stops at 10.
+            val wz = r.weightZ
+            val wp = r.weightPercentile
+            val weightSides = listOfNotNull(
+                iapW?.let { iapSide(GrowthRefs.Measure.WT, sex, it) },
+                if (wz != null && wp != null) {
+                    whoSide(
+                        WhoBmi.Indicator.WFA, sex, wz, wp,
+                        "WHO 2007, 5–10 y. Underweight below −2 SD, severely below −3 SD. " +
+                            "Above +2 SD, read BMI-for-age for overweight.",
+                    )
+                } else null,
+            )
+            MeasureCard(
+                title = "Weight-for-age",
+                value = String.format(Locale.US, "%.1f kg", r.weightKg),
+                cls = if (wz != null) weightClass(wz) else iapClass(iapW),
+                sides = weightSides,
+                ageMonths = age,
+                y = r.weightKg,
+                note = when {
+                    wz == null && iapW == null -> "No weight-for-age chart at this age: the WHO's ends at 10 years and the IAP's at 18. BMI-for-age is the measure."
+                    wz == null -> "The WHO's weight-for-age chart ends at 10 years; BMI-for-age is the WHO measure from 10."
+                    else -> iapGone
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         // BMI.
         MeasureCard(
@@ -561,7 +564,7 @@ fun GrowthChartsPanel(r: WhoBmi.Reading, muacCm: Double?, modifier: Modifier = M
         )
 
         // Mid-arm circumference.
-        if (muacCm != null && muacCm > 0) MuacCard(r, muacCm, Modifier.fillMaxWidth())
+        if (!bmiOnly && muacCm != null && muacCm > 0) MuacCard(r, muacCm, Modifier.fillMaxWidth())
     }
 }
 

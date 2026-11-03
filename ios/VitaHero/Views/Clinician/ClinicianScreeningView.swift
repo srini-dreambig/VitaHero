@@ -72,7 +72,6 @@ struct ClinicianScreeningView: View {
                 absentBlock(form)
             } else {
                 ForEach(form.checks, id: \.self) { check in checkCard(check, form) }
-                historyCard
                 Button(L("clin_child_absent")) { Task { await setAttendance("ABSENT") } }
                     .disabled(busy)
                 saveBlock(form)
@@ -175,36 +174,36 @@ struct ClinicianScreeningView: View {
         }
     }
 
-    // Physical growth assessment, as the sheet has it: height, weight,
-    // mid-arm circumference and BMI. The nutritional status is the WHO
-    // reading, worked out on the server from the same numbers.
+    // Physical growth assessment: height, weight, BMI for age and the
+    // nutritional status. Left blank, the status is the WHO reading the
+    // server makes from the same numbers when the record is saved.
     private func heightWeight(_ c: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             pair(number("Height (cm) *", c, "heightCm"), number("Weight (kg) *", c, "weightKg"))
-            number("Mid-arm circ. (cm)", c, "muacCm")
-            // Every growth chart, live as the numbers are typed: IAP 2015 and
-            // WHO 2007 height, weight and BMI, and MUAC-for-age. The status is
-            // the same WHO reading the server makes when the record is saved.
+            // BMI for age, live as the numbers are typed, with the WHO status.
             if let child = form?.child {
                 if let who = WhoBmi.forChild(
                     heightCm: Double(values[c]?["heightCm"] ?? "") ?? 0,
                     weightKg: Double(values[c]?["weightKg"] ?? "") ?? 0,
                     gender: child.gender, dob: child.dob, ageYears: child.age) {
-                    GrowthChartsPanel(reading: who, muacCm: Double(values[c]?["muacCm"] ?? ""))
+                    GrowthChartsPanel(reading: who, bmiOnly: true)
                 } else if child.age == nil && child.dob.isEmpty {
-                    Text("No age or date of birth on record, so the growth charts cannot be read.")
+                    Text("No age or date of birth on record, so BMI for age cannot be read.")
                         .font(.vh(.footnote)).foregroundColor(.secondary)
                 }
             }
+            choice("Nutritional status (blank = WHO reading)", O.NUTRITIONAL_STATUS, c, "nutritionalStatus")
         }
     }
 
     private func vision(_ c: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
-                FormSectionHeader(title: "Visual acuity", subtitle: "Snellen, distance, each eye")
+                FormSectionHeader(title: "Visual acuity", subtitle: "Distance (Snellen), each eye")
                 pair(choice("Right eye (OD) *", O.ACUITY, c, "rightAcuity"),
                      choice("Left eye (OS) *", O.ACUITY, c, "leftAcuity"))
+                pair(choice("Near, right (OD)", O.NEAR_VISION, c, "rightNearVision"),
+                     choice("Near, left (OS)", O.NEAR_VISION, c, "leftNearVision"))
                 choice("Testing condition", O.VISION_TEST_CONDITION, c, "testingCondition")
             }
             Group {
@@ -231,17 +230,19 @@ struct ClinicianScreeningView: View {
                 }
             }
             Group {
+                FormSectionHeader(title: "Colour vision")
                 choice("Colour vision (Ishihara /17)", O.COLOR_VISION, c, "colorVision")
+                FormSectionHeader(title: "Any other complaints")
                 text("Any other complaints, if present", c, "otherComplaints", "e.g. headache after reading, watering")
-                text("Any other abnormalities, if present", c, "otherAbnormalities", "e.g. squint, drooping lid")
             }
         }
     }
 
+    // Oral & dental, as the sheet has it: tooth index, oral hygiene index,
+    // enamel, alignment & occlusion, and the treatment plan.
     private func dental(_ c: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Group {
-                choice("Oral hygiene *", O.ORAL_HYGIENE_INDEX, c, "hygiene")
                 FormSectionHeader(title: "Tooth index (dmft / DMFT)")
                 choice("Type of dentition", O.DENTITION, c, "dentition")
                 HStack(alignment: .top, spacing: 8) {
@@ -251,13 +252,11 @@ struct ClinicianScreeningView: View {
                 }
             }
             Group {
+                FormSectionHeader(title: "Oral hygiene index")
+                choice("Oral hygiene *", O.ORAL_HYGIENE_INDEX, c, "hygiene")
+                FormSectionHeader(title: "Enamel, alignment & occlusion")
                 choice("Dental fluorosis", O.FLUOROSIS_STAGE, c, "fluorosis")
-                multi("Any complaints, if present (toothache, sensitivity, chipped tooth...)", O.DENTAL_SYMPTOMS, c,
-                      "dentalSymptoms",
-                      flags: [("pain", "Toothache"), ("sensitivity", "Sensitivity"),
-                              ("trauma", "Chipped"), ("stainsTartar", "Stains")])
-                text("Any other abnormalities, if present", c, "abnormalFindings", "e.g. deep caries 85, retained 51")
-                FormSectionHeader(title: "Recommended dental intervention")
+                FormSectionHeader(title: "Treatment plan")
                 multi("Select dental interventions", O.DENTAL_TREATMENTS, c, "treatmentNeeded")
             }
         }
@@ -322,38 +321,6 @@ struct ClinicianScreeningView: View {
             choice("Clinical Pallor Sign", O.PALLOR_SIGNS, c, "pallor")
             FormSectionHeader(title: "Recommended Anaemia Management")
             multi("Select Anaemia Interventions", O.HB_TREATMENTS, c, "hbTreatment")
-        }
-    }
-
-    /// Birth history, co-morbidities and lab orders: the same card under every
-    /// child on Android, saved as the Systemic and Investigations checks.
-    private var historyCard: some View {
-        Card {
-            VStack(alignment: .leading, spacing: 12) {
-                Group {
-                    FormSectionHeader(title: "Birth History & Co-morbidities (Images 2 & 5)",
-                                      subtitle: "Perinatal history, chronic illness & allergies")
-                    pair(choice("Gestational Status", O.GESTATIONAL_AGE, "Systemic", "gestationalAge"),
-                         number("Birth Weight (kg)", "Systemic", "birthWeightKg"))
-                    pair(choice("Consanguinity", O.CONSANGUINITY_MARRIAGE, "Systemic", "consanguinity"),
-                         choice("Parental Myopia", O.PARENTAL_MYOPIA, "Systemic", "parentalMyopia"))
-                    toggle("Incubation / NICU Stay Required", "Systemic", "incubationStay")
-                }
-                Group {
-                    FormSectionHeader(title: "Systemic Health Issues & Allergies")
-                    multi("Systemic Diseases (DM, Polio, Paralysis...)", O.SYSTEMIC_DISEASES, "Systemic", "systemicDiseases")
-                    multi("Drug Allergies (Penicillin, Xylocaine, Sulpha...)", O.ALLERGIES_LIST, "Systemic", "drugAllergies")
-                    multi("Current Medications (Insulin, Anticoagulants...)", O.CURRENT_TREATMENTS, "Systemic", "currentTreatments")
-                }
-                Group {
-                    FormSectionHeader(title: "Diagnostic Lab Requisition Orders (Image 1)",
-                                      subtitle: "Maxivision clinical pathology & imaging tests")
-                    multi("Routine Blood & Urine Tests (CBP, RBS, HbA1c...)", O.GENERAL_INVESTIGATIONS,
-                          "Investigations", "generalLabs")
-                    multi("Specialist & Imaging (LFT, Thyroid, Mantoux, MRI...)", O.ADDITIONAL_INVESTIGATIONS,
-                          "Investigations", "specialistTests")
-                }
-            }
         }
     }
 

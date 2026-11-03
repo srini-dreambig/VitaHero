@@ -75,112 +75,21 @@ private val ACUITY = listOf(
     "NLP (No Light Perception)"
 )
 
-// Near Vision Scale (Image 3)
+// Near Vision Scale (Image 3). N6 is a child reading normal print.
+private val NEAR_VISION = listOf("N6 (Normal)", "N8", "N10", "N12", "N18", "N24", "N36")
 
 // Testing Condition (Image 3)
 private val VISION_TEST_CONDITION = listOf(
     "Unaided", "Aided (With Present Glasses)", "Pinhole (PH)"
 )
 
-// The console's external eye exam, one finding; the rule reads it as externalExam.
-
-// External Anterior Symptoms / Signs (Image 3)
-
-// Anterior Segment Examination (Image 4)
-
-// Posterior Segment / Fundus Examination (Image 4)
-
-// Alignment, Motility, Tonometry & Color Vision (Images 3, 4, 5)
+// Colour vision (Ishihara)
 private val COLOR_VISION = listOf("17/17 (Normal Pass)", "15-16/17 (Borderline)", "<15/17 (Defective Red-Green)", "Total Color Blindness", "Ishihara Partial Deficit", "Uncooperative")
-
-// Vision Interventions & Treatments (Images 3, 4)
-
-// Image 1: Ocular Investigations
-
-// Image 1: General & Blood Investigations
-private val GENERAL_INVESTIGATIONS = listOf(
-    "CBP (Complete Blood Picture)",
-    "ESR",
-    "RBS (Random Blood Sugar)",
-    "FBS (Fasting Blood Sugar)",
-    "PLBS / PPBS (Post Lunch Blood Sugar)",
-    "HbA1c",
-    "Blood Urea",
-    "Serum Creatinine",
-    "Lipid Profile",
-    "CUE (Complete Urine Examination)",
-    "ECG",
-    "BT, CT (Bleeding Time, Clotting Time)",
-    "PT / INR",
-    "HIV (I & II)",
-    "HBsAg",
-    "HCV"
-)
-
-// Image 1: Additional Diagnostic & Specialized Tests
-private val ADDITIONAL_INVESTIGATIONS = listOf(
-    "Serum Electrolytes",
-    "Liver Function Test (LFT)",
-    "Thyroid Profile (T3, T4, TSH)",
-    "Mantoux (Tuberculin Skin Test)",
-    "QuantiFERON TB Gold",
-    "TB IgG & IgM",
-    "TORCH IgG & IgM",
-    "Serum ACE",
-    "ANA Profile",
-    "RA Factor",
-    "CRP",
-    "ANCA",
-    "X-Ray Chest (PA View)",
-    "CT Brain / Orbit",
-    "MRI Brain / Orbit",
-    "Blood Group & Rh Type",
-    "Coagulation Profile"
-)
-
-// Image 2: Birth & Perinatal History
-private val GESTATIONAL_AGE = listOf("Full Term (37-40 weeks)", "Premature (<37 weeks)", "Post-term (>40 weeks)")
-private val CONSANGUINITY_MARRIAGE = listOf("Non-Consanguineous", "Consanguineous Marriage (Parents Related)")
-private val PARENTAL_MYOPIA = listOf("No Family History", "One Parent Myopic", "Both Parents Myopic", "High Myopia / Eye Disorder in Family")
-
-// Image 2 & 5: Systemic Health Issues
-private val SYSTEMIC_DISEASES = listOf(
-    "Diabetes Mellitus (DM)",
-    "Hypertension (HTN)",
-    "CVA (Stroke / Neurological)",
-    "Asthma / Respiratory",
-    "Heart Disease / Congenital",
-    "Polio",
-    "Paralysis / Cerebral Palsy",
-    "Epilepsy / Seizures"
-)
-
-// Image 5: Drug Allergies
-private val ALLERGIES_LIST = listOf(
-    "Nil Known Drug Allergies",
-    "Penicillin",
-    "Xylocaine (Lidocaine)",
-    "Sulpha Drugs",
-    "Atropine",
-    "Drosyn (Phenylephrine)",
-    "NSAIDs / Aspirin",
-    "Other Allergies"
-)
-
-// Image 5: Current Treatment & Medications
-private val CURRENT_TREATMENTS = listOf(
-    "None",
-    "Anticoagulants",
-    "Insulin Therapy",
-    "Antipsychotics / Neurological",
-    "Anti-hypertensives",
-    "Bronchodilators / Inhalers",
-    "Other Medications"
-)
 
 // Nutritional status, in the words the physical exam sheet uses and the
 // server reads (NUTRITION_BANDS in clinical.ts). Left empty, the server
 // suggests one from height and weight; the dietician groups children by it.
+private val NUTRITIONAL_STATUS = listOf("Normal", "Wasted", "Severely wasted", "Stunted", "Overweight", "Obese")
 
 // Type of dentition, as the oral & dental sheet has it. It decides whether
 // the tooth index is read as dmft (milk teeth) or DMFT (permanent).
@@ -189,14 +98,6 @@ private val DENTITION = listOf("Primary", "Mixed", "Permanent")
 // Dental Specialist Clinical Options
 private val ORAL_HYGIENE_INDEX = listOf("Good (Clean)", "Fair (Mild Plaque)", "Poor (Heavy Plaque / Calculus)", "Stains / Calculus Noted")
 private val FLUOROSIS_STAGE = listOf("None", "Mild (White Flecks)", "Moderate (Browning)", "Severe (Pitting)")
-private val DENTAL_SYMPTOMS = listOf(
-    "Reports Toothache / Pain",
-    "Hot / Cold Sensitivity",
-    "Chipped / Fractured Tooth",
-    "Food Lodging / Impaction",
-    "Loose / Mobile Tooth",
-    "Stains / Tartar / Calculus Noted"
-)
 private val DENTAL_TREATMENTS = listOf(
     "Prophylactic Cleaning & Scaling",
     "Fluoride Varnish Application",
@@ -516,41 +417,6 @@ fun ClinicianScreeningScreen(
                     }
                 }
 
-                // Universal Pediatric History & Diagnostic Investigations Requisition Card
-                item(key = "history_investigations") {
-                    AppCard(Modifier.padding(horizontal = AppSpacing.xl, vertical = AppSpacing.xs + AppSpacing.xxs)) {
-                        Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-                            HeroFormSectionHeader(
-                                "Birth History & Co-morbidities (Images 2 & 5)",
-                                subtitle = "Perinatal history, chronic illness & allergies"
-                            )
-                            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-                                ChoiceField("Gestational Status", GESTATIONAL_AGE, fields("Systemic"), "gestationalAge", Modifier.weight(1f))
-                                NumberField("Birth Weight (kg)", fields("Systemic"), "birthWeightKg", Modifier.weight(1f))
-                            }
-                            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
-                                ChoiceField("Consanguinity", CONSANGUINITY_MARRIAGE, fields("Systemic"), "consanguinity", Modifier.weight(1f))
-                                ChoiceField("Parental Myopia", PARENTAL_MYOPIA, fields("Systemic"), "parentalMyopia", Modifier.weight(1f))
-                            }
-                            ToggleField("Incubation / NICU Stay Required", fields("Systemic"), "incubationStay")
-
-                            Spacer(Modifier.height(AppSpacing.xs))
-                            HeroFormSectionHeader("Systemic Health Issues & Allergies")
-                            MultiChoiceField(SYSTEMIC_DISEASES, fields("Systemic"), "systemicDiseases", label = "Systemic Diseases (DM, Polio, Paralysis...)")
-                            MultiChoiceField(ALLERGIES_LIST, fields("Systemic"), "drugAllergies", label = "Drug Allergies (Penicillin, Xylocaine, Sulpha...)")
-                            MultiChoiceField(CURRENT_TREATMENTS, fields("Systemic"), "currentTreatments", label = "Current Medications (Insulin, Anticoagulants...)")
-
-                            Spacer(Modifier.height(AppSpacing.xs))
-                            HeroFormSectionHeader(
-                                "Diagnostic Lab Requisition Orders (Image 1)",
-                                subtitle = "Maxivision clinical pathology & imaging tests"
-                            )
-                            MultiChoiceField(GENERAL_INVESTIGATIONS, fields("Investigations"), "generalLabs", label = "Routine Blood & Urine Tests (CBP, RBS, HbA1c...)")
-                            MultiChoiceField(ADDITIONAL_INVESTIGATIONS, fields("Investigations"), "specialistTests", label = "Specialist & Imaging (LFT, Thyroid, Mantoux, MRI...)")
-                        }
-                    }
-                }
-
                 item {
                     val markAbsent: () -> Unit = {
                         clinician.markAttendance(campId, kidId, "ABSENT")
@@ -602,38 +468,43 @@ fun ClinicianScreeningScreen(
 @Composable
 private fun CheckFields(check: String, fields: MutableMap<String, String>, child: ScreeningChildDto) {
     when (check) {
-        // Physical growth assessment, as the sheet has it: height, weight,
-        // mid-arm circumference and BMI. The nutritional status is the WHO
-        // reading, worked out on the server from the same numbers.
+        // Physical growth assessment: height, weight, BMI for age and the
+        // nutritional status. Left blank, the status is the WHO reading the
+        // server makes from the same numbers when the record is saved.
         "Height & weight" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                 NumberField("Height (cm) *", fields, "heightCm", Modifier.weight(1f))
                 NumberField("Weight (kg) *", fields, "weightKg", Modifier.weight(1f))
-                NumberField("Mid-arm circ. (cm)", fields, "muacCm", Modifier.weight(1f))
             }
-            // Every growth chart, live as the numbers are typed: IAP 2015 and
-            // WHO 2007 height, weight and BMI, and MUAC-for-age. The status is
-            // the same reading the server makes when the record is saved.
+            // BMI for age, live as the numbers are typed, with the WHO status.
             val who = WhoBmi.forChild(
                 fields["heightCm"]?.toDoubleOrNull() ?: 0.0,
                 fields["weightKg"]?.toDoubleOrNull() ?: 0.0,
                 child.gender, child.dob, child.age,
             )
             if (who != null) {
-                GrowthChartsPanel(who, fields["muacCm"]?.toDoubleOrNull(), Modifier.fillMaxWidth())
+                GrowthChartsPanel(who, null, Modifier.fillMaxWidth(), bmiOnly = true)
             } else if (child.age == null && child.dob.isBlank()) {
                 Text(
-                    "No age or date of birth on record, so the growth charts cannot be read.",
+                    "No age or date of birth on record, so BMI for age cannot be read.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            ChoiceField(
+                "Nutritional status (blank = WHO reading)", NUTRITIONAL_STATUS, fields, "nutritionalStatus",
+                Modifier.fillMaxWidth(),
+            )
         }
         "Vision" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            HeroFormSectionHeader("Visual acuity", subtitle = "Snellen, distance, each eye")
+            HeroFormSectionHeader("Visual acuity", subtitle = "Distance (Snellen), each eye")
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
                 ChoiceField("Right eye (OD) *", ACUITY, fields, "rightAcuity", Modifier.weight(1f))
                 ChoiceField("Left eye (OS) *", ACUITY, fields, "leftAcuity", Modifier.weight(1f))
+            }
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
+                ChoiceField("Near, right (OD)", NEAR_VISION, fields, "rightNearVision", Modifier.weight(1f))
+                ChoiceField("Near, left (OS)", NEAR_VISION, fields, "leftNearVision", Modifier.weight(1f))
             }
             ChoiceField("Testing condition", VISION_TEST_CONDITION, fields, "testingCondition", Modifier.fillMaxWidth())
 
@@ -682,14 +553,16 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
             }
 
             Spacer(Modifier.height(AppSpacing.xxs))
+            HeroFormSectionHeader("Colour vision")
             ChoiceField("Colour vision (Ishihara /17)", COLOR_VISION, fields, "colorVision", Modifier.fillMaxWidth())
-            SimpleTextField("Any other complaints, if present", fields, "otherComplaints", Modifier.fillMaxWidth(), placeholder = "e.g. headache after reading, watering")
-            SimpleTextField("Any other abnormalities, if present", fields, "otherAbnormalities", Modifier.fillMaxWidth(), placeholder = "e.g. squint, drooping lid")
-        }
-        "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
-            ChoiceField("Oral hygiene *", ORAL_HYGIENE_INDEX, fields, "hygiene", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(AppSpacing.xxs))
+            HeroFormSectionHeader("Any other complaints")
+            SimpleTextField("Any other complaints, if present", fields, "otherComplaints", Modifier.fillMaxWidth(), placeholder = "e.g. headache after reading, watering")
+        }
+        // Oral & dental, as the sheet has it: tooth index, oral hygiene index,
+        // enamel, alignment & occlusion, and the treatment plan.
+        "Dental" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {
             HeroFormSectionHeader("Tooth index (dmft / DMFT)")
             ChoiceField("Type of dentition", DENTITION, fields, "dentition", Modifier.fillMaxWidth())
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(AppSpacing.sm)) {
@@ -699,24 +572,15 @@ private fun CheckFields(check: String, fields: MutableMap<String, String>, child
             }
 
             Spacer(Modifier.height(AppSpacing.xxs))
-            ChoiceField("Dental fluorosis", FLUOROSIS_STAGE, fields, "fluorosis", Modifier.fillMaxWidth())
-            MultiChoiceField(
-                options = DENTAL_SYMPTOMS,
-                fields = fields,
-                key = "dentalSymptoms",
-                label = "Any complaints, if present (toothache, sensitivity, chipped tooth...)",
-                onCustomSelect = { set ->
-                    fields["dentalSymptoms"] = set.joinToString(",")
-                    fields["pain"] = if (set.any { it.contains("Toothache", ignoreCase = true) }) "true" else "false"
-                    fields["sensitivity"] = if (set.any { it.contains("Sensitivity", ignoreCase = true) }) "true" else "false"
-                    fields["trauma"] = if (set.any { it.contains("Chipped", ignoreCase = true) }) "true" else "false"
-                    fields["stainsTartar"] = if (set.any { it.contains("Stains", ignoreCase = true) }) "true" else "false"
-                }
-            )
-            SimpleTextField("Any other abnormalities, if present", fields, "abnormalFindings", Modifier.fillMaxWidth(), placeholder = "e.g. deep caries 85, retained 51")
+            HeroFormSectionHeader("Oral hygiene index")
+            ChoiceField("Oral hygiene *", ORAL_HYGIENE_INDEX, fields, "hygiene", Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(AppSpacing.xxs))
-            HeroFormSectionHeader("Recommended dental intervention")
+            HeroFormSectionHeader("Enamel, alignment & occlusion")
+            ChoiceField("Dental fluorosis", FLUOROSIS_STAGE, fields, "fluorosis", Modifier.fillMaxWidth())
+
+            Spacer(Modifier.height(AppSpacing.xxs))
+            HeroFormSectionHeader("Treatment plan")
             MultiChoiceField(DENTAL_TREATMENTS, fields, "treatmentNeeded", label = "Select dental interventions")
         }
         "ENT" -> Column(verticalArrangement = Arrangement.spacedBy(AppSpacing.md)) {

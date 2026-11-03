@@ -350,6 +350,8 @@ private func iapClass(_ r: GrowthRefs.IapReading?) -> String {
 struct GrowthChartsPanel: View {
     let reading: WhoBmi.Reading
     var muacCm: Double? = nil
+    /// The clinician's growth form asks for BMI for age and nothing more.
+    var bmiOnly = false
 
     private var r: WhoBmi.Reading { reading }
     private var rawBmi: Double { r.weightKg / pow(r.heightCm / 100, 2) }
@@ -361,10 +363,12 @@ struct GrowthChartsPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             statusCard
-            heightCard
-            weightCard
+            if !bmiOnly {
+                heightCard
+                weightCard
+            }
             bmiCard
-            if let cm = muacCm, cm > 0 { muacCard(cm) }
+            if !bmiOnly, let cm = muacCm, cm > 0 { muacCard(cm) }
         }
     }
 

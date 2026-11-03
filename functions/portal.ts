@@ -1019,12 +1019,13 @@ export const PORTAL_HTML = `<!doctype html>
   // same on a phone and in the server's flag rules.
   var ACUITY = ["6/6","6/9","6/12","6/18","6/24","6/36","6/60","3/60","2/60","1/60","<6/60",
     "CF @ 1/2 meter","CF CF (Close to Face)","HM+ (Hand Movements)","PL + PR Accurate","PL + PR Inaccurate","NLP (No Light Perception)"];
+  var NEAR_VISION = ["N6 (Normal)","N8","N10","N12","N18","N24","N36"];
   var VISION_TEST_CONDITION = ["Unaided","Aided (With Present Glasses)","Pinhole (PH)"];
   var COLOR_VISION = ["17/17 (Normal Pass)","15-16/17 (Borderline)","<15/17 (Defective Red-Green)","Total Color Blindness","Ishihara Partial Deficit","Uncooperative"];
   var ORAL_HYGIENE_INDEX = ["Good (Clean)","Fair (Mild Plaque)","Poor (Heavy Plaque / Calculus)","Stains / Calculus Noted"];
   var DENTITION = ["Primary","Mixed","Permanent"];
+  var NUTRITIONAL_STATUS = ["Normal","Wasted","Severely wasted","Stunted","Overweight","Obese"];
   var FLUOROSIS_STAGE = ["None","Mild (White Flecks)","Moderate (Browning)","Severe (Pitting)"];
-  var DENTAL_SYMPTOMS = ["Reports Toothache / Pain","Hot / Cold Sensitivity","Chipped / Fractured Tooth","Food Lodging / Impaction","Loose / Mobile Tooth","Stains / Tartar / Calculus Noted"];
   var DENTAL_TREATMENTS = ["Prophylactic Cleaning & Scaling","Fluoride Varnish Application","Pit & Fissure Sealant","Restorative Dental Filling","Pulpectomy / Root Treatment","Tooth Extraction","Orthodontic Referral","Urgent Pediatric Dental Referral"];
   var CADENCE = [["ANNUAL","Once a year"],["BIANNUAL","Twice a year"],["QUARTERLY","Every quarter"],["ADHOC","As arranged"]];
   /** How often camps run at this school, in the words the form used to set it. */
@@ -4989,21 +4990,22 @@ export const PORTAL_HTML = `<!doctype html>
           }));
       }
       if (ct === "Height & weight") {
-        // Physical growth assessment: height, weight, mid-arm circumference
-        // and BMI. The nutritional status is worked out from the WHO tables.
+        // Physical growth assessment: height, weight, BMI for age and the
+        // nutritional status. Left blank, the status is the WHO reading the
+        // server makes from height and weight when the record is saved.
         var h = Number(d.heightCm), w = Number(d.weightKg);
         var bmi = h > 0 && w > 0 ? Math.round(w / Math.pow(h / 100, 2) * 10) / 10 : null;
         return el("div", null,
-          el("div", { class: "g3" },
+          el("div", { class: "g2" },
             el("div", { class: "fld" }, rl("heightCm", "Height (cm)"),
               el("input", { type: "number", step: "0.1", value: d.heightCm || "", onchange: function (e) { d.heightCm = e.target.value; render(); } })),
             el("div", { class: "fld" }, rl("weightKg", "Weight (kg)"),
-              el("input", { type: "number", step: "0.1", value: d.weightKg || "", onchange: function (e) { d.weightKg = e.target.value; render(); } })),
-            el("div", { class: "fld" }, rl("muacCm", "Mid-arm circ. (cm)"),
-              el("input", { type: "number", step: "0.1", value: d.muacCm || "", oninput: bind("muacCm") }))),
-          el("p", { class: "muted", style: "margin-top:6px" },
+              el("input", { type: "number", step: "0.1", value: d.weightKg || "", onchange: function (e) { d.weightKg = e.target.value; render(); } }))),
+          el("h4", { style: "margin:10px 0 6px" }, "BMI for age"),
+          el("p", { class: "muted" },
             bmi === null ? "BMI shows once height and weight are in."
-              : "BMI " + bmi + " kg/m\u00b2. The WHO BMI-for-age reading is made when the record is saved."));
+              : "BMI " + bmi + " kg/m\u00b2. The WHO BMI-for-age reading is made when the record is saved."),
+          sel("nutritionalStatus", "Nutritional status (leave blank for the WHO reading)", NUTRITIONAL_STATUS));
       }
       if (ct === "Vision") {
         var rx = function (prefix, cols) {
@@ -5017,8 +5019,11 @@ export const PORTAL_HTML = `<!doctype html>
         var PRESENT = [["Sph", "Sph", "-1.50"], ["Cyl", "Cyl", "-0.50"], ["Axi", "Axi", "180"], ["Cva", "CVA", "6/6"]];
         var NEWRX = [["Uva", "UVA", "6/18"]].concat(PRESENT);
         return el("div", null,
-          el("h4", { style: "margin-bottom:6px" }, "Visual acuity (Snellen, distance)"),
+          el("h4", { style: "margin-bottom:6px" }, "Visual acuity"),
+          el("div", { class: "muted" }, "Distance (Snellen)"),
           el("div", { class: "g2" }, sel("rightAcuity", "Right eye (OD)", ACUITY), sel("leftAcuity", "Left eye (OS)", ACUITY)),
+          el("div", { class: "muted" }, "Near"),
+          el("div", { class: "g2" }, sel("rightNearVision", "Right eye (OD)", NEAR_VISION), sel("leftNearVision", "Left eye (OS)", NEAR_VISION)),
           sel("testingCondition", "Testing condition", VISION_TEST_CONDITION),
           el("h4", { style: "margin:10px 0 6px" }, "Present glasses prescription (only if the child already wears glasses)"),
           el("div", { class: "muted" }, "Right eye (OD)"), rx("presentOd", PRESENT),
@@ -5026,15 +5031,14 @@ export const PORTAL_HTML = `<!doctype html>
           el("h4", { style: "margin:10px 0 6px" }, "New glasses prescription"),
           el("div", { class: "muted" }, "Right eye (OD)"), rx("newOd", NEWRX),
           el("div", { class: "muted" }, "Left eye (OS)"), rx("newOs", NEWRX),
-          el("h4", { style: "margin:10px 0 6px" }, "Colour vision & other findings"),
+          el("h4", { style: "margin:10px 0 6px" }, "Colour vision"),
           sel("colorVision", "Colour vision (Ishihara /17)", COLOR_VISION),
-          txt("otherComplaints", "Any other complaints, if present", "e.g. headache after reading, watering"),
-          txt("otherAbnormalities", "Any other abnormalities, if present", "e.g. squint, drooping lid"));
+          el("h4", { style: "margin:10px 0 6px" }, "Any other complaints"),
+          txt("otherComplaints", "Any other complaints, if present", "e.g. headache after reading, watering"));
       }
       if (ct === "Dental") {
         return el("div", null,
-          sel("hygiene", "Oral hygiene", ORAL_HYGIENE_INDEX),
-          el("h4", { style: "margin:10px 0 6px" }, "Tooth index (dmft / DMFT)"),
+          el("h4", { style: "margin-bottom:6px" }, "Tooth index (dmft / DMFT)"),
           sel("dentition", "Type of dentition", DENTITION),
           el("div", { class: "g3" },
             el("div", { class: "fld" }, rl("cariesCount", "Decayed"),
@@ -5043,17 +5047,11 @@ export const PORTAL_HTML = `<!doctype html>
               el("input", { type: "number", min: "0", value: d.missingCount === undefined ? "" : d.missingCount, oninput: bind("missingCount") })),
             el("div", { class: "fld" }, el("label", null, "Filled"),
               el("input", { type: "number", min: "0", value: d.filledCount === undefined ? "" : d.filledCount, oninput: bind("filledCount") }))),
+          el("h4", { style: "margin:10px 0 6px" }, "Oral hygiene index"),
+          sel("hygiene", "Oral hygiene", ORAL_HYGIENE_INDEX),
+          el("h4", { style: "margin:10px 0 6px" }, "Enamel, alignment & occlusion"),
           sel("fluorosis", "Dental fluorosis", FLUOROSIS_STAGE),
-          el("h4", { style: "margin:10px 0 6px" }, "Any complaints, if present"),
-          // The complaints also set the pain / sensitivity / trauma / stains
-          // flags the server reads, as the apps do.
-          many("dentalSymptoms", DENTAL_SYMPTOMS, function (set) {
-            var has = function (w) { return set.some(function (x) { return x.toLowerCase().indexOf(w) >= 0; }); };
-            d.pain = has("toothache"); d.sensitivity = has("sensitivity");
-            d.trauma = has("chipped"); d.stainsTartar = has("stains");
-          }),
-          txt("abnormalFindings", "Any other abnormalities, if present", "e.g. deep caries 85, retained 51"),
-          el("h4", { style: "margin:10px 0 6px" }, "Recommended dental intervention"),
+          el("h4", { style: "margin:10px 0 6px" }, "Treatment plan"),
           many("treatmentNeeded", DENTAL_TREATMENTS));
       }
       if (ct === "ENT") {
