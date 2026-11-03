@@ -93,7 +93,9 @@ fun ClinicianReviewChildScreen(
     LaunchedEffect(campId, kidId) { clinician.openReview(campId, kidId) }
     LaunchedEffect(saved) { if (saved) onBack() }
 
-    val d = detail
+    // The view model can still hold the previous child's review (sign-off
+    // returns without clearing it): never show or seed from another child's.
+    val d = detail?.takeIf { it.child.kidId == kidId }
     // Seeded once, from the server's draft, and then left alone: re-seeding on
     // every recomposition would wipe whatever the physician is typing.
     LaunchedEffect(d?.child?.kidId) {
