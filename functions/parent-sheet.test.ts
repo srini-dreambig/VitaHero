@@ -87,7 +87,7 @@ describe("vision sheet", () => {
   });
 
   test("no prescription written, no table", () => {
-    expect(assessmentSheet("Vision", { rightAcuity: "6/6" }, girl)!.rx).toBeUndefined();
+    expect(assessmentSheet("Vision", { rightAcuity: "6/6" }, girl)!.rx).toEqual([]);
   });
 
   test("an older record's abnormality is kept", () => {

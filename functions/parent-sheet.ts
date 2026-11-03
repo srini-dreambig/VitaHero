@@ -182,7 +182,7 @@ function visionSheet(d: Record<string, unknown>): AssessmentSheet {
     rxTable(d, "present", "Present glasses prescription"),
     rxTable(d, "new", "New glasses prescription"),
   ].filter((x): x is RxTable => x !== null);
-  return rx.length ? { title: "Vision assessment", rows, rx } : { title: "Vision assessment", rows };
+  return { title: "Vision assessment", rows, rx };
 }
 
 function dentalSheet(d: Record<string, unknown>): AssessmentSheet {
@@ -218,10 +218,11 @@ export function assessmentSheet(
   checkType: string, detail: unknown, child: SheetChild
 ): AssessmentSheet | null {
   const d = (detail && typeof detail === "object" ? detail : {}) as Record<string, unknown>;
+  // Every sheet says rx, empty off the vision sheet, so the app always reads one.
   switch (checkType) {
-    case "Height & weight": return growthSheet(d, child);
+    case "Height & weight": return { rx: [], ...growthSheet(d, child) };
     case "Vision": return visionSheet(d);
-    case "Dental": return dentalSheet(d);
+    case "Dental": return { rx: [], ...dentalSheet(d) };
     default: return null;
   }
 }

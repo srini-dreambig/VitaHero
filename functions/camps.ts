@@ -3013,7 +3013,7 @@ export async function guardianLatestSheets(sql: Sql, profileId: string, kidId: s
     if (!("findings" in r) || !r.findings) continue;
     for (const f of r.findings) {
       if (!wanted.includes(f.checkType) || found.has(f.checkType) || !f.sheet) continue;
-      found.set(f.checkType, { ...f, campTitle: r.campTitle || "", date: r.date || "" });
+      found.set(f.checkType, f);
     }
     if (found.size === wanted.length) break;
   }
@@ -3055,6 +3055,9 @@ export async function guardianCampResult(
     note: String(f.review_note || "").trim() || (f.rationale as string) || "",
     // The paper sheet's columns for growth, vision and dental; absent for the rest.
     sheet: assessmentSheet(f.check_type as string, f.detail, child) ?? undefined,
+    // The camp the values were taken at, for the child screen's latest sheets.
+    campTitle: (p.title as string) || "",
+    date: (p.date as string) || "",
   });
   const childInfo = { gender: child.gender, dob: child.dob, age: child.ageYears };
   // Measured, or declared not done with a reason (false). The same rule as
