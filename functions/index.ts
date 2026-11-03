@@ -1998,7 +1998,8 @@ export default {
         const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>VitaHero — Open your child's health report</title>
-<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0EA5A4;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap">
+<style>body{font-family:"Host Grotesk",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0EA5A4;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center}
 .card{background:#fff;color:#0f172a;max-width:420px;margin:20px;padding:28px;border-radius:20px;box-shadow:0 10px 40px rgba(0,0,0,.2)}
 h1{font-size:20px;margin:0 0 8px}p{color:#475569;line-height:1.5}
 a.btn{display:block;text-align:center;background:#0EA5A4;color:#fff;text-decoration:none;padding:14px;border-radius:12px;font-weight:600;margin-top:16px}</style></head>

@@ -23,7 +23,7 @@ export const PORTAL_HTML = `<!doctype html>
 <title>VitaHero Console</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Host+Grotesk:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap">
 <style>
   /* Taken from the app's Compose theme, not invented separately. A school
      admin and a parent are looking at one product; when the console picked its
@@ -81,7 +81,7 @@ export const PORTAL_HTML = `<!doctype html>
     -webkit-font-smoothing:antialiased;
   }
   h1,h2,h3,h4{margin:0;line-height:1.25;letter-spacing:-.014em}
-  h1,h2{font-family:"Bricolage Grotesque","Host Grotesk",sans-serif;letter-spacing:-.02em}
+  h1,h2{letter-spacing:-.02em}
   h1{font-size:20px;font-weight:800}
   h2{font-size:15px;font-weight:700}
   h3{font-size:13px;font-weight:640}
@@ -89,9 +89,9 @@ export const PORTAL_HTML = `<!doctype html>
   p{margin:0 0 10px}
   a{color:var(--brand-dk)}
   /* Tabular figures wherever a number is read down a column rather than in a
-     sentence: without them a 1 is narrower than a 7 and the column wobbles. */
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.92em;
-    font-variant-numeric:tabular-nums}
+     sentence: without them a 1 is narrower than a 7 and the column wobbles.
+     Same typeface as everything else; one font across the console and apps. */
+  .mono{font-variant-numeric:tabular-nums}
 
   /* ── shell ── */
   /* minmax(0,...) rather than a bare 1fr: a grid track's automatic minimum is
@@ -298,7 +298,7 @@ export const PORTAL_HTML = `<!doctype html>
   .rec .rt{width:28px;height:28px;border-radius:6px;background:var(--sunk);
     border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
     color:var(--ink-2);flex:none}
-  .rec .rid{font-size:10.5px;color:var(--ink-3);font-family:ui-monospace,Menlo,Consolas,monospace;
+  .rec .rid{font-size:10.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;
     letter-spacing:.02em}
   .rec .rname{font-size:13px;font-weight:650;letter-spacing:-.012em;line-height:1.25}
   .rec .rsub{font-size:11.5px;color:var(--ink-3);line-height:1.3;margin-top:1px}
@@ -367,7 +367,7 @@ export const PORTAL_HTML = `<!doctype html>
   .pill.info::before{background:var(--info)}
   .pill.err{color:#B91C1C;border-color:#F5CACA;background:#FFF7F7}
   .pill.warn{color:#92580A;border-color:#F3DDB0;background:#FFFBF2}
-  .code{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:650;background:var(--sunk);
+  .code{font-variant-numeric:tabular-nums;font-weight:650;background:var(--sunk);
     border:1px solid var(--line);border-radius:4px;padding:1px 6px;letter-spacing:.04em;font-size:11.5px}
 
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:1px;background:var(--line);

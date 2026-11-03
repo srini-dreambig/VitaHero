@@ -14,7 +14,7 @@
 const STYLE = `
   * { box-sizing: border-box; }
   body {
-    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    font-family: "Host Grotesk", -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
     margin: 0; padding: 24px 16px 64px; background: #f6f4ef; color: #1c2430;
     line-height: 1.65; -webkit-text-size-adjust: 100%;
   }
@@ -45,6 +45,7 @@ function page(title: string, body: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title} — VitaHero</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@400;500;600;700&display=swap">
 <style>${STYLE}</style>
 </head>
 <body>

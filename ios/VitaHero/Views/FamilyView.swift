@@ -35,7 +35,7 @@ struct FamilyView: View {
                     Button(L("generate_family_code")) { generate() }.disabled(busy)
                 } else {
                     Text(myCode)
-                        .font(.system(size: 30, weight: .bold, design: .monospaced))
+                        .font(.custom("HostGrotesk-Bold", size: 30).monospacedDigit())
                         .kerning(4)
                         .frame(maxWidth: .infinity)
                         .textSelection(.enabled)

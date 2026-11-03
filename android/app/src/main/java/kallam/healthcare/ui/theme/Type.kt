@@ -16,40 +16,33 @@ val HostGrotesk = FontFamily(
 )
 
 /**
- * Headings. Bricolage Grotesque (SIL Open Font License) at its 96pt optical
- * size: a tight, slightly quirky grotesk for screen titles and big numbers.
- * Everything from section titles down stays in Host Grotesk, which reads
- * better small. iOS and the web console bundle the same two families.
+ * One typeface across the app, iOS and the web console. Titles get their
+ * weight and size from the styles below, not from a second family.
  */
-val BricolageGrotesque = FontFamily(
-    Font(R.font.bricolage_grotesque_bold, FontWeight.Bold),
-    Font(R.font.bricolage_grotesque_extrabold, FontWeight.ExtraBold),
-)
-
 val AppTypography = Typography(
     displayLarge = TextStyle(
-        fontFamily = BricolageGrotesque,
-        fontWeight = FontWeight.ExtraBold,
+        fontFamily = HostGrotesk,
+        fontWeight = FontWeight.Bold,
         fontSize = 38.sp,
         lineHeight = 42.sp,
         letterSpacing = (-1.2).sp
     ),
     displayMedium = TextStyle(
-        fontFamily = BricolageGrotesque,
-        fontWeight = FontWeight.ExtraBold,
+        fontFamily = HostGrotesk,
+        fontWeight = FontWeight.Bold,
         fontSize = 30.sp,
         lineHeight = 34.sp,
         letterSpacing = (-0.9).sp
     ),
     headlineLarge = TextStyle(
-        fontFamily = BricolageGrotesque,
-        fontWeight = FontWeight.ExtraBold,
+        fontFamily = HostGrotesk,
+        fontWeight = FontWeight.Bold,
         fontSize = 27.sp,
         lineHeight = 32.sp,
         letterSpacing = (-0.7).sp
     ),
     headlineMedium = TextStyle(
-        fontFamily = BricolageGrotesque,
+        fontFamily = HostGrotesk,
         fontWeight = FontWeight.Bold,
         fontSize = 21.sp,
         lineHeight = 26.sp,

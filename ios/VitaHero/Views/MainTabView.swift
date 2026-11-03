@@ -87,7 +87,7 @@ struct Avatar: View {
 
     var body: some View {
         Text(kid.initials)
-            .font(.system(size: size * 0.38, weight: .bold, design: .rounded))
+            .font(.custom("HostGrotesk-Bold", size: size * 0.38))
             .foregroundColor(.white)
             .frame(width: size, height: size)
             .background(color)
@@ -107,7 +107,7 @@ struct BellButton: View {
                 Image(systemName: "bell.fill")
                 if store.unreadCount > 0 {
                     Text("\(min(store.unreadCount, 99))")
-                        .font(.system(size: 10, weight: .bold))
+                        .font(.custom("HostGrotesk-Bold", size: 10))
                         .foregroundColor(.white)
                         .padding(3)
                         .background(Brand.red)

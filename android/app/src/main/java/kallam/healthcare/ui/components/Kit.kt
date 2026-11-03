@@ -66,7 +66,7 @@ import kallam.healthcare.ui.theme.YellowLight
  * once, here, and the screens cannot drift apart again.
  *
  * Type roles (sizes in Type.kt):
- *   root screen title   headlineLarge   27 Bricolage Grotesque ExtraBold
+ *   root screen title   headlineLarge   27 Bold
  *   detail screen title headlineSmall   18 SemiBold
  *   section title       titleLarge      16 SemiBold
  *   row / card title    titleMedium     14 SemiBold

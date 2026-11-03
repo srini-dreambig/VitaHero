@@ -53,8 +53,7 @@ extension Color {
     }
 }
 
-/// The app's two typefaces: Bricolage Grotesque for titles, Host Grotesk for
-/// everything else, the same as Android. Sizes follow Dynamic Type through
+/// One typeface, Host Grotesk, the same as Android and the web console. Sizes follow Dynamic Type through
 /// `relativeTo`, so a parent's larger text setting still applies.
 extension Font {
     static func vh(_ style: TextStyle, _ weight: Weight? = nil) -> Font {
@@ -74,17 +73,12 @@ extension Font {
         default: size = 17
         }
         let w = weight ?? (style == .headline ? .semibold : .regular)
-        let display: Bool = [.largeTitle, .title, .title2].contains(style) && (w == .bold || w == .heavy || w == .black)
         let name: String
-        if display {
-            name = style == .title2 ? "BricolageGrotesque96pt-Bold" : "BricolageGrotesque96pt-ExtraBold"
-        } else {
-            switch w {
-            case .bold, .heavy, .black: name = "HostGrotesk-Bold"
-            case .semibold: name = "HostGrotesk-SemiBold"
-            case .medium: name = "HostGrotesk-Medium"
-            default: name = "HostGrotesk-Regular"
-            }
+        switch w {
+        case .bold, .heavy, .black: name = "HostGrotesk-Bold"
+        case .semibold: name = "HostGrotesk-SemiBold"
+        case .medium: name = "HostGrotesk-Medium"
+        default: name = "HostGrotesk-Regular"
         }
         return .custom(name, size: size, relativeTo: style)
     }

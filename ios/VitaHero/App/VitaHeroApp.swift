@@ -36,12 +36,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 /// title typeface are set here once rather than in every view.
 private func applyAppearance() {
     let ink = UIColor(red: 0x2D / 255, green: 0x2D / 255, blue: 0x2B / 255, alpha: 1)
-    let cream = UIColor(red: 1, green: 0xFC / 255, blue: 0xF5 / 255, alpha: 1)
+    let cream = UIColor.white
     let nav = UINavigationBarAppearance()
     nav.configureWithOpaqueBackground()
     nav.backgroundColor = cream
     nav.shadowColor = .clear
-    if let large = UIFont(name: "BricolageGrotesque96pt-ExtraBold", size: 32) {
+    if let large = UIFont(name: "HostGrotesk-Bold", size: 32) {
         nav.largeTitleTextAttributes = [.font: UIFontMetrics(forTextStyle: .largeTitle).scaledFont(for: large), .foregroundColor: ink]
     }
     if let inline = UIFont(name: "HostGrotesk-SemiBold", size: 17) {

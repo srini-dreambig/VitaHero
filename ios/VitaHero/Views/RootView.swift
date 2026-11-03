@@ -183,7 +183,7 @@ struct SignInView: View {
             TextField("••••••", text: $code)
                 .keyboardType(.numberPad)
                 .textContentType(.oneTimeCode)
-                .font(.system(size: 32, weight: .semibold, design: .monospaced))
+                .font(.custom("HostGrotesk-SemiBold", size: 32).monospacedDigit())
                 .multilineTextAlignment(.center)
                 .padding(14)
                 .background(Color(.secondarySystemBackground))
