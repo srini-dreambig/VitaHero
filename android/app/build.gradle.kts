@@ -47,8 +47,9 @@ android {
         // clinician's growth, vision and dental forms trimmed to the sheets.
         // 1.1.12: the child screen shows every vision and dental value screened.
         // 1.1.13: near vision on its own, and the glasses prescription as a table.
-        versionCode = 1789668247
-        versionName = "1.1.13"
+        // 1.1.14: the growth and nutrition tabs show what the camp measured.
+        versionCode = 1789668248
+        versionName = "1.1.14"
 
         // Backend URL + auth (client-safe). AI Toolkit secrets live on the Cloudflare Worker only.
         //
