@@ -1,0 +1,137 @@
+# App Store screenshots, taken on simulators, on demand.
+#
+# Builds the Debug app (the only build with ScreenshotMode), signs it in with
+# the App Review demo family, opens each tab in turn and saves what the screen
+# shows. Apple wants a 6.9" iPhone and a 13" iPad set; both come out of one run
+# as the "app-store-screenshots" artifact, ready to drag into App Store Connect.
+#
+# Required secrets:
+#   GOOGLE_SERVICE_INFO_PLIST_BASE64  (the same one ios-publish.yml uses)
+#   REVIEW_DEMO_PHONE                 ten-digit number, listed in Firebase as a
+#                                     test phone number (Authentication > Sign-in
+#                                     method > Phone > Phone numbers for testing)
+#   REVIEW_DEMO_CODE                  that test number's fixed six-digit code
+# The number must also be provisioned in VitaHero with a child who has camp
+# results, or every screen is empty.
+name: iOS App Store screenshots
+
+on:
+  workflow_dispatch:
+
+jobs:
+  screenshots:
+    name: Capture screenshots
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -switch "$XCODE"
+          xcodebuild -version
+
+      - name: Check secrets
+        env:
+          PHONE: ${{ secrets.REVIEW_DEMO_PHONE }}
+          CODE: ${{ secrets.REVIEW_DEMO_CODE }}
+          PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
+        run: |
+          missing=0
+          [ -n "$PHONE" ] || { echo "::error::REVIEW_DEMO_PHONE is not set."; missing=1; }
+          [ -n "$CODE" ]  || { echo "::error::REVIEW_DEMO_CODE is not set."; missing=1; }
+          [ -n "$PLIST" ] || { echo "::error::GOOGLE_SERVICE_INFO_PLIST_BASE64 is not set."; missing=1; }
+          exit $missing
+
+      - name: Write Firebase config
+        env:
+          GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
+        run: echo -n "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 --decode -o ios/VitaHero/GoogleService-Info.plist
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode Project
+        run: cd ios && xcodegen generate
+
+      - name: Build Debug for the simulator
+        run: |
+          xcodebuild build \
+            -project ios/VitaHero.xcodeproj \
+            -scheme VitaHero \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "generic/platform=iOS Simulator" \
+            -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+
+      - name: Capture
+        env:
+          PHONE: ${{ secrets.REVIEW_DEMO_PHONE }}
+          CODE: ${{ secrets.REVIEW_DEMO_CODE }}
+        run: |
+          set -euo pipefail
+          APP=build/dd/Build/Products/Debug-iphonesimulator/VitaHero.app
+          BUNDLE=com.vitahero.health
+          OUT=screenshots
+          RUNTIME=$(xcrun simctl list runtimes -j | python3 -c '
+          import json, sys
+          rs = [r for r in json.load(sys.stdin)["runtimes"] if r["platform"] == "iOS" and r["isAvailable"]]
+          print(rs[-1]["identifier"])')
+          echo "Runtime: $RUNTIME"
+
+          # First device type whose name matches, newest first.
+          pick() {
+            xcrun simctl list devicetypes -j | python3 -c '
+          import json, sys, re
+          pat = re.compile(sys.argv[1])
+          ts = [t for t in json.load(sys.stdin)["devicetypes"] if pat.search(t["name"])]
+          print(ts[-1]["identifier"] if ts else "")' "$1"
+          }
+
+          shoot() {  # name, device-type regex
+            local name="$1" type
+            type=$(pick "$2")
+            [ -n "$type" ] || { echo "::error::No simulator matches $2"; exit 1; }
+            echo "== $name ($type)"
+            local udid
+            udid=$(xcrun simctl create "vh-$name" "$type" "$RUNTIME")
+            xcrun simctl boot "$udid"
+            xcrun simctl bootstatus "$udid" -b
+            xcrun simctl status_bar "$udid" override --time "9:41" --dataNetwork wifi \
+              --wifiMode active --wifiBars 3 --cellularMode active --cellularBars 4 \
+              --batteryState charged --batteryLevel 100
+            xcrun simctl install "$udid" "$APP"
+            xcrun simctl privacy "$udid" grant location "$BUNDLE" || true
+            mkdir -p "$OUT/$name"
+
+            # The first launch signs in; the session is kept in the keychain,
+            # so the launches after it only restore and open their tab.
+            local tabs=(home kids camps rewards profile)
+            for i in 0 1 2 3 4; do
+              xcrun simctl terminate "$udid" "$BUNDLE" 2>/dev/null || true
+              SIMCTL_CHILD_VH_SHOT_PHONE="$PHONE" SIMCTL_CHILD_VH_SHOT_CODE="$CODE" \
+              SIMCTL_CHILD_VH_SHOT_TAB="$i" \
+                xcrun simctl launch "$udid" "$BUNDLE" > /dev/null
+              if [ "$i" = 0 ]; then sleep 40; else sleep 15; fi
+              xcrun simctl io "$udid" screenshot "$OUT/$name/$((i + 1))-${tabs[$i]}.png"
+            done
+            xcrun simctl shutdown "$udid"
+          }
+
+          shoot iphone-6.9 'iPhone 1[6-9] Pro Max'
+          shoot ipad-13 'iPad Pro 13-inch'
+          sips -g pixelWidth -g pixelHeight "$OUT"/*/*.png
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: screenshots
+          if-no-files-found: error

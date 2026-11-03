@@ -2,19 +2,34 @@ import SwiftUI
 
 struct MainTabView: View {
     @EnvironmentObject private var store: AppStore
+    @State private var tab: Int = MainTabView.initialTab
+
+    /// Home, except in CI's screenshot run, which opens each tab in turn.
+    private static var initialTab: Int {
+        #if DEBUG
+        return ScreenshotMode.tab
+        #else
+        return 0
+        #endif
+    }
 
     var body: some View {
-        TabView {
+        TabView(selection: $tab) {
             NavigationStack { HomeView() }
                 .tabItem { Label(L("nav_home"), systemImage: "house.fill") }
+                .tag(0)
             NavigationStack { KidsView() }
                 .tabItem { Label(L("nav_kids"), systemImage: "figure.and.child.holdinghands") }
+                .tag(1)
             NavigationStack { CampsView() }
                 .tabItem { Label(L("nav_camps"), systemImage: "cross.case.fill") }
+                .tag(2)
             NavigationStack { RewardsView() }
                 .tabItem { Label(L("nav_rewards"), systemImage: "star.fill") }
+                .tag(3)
             NavigationStack { ProfileView() }
                 .tabItem { Label(L("nav_profile"), systemImage: "person.crop.circle") }
+                .tag(4)
         }
         .overlay(alignment: .bottom) { ToastView() }
     }

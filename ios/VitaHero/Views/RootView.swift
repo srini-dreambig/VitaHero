@@ -38,7 +38,12 @@ struct RootView: View {
                 }
             }
         }
-        .task { if auth.phase == .restoring { await auth.restore() } }
+        .task {
+            if auth.phase == .restoring { await auth.restore() }
+            #if DEBUG
+            await screenshotSignIn()
+            #endif
+        }
         .onChange(of: auth.phase) { phase in
             switch phase {
             case .signedIn:
@@ -55,6 +60,21 @@ struct RootView: View {
             }
         }
     }
+
+    #if DEBUG
+    /// CI's screenshot run: English, then the Firebase test number's sign-in.
+    private func screenshotSignIn() async {
+        guard let phone = ScreenshotMode.phone, let code = ScreenshotMode.code else { return }
+        if !l10n.hasChosen { l10n.set(.en) }
+        guard auth.phase == .signedOut else { return }
+        do {
+            try await auth.sendCode(to: phone)
+            try await auth.verify(code: code)
+        } catch {
+            print("VH_SHOT sign-in failed: \(error)")
+        }
+    }
+    #endif
 
     /// The language the parent chose on this phone is the one the server
     /// keeps, so notifications reach them in it.

@@ -10,6 +10,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
             FirebaseApp.configure()
+            #if DEBUG
+            if ScreenshotMode.isOn { Auth.auth().settings?.isAppVerificationDisabledForTesting = true }
+            #endif
         }
         applyAppearance()
         return true
