@@ -143,7 +143,7 @@ jobs:
         env:
           ANDROID_PUBLISHER_CREDENTIALS: ${{ steps.creds.outputs.dir }}/play.json
         run: |
-          ./gradlew :app:bootstrapReleaseListing --stacktrace
+          ./gradlew :app:bootstrapReleaseListing --listings --stacktrace
           find app/src -path '*/play/*' -type f -printf '%10s  %p\n' | sort -k2
 
       - name: Keep the listing
@@ -177,7 +177,7 @@ jobs:
           test -n "$RUN" || { echo "::error::screenshots_run is not set"; exit 1; }
           ls ../shots/phone/*.png > /dev/null
           # Which languages the listing has, from Play itself.
-          ./gradlew :app:bootstrapReleaseListing -q
+          ./gradlew :app:bootstrapReleaseListing --listings -q
           locales=$(ls -d app/src/main/play/listings/*/ | xargs -n1 basename)
           rm -rf app/src/main/play
           for l in $locales; do
