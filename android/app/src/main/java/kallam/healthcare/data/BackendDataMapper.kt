@@ -5,6 +5,17 @@ package kallam.healthcare.data
  */
 object BackendDataMapper {
 
+    private val kidPalette = listOf(0xFF10B981L, 0xFF2563EB, 0xFF8B5CF6, 0xFFFB7185, 0xFFF59E0B)
+
+    /**
+     * The server keeps avatar_color but nothing writes it, so every child
+     * arrives as 0: a transparent circle behind a white initial. A colour
+     * from the child's id stays the same on every launch.
+     */
+    private fun kidColor(dto: KidDto): Long =
+        if (dto.avatarColor != 0L) dto.avatarColor
+        else kidPalette[Math.floorMod(dto.id.hashCode(), kidPalette.size)]
+
     fun mapKid(dto: KidDto, growth: List<GrowthPoint> = emptyList()): Kid = Kid(
         id = dto.id,
         name = dto.name,
@@ -14,7 +25,7 @@ object BackendDataMapper {
         grade = dto.grade,
         heightCm = dto.heightCm.toFloat(),
         weightKg = dto.weightKg.toFloat(),
-        avatarColor = dto.avatarColor,
+        avatarColor = kidColor(dto),
         overallScore = dto.overallScore,
         growth = growth,
         dental = parseFlag(dto.dental),
