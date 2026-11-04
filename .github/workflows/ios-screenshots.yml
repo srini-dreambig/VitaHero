@@ -61,6 +61,8 @@ jobs:
             SCHEME="app-$(echo "$APP_ID" | tr ':' '-')"
           fi
           /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $SCHEME" ios/VitaHero/Info.plist
+          # Not a secret; the server checks tokens against one Firebase project.
+          echo "Firebase project: $(/usr/libexec/PlistBuddy -c 'Print :PROJECT_ID' "$PLIST")"
 
       - name: Install XcodeGen
         run: brew install xcodegen

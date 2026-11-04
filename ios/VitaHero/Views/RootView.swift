@@ -74,7 +74,8 @@ struct RootView: View {
             // NSLog reaches the simulator's log, where CI reads it; quitting
             // makes CI stop instead of photographing the sign-in screen.
             let ns = error as NSError
-            NSLog("VH_SHOT sign-in failed: %@ %ld %@", ns.domain, ns.code, ns.userInfo.description)
+            NSLog("VH_SHOT sign-in failed: %@ %ld %@ | %@", ns.domain, ns.code, ns.userInfo.description,
+                  error.localizedDescription)
             exit(EXIT_FAILURE)
         }
     }
