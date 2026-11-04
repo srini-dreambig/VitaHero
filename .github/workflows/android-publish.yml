@@ -65,6 +65,10 @@ on:
         description: "For listing=screenshots: the android-screenshots.yml run id"
         required: false
         type: string
+      screenshots_skip:
+        description: "For listing=screenshots: shots to leave out, by name (e.g. 3-camps)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -172,9 +176,15 @@ jobs:
           VITAHERO_KEYSTORE: ${{ steps.creds.outputs.dir }}/upload.jks
           PLAY_TRACK: ${{ inputs.track }}
           RUN: ${{ inputs.screenshots_run }}
+          SKIP: ${{ inputs.screenshots_skip }}
         run: |
           set -euo pipefail
           test -n "$RUN" || { echo "::error::screenshots_run is not set"; exit 1; }
+          for s in $SKIP; do
+            f="../shots/phone/${s%.png}.png"
+            test -f "$f" || { echo "::error::No shot named $s to leave out"; exit 1; }
+            rm "$f"
+          done
           ls ../shots/phone/*.png > /dev/null
           # Which languages the listing has, from Play itself.
           ./gradlew :app:bootstrapReleaseListing --listings -q
