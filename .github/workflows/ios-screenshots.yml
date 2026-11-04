@@ -269,19 +269,9 @@ jobs:
             done
             echo "$l: $(ls "upload/$l" | tr '\n' ' ')"
           done
-          fastlane deliver \
-            --api_key_path "$KEY_JSON" \
-            --app_identifier "$BUNDLE" \
-            --app_version "$(cat "$RUNNER_TEMP/version")" \
-            --platform ios \
-            --screenshots_path upload \
-            --overwrite_screenshots true \
-            --skip_binary_upload true \
-            --skip_metadata true \
-            --skip_app_version_update true \
-            --submit_for_review false \
-            --run_precheck_before_submit false \
-            --force true
+          # The action, not "fastlane deliver": that one stops to offer to set
+          # up a Deliverfile, which CI cannot answer.
+          fastlane run upload_to_app_store             api_key_path:"$KEY_JSON"             app_identifier:"$BUNDLE"             app_version:"$(cat "$RUNNER_TEMP/version")"             platform:ios             screenshots_path:upload             overwrite_screenshots:true             skip_binary_upload:true             skip_metadata:true             skip_app_version_update:true             submit_for_review:false             run_precheck_before_submit:false             force:true
           ruby "$RUNNER_TEMP/show.rb"
 
       - name: Shred API key
