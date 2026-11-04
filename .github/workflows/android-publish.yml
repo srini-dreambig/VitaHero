@@ -51,10 +51,28 @@ on:
         type: choice
         default: none
         options: [none, internal, alpha, beta]
+      listing:
+        # The store listing rather than a release. "show" downloads what Play
+        # has now and changes nothing; "screenshots" replaces the phone
+        # screenshots with the ones an android-screenshots.yml run took, in
+        # every language the listing has, and leaves the text alone.
+        description: "Store listing instead of a release"
+        required: true
+        type: choice
+        default: none
+        options: [none, show, screenshots]
+      screenshots_run:
+        description: "For listing=screenshots: the android-screenshots.yml run id"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read  # to fetch another run's screenshots
 
 jobs:
   publish:
-    name: "${{ inputs.track }} (${{ inputs.status }})"
+    name: "${{ inputs.listing != 'none' && format('listing ({0})', inputs.listing) || format('{0} ({1})', inputs.track, inputs.status) }}"
     runs-on: ubuntu-latest
     # A track, not a branch. GitHub asks for an approval before the job starts
     # if the environment has reviewers on it, which is the check worth having
@@ -93,7 +111,7 @@ jobs:
           echo "dir=$dir" >> "$GITHUB_OUTPUT"
 
       - name: Build and upload
-        if: inputs.promote_from == 'none'
+        if: inputs.promote_from == 'none' && inputs.listing == 'none'
         working-directory: android
         env:
           ANDROID_PUBLISHER_CREDENTIALS: ${{ steps.creds.outputs.dir }}/play.json
@@ -106,7 +124,7 @@ jobs:
         run: ./gradlew :app:publishReleaseBundle --stacktrace
 
       - name: Promote
-        if: inputs.promote_from != 'none'
+        if: inputs.promote_from != 'none' && inputs.listing == 'none'
         working-directory: android
         env:
           ANDROID_PUBLISHER_CREDENTIALS: ${{ steps.creds.outputs.dir }}/play.json
@@ -118,11 +136,63 @@ jobs:
           test "$FROM_TRACK" != "$PLAY_TRACK" || { echo "::error::promote_from and track are the same"; exit 1; }
           ./gradlew :app:promoteReleaseArtifact --from-track "$FROM_TRACK" --promote-track "$PLAY_TRACK" --release-status "$PLAY_RELEASE_STATUS" --stacktrace
 
+      # Read-only: GPP writes the live listing under src/*/play.
+      - name: Show listing
+        if: inputs.listing == 'show'
+        working-directory: android
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ steps.creds.outputs.dir }}/play.json
+        run: |
+          ./gradlew :app:bootstrapReleaseListing --stacktrace
+          find app/src -path '*/play/*' -type f -printf '%10s  %p\n' | sort -k2
+
+      - name: Keep the listing
+        if: inputs.listing == 'show'
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-listing
+          path: android/app/src/*/play
+
+      - name: Fetch screenshots
+        if: inputs.listing == 'screenshots'
+        uses: actions/download-artifact@v4
+        with:
+          name: play-store-screenshots
+          path: shots
+          run-id: ${{ inputs.screenshots_run }}
+          github-token: ${{ github.token }}
+
+      # Only graphics/phone-screenshots is written, so that is all GPP sends:
+      # Play replaces that one image set and the rest of the listing stays.
+      - name: Replace phone screenshots
+        if: inputs.listing == 'screenshots'
+        working-directory: android
+        env:
+          ANDROID_PUBLISHER_CREDENTIALS: ${{ steps.creds.outputs.dir }}/play.json
+          VITAHERO_KEYSTORE: ${{ steps.creds.outputs.dir }}/upload.jks
+          PLAY_TRACK: ${{ inputs.track }}
+          RUN: ${{ inputs.screenshots_run }}
+        run: |
+          set -euo pipefail
+          test -n "$RUN" || { echo "::error::screenshots_run is not set"; exit 1; }
+          ls ../shots/phone/*.png > /dev/null
+          # Which languages the listing has, from Play itself.
+          ./gradlew :app:bootstrapReleaseListing -q
+          locales=$(ls -d app/src/main/play/listings/*/ | xargs -n1 basename)
+          rm -rf app/src/main/play
+          for l in $locales; do
+            d=app/src/main/play/listings/$l/graphics/phone-screenshots
+            mkdir -p "$d"
+            cp ../shots/phone/*.png "$d/"
+            echo "$l: $(ls "$d" | tr '\n' ' ')"
+          done
+          ./gradlew :app:publishReleaseListing --stacktrace
+
       # Kept for matching a crash report to a build. The bundle is signed with
       # the upload key, not the app signing key, so it is not installable as-is
       # — it is evidence, not a release.
       - name: Keep the bundle
-        if: always()
+        if: always() && inputs.listing == 'none'
         uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ inputs.track }}
