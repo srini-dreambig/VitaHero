@@ -1,0 +1,88 @@
+# Play Store screenshots, taken on an emulator, on demand.
+#
+# Builds the debug app (the only build with ScreenshotMode), signs it in with
+# the App Review demo family, opens each tab in turn and saves the screen at
+# 1080x1920. The "play-store-screenshots" artifact holds the phone set; it is
+# looked at by a person before anything goes to the Play listing.
+#
+# Required secrets (the same ones ios-screenshots.yml uses):
+#   REVIEW_DEMO_PHONE  ten-digit Firebase test phone number
+#   REVIEW_DEMO_CODE   its fixed six-digit code
+name: Android Play Store screenshots
+
+on:
+  workflow_dispatch:
+  # GitHub only offers "Run workflow" for files already on main, so a branch
+  # that changes the capture runs it on push instead.
+  push:
+    branches: ["claude/**"]
+    paths:
+      - ".github/workflows/android-screenshots.yml"
+      - "tools/android-screenshots.sh"
+      - "android/app/src/main/java/kallam/healthcare/data/ScreenshotMode.kt"
+
+jobs:
+  screenshots:
+    name: Capture screenshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check secrets
+        env:
+          PHONE: ${{ secrets.REVIEW_DEMO_PHONE }}
+          CODE: ${{ secrets.REVIEW_DEMO_CODE }}
+        run: |
+          missing=0
+          [ -n "$PHONE" ] || { echo "::error::REVIEW_DEMO_PHONE is not set."; missing=1; }
+          [ -n "$CODE" ]  || { echo "::error::REVIEW_DEMO_CODE is not set."; missing=1; }
+          exit $missing
+
+      # Same toolchain as android-build.yml.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: jetbrains
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      # The emulator needs /dev/kvm, which GitHub's Linux runners have but do
+      # not open to the runner user.
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Capture
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          PHONE: ${{ secrets.REVIEW_DEMO_PHONE }}
+          CODE: ${{ secrets.REVIEW_DEMO_CODE }}
+        with:
+          api-level: 34
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          # The runner feeds this to sh one line at a time, so the work is
+          # in a script of its own.
+          script: bash tools/android-screenshots.sh android/app/build/outputs/apk/debug/app-debug.apk screenshots/phone
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: play-store-screenshots
+          path: screenshots
+          if-no-files-found: warn

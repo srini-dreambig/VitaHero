@@ -55,7 +55,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kallam.healthcare.BuildConfig
 import kallam.healthcare.data.AppViewModel
+import kallam.healthcare.data.ScreenshotMode
 import kallam.healthcare.data.S
 import kallam.healthcare.ui.components.InfoNote
 import kallam.healthcare.ui.components.Tone
@@ -103,7 +105,12 @@ fun MainScaffold(
     onOpenFoodRecognition: (String, String) -> Unit,
     onLogout: () -> Unit,
 ) {
-    var tab by rememberSaveable { mutableStateOf(Tab.HOME) }
+    // Home, except in CI's screenshot run, which opens each tab in turn.
+    var tab by rememberSaveable {
+        mutableStateOf(
+            if (BuildConfig.DEBUG) Tab.entries.getOrElse(ScreenshotMode.tab) { Tab.HOME } else Tab.HOME
+        )
+    }
     // Eight fields of thirty. The rest — meal logs, booking slots, the
     // school directory — have no bearing on the scaffold and no longer redraw it.
     val appointments by appViewModel.uiState.selectAsState { it.appointments }
