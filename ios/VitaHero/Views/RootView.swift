@@ -73,7 +73,8 @@ struct RootView: View {
         } catch {
             // NSLog reaches the simulator's log, where CI reads it; quitting
             // makes CI stop instead of photographing the sign-in screen.
-            let ns = error as NSError
+            var ns = error as NSError
+            if case .firebase(let underlying, _) = error as? SignInError { ns = underlying as NSError }
             NSLog("VH_SHOT sign-in failed: %@ %ld %@ | %@", ns.domain, ns.code, ns.userInfo.description,
                   error.localizedDescription)
             exit(EXIT_FAILURE)
