@@ -71,7 +71,11 @@ struct RootView: View {
             try await auth.sendCode(to: phone)
             try await auth.verify(code: code)
         } catch {
-            print("VH_SHOT sign-in failed: \(error)")
+            // NSLog reaches the simulator's log, where CI reads it; quitting
+            // makes CI stop instead of photographing the sign-in screen.
+            let ns = error as NSError
+            NSLog("VH_SHOT sign-in failed: %@ %ld %@", ns.domain, ns.code, ns.userInfo.description)
+            exit(EXIT_FAILURE)
         }
     }
     #endif

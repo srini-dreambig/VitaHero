@@ -138,8 +138,10 @@ jobs:
               if [[ "$running" != *"UIKitApplication:$BUNDLE"* ]]; then
                 echo "::error::VitaHero is not running on $name (tab $i). It crashed or quit."
                 ls -t ~/Library/Logs/DiagnosticReports/VitaHero* 2>/dev/null | head -1 | xargs -I{} head -60 {} || true
-                xcrun simctl spawn "$udid" log show --last 2m --style compact \
-                  --predicate 'process == "VitaHero"' 2>/dev/null | grep -v "VH_SHOT_" | tail -40 || true
+                xcrun simctl spawn "$udid" log show --last 3m --style compact \
+                  --predicate 'process == "VitaHero"' > app.log 2>/dev/null || true
+                grep "VH_SHOT sign-in" app.log || true
+                grep -v "VH_SHOT_" app.log | tail -40 || true
                 exit 1
               fi
               xcrun simctl io "$udid" screenshot "$OUT/$name/$((i + 1))-${tabs[$i]}.png"
