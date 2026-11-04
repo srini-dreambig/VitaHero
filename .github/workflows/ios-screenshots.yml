@@ -131,7 +131,11 @@ jobs:
                 xcrun simctl launch "$udid" "$BUNDLE" > /dev/null
               if [ "$i" = 0 ]; then sleep 40; else sleep 15; fi
               # A home-screen picture is worse than no picture: stop and say why.
-              if ! xcrun simctl spawn "$udid" launchctl list | grep -q "UIKitApplication:$BUNDLE"; then
+              # Read the whole list first: grep -q quits early, and under
+              # pipefail the broken pipe it leaves reads as "not running".
+              local running
+              running=$(xcrun simctl spawn "$udid" launchctl list)
+              if [[ "$running" != *"UIKitApplication:$BUNDLE"* ]]; then
                 echo "::error::VitaHero is not running on $name (tab $i). It crashed or quit."
                 ls -t ~/Library/Logs/DiagnosticReports/VitaHero* 2>/dev/null | head -1 | xargs -I{} head -60 {} || true
                 xcrun simctl spawn "$udid" log show --last 2m --style compact \
