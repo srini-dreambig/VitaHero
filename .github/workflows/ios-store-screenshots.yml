@@ -1,0 +1,129 @@
+# Puts the screenshots an ios-screenshots.yml run took on the App Store
+# version that is being prepared, replacing what is there. Text, build and
+# review status are left alone: deliver runs with metadata, binary and
+# submission all off.
+#
+# "show" lists the version, its languages and how many screenshots each
+# device size has, and changes nothing.
+name: iOS App Store screenshots upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "show changes nothing; upload replaces the screenshots"
+        required: true
+        type: choice
+        default: show
+        options: [show, upload]
+      screenshots_run:
+        description: "The ios-screenshots.yml run id"
+        required: false
+        type: string
+      skip:
+        description: "Shots to leave out, by name (e.g. 3-camps)"
+        required: false
+        type: string
+        default: 3-camps
+
+permissions:
+  contents: read
+  actions: read  # to fetch another run's screenshots
+
+jobs:
+  screenshots:
+    name: "App Store screenshots (${{ inputs.mode }})"
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      BUNDLE: com.vitahero.health
+
+    steps:
+      - name: Write API key
+        env:
+          KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          dir="$(mktemp -d)"
+          umask 077
+          jq -n --arg k "$KEY" --arg i "$KEY_ID" --arg s "$ISSUER" \
+            '{key_id: $i, issuer_id: $s, key: $k, in_house: false}' > "$dir/key.json"
+          echo "KEY_JSON=$dir/key.json" >> "$GITHUB_ENV"
+          echo "KEY_DIR=$dir" >> "$GITHUB_ENV"
+          command -v fastlane > /dev/null || gem install fastlane --no-document
+          fastlane --version | tail -1
+
+      - name: Show the version being prepared
+        run: |
+          cat > "$RUNNER_TEMP/show.rb" <<'RUBY'
+          require "spaceship"
+          Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(filepath: ENV["KEY_JSON"])
+          app = Spaceship::ConnectAPI::App.find(ENV["BUNDLE"]) or abort "No app #{ENV['BUNDLE']}"
+          v = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
+          abort "No App Store version is open for editing" unless v
+          puts "Version #{v.version_string} (#{v.app_store_state})"
+          locales = []
+          v.get_app_store_version_localizations.each do |l|
+            locales << l.locale
+            puts l.locale
+            l.get_app_screenshot_sets.each do |s|
+              puts "  #{s.screenshot_display_type}: #{(s.app_screenshots || []).size}"
+            end
+          end
+          File.write(File.join(ENV["RUNNER_TEMP"], "version"), v.version_string)
+          File.write(File.join(ENV["RUNNER_TEMP"], "locales"), locales.join(" "))
+          RUBY
+          ruby "$RUNNER_TEMP/show.rb"
+
+      - name: Fetch screenshots
+        if: inputs.mode == 'upload'
+        uses: actions/download-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: shots
+          run-id: ${{ inputs.screenshots_run }}
+          github-token: ${{ github.token }}
+
+      - name: Upload screenshots
+        if: inputs.mode == 'upload'
+        env:
+          RUN: ${{ inputs.screenshots_run }}
+          SKIP: ${{ inputs.skip }}
+        run: |
+          set -euo pipefail
+          test -n "$RUN" || { echo "::error::screenshots_run is not set"; exit 1; }
+          for s in $SKIP; do
+            n=0
+            for f in shots/*/"${s%.png}.png"; do [ -f "$f" ] && rm "$f" && n=$((n + 1)); done
+            [ "$n" -gt 0 ] || { echo "::error::No shot named $s to leave out"; exit 1; }
+          done
+          # deliver tells the device from the picture's size, so both sets can
+          # share a folder; the prefix keeps the names apart and the order.
+          for l in $(cat "$RUNNER_TEMP/locales"); do
+            mkdir -p "upload/$l"
+            for d in shots/*/; do
+              dev=$(basename "$d")
+              for f in "$d"*.png; do cp "$f" "upload/$l/$dev-$(basename "$f")"; done
+            done
+            echo "$l: $(ls "upload/$l" | tr '\n' ' ')"
+          done
+          fastlane deliver \
+            --api_key_path "$KEY_JSON" \
+            --app_identifier "$BUNDLE" \
+            --app_version "$(cat "$RUNNER_TEMP/version")" \
+            --platform ios \
+            --screenshots_path upload \
+            --overwrite_screenshots true \
+            --skip_binary_upload true \
+            --skip_metadata true \
+            --skip_app_version_update true \
+            --submit_for_review false \
+            --run_precheck_before_submit false \
+            --force true
+          ruby "$RUNNER_TEMP/show.rb"
+
+      - name: Shred API key
+        if: always()
+        run: rm -rf "$KEY_DIR"
