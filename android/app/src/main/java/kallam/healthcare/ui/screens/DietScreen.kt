@@ -141,7 +141,25 @@ private fun DietPlanCard(plan: DietPlanDto) {
             )
         }
         Spacer(Modifier.height(AppSpacing.sm))
-        Text(plan.guidance, style = MaterialTheme.typography.bodyMedium)
+        if (plan.menu.isNotEmpty()) {
+            // One menu for every age; the server sends the amounts for this child.
+            val age = menuAgeLabel(plan.ageGroup).ifBlank { plan.ageGroupLabel }
+            if (age.isNotBlank()) {
+                Text(
+                    tf(S.dietMenuAmountsFor, age),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(AppSpacing.sm))
+            }
+            FamilyMenu(plan.menu)
+            if (plan.notes.isNotBlank()) {
+                Spacer(Modifier.height(AppSpacing.md))
+                Text(plan.notes, style = MaterialTheme.typography.bodyMedium)
+            }
+        } else {
+            Text(plan.guidance, style = MaterialTheme.typography.bodyMedium)
+        }
         plan.targets.forEach { target ->
             Spacer(Modifier.height(AppSpacing.sm))
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

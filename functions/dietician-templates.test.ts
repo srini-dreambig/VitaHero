@@ -20,12 +20,35 @@ import {
   dieticianCohorts,
   dieticianTemplates,
   guardianDietPlan,
+  notesOf,
   saveDieticianTemplate,
   saveDietPlan,
   setDieticianSchool,
   templateKeyOf,
   upsertDietician,
 } from "./dietician";
+
+describe("what an editor loads into the notes box", () => {
+  const meals = [{ slot: "LUNCH", label: "Lunch", time: "", chooseAny: false, items: [
+    { name: "Millet khichdi", qty: { UNDER_5: "1 cup", AGE_6_10: "", AGE_11_16: "" }, frequency: "DAILY" },
+  ] }] as Parameters<typeof notesOf>[1];
+
+  test("the menu written out as text is not notes", () => {
+    expect(notesOf("Lunch: Millet khichdi", meals)).toBe("");
+  });
+
+  test("a line added after the menu text is the notes", () => {
+    expect(notesOf("Lunch: Millet khichdi\nRinse after eating.", meals)).toBe("Rinse after eating.");
+  });
+
+  test("notes the dietician wrote are kept as written", () => {
+    expect(notesOf("No sweet drinks at all.", meals)).toBe("No sweet drinks at all.");
+  });
+
+  test("without a menu the guidance is the notes", () => {
+    expect(notesOf("Lunch: Millet khichdi", [])).toBe("Lunch: Millet khichdi");
+  });
+});
 
 describe("the groups a plan is written for", () => {
   test("twelve: each growth group for girls and for boys, none for haemoglobin", () => {
@@ -179,6 +202,44 @@ suite("pre-camp plans reach the family", () => {
     const active = await sql`SELECT COUNT(*)::int AS n FROM vita_hero.diet_plans
                              WHERE kid_id = 'k_t' AND status = 'ACTIVE'`;
     expect(active[0].n).toBe(1);
+  });
+
+  test("a menu reaches the family with their child's quantities", async () => {
+    await new Promise((r) => setTimeout(r, 20));
+    const qty = { UNDER_5: "1 small cup", AGE_6_10: "1 cup", AGE_11_16: "2 cups" };
+    const saved = await saveDieticianTemplate(sql, DIET, {
+      key: "OVER+BOYS", title: "Healthy weight plan, v3", guidance: "",
+      meals: [{ slot: "LUNCH", items: [
+        { name: "Millet khichdi", qty },
+        { name: "Fish", qty, frequency: "WEEKLY_TWICE" },
+      ] }],
+    });
+    // No advice typed: the menu stands in for it on older screens.
+    const t = saved.templates.find((x) => x.key === "OVER+BOYS")!;
+    expect(t.meals[0].items.map((i) => i.name)).toEqual(["Millet khichdi", "Fish"]);
+    expect(t.guidance).toContain("Lunch: Millet khichdi, Fish (twice a week)");
+    // An editor reopening it finds an empty notes box, not the old menu as text.
+    expect(t.notes).toBe("");
+    const over = (await dieticianCohorts(sql, DIET, "sch_t")).cohorts.find((c) => c.key === "OVER+BOYS");
+    if (over?.draft.source === "TEMPLATE") expect(over.draft.notes).toBe("");
+    const r = await guardianDietPlan(sql, "ph_part", "k_t");
+    const plan = r.plan!;
+    expect(plan.title).toBe("Healthy weight plan, v3");
+    // The menu-as-text is for older apps; a screen that draws the menu reads no notes.
+    expect(plan.guidance).toContain("Millet khichdi");
+    expect(plan.notes).toBe("");
+    // The family-only fields the app's DietPlanDto reads.
+    expect(plan.ageGroupLabel).not.toBe("");
+    expect("kcal" in plan).toBe(true);
+    expect(plan.menu[0].items[0]).toEqual({
+      name: "Millet khichdi", quantity: qty[plan.ageGroup], frequency: "DAILY", frequencyLabel: "",
+    });
+    expect(plan.menu[0].items[1].frequencyLabel).toBe("Twice a week");
+  });
+
+  test("a plan with neither a menu nor advice is refused", async () => {
+    await expect(saveDieticianTemplate(sql, DIET, { key: "OVER+BOYS", guidance: "", meals: [] }))
+      .rejects.toThrow(/something a family can act on/);
   });
 
   test("tooth decay adds its line to the healthy-weight plan", async () => {

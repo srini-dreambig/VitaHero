@@ -31,6 +31,9 @@ import { Actor, ApiError } from "./schools";
 import { logRecordAccess } from "./oversight";
 import { muacBand, nutritionBand } from "./clinical";
 import { dobText } from "./parent-sheet";
+import {
+  AGE_GROUP_INFO, MenuMeal, ageGroupOf, cleanMeals, menuFor, menuLines, readMeals, starterMeals,
+} from "./diet-menus";
 
 /**
  * Older records carry the birth history and lab orders that were merged into
@@ -133,6 +136,10 @@ export async function ensureDieticianSchema(sql: Sql): Promise<void> {
   // newer version of that plan can replace it. Empty on a plan a dietician
   // wrote for the child, which nothing replaces but the dietician.
   await sql`ALTER TABLE vita_hero.diet_plans ADD COLUMN IF NOT EXISTS template_key TEXT DEFAULT ''`;
+  // The dietician's menu: meals, foods, and a quantity per age group. Older
+  // plans have none and keep their guidance and targets.
+  await sql`ALTER TABLE vita_hero.diet_plans ADD COLUMN IF NOT EXISTS meals JSONB DEFAULT '[]'::jsonb`;
+  await sql`ALTER TABLE vita_hero.diet_plan_templates ADD COLUMN IF NOT EXISTS meals JSONB DEFAULT '[]'::jsonb`;
 }
 
 // ─── The directory side (operations) ────────────────────────
@@ -508,6 +515,7 @@ export async function dieticianChild(sql: Sql, actor: Actor, kidId: string) {
       schoolName: (kid.school_name as string) || "",
       heightCm: Number(kid.height_cm) || 0,
       weightKg: Number(kid.weight_kg) || 0,
+      ...ageGroupFields(dobText(kid.date_of_birth), num(kid.age)),
     },
     findings: findings.map((f) => ({
       checkType: f.check_type as string,
@@ -529,7 +537,15 @@ export async function dieticianChild(sql: Sql, actor: Actor, kidId: string) {
   };
 }
 
+/** A child's age group, as the screens show it. */
+function ageGroupFields(dob: string, age: number | null) {
+  const ageGroup = ageGroupOf(dob, age);
+  return { ageGroup, ageGroupLabel: AGE_GROUP_INFO[ageGroup].label, kcal: AGE_GROUP_INFO[ageGroup].kcal };
+}
+
 function mapPlan(r: Record<string, unknown>) {
+  const meals = readMeals(r.meals);
+  const guidance = (r.guidance as string) || "";
   return {
     id: r.id as string,
     kidId: r.kid_id as string,
@@ -537,12 +553,35 @@ function mapPlan(r: Record<string, unknown>) {
     focus: (r.focus as string) || "GENERAL",
     startsOn: (r.starts_on as string) || "",
     endsOn: (r.ends_on as string) || "",
-    guidance: (r.guidance as string) || "",
+    guidance,
     targets: Array.isArray(r.targets) ? (r.targets as unknown[]) : JSON.parse(String(r.targets || "[]")),
+    meals,
+    // What the dietician wrote beside the menu. When they wrote nothing, the
+    // stored guidance is the menu as text (for older apps), and a screen that
+    // draws the menu would show it twice.
+    notes: notesOf(guidance, meals),
     status: (r.status as string) || "ACTIVE",
     authorName: (r.author_name as string) || "",
     createdAt: r.created_at ? String(r.created_at) : "",
   };
+}
+
+/**
+ * What the dietician wrote beside the menu.
+ *
+ * When they wrote nothing, the stored guidance is the menu as text (for older
+ * apps); a plan given out from a pre-camp plan may add a line after it. A
+ * screen that draws the menu would show that text twice, and an editor that
+ * loaded it would save the old menu back as notes once the menu was changed.
+ */
+export function notesOf(guidance: string, meals: MenuMeal[]): string {
+  if (meals.length === 0) return guidance;
+  const menu = menuLines(meals).trim();
+  const g = guidance.trim();
+  if (!menu) return guidance;
+  if (g === menu) return "";
+  if (g.startsWith(menu + "\n")) return g.slice(menu.length + 1).trim();
+  return guidance;
 }
 
 /**
@@ -578,12 +617,17 @@ function draftPlan(name: string, findings: Array<{ checkType: string; flag: stri
   if (growth) notes.push(band && band !== "Normal"
     ? `the last camp found them ${band.toLowerCase()}`
     : "the last camp flagged height and weight");
+  const thin = growth && !heavy && band !== "Normal";
+  const guidance = notes.length
+    ? `A plan for ${name}: ${notes.join(", and ")}.`
+    : `A plan for ${name}.`;
   return {
     title: anaemic ? "Iron-rich plan" : heavy ? "Healthy weight plan" : growth ? "Growth plan" : "Everyday plan",
+    meals: starterMeals(heavy ? "OVER" : thin ? "UNDER" : "NORMAL"),
     focus,
-    guidance: notes.length
-      ? `A plan for ${name}: ${notes.join(", and ")}.`
-      : `A plan for ${name}.`,
+    guidance,
+    // What an editor loads into the notes box when the plan has a menu.
+    notes: guidance,
   };
 }
 
@@ -602,7 +646,7 @@ export async function saveDietPlan(
   const kidId = String(body.kidId || "").trim();
   if (!kidId) throw new ApiError(400, "Which child?", "KID_REQUIRED");
   const kid = await assertChildInScope(sql, me.id, kidId);
-  const { guidance, focus, targets, startsOn, endsOn, title } = planFields(body);
+  const { guidance, focus, targets, startsOn, endsOn, title, meals } = planFields(body);
 
   const id = `dp_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
   await sql`
@@ -612,12 +656,12 @@ export async function saveDietPlan(
   await sql`
     INSERT INTO vita_hero.diet_plans
       (id, kid_id, school_id, dietician_id, author_profile_id, author_name,
-       title, focus, starts_on, ends_on, guidance, targets, status)
+       title, focus, starts_on, ends_on, guidance, targets, meals, status)
     VALUES
       (${id}, ${kidId}, ${(kid.school_id as string) || ""}, ${me.id}, ${actor.profileId},
        ${me.name}, ${title}, ${focus},
        ${startsOn}, ${endsOn},
-       ${guidance}, ${JSON.stringify(targets)}::jsonb, 'ACTIVE')
+       ${guidance}, ${JSON.stringify(targets)}::jsonb, ${JSON.stringify(meals)}::jsonb, 'ACTIVE')
   `;
   const rows = await sql`SELECT * FROM vita_hero.diet_plans WHERE id = ${id} LIMIT 1`;
   return { plan: mapPlan(rows[0]) };
@@ -625,8 +669,12 @@ export async function saveDietPlan(
 
 /** A plan's fields, checked the same way for one child or a whole group. */
 function planFields(body: Record<string, unknown>) {
-  const guidance = String(body.guidance || "").trim();
-  if (guidance.length < 10) {
+  const meals = cleanMeals(body.meals);
+  // A menu is something a family can act on; without one, the advice must be.
+  // An older app sends no menu, so its plans still need the advice.
+  let guidance = String(body.guidance || "").trim();
+  if (guidance.length < 10 && meals.length > 0) guidance = guidance || menuLines(meals);
+  if (guidance.length < 10 && meals.length === 0) {
     throw new ApiError(400, "A plan needs something a family can act on", "GUIDANCE_REQUIRED");
   }
   const rawFocus = String(body.focus || "GENERAL").toUpperCase();
@@ -652,7 +700,7 @@ function planFields(body: Record<string, unknown>) {
   if (startsOn && endsOn && endsOn < startsOn) {
     throw new ApiError(400, "The plan ends before it starts", "BAD_DATE_RANGE");
   }
-  return { guidance, focus, targets, startsOn, endsOn, title: String(body.title || "").slice(0, 120) };
+  return { guidance, focus, targets, startsOn, endsOn, title: String(body.title || "").slice(0, 120), meals };
 }
 
 // ─── Groups ─────────────────────────────────────────────────
@@ -793,7 +841,10 @@ function templateFor(saved: Map<string, Template>, key: string): Template | unde
 
 const TOOTH_LINE = "If your child has tooth decay: sweets only at mealtimes, no sticky snacks, rinse after eating.";
 
-type Template = { title: string; focus: string; guidance: string; targets: Array<{ label: string; value: string }>; updatedAt?: string };
+type Template = {
+  title: string; focus: string; guidance: string; targets: Array<{ label: string; value: string }>;
+  meals: MenuMeal[]; updatedAt?: string;
+};
 
 function mapTemplate(r: Record<string, unknown>): Template & { updatedAt: string } {
   return {
@@ -801,6 +852,7 @@ function mapTemplate(r: Record<string, unknown>): Template & { updatedAt: string
     focus: (r.focus as string) || "GENERAL",
     guidance: (r.guidance as string) || "",
     targets: Array.isArray(r.targets) ? (r.targets as Template["targets"]) : JSON.parse(String(r.targets || "[]")),
+    meals: readMeals(r.meals),
     updatedAt: r.updated_at ? String(r.updated_at) : "",
   };
 }
@@ -832,7 +884,11 @@ async function templatesOf(sql: Sql, dieticianId: string) {
       saved: saved.has(key),
       title: t ? t.title : draft.title,
       guidance: t ? t.guidance : draft.guidance,
+      // What an editor loads into the notes box when the plan has a menu.
+      notes: t ? notesOf(t.guidance, t.meals) : draft.notes,
       targets: t ? t.targets : draft.targets,
+      // A plan saved before menus existed is offered the starter menu to add.
+      meals: t && t.meals.length ? t.meals : draft.meals,
       updatedAt: t?.updatedAt || "",
     };
   });
@@ -849,16 +905,18 @@ export async function saveDieticianTemplate(sql: Sql, actor: Actor, body: Record
 async function writeTemplate(sql: Sql, dieticianId: string, body: Record<string, unknown>) {
   const key = String(body.key || "");
   if (!TEMPLATE_KEYS.includes(key)) throw new ApiError(400, "No such group", "NO_SUCH_GROUP");
-  const { guidance, targets, title } = planFields(body);
+  const { guidance, targets, title, meals } = planFields(body);
   const [g, ...rest] = key.split("+");
   // The group decides the focus, so the plan cannot be filed under the wrong one.
   const focus = cohortFocus(g as Growth, rest.includes("ANAEMIA"));
   await sql`
-    INSERT INTO vita_hero.diet_plan_templates (dietician_id, cohort_key, title, focus, guidance, targets, updated_at)
-    VALUES (${dieticianId}, ${key}, ${title}, ${focus}, ${guidance}, ${JSON.stringify(targets)}::jsonb, NOW())
+    INSERT INTO vita_hero.diet_plan_templates
+      (dietician_id, cohort_key, title, focus, guidance, targets, meals, updated_at)
+    VALUES (${dieticianId}, ${key}, ${title}, ${focus}, ${guidance}, ${JSON.stringify(targets)}::jsonb,
+            ${JSON.stringify(meals)}::jsonb, NOW())
     ON CONFLICT (dietician_id, cohort_key) DO UPDATE
       SET title = EXCLUDED.title, focus = EXCLUDED.focus, guidance = EXCLUDED.guidance,
-          targets = EXCLUDED.targets, updated_at = NOW()
+          targets = EXCLUDED.targets, meals = EXCLUDED.meals, updated_at = NOW()
   `;
 }
 
@@ -969,8 +1027,13 @@ async function buildCohorts(sql: Sql, schoolId: string, grade: string, dietician
 function templateDraft(t: Template | undefined, s: CohortSummary) {
   if (!t) return null;
   const lines = t.guidance.split("\n");
-  if (s.toothDecay > 0 && !/tooth decay/i.test(t.guidance)) lines.push(TOOTH_LINE);
-  return { title: t.title, focus: t.focus, guidance: lines.join("\n"), targets: t.targets, source: "TEMPLATE" };
+  const own = notesOf(t.guidance, t.meals);
+  const notes = own ? own.split("\n") : [];
+  if (s.toothDecay > 0 && !/tooth decay/i.test(t.guidance)) { lines.push(TOOTH_LINE); notes.push(TOOTH_LINE); }
+  return {
+    title: t.title, focus: t.focus, guidance: lines.join("\n"), notes: notes.join("\n"),
+    targets: t.targets, meals: t.meals, source: "TEMPLATE",
+  };
 }
 
 /** One school's children in groups, optionally one class only. */
@@ -1042,7 +1105,8 @@ function cohortDraft(growth: Growth, anaemic: boolean, s: CohortSummary) {
     ANAEMIA: "Iron-rich plan",
     GENERAL: s.toothDecay > 0 ? "Everyday plan, low sugar" : "Everyday plan",
   }[focus];
-  return { title, focus, guidance: lines.join("\n"), targets, source: "RULES" };
+  const guidance = lines.join("\n");
+  return { title, focus, guidance, notes: guidance, targets, meals: starterMeals(growth), source: "RULES" };
 }
 
 /**
@@ -1086,7 +1150,8 @@ export async function dieticianCohortDraft(
   try { raw = await ask(system, user); } catch { raw = null; }
   const parsed = parseDraft(raw);
   if (!parsed) return { draft: cohort.draft };
-  return { draft: { ...parsed, focus: cohort.focus, source: "AI" } };
+  // The model rewrites the advice; the menu stays the dietician's.
+  return { draft: { ...parsed, notes: parsed.guidance, focus: cohort.focus, meals: cohort.draft.meals, source: "AI" } };
 }
 
 function parseDraft(raw: string | null) {
@@ -1123,7 +1188,7 @@ export async function saveCohortPlan(sql: Sql, actor: Actor, body: Record<string
     : [];
   if (kidIds.length === 0) throw new ApiError(400, "Choose at least one child", "KIDS_REQUIRED");
   if (kidIds.length > 1000) throw new ApiError(400, "At most 1000 children at a time", "TOO_MANY");
-  const { guidance, focus, targets, startsOn, endsOn, title } = planFields(body);
+  const { guidance, focus, targets, startsOn, endsOn, title, meals } = planFields(body);
   const kids = await sql`
     SELECT k.id, k.school_id FROM vita_hero.kids k
     JOIN vita_hero.dietician_schools ds
@@ -1142,9 +1207,10 @@ export async function saveCohortPlan(sql: Sql, actor: Actor, body: Record<string
   await sql`
     INSERT INTO vita_hero.diet_plans
       (id, kid_id, school_id, dietician_id, author_profile_id, author_name,
-       title, focus, starts_on, ends_on, guidance, targets, status)
+       title, focus, starts_on, ends_on, guidance, targets, meals, status)
     SELECT v.id, v.kid_id, v.school_id, ${me.id}, ${actor.profileId}, ${me.name},
-           ${title}, ${focus}, ${startsOn}, ${endsOn}, ${guidance}, ${JSON.stringify(targets)}::jsonb, 'ACTIVE'
+           ${title}, ${focus}, ${startsOn}, ${endsOn}, ${guidance}, ${JSON.stringify(targets)}::jsonb,
+           ${JSON.stringify(meals)}::jsonb, 'ACTIVE'
     FROM unnest(${ids}::text[], ${kids.map((k) => k.id as string)}::text[],
                 ${kids.map((k) => (k.school_id as string) || "")}::text[]) AS v(id, kid_id, school_id)
   `;
@@ -1184,8 +1250,10 @@ export async function guardianDietPlan(sql: Sql, profileId: string, kidId: strin
     if (given) rows = await active();
   }
   const plan = rows.length ? mapPlan(rows[0]) : null;
+  const age = ageGroupFields(dobText(kid.date_of_birth), num(kid.age));
   return {
-    plan,
+    // The menu with this child's quantities; empty for a plan with no menu.
+    plan: plan ? { ...plan, ...age, menu: menuFor(plan.meals, age.ageGroup) } : null,
     dietician: plan ? await dieticianContact(sql, schoolId, (rows[0].dietician_id as string) || "") : null,
     allergyNote: plan ? ALLERGY_NOTE : "",
   };
@@ -1257,9 +1325,10 @@ async function givePrecampPlan(
   await sql`
     INSERT INTO vita_hero.diet_plans
       (id, kid_id, school_id, dietician_id, author_profile_id, author_name,
-       title, focus, guidance, targets, status, template_key)
+       title, focus, guidance, targets, meals, status, template_key)
     VALUES (${id}, ${kidId}, ${schoolId}, ${tpl.dietician_id as string}, '', ${tpl.dietician_name as string},
-            ${m.title}, ${m.focus}, ${guidance}, ${JSON.stringify(m.targets)}::jsonb, 'ACTIVE', ${cohort})
+            ${m.title}, ${m.focus}, ${guidance}, ${JSON.stringify(m.targets)}::jsonb,
+            ${JSON.stringify(m.meals)}::jsonb, 'ACTIVE', ${cohort})
   `;
   return true;
 }

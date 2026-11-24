@@ -83,10 +83,11 @@ final class DieticianStore: ObservableObject {
 
     /// Write one child's plan. On success the class list shows them on one.
     func savePlan(kidId: String, title: String, focus: String, guidance: String,
-                  targets: [DietTarget]) async -> Result<DieticianPlan, Error> {
+                  targets: [DietTarget], meals: [MenuMeal] = []) async -> Result<DieticianPlan, Error> {
         do {
             guard let plan = try await api.saveDietPlan(kidId: kidId, title: title, focus: focus,
-                                                        guidance: guidance, targets: targets) else {
+                                                        guidance: guidance, targets: targets,
+                                                        meals: meals) else {
                 return .failure(APIError.refused(status: 200, code: "", message: "The plan did not come back"))
             }
             if let index = children.firstIndex(where: { $0.kidId == kidId }) {
@@ -127,10 +128,11 @@ final class DieticianStore: ObservableObject {
     /// Send one plan to every child ticked, then re-read the groups: who is
     /// on a plan is the server's to say.
     func saveCohortPlan(schoolId: String, grade: String, kidIds: [String], title: String, focus: String,
-                        guidance: String, targets: [DietTarget]) async -> Result<Int, Error> {
+                        guidance: String, targets: [DietTarget],
+                        meals: [MenuMeal] = []) async -> Result<Int, Error> {
         do {
             let saved = try await api.saveCohortPlan(kidIds: kidIds, title: title, focus: focus,
-                                                     guidance: guidance, targets: targets)
+                                                     guidance: guidance, targets: targets, meals: meals)
             await loadCohorts(schoolId, grade: grade)
             if childrenSchoolId == schoolId { await loadChildren(schoolId) }
             return .success(saved)
@@ -157,10 +159,10 @@ final class DieticianStore: ObservableObject {
 
     /// Save one, then re-read the groups if open: their drafts start from these.
     func saveTemplate(key: String, title: String, guidance: String,
-                      targets: [DietTarget]) async -> Result<Void, Error> {
+                      targets: [DietTarget], meals: [MenuMeal] = []) async -> Result<Void, Error> {
         do {
             templates = try await api.saveDieticianTemplate(key: key, title: title, guidance: guidance,
-                                                            targets: targets)
+                                                            targets: targets, meals: meals)
             if let schoolId = cohortsSchoolId { await loadCohorts(schoolId, grade: "") }
             return .success(())
         } catch {

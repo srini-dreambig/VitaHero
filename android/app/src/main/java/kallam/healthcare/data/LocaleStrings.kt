@@ -124,6 +124,13 @@ object S {
     // The plan a dietician wrote for this child, as the family reads it.
     const val dietPlanTitle = "diet_plan_title"
     const val dietPlanFrom = "diet_plan_from"
+    const val dietMenuAmountsFor = "diet_menu_amounts_for"
+    const val dietMenuChooseAny = "diet_menu_choose_any"
+    const val dietMenuOnceAWeek = "diet_menu_once_a_week"
+    const val dietMenuTwiceAWeek = "diet_menu_twice_a_week"
+    const val dietAgeUnder5 = "diet_age_under_5"
+    const val dietAge6to10 = "diet_age_6_10"
+    const val dietAge11to16 = "diet_age_11_16"
     const val dietAllergyNote = "diet_allergy_note"
     const val dietCallDietician = "diet_call_dietician"
     const val todaysPlan = "todays_plan"
@@ -656,6 +663,13 @@ private val en = mapOf(
     S.mealPhotoOnDevice to "Photos are read on this phone and never sent.",
     S.dietPlanTitle to "Your dietician's plan",
     S.dietPlanFrom to "Written by %s",
+    S.dietMenuAmountsFor to "Amounts for age group: %s",
+    S.dietMenuChooseAny to "Choose any one",
+    S.dietMenuOnceAWeek to "Once a week",
+    S.dietMenuTwiceAWeek to "Twice a week",
+    S.dietAgeUnder5 to "Up to 5 years",
+    S.dietAge6to10 to "6 to 10 years",
+    S.dietAge11to16 to "11 to 16 years",
     S.dietAllergyNote to "If your child has a milk or dairy intolerance, or any food allergy, please phone the dietician before following this plan. They will guide you on what to change.",
     S.dietCallDietician to "Call %s",
     S.todaysPlan to "Today's plan",
@@ -1144,6 +1158,13 @@ private val hi = mapOf(
     S.mealPhotoOnDevice to "\u092B\u093C\u094B\u091F\u094B \u0907\u0938\u0940 \u092B\u093C\u094B\u0928 \u092A\u0930 \u092A\u0922\u093C\u0940 \u091C\u093E\u0924\u0940 \u0939\u0948, \u092D\u0947\u091C\u0940 \u0928\u0939\u0940\u0902 \u091C\u093E\u0924\u0940\u0964",
     S.dietPlanTitle to "\u0906\u092A\u0915\u0947 \u0921\u093E\u092F\u091F\u0940\u0936\u093F\u092F\u0928 \u0915\u0940 \u092F\u094B\u091C\u0928\u093E",
     S.dietPlanFrom to "%s \u0926\u094D\u0935\u093E\u0930\u093E \u0932\u093F\u0916\u0940 \u0917\u0908",
+    S.dietMenuAmountsFor to "\u092E\u093E\u0924\u094D\u0930\u093E \u0907\u0938 \u0906\u092F\u0941 \u0915\u0947 \u0932\u093F\u090F: %s",
+    S.dietMenuChooseAny to "\u0907\u0928\u092E\u0947\u0902 \u0938\u0947 \u0915\u094B\u0908 \u090F\u0915 \u091A\u0941\u0928\u0947\u0902",
+    S.dietMenuOnceAWeek to "\u0939\u092B\u093C\u094D\u0924\u0947 \u092E\u0947\u0902 \u090F\u0915 \u092C\u093E\u0930",
+    S.dietMenuTwiceAWeek to "\u0939\u092B\u093C\u094D\u0924\u0947 \u092E\u0947\u0902 \u0926\u094B \u092C\u093E\u0930",
+    S.dietAgeUnder5 to "5 \u0938\u093E\u0932 \u0924\u0915",
+    S.dietAge6to10 to "6 \u0938\u0947 10 \u0938\u093E\u0932",
+    S.dietAge11to16 to "11 \u0938\u0947 16 \u0938\u093E\u0932",
     S.dietAllergyNote to "\u0905\u0917\u0930 \u0906\u092A\u0915\u0947 \u092C\u091A\u094D\u091A\u0947 \u0915\u094B \u0926\u0942\u0927 \u092F\u093E \u0921\u0947\u092F\u0930\u0940 \u0938\u0947 \u092A\u0930\u0947\u0936\u093E\u0928\u0940 (\u0926\u0942\u0927 \u0928 \u092A\u091A\u0928\u093E) \u092F\u093E \u0915\u093F\u0938\u0940 \u092D\u094B\u091C\u0928 \u0938\u0947 \u090F\u0932\u0930\u094D\u091C\u0940 \u0939\u0948, \u0924\u094B \u092F\u0939 \u092F\u094B\u091C\u0928\u093E \u0936\u0941\u0930\u0942 \u0915\u0930\u0928\u0947 \u0938\u0947 \u092A\u0939\u0932\u0947 \u0921\u093E\u0907\u091F\u0940\u0936\u093F\u092F\u0928 \u0915\u094B \u092B\u093C\u094B\u0928 \u0915\u0930\u0947\u0902\u0964 \u0935\u0947 \u092C\u0924\u093E\u090F\u0901\u0917\u0947 \u0915\u093F \u0915\u094D\u092F\u093E \u092C\u0926\u0932\u0928\u093E \u0939\u0948\u0964",
     S.dietCallDietician to "%s \u0915\u094B \u0915\u0949\u0932 \u0915\u0930\u0947\u0902",
     S.todaysPlan to "\u0906\u091C \u0915\u093E \u092A\u094D\u0932\u093E\u0928",
@@ -1501,6 +1522,13 @@ private val te = mapOf(
     S.mealPhotoOnDevice to "\u0C2B\u0C4B\u0C1F\u0C4B\u0C32\u0C41 \u0C08 \u0C2B\u0C4B\u0C28\u0C4D\u200C\u0C32\u0C4B\u0C28\u0C47 \u0C1A\u0C26\u0C35\u0C2C\u0C21\u0C24\u0C3E\u0C2F\u0C3F, \u0C2A\u0C02\u0C2A\u0C2C\u0C21\u0C35\u0C41.",
     S.dietPlanTitle to "\u0C2E\u0C40 \u0C21\u0C2F\u0C1F\u0C40\u0C37\u0C3F\u0C2F\u0C28\u0C4D \u0C2A\u0C4D\u0C32\u0C3E\u0C28\u0C4D",
     S.dietPlanFrom to "%s \u0C30\u0C3E\u0C38\u0C3F\u0C28\u0C26\u0C3F",
+    S.dietMenuAmountsFor to "\u0C08 \u0C35\u0C2F\u0C38\u0C4D\u0C38\u0C41\u0C15\u0C41 \u0C2A\u0C30\u0C3F\u0C2E\u0C3E\u0C23\u0C3E\u0C32\u0C41: %s",
+    S.dietMenuChooseAny to "\u0C35\u0C40\u0C1F\u0C3F\u0C32\u0C4B \u0C0F\u0C26\u0C48\u0C28\u0C3E \u0C12\u0C15\u0C1F\u0C3F \u0C0E\u0C02\u0C1A\u0C41\u0C15\u0C4B\u0C02\u0C21\u0C3F",
+    S.dietMenuOnceAWeek to "\u0C35\u0C3E\u0C30\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C12\u0C15\u0C38\u0C3E\u0C30\u0C3F",
+    S.dietMenuTwiceAWeek to "\u0C35\u0C3E\u0C30\u0C3E\u0C28\u0C3F\u0C15\u0C3F \u0C30\u0C46\u0C02\u0C21\u0C41\u0C38\u0C3E\u0C30\u0C4D\u0C32\u0C41",
+    S.dietAgeUnder5 to "5 \u0C38\u0C02\u0C35\u0C24\u0C4D\u0C38\u0C30\u0C3E\u0C32 \u0C35\u0C30\u0C15\u0C41",
+    S.dietAge6to10 to "6 \u0C28\u0C41\u0C02\u0C21\u0C3F 10 \u0C38\u0C02\u0C35\u0C24\u0C4D\u0C38\u0C30\u0C3E\u0C32\u0C41",
+    S.dietAge11to16 to "11 \u0C28\u0C41\u0C02\u0C21\u0C3F 16 \u0C38\u0C02\u0C35\u0C24\u0C4D\u0C38\u0C30\u0C3E\u0C32\u0C41",
     S.dietAllergyNote to "\u0C2E\u0C40 \u0C2A\u0C3F\u0C32\u0C4D\u0C32\u0C32\u0C15\u0C41 \u0C2A\u0C3E\u0C32\u0C41 \u0C32\u0C47\u0C26\u0C3E \u0C2A\u0C3E\u0C32 \u0C09\u0C24\u0C4D\u0C2A\u0C24\u0C4D\u0C24\u0C41\u0C32\u0C41 \u0C2A\u0C21\u0C15\u0C2A\u0C4B\u0C24\u0C47 (\u0C2A\u0C3E\u0C32\u0C41 \u0C1C\u0C40\u0C30\u0C4D\u0C23\u0C02 \u0C15\u0C3E\u0C15\u0C2A\u0C4B\u0C24\u0C47) \u0C32\u0C47\u0C26\u0C3E \u0C0F\u0C26\u0C48\u0C28\u0C3E \u0C06\u0C39\u0C3E\u0C30 \u0C05\u0C32\u0C46\u0C30\u0C4D\u0C1C\u0C40 \u0C09\u0C02\u0C1F\u0C47, \u0C08 \u0C2A\u0C4D\u0C32\u0C3E\u0C28\u0C4D \u0C2A\u0C3E\u0C1F\u0C3F\u0C02\u0C1A\u0C47 \u0C2E\u0C41\u0C02\u0C26\u0C41 \u0C21\u0C48\u0C1F\u0C40\u0C37\u0C3F\u0C2F\u0C28\u0C4D\u200C\u0C15\u0C41 \u0C2B\u0C4B\u0C28\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F. \u0C0F\u0C2E\u0C3F \u0C2E\u0C3E\u0C30\u0C4D\u0C1A\u0C3E\u0C32\u0C4B \u0C35\u0C3E\u0C30\u0C41 \u0C1A\u0C46\u0C2C\u0C41\u0C24\u0C3E\u0C30\u0C41.",
     S.dietCallDietician to "%s\u0C15\u0C41 \u0C15\u0C3E\u0C32\u0C4D \u0C1A\u0C47\u0C2F\u0C02\u0C21\u0C3F",
     S.todaysPlan to "\u0C08\u0C30\u0C4B\u0C1C\u0C41 \u0C2A\u0C4D\u0C32\u0C3E\u0C28\u0C4D",

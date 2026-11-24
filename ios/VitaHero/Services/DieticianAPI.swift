@@ -28,7 +28,8 @@ extension APIClient {
     /// Write a plan. The server ends whatever was running before it, and
     /// refuses one without something a family can act on, in its own words.
     func saveDietPlan(kidId: String, title: String, focus: String, startsOn: String = "",
-                      guidance: String, targets: [DietTarget]) async throws -> DieticianPlan? {
+                      guidance: String, targets: [DietTarget],
+                      meals: [MenuMeal] = []) async throws -> DieticianPlan? {
         let reply: DieticianPlanSaved = try await post("/api/dietician/plan", json: [
             "kidId": kidId,
             "title": title,
@@ -37,6 +38,7 @@ extension APIClient {
             "endsOn": "",
             "guidance": guidance,
             "targets": targets.map(\.body),
+            "meals": meals.map(\.body),
         ])
         return reply.plan
     }
@@ -64,25 +66,27 @@ extension APIClient {
     /// Write or rewrite one pre-camp plan. The server sets its focus from the
     /// group. Answers with all twelve.
     func saveDieticianTemplate(key: String, title: String, guidance: String,
-                               targets: [DietTarget]) async throws -> DietTemplates {
+                               targets: [DietTarget], meals: [MenuMeal] = []) async throws -> DietTemplates {
         try await post("/api/dietician/templates", json: [
             "key": key,
             "title": title,
             "guidance": guidance,
             "targets": targets.map(\.body),
+            "meals": meals.map(\.body),
         ])
     }
 
     /// One plan to every child ticked. All of them or none: the server checks
     /// each is at one of this person's schools. Returns how many it went to.
     func saveCohortPlan(kidIds: [String], title: String, focus: String, guidance: String,
-                        targets: [DietTarget]) async throws -> Int {
+                        targets: [DietTarget], meals: [MenuMeal] = []) async throws -> Int {
         let reply: CohortPlanSaved = try await post("/api/dietician/cohort-plan", json: [
             "kidIds": kidIds,
             "title": title,
             "focus": focus,
             "guidance": guidance,
             "targets": targets.map(\.body),
+            "meals": meals.map(\.body),
         ])
         return reply.saved
     }

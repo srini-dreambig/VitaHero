@@ -415,7 +415,12 @@ suite("what a dietician can reach", () => {
         record.child as Record<string, unknown>)).toEqual([]);
       expect(missing(fieldsOf("DieticianFindingDto"),
         (record.findings as Record<string, unknown>[])[0])).toEqual([]);
-      expect(missing(fieldsOf("DietPlanDto"),
+      // The menu with one child's quantities, and that child's age group, are
+      // the family's view of a plan (guardianDietPlan, checked in
+      // dietician-templates.test.ts); the dietician reads every age's
+      // quantities in `meals` instead.
+      const familyOnly = ["menu", "ageGroup", "ageGroupLabel", "kcal"];
+      expect(missing(fieldsOf("DietPlanDto").filter((f) => !familyOnly.includes(f)),
         (record.plans as Record<string, unknown>[])[0])).toEqual([]);
       expect(missing(fieldsOf("DietDraftDto"),
         record.draft as Record<string, unknown>)).toEqual([]);

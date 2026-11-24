@@ -179,6 +179,7 @@ class DieticianViewModel(
         startsOn: String,
         guidance: String,
         targets: List<DietTargetDto>,
+        meals: List<MenuMealDto> = emptyList(),
     ) {
         viewModelScope.launch {
             _busy.value = true
@@ -190,6 +191,7 @@ class DieticianViewModel(
                     startsOn = startsOn,
                     guidance = guidance,
                     targets = targets,
+                    meals = meals,
                 ),
             )
             _busy.value = false
@@ -230,11 +232,17 @@ class DieticianViewModel(
         _templateSaved.value = ""
     }
 
-    fun saveTemplate(key: String, title: String, guidance: String, targets: List<DietTargetDto>) {
+    fun saveTemplate(
+        key: String,
+        title: String,
+        guidance: String,
+        targets: List<DietTargetDto>,
+        meals: List<MenuMealDto> = emptyList(),
+    ) {
         viewModelScope.launch {
             _busy.value = true
             _message.value = ""
-            val r = repo.saveTemplate(DietTemplateBody(key, title, guidance, targets))
+            val r = repo.saveTemplate(DietTemplateBody(key, title, guidance, targets, meals))
             _busy.value = false
             r.fold(
                 onSuccess = {
@@ -284,11 +292,12 @@ class DieticianViewModel(
         focus: String,
         guidance: String,
         targets: List<DietTargetDto>,
+        meals: List<MenuMealDto> = emptyList(),
     ) {
         viewModelScope.launch {
             _busy.value = true
             _message.value = ""
-            val r = repo.saveCohortPlan(CohortPlanBody(kidIds, title, focus, guidance, targets))
+            val r = repo.saveCohortPlan(CohortPlanBody(kidIds, title, focus, guidance, targets, meals))
             _busy.value = false
             r.fold(
                 onSuccess = { n ->

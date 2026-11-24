@@ -1,5 +1,7 @@
 package kallam.healthcare.data
 
+import kotlinx.serialization.EncodeDefault
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -75,6 +77,73 @@ data class DietTargetDto(
     val value: String = "",
 )
 
+// ─── The menu ───────────────────────────────────────────────
+
+/** The three age groups a menu item carries a quantity for, in order. */
+val MENU_AGE_GROUPS = listOf("UNDER_5", "AGE_6_10", "AGE_11_16")
+val MENU_AGE_LABEL = mapOf("UNDER_5" to "Up to 5", "AGE_6_10" to "6–10 yrs", "AGE_11_16" to "11–16 yrs")
+/** "W/1" and "W/2" in the dietician's notes. */
+val MENU_FREQUENCIES = listOf("DAILY", "WEEKLY_ONCE", "WEEKLY_TWICE")
+val MENU_FREQUENCY_LABEL = mapOf("DAILY" to "Daily", "WEEKLY_ONCE" to "Once a week", "WEEKLY_TWICE" to "Twice a week")
+val MENU_SLOTS = listOf("EARLY_MORNING", "BREAKFAST", "MID_MORNING", "LUNCH", "EVENING", "DINNER", "BEDTIME")
+val MENU_SLOT_LABEL = mapOf(
+    "EARLY_MORNING" to "Early morning",
+    "BREAKFAST" to "Breakfast",
+    "MID_MORNING" to "Mid-morning snack",
+    "LUNCH" to "Lunch",
+    "EVENING" to "Evening snack",
+    "DINNER" to "Dinner",
+    "BEDTIME" to "Bedtime",
+)
+
+/**
+ * One food on the dietician's menu. The menu is the same for every age; only
+ * the quantity changes, so there is one per age group (UNDER_5, AGE_6_10,
+ * AGE_11_16) — functions/diet-menus.ts.
+ */
+@Serializable
+data class MenuItemDto(
+    val name: String = "",
+    val qty: Map<String, String> = emptyMap(),
+    @OptIn(ExperimentalSerializationApi::class) @EncodeDefault
+    val frequency: String = "DAILY",
+)
+
+@Serializable
+data class MenuMealDto(
+    // Always sent: the API client skips default values, and a meal with no
+    // slot is dropped by the server, so Breakfast would vanish on save.
+    @OptIn(ExperimentalSerializationApi::class) @EncodeDefault
+    val slot: String = "BREAKFAST",
+    val label: String = "",
+    val time: String = "",
+    /** The family picks one of the items rather than eating them all. */
+    val chooseAny: Boolean = false,
+    val items: List<MenuItemDto> = emptyList(),
+)
+
+/** A food as a family sees it: the quantity for their own child's age. */
+@Serializable
+data class FamilyMenuItemDto(
+    val name: String = "",
+    val quantity: String = "",
+    @OptIn(ExperimentalSerializationApi::class) @EncodeDefault
+    val frequency: String = "DAILY",
+    val frequencyLabel: String = "",
+)
+
+@Serializable
+data class FamilyMenuMealDto(
+    val slot: String = "",
+    val label: String = "",
+    val time: String = "",
+    val chooseAny: Boolean = false,
+    val items: List<FamilyMenuItemDto> = emptyList(),
+)
+
+/** A menu with at least one named food: enough to send without written advice. */
+fun List<MenuMealDto>.hasFood(): Boolean = any { m -> m.items.any { it.name.isNotBlank() } }
+
 @Serializable
 data class DietPlanDto(
     val id: String = "",
@@ -88,6 +157,18 @@ data class DietPlanDto(
     val status: String = "ACTIVE",
     val authorName: String = "",
     val createdAt: String = "",
+    /** The dietician's menu, every age's quantity. Empty on plans written before menus. */
+    val meals: List<MenuMealDto> = emptyList(),
+    /** Parent's view only: the menu with this child's quantities. */
+    val menu: List<FamilyMenuMealDto> = emptyList(),
+    val ageGroup: String = "",
+    val ageGroupLabel: String = "",
+    val kcal: String = "",
+    /**
+     * The dietician's own words beside the menu. Blank when the written advice
+     * is only the menu spelled out for older apps, so it is not shown twice.
+     */
+    val notes: String = "",
     /** Parent's view only: who to phone about an allergy. Not on the wire: the repository fills it in. */
     @kotlinx.serialization.Transient val dieticianName: String = "",
     @kotlinx.serialization.Transient val dieticianPhone: String = "",
@@ -99,6 +180,12 @@ data class DietDraftDto(
     val title: String = "",
     val focus: String = "GENERAL",
     val guidance: String = "",
+    /**
+     * What goes in the notes box beside the menu: the guidance without the
+     * menu written out as text. Null from a server older than notes.
+     */
+    val notes: String? = null,
+    val meals: List<MenuMealDto> = emptyList(),
 )
 
 @Serializable
@@ -120,6 +207,9 @@ data class DieticianChildProfileDto(
     val schoolName: String = "",
     val heightCm: Float = 0f,
     val weightKg: Float = 0f,
+    val ageGroup: String = "",
+    val ageGroupLabel: String = "",
+    val kcal: String = "",
 )
 
 @Serializable
@@ -131,6 +221,7 @@ data class DietPlanBody(
     val endsOn: String = "",
     val guidance: String = "",
     val targets: List<DietTargetDto> = emptyList(),
+    val meals: List<MenuMealDto> = emptyList(),
 )
 
 @Serializable
@@ -252,8 +343,14 @@ data class CohortDraftDto(
     val title: String = "",
     val focus: String = "GENERAL",
     val guidance: String = "",
+    /**
+     * What goes in the notes box beside the menu: the guidance without the
+     * menu written out as text. Null from a server older than notes.
+     */
+    val notes: String? = null,
     val targets: List<DietTargetDto> = emptyList(),
     val source: String = "RULES",
+    val meals: List<MenuMealDto> = emptyList(),
 )
 
 /** One of the twelve plans written before a camp, one per group. */
@@ -266,8 +363,14 @@ data class DietTemplateDto(
     val saved: Boolean = false,
     val title: String = "",
     val guidance: String = "",
+    /**
+     * What goes in the notes box beside the menu: the guidance without the
+     * menu written out as text. Null from a server older than notes.
+     */
+    val notes: String? = null,
     val targets: List<DietTargetDto> = emptyList(),
     val updatedAt: String = "",
+    val meals: List<MenuMealDto> = emptyList(),
 )
 
 @Serializable
@@ -282,6 +385,7 @@ data class DietTemplateBody(
     val title: String = "",
     val guidance: String = "",
     val targets: List<DietTargetDto> = emptyList(),
+    val meals: List<MenuMealDto> = emptyList(),
 )
 
 @Serializable
@@ -297,6 +401,7 @@ data class CohortPlanBody(
     val focus: String = "GENERAL",
     val guidance: String = "",
     val targets: List<DietTargetDto> = emptyList(),
+    val meals: List<MenuMealDto> = emptyList(),
 )
 
 @Serializable
