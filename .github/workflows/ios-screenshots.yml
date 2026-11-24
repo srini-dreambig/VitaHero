@@ -17,10 +17,34 @@ name: iOS App Store screenshots
 
 on:
   workflow_dispatch:
+    inputs:
+      store:
+        # none takes new screenshots. show lists the App Store version being
+        # prepared and changes nothing; upload replaces its screenshots with
+        # the ones a capture run took (text, build and review are left alone).
+        description: "none captures; show / upload work on App Store Connect"
+        required: true
+        type: choice
+        default: none
+        options: [none, show, upload]
+      screenshots_run:
+        description: "For upload: the capture run id"
+        required: false
+        type: string
+      skip:
+        description: "For upload: shots to leave out, by name"
+        required: false
+        type: string
+        default: 3-camps
+
+permissions:
+  contents: read
+  actions: read  # to fetch another run's screenshots
 
 jobs:
   screenshots:
     name: Capture screenshots
+    if: inputs.store == 'none'
     runs-on: macos-15
     timeout-minutes: 60
 
@@ -50,7 +74,19 @@ jobs:
       - name: Write Firebase config
         env:
           GOOGLE_SERVICE_INFO_PLIST_BASE64: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST_BASE64 }}
-        run: echo -n "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 --decode -o ios/VitaHero/GoogleService-Info.plist
+        run: |
+          PLIST=ios/VitaHero/GoogleService-Info.plist
+          echo -n "$GOOGLE_SERVICE_INFO_PLIST_BASE64" | base64 --decode -o "$PLIST"
+          # Firebase phone auth throws on launch when Info.plist lacks its URL
+          # scheme, even with app verification off. Same rule as ios-publish.yml.
+          SCHEME=$(/usr/libexec/PlistBuddy -c "Print :REVERSED_CLIENT_ID" "$PLIST" 2>/dev/null || true)
+          if [ -z "$SCHEME" ]; then
+            APP_ID=$(/usr/libexec/PlistBuddy -c "Print :GOOGLE_APP_ID" "$PLIST")
+            SCHEME="app-$(echo "$APP_ID" | tr ':' '-')"
+          fi
+          /usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $SCHEME" ios/VitaHero/Info.plist
+          # Not a secret; the server checks tokens against one Firebase project.
+          echo "Firebase project: $(/usr/libexec/PlistBuddy -c 'Print :PROJECT_ID' "$PLIST")"
 
       - name: Install XcodeGen
         run: brew install xcodegen
@@ -59,6 +95,9 @@ jobs:
         run: cd ios && xcodegen generate
 
       - name: Build Debug for the simulator
+        # Signed "to run locally" (ad hoc, no team): an unsigned simulator app
+        # has no application-identifier entitlement, so the keychain refuses it
+        # (-34018) and Firebase cannot keep the signed-in user.
         run: |
           xcodebuild build \
             -project ios/VitaHero.xcodeproj \
@@ -67,7 +106,8 @@ jobs:
             -sdk iphonesimulator \
             -destination "generic/platform=iOS Simulator" \
             -derivedDataPath build/dd \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
+            CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO \
             | tee build.log | grep -E "error:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" build.log
 
@@ -120,6 +160,20 @@ jobs:
               SIMCTL_CHILD_VH_SHOT_TAB="$i" \
                 xcrun simctl launch "$udid" "$BUNDLE" > /dev/null
               if [ "$i" = 0 ]; then sleep 40; else sleep 15; fi
+              # A home-screen picture is worse than no picture: stop and say why.
+              # Read the whole list first: grep -q quits early, and under
+              # pipefail the broken pipe it leaves reads as "not running".
+              local running
+              running=$(xcrun simctl spawn "$udid" launchctl list)
+              if [[ "$running" != *"UIKitApplication:$BUNDLE"* ]]; then
+                echo "::error::VitaHero is not running on $name (tab $i). It crashed or quit."
+                ls -t ~/Library/Logs/DiagnosticReports/VitaHero* 2>/dev/null | head -1 | xargs -I{} head -60 {} || true
+                xcrun simctl spawn "$udid" log show --last 3m --style compact \
+                  --predicate 'process == "VitaHero"' > app.log 2>/dev/null || true
+                grep "VH_SHOT sign-in" app.log || true
+                grep -v "VH_SHOT_" app.log | tail -40 || true
+                exit 1
+              fi
               xcrun simctl io "$udid" screenshot "$OUT/$name/$((i + 1))-${tabs[$i]}.png"
             done
             xcrun simctl shutdown "$udid"
@@ -135,3 +189,91 @@ jobs:
           name: app-store-screenshots
           path: screenshots
           if-no-files-found: error
+
+  store:
+    name: "App Store screenshots (${{ inputs.store }})"
+    if: inputs.store != 'none'
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      BUNDLE: com.vitahero.health
+
+    steps:
+      - name: Write API key
+        env:
+          KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ISSUER: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          dir="$(mktemp -d)"
+          umask 077
+          jq -n --arg k "$KEY" --arg i "$KEY_ID" --arg s "$ISSUER" \
+            '{key_id: $i, issuer_id: $s, key: $k, in_house: false}' > "$dir/key.json"
+          echo "KEY_JSON=$dir/key.json" >> "$GITHUB_ENV"
+          echo "KEY_DIR=$dir" >> "$GITHUB_ENV"
+          command -v fastlane > /dev/null || gem install fastlane --no-document
+          fastlane --version | tail -1
+
+      - name: Show the version being prepared
+        run: |
+          cat > "$RUNNER_TEMP/show.rb" <<'RUBY'
+          require "spaceship"
+          Spaceship::ConnectAPI.token = Spaceship::ConnectAPI::Token.from(filepath: ENV["KEY_JSON"])
+          app = Spaceship::ConnectAPI::App.find(ENV["BUNDLE"]) or abort "No app #{ENV['BUNDLE']}"
+          v = app.get_edit_app_store_version(platform: Spaceship::ConnectAPI::Platform::IOS)
+          abort "No App Store version is open for editing" unless v
+          puts "Version #{v.version_string} (#{v.app_store_state})"
+          locales = []
+          v.get_app_store_version_localizations.each do |l|
+            locales << l.locale
+            puts l.locale
+            l.get_app_screenshot_sets.each do |s|
+              puts "  #{s.screenshot_display_type}: #{(s.app_screenshots || []).size}"
+            end
+          end
+          File.write(File.join(ENV["RUNNER_TEMP"], "version"), v.version_string)
+          File.write(File.join(ENV["RUNNER_TEMP"], "locales"), locales.join(" "))
+          RUBY
+          ruby "$RUNNER_TEMP/show.rb"
+
+      - name: Fetch screenshots
+        if: inputs.store == 'upload'
+        uses: actions/download-artifact@v4
+        with:
+          name: app-store-screenshots
+          path: shots
+          run-id: ${{ inputs.screenshots_run }}
+          github-token: ${{ github.token }}
+
+      - name: Upload screenshots
+        if: inputs.store == 'upload'
+        env:
+          RUN: ${{ inputs.screenshots_run }}
+          SKIP: ${{ inputs.skip }}
+        run: |
+          set -euo pipefail
+          test -n "$RUN" || { echo "::error::screenshots_run is not set"; exit 1; }
+          for s in $SKIP; do
+            n=0
+            for f in shots/*/"${s%.png}.png"; do [ -f "$f" ] && rm "$f" && n=$((n + 1)); done
+            [ "$n" -gt 0 ] || { echo "::error::No shot named $s to leave out"; exit 1; }
+          done
+          # deliver tells the device from the picture's size, so both sets can
+          # share a folder; the prefix keeps the names apart and the order.
+          for l in $(cat "$RUNNER_TEMP/locales"); do
+            mkdir -p "upload/$l"
+            for d in shots/*/; do
+              dev=$(basename "$d")
+              for f in "$d"*.png; do cp "$f" "upload/$l/$dev-$(basename "$f")"; done
+            done
+            echo "$l: $(ls "upload/$l" | tr '\n' ' ')"
+          done
+          # The action, not "fastlane deliver": that one stops to offer to set
+          # up a Deliverfile, which CI cannot answer.
+          fastlane run upload_to_app_store             api_key_path:"$KEY_JSON"             app_identifier:"$BUNDLE"             app_version:"$(cat "$RUNNER_TEMP/version")"             platform:ios             screenshots_path:upload             overwrite_screenshots:true             skip_binary_upload:true             skip_metadata:true             skip_app_version_update:true             submit_for_review:false             run_precheck_before_submit:false             force:true
+          ruby "$RUNNER_TEMP/show.rb"
+
+      - name: Shred API key
+        if: always()
+        run: rm -rf "$KEY_DIR"

@@ -29,6 +29,7 @@ import kallam.healthcare.data.ApiRepositoryProvider
 import kallam.healthcare.data.AppViewModel
 import kallam.healthcare.data.LocalAppLocale
 import kallam.healthcare.data.NotificationScheduler
+import kallam.healthcare.data.ScreenshotMode
 import kallam.healthcare.data.VitaHeroViewModelFactory
 import kallam.healthcare.ui.components.selectAsState
 import kallam.healthcare.ui.navigation.AppNavigation
@@ -57,6 +58,7 @@ class MainActivity : ComponentActivity() {
         runCatching { NotificationScheduler.createChannels(this) }
         handleInviteDeepLink(intent)
         overrideRouteState.value = debugRoute(intent)
+        ScreenshotMode.read(intent)
 
         setContent {
             val app = runCatching { application as VitaHeroApplication }.getOrNull()
@@ -87,6 +89,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+            }
+
+            // CI's screenshot run (debug builds only; see ScreenshotMode).
+            if (BuildConfig.DEBUG && ScreenshotMode.isOn) {
+                val authError by appViewModel.authError.collectAsState()
+                LaunchedEffect(Unit) { ScreenshotMode.signIn(this@MainActivity, appViewModel) }
+                LaunchedEffect(authError) { authError?.let { ScreenshotMode.fail(it) } }
             }
 
             LaunchedEffect(syncMessage) {

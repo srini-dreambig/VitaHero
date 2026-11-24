@@ -71,7 +71,13 @@ struct RootView: View {
             try await auth.sendCode(to: phone)
             try await auth.verify(code: code)
         } catch {
-            print("VH_SHOT sign-in failed: \(error)")
+            // NSLog reaches the simulator's log, where CI reads it; quitting
+            // makes CI stop instead of photographing the sign-in screen.
+            var ns = error as NSError
+            if case .firebase(let underlying, _) = error as? SignInError { ns = underlying as NSError }
+            NSLog("VH_SHOT sign-in failed: %@ %ld %@ | %@", ns.domain, ns.code, ns.userInfo.description,
+                  error.localizedDescription)
+            exit(EXIT_FAILURE)
         }
     }
     #endif
