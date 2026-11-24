@@ -151,6 +151,7 @@ struct DieticianCohortView: View {
     @State private var title: String
     @State private var guidance: String
     @State private var targets: [DietTarget]
+    @State private var meals: [MenuMeal]
     @State private var source: String
     @State private var ticked: Set<String>
     @State private var busy = false
@@ -163,8 +164,9 @@ struct DieticianCohortView: View {
         self.grade = grade
         self.cohort = cohort
         _title = State(initialValue: cohort.draft.title)
-        _guidance = State(initialValue: cohort.draft.guidance)
+        _guidance = State(initialValue: cohort.draft.notes)
         _targets = State(initialValue: cohort.draft.targets)
+        _meals = State(initialValue: cohort.draft.meals)
         _source = State(initialValue: cohort.draft.source)
         _ticked = State(initialValue: Set(cohort.children.map(\.kidId)))
     }
@@ -204,7 +206,7 @@ struct DieticianCohortView: View {
 
                 PrimaryButton(title: sendTitle, busy: busy,
                               enabled: !busy && !ticked.isEmpty
-                                  && guidance.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10) {
+                                  && (meals.hasFood || guidance.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10)) {
                     Task { await send() }
                 }
                 Text("Tap a name to open that child's record and write them a plan of their own.")
@@ -231,7 +233,9 @@ struct DieticianCohortView: View {
             Text("A starting point. Change anything before you send it.")
                 .font(.vh(.footnote)).foregroundColor(.secondary)
             TextFieldRow(label: "Title", value: $title)
-            DieticianTextArea(label: "What the family should do", text: $guidance, minHeight: 160)
+            MenuEditorView(meals: $meals)
+            DieticianTextArea(label: meals.hasFood ? "Notes for the family (optional)" : "What the family should do",
+                              text: $guidance, minHeight: 160)
             Text("Targets").font(.vh(.subheadline, .semibold))
             ForEach(targets.indices, id: \.self) { i in
                 HStack(alignment: .bottom, spacing: 6) {
@@ -339,8 +343,10 @@ struct DieticianCohortView: View {
         case .success(let draft):
             message = ""
             title = draft.title
-            guidance = draft.guidance
+            guidance = draft.notes
             targets = draft.targets
+            // A draft without a menu leaves the one being written.
+            if !draft.meals.isEmpty { meals = draft.meals }
             source = draft.source
         case .failure(let error):
             message = clinicianMessage(error, fallback: "No draft came back.")
@@ -357,7 +363,8 @@ struct DieticianCohortView: View {
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             focus: cohort.focus,
             guidance: guidance.trimmingCharacters(in: .whitespacesAndNewlines),
-            targets: targets.filter { !$0.label.trimmingCharacters(in: .whitespaces).isEmpty })
+            targets: targets.filter { !$0.label.trimmingCharacters(in: .whitespaces).isEmpty },
+            meals: meals)
         switch result {
         case .success(let n):
             saved = n
@@ -434,6 +441,7 @@ struct DieticianTemplateView: View {
     @State private var title = ""
     @State private var guidance = ""
     @State private var targets: [DietTarget] = []
+    @State private var meals: [MenuMeal] = []
     @State private var busy = false
     @State private var message = ""
     @State private var saved = false
@@ -457,7 +465,9 @@ struct DieticianTemplateView: View {
                              : "A starter draft. Change anything before you save it.")
                             .font(.vh(.footnote)).foregroundColor(.secondary)
                         TextFieldRow(label: "Title", value: $title)
-                        DieticianTextArea(label: "What the family should do", text: $guidance, minHeight: 160)
+                        MenuEditorView(meals: $meals)
+                        DieticianTextArea(label: meals.hasFood ? "Notes for the family (optional)" : "What the family should do",
+                                          text: $guidance, minHeight: 160)
                         Text("Targets").font(.vh(.subheadline, .semibold))
                         ForEach(targets.indices, id: \.self) { i in
                             HStack(alignment: .bottom, spacing: 6) {
@@ -476,7 +486,8 @@ struct DieticianTemplateView: View {
                         }
                     }
                     PrimaryButton(title: busy ? "Saving…" : "Save this group's plan", busy: busy,
-                                  enabled: !busy && guidance.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10) {
+                                  enabled: !busy && (meals.hasFood
+                                      || guidance.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10)) {
                         Task { await save() }
                     }
                     Text("Families are asked to phone you before following it if their child has a milk "
@@ -503,8 +514,9 @@ struct DieticianTemplateView: View {
         guard loadedKey != key, let template else { return }
         loadedKey = key
         title = template.title
-        guidance = template.guidance
+        guidance = template.notes
         targets = template.targets
+        meals = template.meals
     }
 
     private func targetBinding(_ index: Int, _ field: WritableKeyPath<DietTarget, String>) -> Binding<String> {
@@ -523,7 +535,8 @@ struct DieticianTemplateView: View {
             key: key,
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             guidance: guidance.trimmingCharacters(in: .whitespacesAndNewlines),
-            targets: targets.filter { !$0.label.trimmingCharacters(in: .whitespaces).isEmpty })
+            targets: targets.filter { !$0.label.trimmingCharacters(in: .whitespaces).isEmpty },
+            meals: meals)
         switch result {
         case .success: saved = true
         case .failure(let error): message = clinicianMessage(error, fallback: "The plan was not saved.")

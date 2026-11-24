@@ -22,10 +22,13 @@ struct DieticianChildView: View {
     @State private var title = ""
     @State private var focus = "GENERAL"
     @State private var guidance = ""
+    @State private var meals: [MenuMeal] = []
     @State private var targetLabel = ""
     @State private var targetValue = ""
 
     private var current: DieticianPlan? { record?.plans.first { $0.status == "ACTIVE" } }
+    /// Whose quantities this child's family sees.
+    private var ageGroup: String { record?.child?.ageGroup ?? "" }
 
     var body: some View {
         ScrollView {
@@ -73,6 +76,11 @@ struct DieticianChildView: View {
 
         // The plan
         Text("The plan").font(.vh(.headline)).padding(.top, 6)
+        if let child = r.child, !child.ageGroup.isEmpty {
+            let age = child.ageGroupLabel.isEmpty ? (DietMenu.ageLabels[child.ageGroup] ?? "") : child.ageGroupLabel
+            Text(["Age group: " + age, child.kcal].filter { !$0.isEmpty }.joined(separator: " · "))
+                .font(.vh(.footnote)).foregroundColor(.secondary)
+        }
         if writing {
             editor
         } else if let current {
@@ -129,7 +137,11 @@ struct DieticianChildView: View {
             Text([dietFocusLabel(plan.focus), plan.authorName, plan.startsOn].filter { !$0.isEmpty }
                 .joined(separator: " · "))
                 .font(.vh(.caption)).foregroundColor(.secondary)
-            Text(plan.guidance).font(.vh(.body))
+            if !plan.meals.isEmpty {
+                FamilyMenuView(menu: familyMenu(plan.meals, ageGroup: ageGroup))
+            }
+            let words = plan.meals.isEmpty ? plan.guidance : plan.notes
+            if !words.isEmpty { Text(words).font(.vh(.body)) }
             ForEach(Array(plan.targets.enumerated()), id: \.offset) { _, target in
                 HStack {
                     Text(target.label).font(.vh(.footnote)).foregroundColor(.secondary)
@@ -140,7 +152,8 @@ struct DieticianChildView: View {
             PrimaryButton(title: "Replace this plan", enabled: !busy) {
                 title = plan.title
                 focus = plan.focus
-                guidance = plan.guidance
+                guidance = plan.meals.isEmpty ? plan.guidance : plan.notes
+                if !plan.meals.isEmpty { meals = plan.meals }
                 writing = true
             }
             Text("The plan before it is kept, so the family can see what changed.")
@@ -159,17 +172,20 @@ struct DieticianChildView: View {
                     }
                 }
             }
-            DieticianTextArea(label: "What the family should do", text: $guidance)
+            MenuEditorView(meals: $meals, childAgeGroup: ageGroup)
+            DieticianTextArea(label: meals.hasFood ? "Notes for the family (optional)" : "What the family should do",
+                              text: $guidance)
             Text("One thing to aim for (optional)").font(.vh(.subheadline, .semibold))
             HStack(spacing: 8) {
                 TextFieldRow(label: "Such as", value: $targetLabel)
                 TextFieldRow(label: "How much", value: $targetValue)
             }
             PrimaryButton(title: busy ? "Saving…" : "Send this plan to the family", busy: busy,
-                          enabled: !busy && guidance.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10) {
+                          enabled: !busy && (meals.hasFood
+                              || guidance.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10)) {
                 Task { await save() }
             }
-            Text("A plan needs a sentence the family can act on.")
+            Text("A plan needs a menu with at least one food, or a sentence the family can act on.")
                 .font(.vh(.footnote)).foregroundColor(.secondary)
         }
     }
@@ -187,7 +203,8 @@ struct DieticianChildView: View {
             if !writing {
                 title = fetched.draft.title
                 focus = fetched.draft.focus
-                guidance = fetched.draft.guidance
+                guidance = fetched.draft.notes
+                meals = fetched.draft.meals
             }
         } catch is CancellationError {
         } catch {
@@ -202,7 +219,7 @@ struct DieticianChildView: View {
         let label = targetLabel.trimmingCharacters(in: .whitespaces)
         let targets = label.isEmpty ? [] : [DietTarget(label: targetLabel, value: targetValue)]
         let result = await dietician.savePlan(kidId: kidId, title: title, focus: focus,
-                                              guidance: guidance, targets: targets)
+                                              guidance: guidance, targets: targets, meals: meals)
         switch result {
         case .success:
             message = ""

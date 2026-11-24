@@ -22,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import kallam.healthcare.data.DietTargetDto
 import kallam.healthcare.data.DieticianFindingDto
 import kallam.healthcare.data.DieticianViewModel
+import kallam.healthcare.data.MenuMealDto
+import kallam.healthcare.data.hasFood
 import kallam.healthcare.ui.components.AppCard
 import kallam.healthcare.ui.components.AppScreenHeader
 import kallam.healthcare.ui.components.AppSectionTitle
@@ -79,7 +82,9 @@ fun DieticianChildScreen(
     var writing by remember(kidId) { mutableStateOf(false) }
     var title by remember(kidId, draft) { mutableStateOf(draft?.title ?: "") }
     var focus by remember(kidId, draft) { mutableStateOf(draft?.focus ?: "GENERAL") }
-    var guidance by remember(kidId, draft) { mutableStateOf(draft?.guidance ?: "") }
+    var guidance by remember(kidId, draft) { mutableStateOf(draft?.let { it.notes ?: it.guidance } ?: "") }
+    val meals = remember(kidId, draft) { mutableStateListOf<MenuMealDto>().apply { addAll(draft?.meals.orEmpty()) } }
+    val ageGroup = record?.child?.ageGroup.orEmpty()
     var targetLabel by remember(kidId) { mutableStateOf("") }
     var targetValue by remember(kidId) { mutableStateOf("") }
 
@@ -148,6 +153,14 @@ fun DieticianChildScreen(
                 // ── the plan ──
                 item {
                     AppSectionTitle("The plan", Modifier.padding(top = AppSpacing.md))
+                    if (r.child.ageGroupLabel.isNotBlank()) {
+                        Text(
+                            listOf("Age group: " + r.child.ageGroupLabel, r.child.kcal)
+                                .filter { it.isNotBlank() }.joinToString(" · "),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     if (current == null && !writing) {
                         Spacer(Modifier.height(AppSpacing.md))
                         AppCard {
@@ -179,8 +192,15 @@ fun DieticianChildScreen(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
-                            Spacer(Modifier.height(AppSpacing.sm))
-                            Text(current.guidance, style = MaterialTheme.typography.bodyMedium)
+                            if (current.meals.isNotEmpty()) {
+                                Spacer(Modifier.height(AppSpacing.sm))
+                                FamilyMenu(familyMenuOf(current.meals, ageGroup))
+                            }
+                            val words = if (current.meals.isNotEmpty()) current.notes else current.guidance
+                            if (words.isNotBlank()) {
+                                Spacer(Modifier.height(AppSpacing.sm))
+                                Text(words, style = MaterialTheme.typography.bodyMedium)
+                            }
                             current.targets.forEach { t ->
                                 Spacer(Modifier.height(AppSpacing.sm))
                                 Row {
@@ -204,7 +224,10 @@ fun DieticianChildScreen(
                                 onClick = {
                                     title = current.title
                                     focus = current.focus
-                                    guidance = current.guidance
+                                    // With a menu, the notes alone: the menu as text would be saved back stale.
+                                    guidance = if (current.meals.isNotEmpty()) current.notes else current.guidance
+                                    // A plan from before menus keeps the starter menu in the editor.
+                                    if (current.meals.isNotEmpty()) { meals.clear(); meals.addAll(current.meals) }
                                     writing = true
                                 },
                                 modifier = Modifier.fillMaxWidth(),
@@ -244,11 +267,13 @@ fun DieticianChildScreen(
                                     SelectChip(focusLabel(f), focus == f, onClick = { focus = f })
                                 }
                             }
-                            Spacer(Modifier.height(AppSpacing.md))
+                            Spacer(Modifier.height(AppSpacing.lg))
+                            MenuEditor(meals, childAgeGroup = ageGroup)
+                            Spacer(Modifier.height(AppSpacing.lg))
                             AppTextField(
                                 value = guidance,
                                 onValueChange = { guidance = it },
-                                label = "What the family should do",
+                                label = if (meals.hasFood()) "Notes for the family (optional)" else "What the family should do",
                                 singleLine = false,
                                 minLines = 4,
                                 modifier = Modifier.fillMaxWidth(),
@@ -288,14 +313,16 @@ fun DieticianChildScreen(
                                         guidance = guidance,
                                         targets = if (targetLabel.isBlank()) emptyList()
                                         else listOf(DietTargetDto(targetLabel, targetValue)),
+                                        meals = meals.toList(),
                                     )
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                enabled = !busy && guidance.trim().length >= 10,
+                                enabled = !busy && (guidance.trim().length >= 10 || meals.hasFood()),
                             )
                             Spacer(Modifier.height(AppSpacing.sm))
                             Text(
-                                "A plan needs a sentence the family can act on.",
+                                "A plan needs a menu or a sentence the family can act on. " +
+                                    "The family sees the amounts for this child's age group (ticked).",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )

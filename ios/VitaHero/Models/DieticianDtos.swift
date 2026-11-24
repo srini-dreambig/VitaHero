@@ -133,6 +133,124 @@ struct DietTarget: Decodable, Hashable {
     var body: [String: Any] { ["label": label, "value": value] }
 }
 
+// MARK: - The menu
+
+/// The menu's words, one for one with functions/diet-menus.ts and Android's
+/// DieticianDtos.kt. The menu is the same for every age; only the quantity
+/// changes. "W/1" and "W/2" in the dietician's notes are once and twice a week.
+enum DietMenu {
+    static let ageGroups = ["UNDER_5", "AGE_6_10", "AGE_11_16"]
+    static let ageLabels = ["UNDER_5": "Up to 5", "AGE_6_10": "6–10 yrs", "AGE_11_16": "11–16 yrs"]
+    static let frequencies = ["DAILY", "WEEKLY_ONCE", "WEEKLY_TWICE"]
+    static let frequencyLabels = ["DAILY": "Daily", "WEEKLY_ONCE": "Once a week", "WEEKLY_TWICE": "Twice a week"]
+    static let slots = ["EARLY_MORNING", "BREAKFAST", "MID_MORNING", "LUNCH", "EVENING", "DINNER", "BEDTIME"]
+    static let slotLabels = [
+        "EARLY_MORNING": "Early morning", "BREAKFAST": "Breakfast", "MID_MORNING": "Mid-morning snack",
+        "LUNCH": "Lunch", "EVENING": "Evening snack", "DINNER": "Dinner", "BEDTIME": "Bedtime",
+    ]
+}
+
+/// One food on the dietician's menu, with a quantity for each age group.
+struct MenuItem: Decodable, Hashable, Identifiable {
+    /// Only for the editor's lists; never sent.
+    var uid = UUID()
+    var name = ""
+    var qty: [String: String] = [:]
+    var frequency = "DAILY"
+    var id: UUID { uid }
+
+    var body: [String: Any] { ["name": name, "qty": qty, "frequency": frequency] }
+}
+
+extension MenuItem {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        name = c.str("name")
+        qty = (try? c.decodeIfPresent([String: Lossy<String>].self, forKey: AnyKey("qty")))?
+            .compactMapValues(\.value) ?? [:]
+        frequency = c.str("frequency", "DAILY")
+    }
+}
+
+/// One meal: its slot, the heading the family reads, a time, and its foods.
+struct MenuMeal: Decodable, Hashable, Identifiable {
+    var uid = UUID()
+    var slot = "BREAKFAST"
+    var label = ""
+    var time = ""
+    /// The family picks one of the foods rather than eating them all.
+    var chooseAny = false
+    var items: [MenuItem] = []
+    var id: UUID { uid }
+
+    var body: [String: Any] {
+        ["slot": slot, "label": label, "time": time, "chooseAny": chooseAny, "items": items.map(\.body)]
+    }
+}
+
+extension MenuMeal {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        slot = c.str("slot", "BREAKFAST")
+        label = c.str("label")
+        time = c.str("time")
+        chooseAny = c.bool("chooseAny")
+        items = c.list("items")
+    }
+}
+
+/// A food as a family sees it: the quantity for their own child's age.
+struct FamilyMenuItem: Decodable, Hashable {
+    var name = ""
+    var quantity = ""
+    var frequency = "DAILY"
+}
+
+extension FamilyMenuItem {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        name = c.str("name")
+        quantity = c.str("quantity")
+        frequency = c.str("frequency", "DAILY")
+    }
+}
+
+struct FamilyMenuMeal: Decodable, Hashable {
+    var slot = ""
+    var label = ""
+    var time = ""
+    var chooseAny = false
+    var items: [FamilyMenuItem] = []
+}
+
+extension FamilyMenuMeal {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: AnyKey.self)
+        slot = c.str("slot")
+        label = c.str("label")
+        time = c.str("time")
+        chooseAny = c.bool("chooseAny")
+        items = c.list("items")
+    }
+}
+
+extension Array where Element == MenuMeal {
+    /// At least one named food: enough to send without written advice.
+    var hasFood: Bool {
+        contains { $0.items.contains { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty } }
+    }
+}
+
+/// A menu as one age group's family reads it — what the server's menuFor()
+/// sends a parent, so the dietician sees what the family will see.
+func familyMenu(_ meals: [MenuMeal], ageGroup: String) -> [FamilyMenuMeal] {
+    meals.map { m in
+        FamilyMenuMeal(slot: m.slot, label: m.label, time: m.time, chooseAny: m.chooseAny,
+                       items: m.items.map { FamilyMenuItem(name: $0.name, quantity: $0.qty[ageGroup] ?? "",
+                                                          frequency: $0.frequency) })
+    }
+}
+
 /// A plan as the dietician sees it, running or ended. The guardian's own
 /// `DietPlan` reads the same row; this one also carries its status.
 struct DieticianPlan: Decodable {
@@ -147,6 +265,11 @@ struct DieticianPlan: Decodable {
     let status: String
     let authorName: String
     let createdAt: String
+    /// The dietician's menu, every age's quantity. Empty on plans written before menus.
+    let meals: [MenuMeal]
+    /// The dietician's own words beside the menu: blank when the guidance is
+    /// only the menu spelled out for older apps.
+    let notes: String
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -161,6 +284,8 @@ struct DieticianPlan: Decodable {
         status = c.str("status", "ACTIVE")
         authorName = c.str("authorName")
         createdAt = c.str("createdAt")
+        meals = c.list("meals")
+        notes = c.optStr("notes") ?? guidance
     }
 }
 
@@ -169,9 +294,13 @@ struct DietDraft: Decodable {
     let title: String
     let focus: String
     let guidance: String
+    /// What goes in the notes box beside the menu: the guidance without the
+    /// menu written out as text. The guidance itself from an older server.
+    let notes: String
+    let meals: [MenuMeal]
 
     init() {
-        title = ""; focus = "GENERAL"; guidance = ""
+        title = ""; focus = "GENERAL"; guidance = ""; notes = ""; meals = []
     }
 
     init(from decoder: Decoder) throws {
@@ -179,6 +308,8 @@ struct DietDraft: Decodable {
         title = c.str("title")
         focus = c.str("focus", "GENERAL")
         guidance = c.str("guidance")
+        notes = c.optStr("notes") ?? guidance
+        meals = c.list("meals")
     }
 }
 
@@ -192,6 +323,10 @@ struct DieticianChildProfile: Decodable {
     let schoolName: String
     let heightCm: Double
     let weightKg: Double
+    /// UNDER_5, AGE_6_10 or AGE_11_16: whose quantities this child's family sees.
+    let ageGroup: String
+    let ageGroupLabel: String
+    let kcal: String
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: AnyKey.self)
@@ -204,6 +339,9 @@ struct DieticianChildProfile: Decodable {
         schoolName = c.str("schoolName")
         heightCm = c.num("heightCm") ?? 0
         weightKg = c.num("weightKg") ?? 0
+        ageGroup = c.str("ageGroup")
+        ageGroupLabel = c.str("ageGroupLabel")
+        kcal = c.str("kcal")
     }
 }
 
@@ -384,11 +522,15 @@ struct CohortDraft: Decodable, Hashable {
     let title: String
     let focus: String
     let guidance: String
+    /// What goes in the notes box beside the menu: the guidance without the
+    /// menu written out as text. The guidance itself from an older server.
+    let notes: String
     let targets: [DietTarget]
     let source: String
+    let meals: [MenuMeal]
 
     init() {
-        title = ""; focus = "GENERAL"; guidance = ""; targets = []; source = "RULES"
+        title = ""; focus = "GENERAL"; guidance = ""; notes = ""; targets = []; source = "RULES"; meals = []
     }
 
     init(from decoder: Decoder) throws {
@@ -396,8 +538,10 @@ struct CohortDraft: Decodable, Hashable {
         title = c.str("title")
         focus = c.str("focus", "GENERAL")
         guidance = c.str("guidance")
+        notes = c.optStr("notes") ?? guidance
         targets = c.list("targets")
         source = c.str("source", "RULES")
+        meals = c.list("meals")
     }
 }
 
@@ -411,8 +555,12 @@ struct DietTemplate: Decodable, Identifiable, Hashable {
     let saved: Bool
     let title: String
     let guidance: String
+    /// What goes in the notes box beside the menu: the guidance without the
+    /// menu written out as text. The guidance itself from an older server.
+    let notes: String
     let targets: [DietTarget]
     let updatedAt: String
+    let meals: [MenuMeal]
     var id: String { key }
 
     init(from decoder: Decoder) throws {
@@ -423,8 +571,10 @@ struct DietTemplate: Decodable, Identifiable, Hashable {
         saved = c.bool("saved")
         title = c.str("title")
         guidance = c.str("guidance")
+        notes = c.optStr("notes") ?? guidance
         targets = c.list("targets")
         updatedAt = c.str("updatedAt")
+        meals = c.list("meals")
     }
 }
 

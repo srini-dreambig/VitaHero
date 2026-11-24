@@ -5933,17 +5933,89 @@ export const PORTAL_HTML = `<!doctype html>
     });
   }
 
+  // The dietician's menu: meals, the foods in each, a quantity for each age
+  // group, and how often. The same menu for every age; only quantities change.
+  var MENU_SLOTS = [["EARLY_MORNING", "Early morning"], ["BREAKFAST", "Breakfast"],
+    ["MID_MORNING", "Mid-morning snack"], ["LUNCH", "Lunch"], ["EVENING", "Evening snack"],
+    ["DINNER", "Dinner"], ["BEDTIME", "Bedtime"]];
+  var MENU_AGES = [["UNDER_5", "Up to 5 yrs"], ["AGE_6_10", "6\u201310 yrs"], ["AGE_11_16", "11\u201316 yrs"]];
+  var MENU_FREQ = [["DAILY", "Daily"], ["WEEKLY_ONCE", "Once a week"], ["WEEKLY_TWICE", "Twice a week"]];
+
+  function menuEditor(meals) {
+    function slotLabel(k) { for (var i = 0; i < MENU_SLOTS.length; i++) if (MENU_SLOTS[i][0] === k) return MENU_SLOTS[i][1]; return k; }
+    function opts(list, cur) {
+      return list.map(function (o) { return el("option", { value: o[0], selected: o[0] === cur }, o[1]); });
+    }
+    return el("div", { class: "fld" },
+      el("label", null, "Menu"),
+      el("p", { class: "muted", style: "font-size:12.5px;margin:0 0 8px" },
+        "The same foods for every age; fill in how much for each age group. "
+        + "A family sees the quantity for their own child\u2019s age."),
+      meals.length === 0 ? el("p", { class: "muted", style: "font-size:12.5px" }, "No meals yet.") : null,
+      meals.map(function (m, mi) {
+        return el("div", { class: "card", style: "margin-bottom:10px" }, el("div", { class: "card-b" },
+          el("div", { class: "row", style: "gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px" },
+            el("select", { style: "width:auto", onchange: function (e) {
+              var old = slotLabel(m.slot); m.slot = e.target.value;
+              if (!m.label || m.label === old) m.label = slotLabel(m.slot);
+              render();
+            } }, opts(MENU_SLOTS, m.slot)),
+            el("input", { value: m.label || "", maxlength: 40, placeholder: "Heading", style: "flex:1;min-width:140px",
+              oninput: function (e) { m.label = e.target.value; } }),
+            el("input", { value: m.time || "", maxlength: 20, placeholder: "Time, e.g. 7:00 pm", style: "width:130px",
+              oninput: function (e) { m.time = e.target.value; } }),
+            el("label", { style: "display:flex;gap:4px;align-items:center;font-size:12.5px" },
+              el("input", { type: "checkbox", checked: !!m.chooseAny,
+                onchange: function (e) { m.chooseAny = e.target.checked; } }), "Choose any one"),
+            el("button", { class: "sm", title: "Move up", disabled: mi === 0, onclick: function () {
+              meals.splice(mi - 1, 0, meals.splice(mi, 1)[0]); render(); } }, "\u2191"),
+            el("button", { class: "sm", title: "Remove this meal", onclick: function () {
+              meals.splice(mi, 1); render(); } }, "\u00d7")),
+          el("div", { class: "tw" }, el("table", null,
+            el("thead", null, el("tr", null, el("th", null, "Food"),
+              MENU_AGES.map(function (a) { return el("th", null, a[1]); }),
+              el("th", null, "How often"), el("th", null, ""))),
+            el("tbody", null, (m.items || []).map(function (it, ii) {
+              it.qty = it.qty || {};
+              return el("tr", null,
+                el("td", null, el("input", { value: it.name || "", maxlength: 120, placeholder: "e.g. Idly",
+                  oninput: function (e) { it.name = e.target.value; } })),
+                MENU_AGES.map(function (a) {
+                  return el("td", null, el("input", { value: it.qty[a[0]] || "", maxlength: 60, style: "width:110px",
+                    placeholder: "e.g. 2 small", oninput: function (e) { it.qty[a[0]] = e.target.value; } }));
+                }),
+                el("td", null, el("select", { style: "width:auto", onchange: function (e) { it.frequency = e.target.value; } },
+                  opts(MENU_FREQ, it.frequency || "DAILY"))),
+                el("td", null, el("button", { class: "sm", title: "Remove", onclick: function () {
+                  m.items.splice(ii, 1); render(); } }, "\u00d7")));
+            })))),
+          el("button", { class: "sm", style: "margin-top:6px", onclick: function () {
+            m.items = m.items || [];
+            m.items.push({ name: "", qty: { UNDER_5: "", AGE_6_10: "", AGE_11_16: "" }, frequency: "DAILY" });
+            render();
+          } }, icon("plus", 12), " Add a food")));
+      }),
+      meals.length < 10 ? el("button", { class: "sm", onclick: function () {
+        meals.push({ slot: "BREAKFAST", label: "Breakfast", time: "", chooseAny: false,
+          items: [{ name: "", qty: { UNDER_5: "", AGE_6_10: "", AGE_11_16: "" }, frequency: "DAILY" }] });
+        render();
+      } }, icon("plus", 12), " Add a meal") : null);
+  }
+
   function viewDiePlans() {
     var p = S.diePlans, f = S.diePlanForm;
     var list = p.templates || [];
 
     function edit(t) {
       var targets = (t.targets || []).map(function (x) { return { label: x.label, value: x.value }; });
+      // A copy, so Cancel leaves the list as it was.
+      var meals = JSON.parse(JSON.stringify(t.meals || []));
       set({ diePlanForm: { key: t.key, label: t.label, saved: t.saved,
-        title: t.title || "", guidance: t.guidance || "", targets: targets } });
+        // With a menu, the notes alone: the menu as text would be saved back stale.
+        title: t.title || "", guidance: (t.notes != null ? t.notes : t.guidance) || "", targets: targets, meals: meals } });
     }
     function save() {
-      var body = { key: f.key, title: f.title, guidance: f.guidance,
+      var body = { key: f.key, title: f.title, guidance: f.guidance, meals: f.meals,
         targets: f.targets.filter(function (x) { return (x.label || "").trim() !== ""; }) };
       run(api("/api/admin/dieticians/" + encodeURIComponent(p.dietician.id) + "/templates",
         { method: "POST", body: body }), function (r) {
@@ -5969,8 +6041,9 @@ export const PORTAL_HTML = `<!doctype html>
         el("h3", null, f.label),
         el("div", { class: "fld" }, el("label", null, "Title"),
           el("input", { value: f.title, maxlength: 120, oninput: bind("title") })),
-        el("div", { class: "fld" }, reqLabel("What the family should do"),
-          el("textarea", { rows: 8, oninput: bind("guidance") }, f.guidance)),
+        menuEditor(f.meals),
+        el("div", { class: "fld" }, el("label", null, "Notes for the family (optional when the menu is filled in)"),
+          el("textarea", { rows: 5, oninput: bind("guidance") }, f.guidance)),
         el("div", { class: "fld" }, el("label", null, "Daily targets (up to 8)"),
           f.targets.length === 0
             ? el("p", { class: "muted", style: "font-size:12.5px" }, "No targets.")

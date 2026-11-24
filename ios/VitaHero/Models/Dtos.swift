@@ -577,6 +577,12 @@ struct DietPlan: Decodable, Identifiable {
     let guidance: String
     let targets: [Target]
     let authorName: String
+    /// The dietician's menu with this child's quantities. Empty on plans written before menus.
+    let menu: [FamilyMenuMeal]
+    /// The dietician's own words beside the menu; blank when there are none.
+    let notes: String
+    let ageGroup: String
+    let ageGroupLabel: String
     /// Parent's view only: who to phone about an allergy. Set from the response.
     var dieticianName = ""
     var dieticianPhone = ""
@@ -592,6 +598,10 @@ struct DietPlan: Decodable, Identifiable {
         guidance = c.str("guidance")
         targets = c.list("targets")
         authorName = c.str("authorName")
+        menu = c.list("menu")
+        notes = c.optStr("notes") ?? guidance
+        ageGroup = c.str("ageGroup")
+        ageGroupLabel = c.str("ageGroupLabel")
     }
 }
 

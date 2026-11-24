@@ -38,6 +38,8 @@ import kallam.healthcare.data.DietTargetDto
 import kallam.healthcare.data.DietTemplateDto
 import kallam.healthcare.data.DieticianCohortDto
 import kallam.healthcare.data.DieticianViewModel
+import kallam.healthcare.data.MenuMealDto
+import kallam.healthcare.data.hasFood
 import kallam.healthcare.data.classTitle
 import kallam.healthcare.ui.components.AppCard
 import kallam.healthcare.ui.components.AppListRow
@@ -172,8 +174,8 @@ fun DieticianGroupsScreen(
                         saved = saved,
                         onAskAi = { dietician.draftCohort(schoolId, open.key, grade) },
                         onOpenChild = onOpenChild,
-                        onSave = { kids, title, guidance, targets ->
-                            dietician.saveCohortPlan(schoolId, grade, kids, title, open.focus, guidance, targets)
+                        onSave = { kids, title, guidance, targets, meals ->
+                            dietician.saveCohortPlan(schoolId, grade, kids, title, open.focus, guidance, targets, meals)
                         },
                     )
                 }
@@ -253,12 +255,13 @@ private fun CohortEditor(
     saved: Int,
     onAskAi: () -> Unit,
     onOpenChild: (String) -> Unit,
-    onSave: (kids: List<String>, title: String, guidance: String, targets: List<DietTargetDto>) -> Unit,
+    onSave: (kids: List<String>, title: String, guidance: String, targets: List<DietTargetDto>, meals: List<MenuMealDto>) -> Unit,
 ) {
     val start = cohort.draft
     var title by remember(cohort.key) { mutableStateOf(start.title) }
-    var guidance by remember(cohort.key) { mutableStateOf(start.guidance) }
+    var guidance by remember(cohort.key) { mutableStateOf(start.notes ?: start.guidance) }
     val targets = remember(cohort.key) { mutableStateListOf<DietTargetDto>().apply { addAll(start.targets) } }
+    val meals = remember(cohort.key) { mutableStateListOf<MenuMealDto>().apply { addAll(start.meals) } }
     // Everyone ticked to begin with: the group is the reason they are here.
     val ticked = remember(cohort.key) { mutableStateListOf<String>().apply { addAll(cohort.children.map { it.kidId }) } }
     var source by remember(cohort.key) { mutableStateOf(start.source) }
@@ -268,8 +271,11 @@ private fun CohortEditor(
     LaunchedEffect(aiDraft) {
         val a = aiDraft ?: return@LaunchedEffect
         title = a.title
-        guidance = a.guidance
+        guidance = a.notes ?: a.guidance
         targets.clear(); targets.addAll(a.targets)
+        // The model writes advice, not a menu: keep the menu being edited
+        // unless the draft brings one.
+        if (a.meals.isNotEmpty()) { meals.clear(); meals.addAll(a.meals) }
         source = a.source
     }
 
@@ -318,6 +324,7 @@ private fun CohortEditor(
                 guidance = guidance,
                 onGuidance = { guidance = it },
                 targets = targets,
+                meals = meals,
             )
             Spacer(Modifier.height(AppSpacing.xs))
             AppTextButton(if (busy) "Working…" else "Draft with AI", onAskAi, enabled = !busy)
@@ -379,10 +386,11 @@ private fun CohortEditor(
                     title.trim(),
                     guidance.trim(),
                     targets.filter { it.label.isNotBlank() },
+                    meals.toList(),
                 )
             },
             modifier = Modifier.fillMaxWidth(),
-            enabled = !busy && ticked.isNotEmpty() && guidance.trim().length >= 10,
+            enabled = !busy && ticked.isNotEmpty() && (guidance.trim().length >= 10 || meals.hasFood()),
         )
         Spacer(Modifier.height(AppSpacing.sm))
         Text(
@@ -394,8 +402,9 @@ private fun CohortEditor(
 }
 
 /**
- * Title, guidance and the target rows. The group editor and the pre-camp
- * editor had two identical copies of this; it is one here so they stay alike.
+ * Title, the menu, guidance and the target rows. The group editor and the
+ * pre-camp editor had two identical copies of this; it is one here so they
+ * stay alike.
  */
 @Composable
 private fun PlanFields(
@@ -404,6 +413,7 @@ private fun PlanFields(
     guidance: String,
     onGuidance: (String) -> Unit,
     targets: SnapshotStateList<DietTargetDto>,
+    meals: SnapshotStateList<MenuMealDto>,
 ) {
     AppTextField(
         value = title,
@@ -411,13 +421,15 @@ private fun PlanFields(
         label = "Title",
         modifier = Modifier.fillMaxWidth(),
     )
-    Spacer(Modifier.height(AppSpacing.md))
+    Spacer(Modifier.height(AppSpacing.lg))
+    MenuEditor(meals)
+    Spacer(Modifier.height(AppSpacing.lg))
     AppTextField(
         value = guidance,
         onValueChange = onGuidance,
-        label = "What the family should do",
+        label = if (meals.hasFood()) "Notes for the family (optional)" else "What the family should do",
         singleLine = false,
-        minLines = 6,
+        minLines = 4,
         modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(AppSpacing.lg))
@@ -517,8 +529,8 @@ internal fun PrecampPlansScreen(dietician: DieticianViewModel, onBack: () -> Uni
                         template = open,
                         busy = busy,
                         saved = savedKey == open.key,
-                        onSave = { title, guidance, targets ->
-                            dietician.saveTemplate(open.key, title, guidance, targets)
+                        onSave = { title, guidance, targets, meals ->
+                            dietician.saveTemplate(open.key, title, guidance, targets, meals)
                         },
                     )
                 }
@@ -575,11 +587,12 @@ private fun TemplateEditor(
     template: DietTemplateDto,
     busy: Boolean,
     saved: Boolean,
-    onSave: (title: String, guidance: String, targets: List<DietTargetDto>) -> Unit,
+    onSave: (title: String, guidance: String, targets: List<DietTargetDto>, meals: List<MenuMealDto>) -> Unit,
 ) {
     var title by remember(template.key) { mutableStateOf(template.title) }
-    var guidance by remember(template.key) { mutableStateOf(template.guidance) }
+    var guidance by remember(template.key) { mutableStateOf(template.notes ?: template.guidance) }
     val targets = remember(template.key) { mutableStateListOf<DietTargetDto>().apply { addAll(template.targets) } }
+    val meals = remember(template.key) { mutableStateListOf<MenuMealDto>().apply { addAll(template.meals) } }
 
     Column {
         if (saved) {
@@ -599,14 +612,15 @@ private fun TemplateEditor(
                 guidance = guidance,
                 onGuidance = { guidance = it },
                 targets = targets,
+                meals = meals,
             )
         }
         Spacer(Modifier.height(AppSpacing.lg))
         PrimaryGradientButton(
             text = if (busy) "Saving…" else "Save this group's plan",
-            onClick = { onSave(title.trim(), guidance.trim(), targets.filter { it.label.isNotBlank() }) },
+            onClick = { onSave(title.trim(), guidance.trim(), targets.filter { it.label.isNotBlank() }, meals.toList()) },
             modifier = Modifier.fillMaxWidth(),
-            enabled = !busy && guidance.trim().length >= 10,
+            enabled = !busy && (guidance.trim().length >= 10 || meals.hasFood()),
         )
         Spacer(Modifier.height(AppSpacing.sm))
         Text(

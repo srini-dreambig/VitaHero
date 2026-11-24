@@ -20,7 +20,20 @@ struct DietPlanView: View {
                                 .font(.vh(.caption)).foregroundColor(.secondary)
                         }
                     }
-                    if !plan.guidance.isEmpty { Text(plan.guidance).font(.vh(.subheadline)) }
+                    if plan.menu.isEmpty {
+                        if !plan.guidance.isEmpty { Text(plan.guidance).font(.vh(.subheadline)) }
+                    }
+                }
+                if !plan.menu.isEmpty {
+                    // One menu for every age; the server sends the amounts for this child.
+                    Section {
+                        let age = dietAgeGroupText(plan.ageGroup).isEmpty ? plan.ageGroupLabel : dietAgeGroupText(plan.ageGroup)
+                        if !age.isEmpty {
+                            Text(L("diet_menu_amounts_for", age)).font(.vh(.caption)).foregroundColor(.secondary)
+                        }
+                        FamilyMenuView(menu: plan.menu)
+                        if !plan.notes.isEmpty { Text(plan.notes).font(.vh(.subheadline)) }
+                    }
                 }
                 // A plan written for a group cannot know this child's milk
                 // intolerance or allergy, so the family is asked to phone first.
